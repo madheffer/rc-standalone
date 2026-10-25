@@ -37,7 +37,7 @@
  },
  "func_nav_markup": {
   "compile": "nav: markup volumes",
-  "port": "lump ported; nav not started"
+  "port": "lump ported; nav markups ported (the collector, NONAV in the extraction, 003 / 009, 019, WALKABLESEED in 029; ledger 142); inside instances or prefabs refused"
  },
  "func_physbox": {
   "compile": "upgrade of older vmaps only: spawnflags to gravity-grab keys",
@@ -145,7 +145,7 @@
  },
  "prop_static": {
   "compile": "dropped from the lump; static prop record for render, lighting and world physics",
-  "port": "dropped as Valve does; world physics hulls exact; render and lighting not started"
+  "port": "dropped as Valve does; world physics hulls exact; the world node's prop records and the path-trace scene's ported (GEOMETRY.md, ledger 105); its spheres and capsules in the nav world ported (ledger 143)"
  },
  "scripted_sequence": {
   "compile": "upgrade of older vmaps only: spawnflags and m_fMoveTo to keys",
@@ -169,6 +169,6 @@
  },
  "worldspawn": {
   "compile": "kept; pvstype and the lightmap/vis settings (max_lightmap_resolution, novis_*, lightmap_queries) read into the build",
-  "port": "lump ported; pvstype read by the vis port; lightmap settings not started"
+  "port": "lump ported; pvstype read by the vis port; the lightmap keys and max_lightmap_resolution read by the bake (LightmapSettings, ledger 141)"
  }
 }

@@ -4,7 +4,8 @@ namespace Source2.Compiler.Maps.NavGen;
 
 /// <summary>
 /// vphysics2's triangle sources for round shapes, as RnShape_GetTriangles (1802661f0) gives them to
-/// nav generation: the capsule (type 1, 18016f5d0 -> 18016ed50 with 12 segments and 2 rings). The
+/// nav generation: the sphere (type 0, 18016c9b0 -> 18016c380 with 5 segments and 12 rings, see
+/// <see cref="Sphere"/>) and the capsule (type 1, 18016f5d0 -> 18016ed50 with 12 segments and 2 rings). The
 /// vertices are built in the capsule's own frame (x along the axis, poles at -r and L + r), then each
 /// goes through the rows (axis, u, axis x u, centre A) of 18008d6d0. V_sinf / V_cosf are the CRT's
 /// sinf / cosf, which MathF.Sin / Cos match bit for bit (20,015 samples against tier0 20261015).
@@ -118,6 +119,61 @@ public static class NavGenShapes
                 (1f * a.Z + p.Y * u.Z) + (p.Z * w.Z + p.X * axis.Z));
         }
         return (verts, indices);
+    }
+
+    /// <summary>
+    /// 18016c380(sphere, verts, indices, segments, rings) as 18016c9b0 calls it (5, 12): the poles (-r, 0, 0)
+    /// and (r, 0, 0) after segments x rings vertices; segment i at angle i -2 pi / segments, ring j at
+    /// j pi / (rings + 1) - pi / 2 (CRT sinf / cosf), its vertex (r sin(phi), (cos(phi) cos(theta)) r,
+    /// (cos(phi) sin(theta)) r); six indices per ring band between this segment's column and the next,
+    /// and two pole triangles per segment; then the centre added to every vertex.
+    /// </summary>
+    public static (Vector3[] Verts, int[] Indices) Sphere(Vector3 centre, float r, int segments = 5, int rings = 12)
+    {
+        var count = segments * rings + 2;
+        var pos = new Vector3[count];
+        var indices = new int[segments * rings * 6];
+        var south = segments * rings;
+        pos[south] = new Vector3(-r, 0f, 0f);
+        pos[south + 1] = new Vector3(r, 0f, 0f);
+        const float Pi = 3.1415927f, HalfPi = 1.5707964f;
+        var divisions = (float)(rings + 1);
+        var ix = 0;
+        var column = 0;
+        for (var i = 0; i < segments; i++)
+        {
+            var theta = i * -6.2831855f / segments;
+            var st = MathF.Sin(theta);
+            var ct = MathF.Cos(theta);
+            var next = (i + 1) % segments * rings;
+            void Ring(int at, float phi)
+            {
+                var sp = MathF.Sin(phi);
+                var cp = MathF.Cos(phi);
+                pos[at] = new Vector3(r * sp, (cp * ct) * r, (cp * st) * r);
+            }
+            Ring(column, Pi / divisions - HalfPi);
+            for (var k = 1; k < rings; k++)
+            {
+                indices[ix++] = next + k - 1;
+                indices[ix++] = column + k - 1;
+                indices[ix++] = next + k;
+                indices[ix++] = next + k;
+                indices[ix++] = column + k - 1;
+                indices[ix++] = column + k;
+                Ring(column + k, (k + 1) * Pi / divisions - HalfPi);
+            }
+            indices[ix++] = south;
+            indices[ix++] = column;
+            indices[ix++] = next;
+            indices[ix++] = south + 1;
+            indices[ix++] = next + rings - 1;
+            indices[ix++] = column + rings - 1;
+            column += rings;
+        }
+        for (var i = 0; i < count; i++)
+            pos[i] = new Vector3(centre.X + pos[i].X, centre.Y + pos[i].Y, centre.Z + pos[i].Z);
+        return (pos, indices);
     }
 
     // 180088f50: (y^2 + z^2) + x^2; scaled by 1 / length when it lies in [1e-17, 1e17]; a zero vector

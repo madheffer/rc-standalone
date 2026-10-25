@@ -132,14 +132,17 @@ public static class NavGenInput
     }
 
     /// <summary>
-    /// 180048b20 without generation bounds or NONAV markups (both unported): the settle world's
-    /// bodies in order (the document's own body first, which has no shapes), skipping the ones in
-    /// <paramref name="dynamicBodies"/> (type 2), each passing mesh shape's triangles, then the body
-    /// transform. Hulls fan their faces over their own vertices (vphysics2 180130e60); spheres and
-    /// capsules are not ported and throw.
+    /// 180048b20 without generation bounds (unported): the settle world's bodies in order (the
+    /// document's own body first, which has no shapes), skipping the ones in
+    /// <paramref name="dynamicBodies"/> (type 2) and those whose AABB lies inside a NONAV box
+    /// (<see cref="NavGenInputMarkups.BodyInside"/>), each passing mesh shape's triangles, then the body
+    /// transform; then the triangles inside a NONAV box are dropped (<see cref="NavGenInputMarkups.ApplyNoNavMarkups"/>).
+    /// Hulls fan their faces over their own vertices (vphysics2 180130e60); spheres and capsules are
+    /// tessellated (<see cref="NavGenShapes"/>).
     /// </summary>
     public static (List<Vector3> Verts, List<int> Indices) Extract(IReadOnlyList<SettleWorld.BodyBuild> bodies, SettleWorld.CollisionRules rules,
-                                                                  ISet<int>? dynamicBodies = null, Func<SettleWorld.BodyBuild, bool>? inNavWorld = null)
+                                                                  ISet<int>? dynamicBodies = null, Func<SettleWorld.BodyBuild, bool>? inNavWorld = null,
+                                                                  IReadOnlyList<NavMarkup>? noNav = null, float noNavPad = 0f)
     {
         var navclip = rules.TryLayer("navclip", out var bits) ? bits : 0ul;
         var table = Simulation.CollisionGroupTable.Build();
@@ -150,6 +153,8 @@ public static class NavGenInput
             var body = bodies[bi];
             var bodyType = dynamicBodies?.Contains(bi) == true ? 2 : 0;
             if (bodyType >= 2 || inNavWorld?.Invoke(body) == false)
+                continue;
+            if (noNav is { Count: > 0 } && BodyAabb(body) is var (bmin, bmax) && NavGenInputMarkups.BodyInside(noNav, noNavPad, bmin, bmax))
                 continue;
             var start = verts.Count;
             foreach (var shape in body.Shapes)
@@ -181,6 +186,17 @@ public static class NavGenInput
                     }
                     continue;
                 }
+                if (shape.Type == Simulation.BroadphaseShape.SphereType && shape.Sphere is { } sphere)
+                {
+                    // vphysics2 18016c9b0: the sphere's centre and radius tessellated with 5 segments and 12 rings.
+                    var k = shape.HullScale;
+                    var (sv, si) = NavGenShapes.Sphere(sphere.Center * k, sphere.Radius * k);
+                    var at = verts.Count;
+                    verts.AddRange(sv);
+                    foreach (var i in si)
+                        indices.Add(at + i);
+                    continue;
+                }
                 if (shape.Type == 1 && shape.Capsule is { } capsule)
                 {
                     // vphysics2 18016f5d0: the capsule shape's centres and radius (scaled as the
@@ -209,7 +225,40 @@ public static class NavGenInput
             for (var i = start; i < verts.Count; i++)
                 verts[i] = TransformByBody(verts[i], body.Position, body.Scale, body.Orientation);
         }
+        if (noNav is { Count: > 0 })
+            NavGenInputMarkups.ApplyNoNavMarkups(verts, indices, noNav, noNavPad);
         return (verts, indices);
+    }
+
+    /// <summary>The body's margin round its shapes' bounds (body vfn 0xf8, measured on every body of s2c_navmarkup).</summary>
+    public const float BodyAabbMargin = 0.09375f;
+
+    /// <summary>
+    /// A static body's AABB as body vfn 0xf8 reports it: its mesh shapes' vertex bounds times the shape
+    /// scale and the body's, at its position, widened by <see cref="BodyAabbMargin"/>. A body with no
+    /// shapes reports FLT_MAX / -FLT_MAX. Only bodies at the identity orientation with mesh shapes are
+    /// modelled; any other throws.
+    /// </summary>
+    public static ((float X, float Y, float Z) Min, (float X, float Y, float Z) Max) BodyAabb(SettleWorld.BodyBuild body)
+    {
+        float minX = float.MaxValue, minY = float.MaxValue, minZ = float.MaxValue;
+        float maxX = -float.MaxValue, maxY = -float.MaxValue, maxZ = -float.MaxValue;
+        if (body.Shapes.Count == 0)
+            return ((minX, minY, minZ), (maxX, maxY, maxZ));
+        if (body.Orientation != Quaternion.Identity || body.Shapes.Any(s => s.Mesh is null))
+            throw new NotSupportedException("a NONAV markup against a body that is rotated or has a shape other than a mesh (its AABB, body vfn 0xf8) is not ported");
+        foreach (var shape in body.Shapes)
+            foreach (var v in shape.Mesh!.Vertices)
+            {
+                var w = v * shape.MeshScale * body.Scale + body.Position;
+                minX = MathF.Min(minX, w.X);
+                minY = MathF.Min(minY, w.Y);
+                minZ = MathF.Min(minZ, w.Z);
+                maxX = MathF.Max(maxX, w.X);
+                maxY = MathF.Max(maxY, w.Y);
+                maxZ = MathF.Max(maxZ, w.Z);
+            }
+        return ((minX - BodyAabbMargin, minY - BodyAabbMargin, minZ - BodyAabbMargin), (maxX + BodyAabbMargin, maxY + BodyAabbMargin, maxZ + BodyAabbMargin));
     }
 
     /// <summary>The triangle order vphysics2's mesh source walks (1802643e0).</summary>

@@ -4,14 +4,16 @@ namespace Source2.Compiler.Maps.NavGen;
 /// What IslandRemoval reads from the RC nav input (CNavGenInput at ctx+8) and the ladder connectivity
 /// (ctx+0x88/0x90): the point_nav_walkable world origins (+0x78), the nav links' two endpoints (+0xc0,
 /// 0x18 bytes each) and, per ladder, the seven polygon indices its connectivity names (0x1c bytes,
-/// +0 to +0x18; -1 for none).
-/// WALKABLESEED markups (+0x90) are not ported.
+/// +0 to +0x18; -1 for none), and the markups (+0x90), whose WALKABLESEED ones flood.
 /// </summary>
 public sealed record NavIslandInput(
     IReadOnlyList<(float X, float Y, float Z)> Seeds,
     IReadOnlyList<((float X, float Y, float Z) A, (float X, float Y, float Z) B)> Links,
     IReadOnlyList<int[]> Ladders)
 {
+    /// <summary>The RC markups and their tag table (none when null).</summary>
+    public NavMarkupInput? Markups { get; init; }
+
     public static NavIslandInput FromSeeds(IReadOnlyList<(float X, float Y, float Z)> seeds) => new(seeds, [], []);
 }
 
@@ -31,7 +33,7 @@ public sealed partial class NavGenPolys
     /// seeds: polygons near both ends of a nav link (paired, 18006e460), polygons touching a 40-unit box
     /// round each walkable seed (180078490), and the polygons each ladder names. A flood (18006e5f0) runs
     /// breadth first across connections and link pairs; every polygon it reaches past its start is
-    /// listed. With allHulls (the stage that runs: nav_gen_island_removal_all_hulls 1, the single-hull
+    /// listed. WALKABLESEED markups flood before the seeds. With allHulls (the stage that runs: nav_gen_island_removal_all_hulls 1, the single-hull
     /// one off), each listed polygon then floods from any removed polygon whose XY outline meets its own
     /// (18006d260, margin 0) within 4 units (1800a3060), both of kind 0, until no new polygon is listed.
     /// The polygons left removed are dropped as 18006cb10 does, but connections keep +0x61 and one to
@@ -57,6 +59,20 @@ public sealed partial class NavGenPolys
         foreach (var (a, b) in input.Links)
             if (FindNear(grid, a, out var pa) && FindNear(grid, b, out var pb))
                 pairs.Add((pa, pb));
+        // Each WALKABLESEED markup (strcmp, case-sensitive): its box grown 40 in z, the grid query of
+        // that box's world AABB, and each removed polygon there it touches (180078360) floods.
+        foreach (var m in input.Markups?.Markups ?? [])
+        {
+            if (input.Markups!.ValueOf(m.Tag) != "WALKABLESEED")
+                continue;
+            (float X, float Y, float Z) min = (m.Min.X, m.Min.Y, m.Min.Z - 40f);
+            (float X, float Y, float Z) max = (m.Max.X, m.Max.Y, m.Max.Z + 40f);
+            var (wmin, wmax) = TransformAabb(m.Matrix, min, max);
+            var columns = Columns(m.Matrix);
+            foreach (var i in grid.Query(wmin.X, wmin.Y, wmax.X, wmax.Y))
+                if (Polys[i].Removed && MarkupTouches(min, max, columns, Corners(Polys[i])))
+                    Flood(i, pairs, reached);
+        }
         foreach (var seed in input.Seeds)
         {
             (float X, float Y, float Z) min = (seed.X - SeedBoxHalf, seed.Y - SeedBoxHalf, seed.Z - SeedBoxHalf);

@@ -15,7 +15,7 @@ namespace Source2.Compiler.Lighting;
 /// appended (1802171b0).</item>
 /// </list>
 /// The LightmapUV values are the packed atlas uvs, snapped as BakeLighting does after PackCharts
-/// (180217740): R = floor(32767 / side) side 2 (57344 at 4096), u = floorf(u / (1 / R) + 0.5) (1 / R),
+/// (180217740): R = floor(32767 / side) side 2 (57344 at 4096), the side after the mip and MinSpec halvings,, u = floorf(u / (1 / R) + 0.5) (1 / R),
 /// then stored over the world's uv scale, times R / 65535 (world.vwrld's m_vLightmapUvScale is
 /// 65535 / R). The capture's 81,324 values are matched bit for bit. The u axis takes the height's R
 /// and v the width's, as 180217740 does; CS2's atlas is square.
@@ -35,7 +35,7 @@ internal static class LightmapNodeBake
             throw new InvalidOperationException($"{order.Count} baked entries against {charted.Count} chart meshes");
 
         float R(int side) => LightmapQueryData.UvScale(side);
-        var (ru, rv) = (R(settings.Height), R(settings.Width));
+        var (ru, rv) = (R(settings.HalvedHeight), R(settings.HalvedWidth));
         float invU = 1f / ru, invV = 1f / rv;
         float storeU = ru / 65535f, storeV = rv / 65535f;
 

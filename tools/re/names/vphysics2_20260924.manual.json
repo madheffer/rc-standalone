@@ -1,6 +1,36 @@
 {
  "functions": [
   {
+   "addr": "18016c9b0",
+   "name": "RnSphere_GetTriangles",
+   "module": "s2c:baked/nav",
+   "note": "18016c380 with 5 segments and 12 rings; indices offset by the vertices already there"
+  },
+  {
+   "addr": "18016c380",
+   "name": "RnSphere_Tessellate",
+   "module": "s2c:baked/nav",
+   "note": "poles (-r, 0, 0), (r, 0, 0); segment angle i -2pi / n, ring j pi / (m + 1) - pi / 2; V_sinf / V_cosf; centre added last"
+  },
+  {
+   "addr": "18024bc00",
+   "name": "CRnSphereShape::CastBox",
+   "module": "s2c:baked/nav",
+   "note": "vfn 0x40: ray trimmed (1802e6e60), GJK cast of the box (half extents negated) against the centre placed ((x + y) + z) + t, radius as margin"
+  },
+  {
+   "addr": "18024e6b0",
+   "name": "CRnCapsuleShape::CastBox",
+   "module": "s2c:baked/nav",
+   "note": "vfn 0x40: as the sphere's against the segment (18006d070)"
+  },
+  {
+   "addr": "18006d070",
+   "name": "GjkSegmentSupport",
+   "module": "s2c:baked/nav",
+   "note": "vtable 1803df938: the second centre unless the first is strictly farther along d"
+  },
+  {
    "addr": "180296c00",
    "name": "CIntersectionDictionary_Find",
    "module": "s2c:physics/world",

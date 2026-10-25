@@ -177,6 +177,7 @@ public sealed class NavCompileTests(ITestOutputHelper output)
     [Theory]
     [InlineData("s2c_rc_probe", "probe01")]
     [InlineData("s2c_rc_probe", "cardtest")]
+    [InlineData("s2c_rc_probe", "s2c_navmarkup")]
     public void NavAndBombDamageMatchValve(string addon, string map)
     {
         var reference = Path.Combine(Path.GetTempPath(), "vrad3_refs", map + ".vpk");

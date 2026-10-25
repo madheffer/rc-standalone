@@ -57,7 +57,8 @@ public static class Vrad3Job
         var props = WorldNodeBuild.PropEntries(document, content, shaders, buildBakes: true);
 
         // The charts: BakeLighting's inputs as the node bake sees them (LightmapNodeBake).
-        var settings = LightmapSettings.From(LightmapSettings.Keys(document, arguments), 0x1000, 4096, sh2Dc: false);
+        var keys = LightmapSettings.Keys(document, arguments);
+        var settings = LightmapSettings.From(keys, LightmapSettings.Requested(keys), 4096, sh2Dc: false);
         var backfaces = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
         bool RenderBackfaces(string m)
         {
@@ -75,7 +76,7 @@ public static class Vrad3Job
         var blockSize = 0x400;
         File.WriteAllBytes(Path.Combine(folder, "lightmap_info.dat"),
                            LightmapTexels.Write(LightmapTexels.ChartIds(geometry, settings.Width, settings.Height, settings.Mip), settings.Width, settings.Height, blockSize));
-        var side = settings.Width >> (settings.Mip - 1);
+        var side = settings.HalvedWidth;
         File.WriteAllBytes(Path.Combine(folder, "lightmap_seams.dat"), LightmapSeams.Write(charted, LightmapSeams.Snap(geometry.AtlasUv, side)));
 
         // The path-trace scene: the world's meshes and instances, then the static models'.

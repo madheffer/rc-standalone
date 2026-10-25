@@ -42,6 +42,9 @@ public static class HullCast
         public V Half;
         public bool Point;
         public V[] Points = null!;
+
+        /// <summary>B is a capsule's segment (its two centres): its support takes the second on a tie (18006d070).</summary>
+        public bool Segment;
     }
 
     /// <summary>The simplex: up to four points and a count (+0x30).</summary>
@@ -118,6 +121,34 @@ public static class HullCast
         return new Hit(true, g.Frac, g.StartSolid);
     }
 
+    /// <summary>
+    /// The sphere and capsule shapes' box casts (vfn 0x40: CRnSphereShape 18024bc00, CRnCapsuleShape
+    /// 18024e6b0): the ray (1802e2c30) cut by 1802e6e60 to min(1 / length * 0.3125 + <paramref name="limit"/>, 1)
+    /// of the delta, then the GJK cast (1802e2ce0, 1802e7fc0) of the box (its half extents passed negated,
+    /// as the hull cast passes them) against the sphere's centre (18006d110) or the capsule's segment
+    /// (18006d070), placed in the world, the radius as the margin, starting from the ray's start.
+    /// <paramref name="centres"/> are the world centres: one for a sphere, two for a capsule.
+    /// </summary>
+    public static Hit CastBoxRound(Vector3[] centres, float radius, Vector3 start, Vector3 delta, Vector3 half, float limit)
+    {
+        var pts = new V[centres.Length];
+        for (var i = 0; i < centres.Length; i++)
+            pts[i] = new V(centres[i].X, centres[i].Y, centres[i].Z);
+        var s = new V(start.X, start.Y, start.Z);
+        var ray = new Ray { Start = s, Delta = new V(delta.X, delta.Y, delta.Z), Dir = new V(delta.X, delta.Y, delta.Z) };
+        var len = Normalize(ref ray.Dir);
+        ray.Len = ray.Len0 = len;
+        ray.Inv = 0f < len ? 1f / len : 0f;
+        var f = ray.Inv * 0.3125f + limit;
+        f = f < 1f ? f : 1f;
+        ray.Len = f * ray.Len0;
+        ray.End = new V(delta.X * f + s.X, delta.Y * f + s.Y, delta.Z * f + s.Z);
+        var g = new Gjk { V0 = s, Ray = ray, Half = new V(half.X, half.Y, half.Z), Points = pts, Segment = pts.Length == 2, Margin = radius };
+        if (!CastRay(g))
+            return default;
+        return new Hit(true, g.Frac, g.StartSolid);
+    }
+
     // ---- supports ----
 
     /// <summary>1802ea210: the box's corner by the sign bit of each component; 18006d110 for a sphere's point: its centre, (0, 0, 0).</summary>
@@ -129,6 +160,13 @@ public static class HullCast
     private static V SupB(Gjk g, V d)
     {
         var pts = g.Points;
+        if (g.Segment)
+        {
+            // 18006d070: the second centre unless the first is strictly farther along d.
+            var a = pts[0];
+            var b = pts[1];
+            return (d.Z * a.Z + a.Y * d.Y) + d.X * a.X <= (d.Z * b.Z + b.Y * d.Y) + d.X * b.X ? b : a;
+        }
         var best = 0;
         var bd = d.Z * pts[0].Z + pts[0].Y * d.Y + d.X * pts[0].X;
         for (var i = 1; i < pts.Length; i++)
@@ -276,7 +314,7 @@ public static class HullCast
         var sl = Normalize(ref sub.Dir);
         sub.Len = sub.Len0 = sl;
         sub.Inv = 0f < sl ? 1f / sl : 0f;
-        var h = new Gjk { V0 = g.V0, Ray = sub, Half = g.Half, Point = g.Point, Points = g.Points, Margin = g.Margin };
+        var h = new Gjk { V0 = g.V0, Ray = sub, Half = g.Half, Point = g.Point, Points = g.Points, Margin = g.Margin, Segment = g.Segment };
         if (!Run(h))
             return false;
         g.Frac = sub.Inv * h.Dist * (c1 - c0) + c0;

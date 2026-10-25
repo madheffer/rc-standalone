@@ -16,7 +16,8 @@ hull 180250540, sphere 18024bc00, capsule 18024e6b0) made inside one:
                             (+0xb8, 12), its flag byte +0xd1, the RnMesh_t (shape +0xc8) header 0xc0
                             bytes, nodes (0x20 each), vertices (12), triangles (12), wings (+0x60 count, +0x68, 12 each); for a hull the
                             scale (+0xb8, 4) and the hull's first 0x80 bytes then its points
-                            (+0x70 count, +0x78, 12 each).
+                            (+0x70 count, +0x78, 12 each); for a sphere its centre and radius (+0xb8,
+                            0x10); for a capsule its two centres and radius (+0xb8, 0x1c).
 
 --with-navgen also loads capture_navgen.py's agent into the same process, so its stage files
 (<n>_<stage>_in.bin / _out.bin, the same layout) come from the run the casts do: Valve's polygons
@@ -80,6 +81,10 @@ function dumpShape(shape, type) {
     const n = h.add(0x70).readS32();
     parts.push(shape.add(0xb8).readByteArray(4), h.readByteArray(0x80));
     parts.push(n > 0 ? h.add(0x78).readPointer().readByteArray(n * 12) : new ArrayBuffer(0));
+  } else if (type === 0) {
+    parts.push(shape.add(0xb8).readByteArray(0x10));
+  } else if (type === 1) {
+    parts.push(shape.add(0xb8).readByteArray(0x1c));
   }
   const body = cat(parts);
   send({tag: 'shapedata'}, cat([u32(body.byteLength), body]));
@@ -148,6 +153,19 @@ function hook() {
 }
 hook();
 rpc.exports = { flush() { flush(); } };
+// A compile that ends between two flush polls would lose the buffers: flush on the way out too, and
+// hold the exit until the host has the records (it answers 'ack').
+let exiting = false;
+for (const fn of ['ExitProcess', 'TerminateProcess']) {
+  const p = Process.getModuleByName('kernel32.dll').findExportByName(fn);
+  if (p !== null) Interceptor.attach(p, { onEnter() {
+    if (exiting) return;
+    exiting = true;
+    flush();
+    send({exiting: true});
+    recv('ack', () => {}).wait();
+  } });
+}
 Process.setExceptionHandler(() => { flush(); return false; });
 """
 
@@ -184,6 +202,8 @@ def main():
             print("agent:", msg.get("description") or msg)
         elif msg["payload"].get("hooked"):
             hooked.set()
+        elif msg["payload"].get("exiting"):
+            sc.post({"type": "ack"})
         else:
             files[msg["payload"]["tag"]].write(data)
 
@@ -209,7 +229,8 @@ def main():
                     f.write(data)
                 if tag.startswith(a.stop_after + "_") and tag.endswith("_out"):
                     stop.set()
-        ng = ses.create_script(capture_navgen.AGENT)
+        physdoc, node_filter = capture_navgen.rc_offsets()
+        ng = ses.create_script(capture_navgen.AGENT.replace("RC_PHYSDOC", hex(physdoc)).replace("RC_FILTER", hex(node_filter)))
         ng.on("message", on_navgen)
         ng.load()
     done = threading.Event()

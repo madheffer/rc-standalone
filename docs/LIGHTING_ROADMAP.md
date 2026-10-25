@@ -20,7 +20,8 @@ with Valve's SPIR-V (OwnLightingBake: lightmaps, then light probe volumes with
 rtx_vrad3_lpv) and packages it. On ze_hold_em_p every vrad3 output is
 byte for byte: the four lightmap EXRs and the 16 probe volume EXRs. The
 package is 55 of 56 files and 99.90% of bytes (ledgers 84 to 87); the miss
-is L3's 2 BC7 blocks. The notes below are older.
+was L3's 2 BC7 blocks, fixed 10-20 (ledger 110). The notes below are older
+where they say so.
 
 - **Lightmap bake** (`Lighting/Bake`):
   - Valve's own raygen and material hit groups run as C# on the CPU
@@ -36,20 +37,17 @@ is L3's 2 BC7 blocks. The notes below are older.
 - **resourcecompiler side**: `LightmapTextures`, `LightmapQueryData`,
   `LightProbeAtlasImages` and `LightmapOutputs` write all seven
   `maps/<map>/lightmaps/` files byte for byte on probe01 at default
-  settings. The review (F-numbers below) found that the non-default paths
-  are not right yet:
-  - `-lightmapMaxResolution 8192` and other mip counts above one;
-  - `-lightmapVRadQuality 2`;
-  - `-lightmapCompressionDisabled`.
-
-  Valve's builds with each option are now captured. On the 8192 one, all
-  seven of our files differ.
+  settings, at `-lightmapMaxResolution 8192`, with
+  `-lightmapCompressionDisabled` (M2, ledger 79) and at
+  `-lightmapVRadQuality 2` (its two encoders, L2 and L3, 10-20). The world
+  node's uv snap takes the halved side and worldspawn's
+  max_lightmap_resolution caps the atlas (10-25, ledger 141).
+- **Ported since these notes**: far field and fog irradiance (L5), light
+  cookies (L5), the GPU path (10-19).
 - **Not ported**:
-  - far field and fog irradiance compute;
   - the LPV SH paths (`lpv_type sh2`);
-  - light cookies (sampled as 1 everywhere);
   - subsurface;
-  - a GPU path (for speed and AMD).
+  - AMD (the bake runs on Valve's RTX pipelines).
 
 ## Milestones to 80%
 
@@ -325,7 +323,7 @@ roadmap", closed; "Lighting compilation parity with Valve").
 | L6 | main-side fixes F26 to F29 and F33 | Texture/IspcTexcomp, Rc/RcMipChain, AtiCompress docs | the review findings fixed or corrected on main and mirrored here. |
 | L7 | F40, stale luxels in the LPV convergence test | LightProbeVolumeBaker | ported (only matters with err > 0, which resourcecompiler's 64 / 64 never uses). |
 | L8 | The .vmap_c (every map; see "vmap_c" below) | Maps/MapRootFile, MapAssets, MapSubassets, MapCompile | **done 10-19**: all 23 current s2c_rc_probe compiles byte-exact from Valve's child list (MapRootFileTests), ze_hold_em_p's from compile-map itself (ledgers 85, 86). |
-| L9 | Nav generation for maps with point_nav_walkable seeds | Maps/NavFile, Maps/NavGen | **Exact through stage 018 on probe01 from the .vmap** (ledgers 92-94: settings, extraction, Recast, MergePolys, edge limits). 10-20 (ledger 95): fan-split triangulation, GenerateConnections, SplitBottleneck/MultipleConnections, RemoveSmallAreasOnEdge ported; 023's order/keys and 026's bounds exact; triangulation and connection blocks wait on a CS2-closed run (`tools/re/call_navsystem.py triangulate`, capture_navgen.py now writes *_conn.bin). 10-20 later (ledger 96): IslandRemoval 029 ported (all-hulls, grid, flood, navsystem's GJK), seeds from point_nav_walkable (NavGenMapInput.Seeds); waits on `call_navsystem.py gjk`; vphysics2's GJK variant for the seed boxes (0.125) and the markup collector mapped, not ported. Remaining, in order: (a) the rest of the RC nav-input collectors (1800fc370 -> CNavGenInput 1800fb1c0: point_nav_walkable seeds 180f21760, markups 180f209f0, NONAV 180f1f830, oriented 180f21ac0, link areas 180f203b0, AVOID 180fb5440, ladders 180fb15e0, spaces 180f20f00, 180f20e40, clips 180f20c70) and the stages reading them: SplitPolysByMarkup 019, LadderConnect 028, IslandRemoval's markups and links, NONAV 180049210; (b) vphysics2 shape casts (capsules from the physics interface vfn 0x1e8, world vfn 0x580) for AddJumps 026 and ClipPolysToHullClearance 022, with a direct-call oracle; (c) the .nav writer from the polygons and connections (1800250e0). Bomb damage (L10) then runs on our nav. |
+| L9 | Nav generation for maps with point_nav_walkable seeds | Maps/NavFile, Maps/NavGen | **Exact through stage 018 on probe01 from the .vmap** (ledgers 92-94: settings, extraction, Recast, MergePolys, edge limits). 10-20 (ledger 95): fan-split triangulation, GenerateConnections, SplitBottleneck/MultipleConnections, RemoveSmallAreasOnEdge ported; 023's order/keys and 026's bounds exact; triangulation and connection blocks wait on a CS2-closed run (`tools/re/call_navsystem.py triangulate`, capture_navgen.py now writes *_conn.bin). 10-20 later (ledger 96): IslandRemoval 029 ported (all-hulls, grid, flood, navsystem's GJK), seeds from point_nav_walkable (NavGenMapInput.Seeds); waits on `call_navsystem.py gjk`; vphysics2's GJK variant for the seed boxes (0.125) and the markup collector mapped, not ported. Remaining, in order: (a) the rest of the RC nav-input collectors (1800fc370 -> CNavGenInput 1800fb1c0: point_nav_walkable seeds 180f21760, markups 180f209f0 (done 10-25, L23), NONAV blocks 180f1f830, oriented 180f21ac0, link areas 180f203b0, AVOID 180fb5440, ladders 180fb15e0, spaces 180f20f00, 180f20e40, clips 180f20c70) and the stages reading them: SplitPolysByMarkup 019 and the NONAV stages (done 10-25, L23), LadderConnect 028, IslandRemoval's links; (b) vphysics2 shape casts (capsules from the physics interface vfn 0x1e8, world vfn 0x580) for AddJumps 026 and ClipPolysToHullClearance 022, with a direct-call oracle; (c) the .nav writer from the polygons and connections (1800250e0). Bomb damage (L10) then runs on our nav. |
 | L10 | baked_bomb_damage.vdata_c (CCS2BombDamageBaker in csgo's modtools.dll) | Maps/BombDamage | **done 10-19 given a nav** (ledger 91): from Valve's nav and world collision, probe01's and cardtest's files are byte for byte. A compile writes it once L9 gives it a nav; open: the hull cast and ray, rotated triggers. |
 | L11 | Three MSVC std::sort ports: Maps/MsvcSort (T[]), Simulation/MsvcSort (Span, struct comparer) and Lighting/Bake/MsvcSort (IList, 10-18) | code health | **done 10-19**: Simulation/MsvcSort is the port; Maps/MsvcSort wraps it with a delegate comparer, the Bake copy is gone; MsvcSortTests runs every entry point against MSVC's hashes. |
 | L12 | The lightmap UV snap's axes on a non-square atlas (180217740 takes u by the height's R) | LightmapNodeBake | a compile with a non-square lightmap compared (CS2's atlas is square; not seen). |
@@ -338,8 +336,9 @@ roadmap", closed; "Lighting compilation parity with Valve").
 | L19 | A material vrad3 cannot load (cardtest's materials/doomtextures/teleport02.vmat lives in another addon): which hit group and vertex buffer it gets | RtxBakeHost, RtxMaterials | **done 10-20 for the lightmaps** (ledger 108): the default hit group with the attribute-less block and a position-only vertex buffer, as the capture (`%TEMP%/vrad3_hostcap/cardtest_b0`) shows; the IBL inverse as MatrixInvertTR. cardtest's four lightmap EXRs from `CPUBAKE_GPU=1` CpuBakeTests.Bake are byte for byte vrad3's. Open: its probe volume 471278508 differs in 1 to 3 of 8,064 texels per band (`CPUBAKE_LPV=all`; ours deterministic, 471278509 identical); then cardtest through compile-map -s2cbake (L16). |
 | L20 | The world node order (L17) on s2c_prefabprobe3 and 4: pp3 has Valve's id set with a few nodes in another order from index 2463; pp4's prefab map (atixref, with a smart prop) is numbered one off from PrefabSlots on 697 nodes (ledger 106) | Maps/MapWorldOrder, MapInstances.PrefabSlots | MapWorldOrderTests exact on both (captures in `%TEMP%/entitysearch_capture`; remove the test's allowance), so their scene lights take Valve's order. |
 | L21 | A few-ulp brightness gap on colormode-1 lights: probe_classes' lumens light_barn and s2c_prefabprobe5's light_omni2 | SceneLights.Record, LightUnits | **done 10-20** (ledger 108): the barn's frustum solid angle sums as the binary does and calls tier0's acosf / atanf (CrtMath.Atan ported); the scene's omni cone comes from the keys, not the record. Both maps' whole scene_info.kv3 are Valve's, with the cameras array (point_camera) added. |
-| L22 | Nav casts and input against spheres and capsules: NavBoxWorld refuses a sphere or capsule shape (vphysics2 shape vfn 0x40: sphere 18024bc00, capsule 18024e6b0), and the nav input has no sphere triangles (18016c9b0 -> 18016c380; capsules are ported, NavGenShapes) | Maps/NavGen/NavBoxWorld, NavGenInput, NavGenShapes | a map with sphere and capsule bodies in its nav world Valve's through 029 (capture_navcast.py --with-navgen replays every cast bit for bit). |
-| L23 | Nav markups: func_nav_markup properties (the collector 180f209f0 / 180f22330), SplitPolysByMarkup (019), RemovePolysMarkedNoNav with NONAV markups (003, 009) and the extraction's NONAV skip; NavGenPipeline refuses them (probe_classes) | Maps/NavGen (NavGenPipeline, NavGenMapInput, NavGenStages) | probe_classes Valve's through 029 from the .vmap in NavGenPipelineTests (navinput_markups.bin from capture_navgen.py is the collector's oracle). |
+| L22 | Nav casts and input against spheres and capsules | Maps/NavGen/NavBoxWorld, NavGenInput, NavGenShapes, Simulation/HullCast | **done 10-25** (ledger 143): the sphere's triangles (18016c9b0 -> 18016c380, 5 segments, 12 rings) and the box casts against a sphere or capsule (18024bc00 / 18024e6b0: the GJK cast of the box against the centre or segment, the radius as margin, HullCast.CastBoxRound). s2c_navround (tools/coverage/nav_round_specimen.py: prop_static spheres and capsules, scaled and rotated) is Valve's through 029 from the .vmap and all 525 of its sphere and capsule casts replay bit for bit (NavCastTests.RoundBoxCastsMatchValve). Left for the whole .nav: Valve's mesh drops one area connection (areas 59 and 60, both ways) that its own 029 blocks hold and the build rule keeps (L24); the CS analysis' sphere casts against round shapes (NavSphereWorld refuses), LadderConnect's rays against them, and bomb damage over such a world (L10) are not ported. |
+| L23 | Nav markups | Maps/NavGen/NavGenMarkups, NavGenInput, NavGenIslands | **done 10-25** (ledger 142): the RC collector (180f209f0: the first mesh's matrix and bounds, the key table backwards, tag lists split, FGD-undeclared keys ignored), the extraction's NONAV body and triangle filters (180048b20, 180049210), RemovePolysMarkedNoNav (003 shrinking, 009 growing; the polygon BVH's Morton order, 180069a40 / 180060a60, keys checked under unicorn), SplitPolysByMarkup (019, vphysics2's point-set GJK with the markup's matrix) and IslandRemoval's WALKABLESEED floods. s2c_navmarkup (tools/coverage/nav_markup_specimen.py, every tag kind) is Valve's from the .vmap through 029 and in its .nav, custom data and bomb damage (NavCompileTests); probe_classes is Valve's through 029 (it was refused). Open: markups inside instances or prefabs (refused), and resourcecompiler's normalisation of a negative node angle (a -30 yaw is built as 330; not modelled anywhere). |
+| L24 | s2c_navround's .nav: Valve's saved mesh lacks the connection between areas 59 and 60 (both ways) that its 029 blocks hold (polygon 58 edge 0 -> 59, overlap 52.02 from 2.12 along the edge) and 1818ea6f0's rule keeps | NavWriter | the step between 029 and the save that drops it read (18006bee0's per-hull append, the CS analysis 18039a7c0, or the save) and the .nav Valve's up to the custom data. |
 
 ### vmap_c (L8): what is settled, what is not
 
@@ -517,7 +516,7 @@ The class summary states the halving rule as 'while the shorter side is over Max
 
 ### lightmap_query_data.kv3
 
-**F12** · parity-break · high confidence · `src/Source2.Compiler/Lighting/LightmapOutputs.cs:54`  
+**F12** · parity-break · high confidence · `src/Source2.Compiler/Lighting/LightmapOutputs.cs:54` · **fixed**: the query data since 10-18 (c984a05); the world node's uv snap (LightmapNodeBake), lightmap_seams.dat and the atlas side (worldspawn's max_lightmap_resolution, the builder's +0x2f8, 1802413cd) on 10-25 (ledger 141)  
 The query-data uv scale is computed from the full lightmap side (the irradiance EXR's width and height). Valve computes it from the side left after the lightmapMipCount and MinSpecLightmapSize halvings.  
 *Valve side:* BakeLighting 180217740: halvings at 180217982-180217997 and 180217a9f-180217ab2; uv scale from r14d/r15d at 18021808b-180218130, stored to param_9+8/+0xc at 1802181ed/1802181fd (f_atlas_caller.c:183-229, 418-444)  
 *Evidence:* Valve: r14d = r15d = esi (180217930) are halved by 'sar eax,1' in the mip loop (180217982..997) and the MinSpec loop (180217a9f..ab2). Then 'movd xmm1, r15d; cvtdq2ps; divss 32767/side; floorf; cvttss2si; imul ebx, r15d; add ebx,ebx' (1802180a6-1802180d8). PackCharts gets the unhalved esi (18021807a). Port: '(width, height) = (exr.Width, exr.Height)' then 'LightmapQueryData.Build(..., width, height, ...)'. UvScale(4096) = 57344 is used whatever the mips are. LightmapSettings.From computes the halved w/h but returns 'requested', and LightmapSeams.Snap already uses the halved side, so the port's seams and query data disagree with each other. Example: lightmapMaxResolution 8192 with CS2's MinSpecLightmapSize 4096: Valve a = 7*4096*2 = 57344, port a = 3*8192*2 = 49152. Another: lightmapMipCount 2 at 4096: Valve a = 15*2048*2 = 61440, port 57344. Every u16 uv written changes. probe01 (4096, one mip, MinSpec 4096) never halves.
@@ -527,7 +526,7 @@ The u16 uv conversion goes float -> uint -> ushort. Valve does cvttss2si to int3
 *Valve side:* 1802163b0 disasm 180216aa4 / 180216b82 (f_query.c:312, 355)  
 *Evidence:* Valve: 'cvttss2si ebx, dword ptr [r14 + rdi*4 + 0xc]', then stores bx: -1.0 gives 0xFFFF. Port: '(ushort)(uint)welded[i * stride + 3]'. .NET's float->uint conversion saturates negatives to 0, so -1.0 gives 0x0000. This only happens if an atlas uv is below -0.5/a. Packed uvs are non-negative today, so it is latent. The same applies to line 68 (v).
 
-**F14** · doc · high confidence · `src/Source2.Compiler/Lighting/LightmapQueryData.cs:15`  
+**F14** · doc · high confidence · `src/Source2.Compiler/Lighting/LightmapQueryData.cs:15` · **fixed**: both comments name BakeLighting 180217740 and the halved side  
 The doc comment says the uv scale is set up by 'the caller's 1802171b0 setup'. The scale is computed in BakeLighting 180217740. 1802171b0 copies the packed LightmapUV back into the meshes. The comment also says 'size' where Valve uses the side after the mip and MinSpec halvings.  
 *Valve side:* 180217740 (18021808b-1802181fd) vs 1802171b0 (tools/re/out/review/f_1802171b0.c)  
 *Evidence:* f_1802171b0.c only does CMesh_Alloc and copies 'LightmapUV' (lines 188-200, 205-231); it has no 32767/floor/65535. f_atlas_caller.c:418-444 (BakeLighting) computes floorf(32767.0/(float)(int)uVar15) and param_9[2] = 65535.0/fVar34. Port: 'with a = (float)(int)(floor(32767 / size) size 2) (57344 for 4096; the caller's 1802171b0 setup)'. LightmapOutputs.cs:15 ('the uv scale from the lightmap's size') has the same problem.

@@ -62,7 +62,7 @@ map loading ─┬─ mesh export ─┬─ trace scene ── visibility ─┬
 | visibility | [VISIBILITY.md](VISIBILITY.md) | 100% of the deterministic build: byte-identical VXVS from the .vmap on five maps incl. atixref-sized s2c_prefabprobe4 and split hints (2026-10-23); `-oldvis` is not reproducible in Valve's own tool |
 | physics | [PHYSICS.md](PHYSICS.md) | 98%: world_physics and entity models whole-file exact on every map with a compile, incl. cables and deformers placed through instances and prefabs (ledgers 128-133); ragdolls in the settle under way: both joint types' solver functions oracle-exact, every motor mode (ledgers 135, 136, 138), next the joint wrapper, islands and the aggregate build (PHYSICS.md roadmap); left besides: instances inside prefab maps for entity models, render meshes |
 | entity lump | [ENTITIES.md](ENTITIES.md), [SETTLE.md](SETTLE.md) | 99.9%: every lump of every pinned map and all 15 prefab, instance and deformer probes exact; the 14 prefab corpus maps against fresh Valve references (2026-10-23) differ only in Valve's run-to-run settle poses; left: two orders read from output only (GROUND_TRUTH 46) |
-| baked outputs | [BAKED.md](BAKED.md), [CUBEMAPS.md](CUBEMAPS.md) | 80%: lightmaps, probes, far field, fog, nav, bomb damage and .vmap_c done; cubemaps in progress |
+| baked outputs | [BAKED.md](BAKED.md), [CUBEMAPS.md](CUBEMAPS.md) | 80%: lightmaps, probes, far field, fog, nav (markups and round shapes included, ledgers 142-143), bomb damage and .vmap_c done; cubemaps in progress |
 | own lighting (vrad3 port) | [VRAD3.md](VRAD3.md), [LIGHTING_ROADMAP.md](LIGHTING_ROADMAP.md) | 94%: `compile-map -s2cbake` bakes with no vrad3; ze_hold_em_p 99.90% of bytes |
 
 The tracker artifact (https://claude.ai/artifact/4whctxfaTdHEiE4d3oAVHA)
@@ -126,8 +126,13 @@ carries the same state per item.
      (ParityReport with PARITY_BASE, 25/25 and 27/27 files);
      UnlitMapRootsEqualValves passes. %TEMP%/preset_entities holds the new
      references; the wrong ones are in preset_entities_1023_withworld.
-4. **Nav** (LIGHTING_ROADMAP L9, L22, L23): markups, links, ladders, movable
-   meshes, spheres and capsules in the casts.
+4. **Nav** (LIGHTING_ROADMAP L9, L24): markups (L23) and spheres and
+   capsules (L22) done 10-25 (ledgers 142, 143). Left: nav links, func_ladder
+   ladders, movable meshes, markups in instances or prefabs, the NONAV blocks
+   collector (180f1f830: prop_deformable, block_base_nav_mesh), L24 (one area
+   connection s2c_navround's saved mesh drops), the CS analysis' casts and
+   LadderConnect's rays against round shapes, bomb damage over hull, sphere or
+   capsule worlds (L10).
 5. **Own lighting:** OIDN for quality 1 and 2 end to end, more maps through
    `-s2cbake` (L16), the prefab world order (L20), AMD.
 6. **Smaller baked outputs:** precomputed shadows, occlusion data (de_ maps;
@@ -153,22 +158,56 @@ carries the same state per item.
     rebuilt) and server.dll's script API; first get a pre-update `.vjs_c` to see
     what changed, and Valve's fresh `cs_script_demo` compile as the reference.
 
-## Latest session (2026-10-25)
-
-- .vmap_c: the 10-23 "Only Entities reopened by 1.41.9.2" was compile_fresh.py adding
-  `-world -fshallow` to the switches (fixed); fresh references in %TEMP%/preset_entities match
-  whole-package on probe01 and cardtest.
-- Ragdolls: CRnRevoluteJoint ported (ledger 136; ctm_sas's knees are type 3, flags 0, listed by
-  ModelPhysicsProbe), the conical spring motor and plasticity ported (ledger 138); the conical
-  joint's shared pieces live in Simulation/JointRows.cs. RevoluteJointOracleTests and
-  JointSolverOracleTests: 11 tests, 20,000 random cases each, against vphysics2 0924.
-- Lessons: Ghidra misprints float association and constants in these SSE functions (the hinge
-  rotate, the position k sums, a copysign of 2.0 shown as 1); read clamps and singular tests
-  (comiss/jbe, maxss/minss) from the disassembly, and let the oracle decide.
-- A cubemap session shares this checkout (ledger 137 is theirs); check the ledger number before
-  adding one.
-
-
+## Latest session (2026-10-25, nav markups and round shapes)
+
+- Lightmaps: BakeLighting's atlas side caps at worldspawn's max_lightmap_resolution (the builder's
+  +0x2f8, not a fixed 4096) and the world node's uv snap takes the halved side (ledger 141); review
+  F12 was already fixed for the query data on 10-18.
+- Nav markups (L23, ledger 142, Maps/NavGen/NavGenMarkups.cs): collector, NONAV extraction filters,
+  stages 003 / 009 / 019 and WALKABLESEED; s2c_navmarkup Valve's in its whole .nav, custom data and
+  bomb damage, probe_classes through 029 (it was refused).
+- Spheres and capsules in the nav world (L22, ledger 143): tessellation and box casts;
+  s2c_navround Valve's through 029, all 525 round-shape casts bit for bit. Its .nav drops one
+  connection Valve's 029 blocks hold (L24, open).
+- Captures: capture_navgen.py picks the resourcecompiler offsets by the installed build (20261015 and
+  20261023; navsystem and vphysics2 code are unchanged in 10-23) and dumps the markup tag table and the
+  NONAV stage arguments; capture_navcast.py dumps sphere and capsule data and holds the process exit
+  until its records are flushed. A map whose package is up to date makes resourcecompiler skip the
+  nav: delete the .vpk first.
+- COVERAGE.md's compile options and class rows refreshed (they predated the bake and vis work).
+
+## Earlier session (2026-10-25)
+
+
+
+- .vmap_c: the 10-23 "Only Entities reopened by 1.41.9.2" was compile_fresh.py adding
+
+  `-world -fshallow` to the switches (fixed); fresh references in %TEMP%/preset_entities match
+
+  whole-package on probe01 and cardtest.
+
+- Ragdolls: CRnRevoluteJoint ported (ledger 136; ctm_sas's knees are type 3, flags 0, listed by
+
+  ModelPhysicsProbe), the conical spring motor and plasticity ported (ledger 138); the conical
+
+  joint's shared pieces live in Simulation/JointRows.cs. RevoluteJointOracleTests and
+
+  JointSolverOracleTests: 11 tests, 20,000 random cases each, against vphysics2 0924.
+
+- Lessons: Ghidra misprints float association and constants in these SSE functions (the hinge
+
+  rotate, the position k sums, a copysign of 2.0 shown as 1); read clamps and singular tests
+
+  (comiss/jbe, maxss/minss) from the disassembly, and let the oracle decide.
+
+- A cubemap session shares this checkout (ledger 137 is theirs); check the ledger number before
+
+  adding one.
+
+
+
+
+
 ## Earlier session (2026-10-22/23, ended for a CS2 update)
 
 - First after the update: `tools/re/patch_check.py` then `build_diff.py`; the

@@ -77,7 +77,29 @@ public static class NavGjk
         return 0.125f >= d ? 0f : d;
     }
 
-    private static float Run<T>(ReadOnlySpan<(float X, float Y, float Z)> a, ReadOnlySpan<(float X, float Y, float Z)> b, int maxIterations)
+    /// <summary>
+    /// <see cref="PhysicsDistance(ReadOnlySpan{ValueTuple{float, float, float}}, ReadOnlySpan{ValueTuple{float, float, float}})"/>
+    /// with a placed by a transform (CVPhysics2Interface::PointSetDistance's column layout, 180073970: the
+    /// rotation's columns, then the translation) and b at the identity. Its points go to world as
+    /// ((p.x c0 + p.y c1) + p.z c2) + t (RnGjk_ReadCache 1802ebd20 and the loop in 1802ec220), and each
+    /// search direction comes into its frame as (e.y c.y + e.x c.x) + e.z c.z per column.
+    /// </summary>
+    public static float PhysicsDistance(ReadOnlySpan<(float X, float Y, float Z)> a, float[] columns, ReadOnlySpan<(float X, float Y, float Z)> b)
+    {
+        var t = columns;
+        var world = new (float X, float Y, float Z)[a.Length];
+        for (var i = 0; i < a.Length; i++)
+        {
+            var (x, y, z) = a[i];
+            world[i] = (((x * t[0] + y * t[3]) + z * t[6]) + t[9], ((x * t[1] + y * t[4]) + z * t[7]) + t[10],
+                        ((x * t[2] + y * t[5]) + z * t[8]) + t[11]);
+        }
+        var d = Run<PhysicsOrder>(world, b, 32, a, columns);
+        return 0.125f >= d ? 0f : d;
+    }
+
+    private static float Run<T>(ReadOnlySpan<(float X, float Y, float Z)> a, ReadOnlySpan<(float X, float Y, float Z)> b, int maxIterations,
+                                ReadOnlySpan<(float X, float Y, float Z)> localA = default, float[]? columnsA = null)
         where T : struct, IOrder
     {
         var s = new Simplex { Count = 1 };
@@ -157,7 +179,14 @@ public static class NavGjk
                 overlap = T.ZeroOnTinyDirection;
                 break;
             }
-            var ia = Support(a, -dx, -dy, -dz);
+            int ia;
+            if (columnsA is { } c)
+            {
+                float nx = -dx, ny = -dy, nz = -dz;
+                ia = Support(localA, (ny * c[1] + nx * c[0]) + nz * c[2], (c[4] * ny + c[3] * nx) + c[5] * nz, (c[6] * nx + c[7] * ny) + c[8] * nz);
+            }
+            else
+                ia = Support(a, -dx, -dy, -dz);
             var ib = Support(b, dx, dy, dz);
             backup = s;
             var duplicate = false;

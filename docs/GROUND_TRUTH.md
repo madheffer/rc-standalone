@@ -3862,6 +3862,62 @@ game can answer is raised with the user first, and runs with -insecure.
       from the lump's light_environment angles (stored exactly, e.g. 74.99999 180.00002 0) is that result already.
     - Open: shadowed lights' own shadow views (atixref, other atlas tiles), not compared.
 
+141. **The lightmap atlas side and the uv snap's side** (2026-10-25: decompile and disassembly of resourcecompiler
+    20260923: 18023b500, 180240b7f, 18025dd8d, 180217740; LightmapSettings, LightmapNodeBake).
+    - Settled from the code: the builder's requested size (+0x2f8) is 0x7fffffff (18023b500) unless worldspawn's
+      max_lightmap_resolution is above 0 (read as an int, 1802413cd-1802413ed); BakeLighting (through
+      CWorldRendererBuilderNode_BakeLightMaps 18025dd8d) bakes at lightmapMaxResolution lowered to it. The port had
+      a fixed 4096, so a -lightmapMaxResolution 8192 node bake ran at 4096.
+    - Settled from the code: the chart uv snap after PackCharts (180217740 lines 418-444: floorf(u / (1 / R) +
+      0.5) (1 / R), R = floor(32767 / side) side 2) takes the side left after the mip and MinSpecLightmapSize
+      halvings (uVar13 / uVar15), as the world's m_vLightmapUvScale and the query data do. The port's world node
+      snap used the unhalved side; LightmapSettings.HalvedWidth now feeds it and lightmap_seams.dat.
+    - Checked: review finding F12 (the query data's scale) was already fixed on 10-18 (c984a05). Only builds that
+      halve (8192 atlases, lightmapMipCount 2) change; probe01's default build is unchanged (ChartMeshesTests,
+      LightmapSideAndHalvings). Not compared end to end at 8192 against a Valve node (no capture kept).
+142. **Nav markups** (2026-10-25: decompile and disassembly of resourcecompiler 20260923 (180f209f0 and its helpers)
+    and navsystem 20261015 (180049210, 180074590, 180075f40, the polygon BVH), unicorn on navsystem's Morton code;
+    Frida captures of s2c_navmarkup (tools/coverage/nav_markup_specimen.py) and probe_classes with the markup array,
+    tag table and stage arguments (capture_navgen.py); Maps/NavGen/NavGenMarkups.cs).
+    - Settled against the capture: the collector (180f209f0) takes each func_nav_markup (or a class deriving from
+      it, 180f2de60) in the map's node list, not hidden; its keys as CEntityKeyValues iterates them (the key table
+      backwards: NavAttributes before NavGen); a navProperty_ string key gives its value, a tag_list its tokens; keys
+      the FGD does not declare give nothing. Every (tag, value) is registered; the first adds the markup, with the
+      matrix and local bounds of the entity's first CMapMesh (180f8b7c0), not the entity's own angles (probe_classes'
+      10 20 30 entity: identity). Markup records 0x50 bytes, +0x4c byte 1.
+    - Settled against the capture: the extraction leaves out a body whose AABB (shape bounds +- 0.09375) lies in a
+      NONAV box shrunk by max(0.75, 0.75 + hull radius), and drops triangles whose three corners lie in it in the
+      markup's frame (180049210); stage 003 shrinks the NONAV / NONAVNONSOLID boxes by 0.75 + radius, 009 grows
+      NONAV by it and NONAVNONSOLID by 1 in z only, both with 1 off the matrix's z translation, tolerance 1.
+    - Settled against the capture: the polygon BVH returns the polygons whose int16 boxes meet the query's
+      (inclusive) in the order of the 30-bit Morton key of their box centres then their index; its tree only
+      prunes. 180044fb0's keys equal ours on 1,962 boxes under unicorn (emu_navmorton.py).
+    - Settled against the capture: 019 grows each markup's box by 2 (AVOID by 2 + radius), skips WALKABLESEED,
+      NONAV, NONAVNONSOLID, and cuts every polygon vphysics2's point-set GJK puts within 0.125 of the box grown 1
+      more; the GJK's transformed points and directions sum ((x + y) + z) + t (1802ebd20, 1802ec220).
+    - Verified: 003, 009 and 019 from Valve's input are Valve's (NavGenMarkupTests); s2c_navmarkup from the .vmap is
+      Valve's through 029, its .nav up to the custom data, the custom data and the bomb damage (NavCompileTests);
+      probe_classes is Valve's through 029. IslandRemoval's WALKABLESEED floods (strcmp) are ported but no captured
+      map floods from one that the seed does not reach already.
+    - Open: markups in instances or prefabs (several instance paths) are refused; resourcecompiler normalises a
+      negative node angle into [0, 360) when it loads a node (a -30 yaw is built as 330), which no part of the port
+      models; Hammer writes angles in that range.
+143. **Spheres and capsules in the nav world** (2026-10-25: disassembly of vphysics2 20261015 (18016c380, 18024bc00,
+    18024e6b0, 18006d070; unchanged in 10-23); Frida captures of s2c_navround (tools/coverage/nav_round_specimen.py,
+    prop_static spheres and capsules) with every shape cast (capture_navcast.py --with-navgen, now with the sphere and
+    capsule data and an exit flush); NavGenShapes.Sphere, HullCast.CastBoxRound, NavBoxWorld).
+    - Settled from the code: a sphere's triangles (18016c9b0 -> 18016c380) are 5 segments by 12 rings, poles
+      (-r, 0, 0) and (r, 0, 0) last, segment angle i -2pi / 5, ring angle j pi / 13 - pi / 2 (V_sinf / V_cosf), vertex
+      (r sin phi, (cos phi cos theta) r, (cos phi sin theta) r) plus the centre.
+    - Settled from the code: the sphere and capsule shapes' box casts trim the ray (1802e6e60) and run the hull
+      cast's GJK (1802e2ce0 / 1802e7fc0) with the box against the centre or segment placed in the world, the radius
+      as margin; the segment's support takes the second centre on a tie (18006d070).
+    - Verified: all 525 sphere and capsule casts of s2c_navround replay bit for bit (NavCastTests), and s2c_navround
+      from the .vmap is Valve's through 029 (extraction, 022, AddJumps' stand-in, 029).
+    - Open: Valve's saved .nav lacks the connection between areas 59 and 60 that its 029 blocks hold and the build
+      rule (1818ea6f0) keeps (LIGHTING_ROADMAP L24); the CS analysis' sphere casts against round shapes
+      (NavSphereWorld), LadderConnect's rays against them and bomb damage over such a world are not ported.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

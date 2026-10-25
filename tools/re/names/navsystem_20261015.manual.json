@@ -1,6 +1,72 @@
 {
  "functions": [
   {
+   "addr": "18001ba90",
+   "name": "NavGenInput_TagValue",
+   "module": "s2c:baked/navgen",
+   "note": "a markup's tag value: +0x40 of its 0x80-byte entry at +0x38, null for -1 or past the count (+0x30)"
+  },
+  {
+   "addr": "180069a40",
+   "name": "NavPolyBvh_Build",
+   "module": "s2c:baked/navgen",
+   "note": "the polygons' float bounds grown by 1 (18004a070), each box quantised to int16 (floor / ceil of (v - origin) scale), leaf keys (180047aa0), std::sort (1800ee550), tree (180048980)"
+  },
+  {
+   "addr": "18004a070",
+   "name": "NavBvh_SetBounds",
+   "module": "s2c:baked/navgen",
+   "note": "min - 1, max + 1; scale 65535 / (max - min); origin (max - min) 0.5000076 + min"
+  },
+  {
+   "addr": "180047aa0",
+   "name": "NavBvh_LeafKeys",
+   "module": "s2c:baked/navgen",
+   "note": "per 16 items (index, Morton key of the box centre: (min + max) >> 1, + 0x7fff, >> 6) via 180044fb0"
+  },
+  {
+   "addr": "180044fb0",
+   "name": "Morton30_x16",
+   "module": "s2c:baked/navgen",
+   "note": "16 30-bit Morton codes, spread(z) << 2 | spread(y) << 1 | spread(x) (emu_navmorton.py)"
+  },
+  {
+   "addr": "1800ee550",
+   "name": "std_sort_int64",
+   "module": "s2c:baked/navgen",
+   "note": "MSVC std::sort on int64 (key << 32 | index)"
+  },
+  {
+   "addr": "180048980",
+   "name": "NavBvh_BuildTree",
+   "module": "s2c:baked/navgen",
+   "note": "leaf keys, sort, reorder (18004aff0), three-level tree of 16-wide nodes (180047fb0)"
+  },
+  {
+   "addr": "180060a60",
+   "name": "NavPolyBvh_Query",
+   "module": "s2c:baked/navgen",
+   "note": "all items in key order when the box holds the bounds; else the box quantised (clamped to int16) and 18005f110; polygons not removed"
+  },
+  {
+   "addr": "1800610c0",
+   "name": "NavPolyBvh_QueryOffset",
+   "module": "s2c:baked/navgen",
+   "note": "180060a60 with the result offset by the BVH's first polygon (the pieces earlier markups added)"
+  },
+  {
+   "addr": "18005f110",
+   "name": "NavBvh_Traverse",
+   "module": "s2c:baked/navgen",
+   "note": "16-wide int16 box tests (pcmpgtw, inclusive), nodes then children in order: results in key order"
+  },
+  {
+   "addr": "18006a000",
+   "name": "NavGen_ClipPolyByPlane",
+   "module": "s2c:baked/navgen",
+   "note": "lambda 1800ff838: skip removed or filtered polygons; split (18004fe60); behind only: listed; both sides: removed, front then back pieces appended (18004c280) and listed"
+  },
+  {
    "addr": "1800f30b0",
    "name": "Triangulate_QuadDiagonal",
    "module": "s2c:baked/navgen",
@@ -604,7 +670,7 @@
    "addr": "180075f40",
    "name": "NavGen_SplitPolysByMarkup",
    "module": "s2c:baked/navgen",
-   "note": "not ported"
+   "note": "stage 019: markups not WALKABLESEED / NONAV / NONAVNONSOLID, the box grown 2 (AVOID + hull radius), six planes over every polygon the box touches (180077cf0 -> 180078360)"
   },
   {
    "addr": "180076b70",
@@ -616,7 +682,7 @@
    "addr": "180074590",
    "name": "NavGen_RemovePolysMarkedNoNav",
    "module": "s2c:baked/navgen",
-   "note": "NONAV markups (not ported); nothing without them"
+   "note": "stages 003 (shrink) and 009: per NONAV / NONAVNONSOLID markup, the box grown (pad + hull radius; NONAVNONSOLID 1 in z) or shrunk, z translation less 1; candidates from the two polygon BVHs (180060a60, 1800610c0), six planes through 18006a000, listed polygons inside all planes removed"
   },
   {
    "addr": "180075b90",
@@ -898,7 +964,7 @@
    "addr": "180049210",
    "name": "NavGen_ApplyNoNavMarkups",
    "module": "s2c:baked/navgen",
-   "note": "after extraction (not ported)"
+   "note": "after extraction: triangles whose corners all lie in a NONAV box shrunk by the pad (local frame (d.y r1 + d.x r0) + d.z r2) dropped; a triangle BVH narrows the candidates"
   },
   {
    "addr": "180046fc0",

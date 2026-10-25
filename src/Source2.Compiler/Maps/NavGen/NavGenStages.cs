@@ -61,16 +61,18 @@ public static class NavGenStages
 
     /// <summary>
     /// Stages 000-004 on the extracted polygons: ValidateVertices, WeldVertices, RemoveDegens,
-    /// RemovePolysMarkedNoNav (no NONAV markups: nothing; markups not ported), TransformRecastNonZup
-    /// (Z-up generation: nothing).
+    /// RemovePolysMarkedNoNav (its shrinking form, <see cref="NavGenPolys.RemovePolysMarkedNoNav"/>),
+    /// TransformRecastNonZup (Z-up generation: nothing).
     /// </summary>
-    public static bool BeforeRecast(NavGenPolys g)
+    public static bool BeforeRecast(NavGenPolys g, NavMarkupInput? markups = null, float hullRadius = 0f)
     {
         if (!g.ValidateVertices())
             return false;
         var tol = (double)WeldTolerance;
         g.Weld(tol, tol);
         g.RemoveDegens(tol);
+        if (markups is not null)
+            g.RemovePolysMarkedNoNav(markups, NavMarkupSettings.NoNavPad, NavMarkupSettings.NoNavEps, NavMarkupSettings.NoNavEpsPlain, shrink: true, hullRadius);
         return true;
     }
 
@@ -80,11 +82,13 @@ public static class NavGenStages
     /// MergePolys, LimitMaxPolyEdges (4; the polygons pass through with an info_nav_oriented_mesh),
     /// LimitMaxPolyEdgeLen, RemoveStrayVerticalPolys, WeldVertices, RemoveDegens.
     /// </summary>
-    public static void AfterRecast(NavGenPolys g, bool orientedMesh)
+    public static void AfterRecast(NavGenPolys g, bool orientedMesh, NavMarkupInput? markups = null, float hullRadius = 0f)
     {
         var tol = (double)WeldTolerance;
         g.Weld(tol, tol);
         g.RemoveDegens(tol);
+        if (markups is not null)
+            g.RemovePolysMarkedNoNav(markups, NavMarkupSettings.NoNavPad, NavMarkupSettings.NoNavEps, NavMarkupSettings.NoNavEpsPlain, shrink: false, hullRadius);
         g.RemoveStrayVerticalPolys(StrayVerticalAngle, orientedMesh);
         g.Weld(tol, tol);
         g.RemoveDegens(tol);

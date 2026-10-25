@@ -13,13 +13,14 @@ namespace Source2.Compiler.Maps.NavGen;
 /// The shape's transform is built per shape in the broadphase walk (1801d64a0) from the body's
 /// orientation, scale and mass centres (<see cref="Transform"/>). Meshes take the unscaled cast
 /// (180245a10) when the shape has no scale flag (+0xd1) and the transform's diagonal is 1 with no
-/// translation, else the transformed one (180244dc0); hulls take 180251800 about their centroid. Spheres
-/// and capsules are not ported (refused). Rays (<see cref="CastRay"/>) go through the same bodies.
+/// translation, else the transformed one (180244dc0); hulls take 180251800 about their centroid; spheres
+/// and capsules the GJK cast against their centre or segment (<see cref="HullCast.CastBoxRound"/>). Rays
+/// (<see cref="CastRay"/>) go through the same bodies (meshes and hulls; a round shape refuses).
 /// </summary>
 public sealed class NavBoxWorld : INavBoxWorld, INavRayWorld
 {
     private readonly record struct Cast(int Type, RnMesh? Mesh, Vector3 MeshScale, bool ScaleFlag, RnHull? Hull, float HullScale,
-                                        float[] T, Vector3 Min, Vector3 Max);
+                                        float[] T, Vector3 Min, Vector3 Max, Vector3[]? Centres = null, float Radius = 0f);
 
     private readonly List<Cast> _shapes = [];
     private readonly List<Cast> _rayShapes = [];
@@ -59,6 +60,20 @@ public sealed class NavBoxWorld : INavBoxWorld, INavRayWorld
                                                 (c & 4) != 0 ? mesh.Max.Z : mesh.Min.Z) * shape.MeshScale);
                     var (min, max) = Bounds(corners, t);
                     cast = new Cast(3, mesh, shape.MeshScale, shape.MeshScale != Vector3.One, null, 0f, t, min, max);
+                }
+                else if (shape.Type == BroadphaseShape.SphereType && shape.Sphere is { } sphere)
+                {
+                    var k = shape.HullScale;
+                    var centre = World(sphere.Center * k, t);
+                    var r = sphere.Radius * k;
+                    cast = new Cast(0, null, default, false, null, 0f, t, centre - new Vector3(r + 1f), centre + new Vector3(r + 1f), [centre], r);
+                }
+                else if (shape.Type == BroadphaseShape.CapsuleType && shape.Capsule is { } capsule)
+                {
+                    var k = shape.HullScale;
+                    Vector3 a = World(capsule.A * k, t), b = World(capsule.B * k, t);
+                    var r = capsule.Radius * k;
+                    cast = new Cast(1, null, default, false, null, 0f, t, Vector3.Min(a, b) - new Vector3(r + 1f), Vector3.Max(a, b) + new Vector3(r + 1f), [a, b], r);
                 }
                 else
                     throw new NotSupportedException($"a nav box cast against a type {shape.Type} shape is not ported");
@@ -102,6 +117,14 @@ public sealed class NavBoxWorld : INavBoxWorld, INavRayWorld
         t[11] = b.Position.Z - (((ky * x - kx * y) + cz) + w * kz);
         return t;
     }
+
+    /// <summary>
+    /// A round shape's centre in the world as 18024bc00 / 18024e6b0 place it: ((x t0 + y t3) + z t6) + t9
+    /// per axis.
+    /// </summary>
+    internal static Vector3 World(Vector3 p, float[] t)
+        => new(((p.X * t[0] + p.Y * t[3]) + p.Z * t[6]) + t[9], ((p.X * t[1] + p.Y * t[4]) + p.Z * t[7]) + t[10],
+               ((p.X * t[2] + p.Y * t[5]) + p.Z * t[8]) + t[11]);
 
     // A box around points moved by t, one unit wide of rounding: only a cull, never an answer.
     private static (Vector3 Min, Vector3 Max) Bounds(IEnumerable<Vector3> points, float[] t)
@@ -148,9 +171,14 @@ public sealed class NavBoxWorld : INavBoxWorld, INavRayWorld
                     : BoxCast.MeshTransformed(s.Mesh!, s.MeshScale, t, centre, d, half, best);
                 (found, fraction) = (hit.Found, hit.Fraction);
             }
-            else
+            else if (s.Type == 2)
             {
                 var hit = HullCast.Cast(s.Hull!.Centroid, s.Hull.VertexPositions, s.HullScale, s.T, centre, d, half);
+                (found, fraction) = (hit.Found, hit.Fraction);
+            }
+            else
+            {
+                var hit = HullCast.CastBoxRound(s.Centres!, s.Radius, centre, d, half, best);
                 (found, fraction) = (hit.Found, hit.Fraction);
             }
             if (found)
@@ -186,6 +214,8 @@ public sealed class NavBoxWorld : INavBoxWorld, INavRayWorld
             float px = p.X - t[9], py = p.Y - t[10], pz = p.Z - t[11];
             var o = new Vector3((py * t[1] + t[0] * px) + pz * t[2], (py * t[4] + t[3] * px) + pz * t[5], (py * t[7] + t[6] * px) + pz * t[8]);
             var dir = new Vector3((d.Y * t[1] + d.X * t[0]) + d.Z * t[2], (d.Y * t[4] + d.X * t[3]) + d.Z * t[5], (d.Y * t[7] + d.X * t[6]) + d.Z * t[8]);
+            if (s.Type < 2)
+                throw new NotSupportedException("a nav ray against a sphere or capsule (LadderConnect's casts) is not ported");
             var fraction = s.Type == 3 ? MeshRay(s.Mesh!, s.MeshScale, o, dir, limit) : HullRay(s.Hull!, s.HullScale, o, dir);
             if (!(fraction < limit))
                 continue;

@@ -1,7 +1,7 @@
 """capture_navgen.py <addon> <map> [--out dir] [--switches "-world -phys -nav"]: navsystem's polygon pipeline, stage by stage.
 
-Runs resourcecompiler on the map under Frida and hooks navsystem.dll (20261015, no RVA mapping
-needed while that build is installed):
+Runs resourcecompiler on the map under Frida and hooks navsystem.dll (20261015; 20261023's code is the
+same at the same addresses, build_diff.py):
   1800776d0  ValidateVertices(NavGenVertexData_t *): records the vertex pool (+0x18 CUtlVector of
              Vec3D<double>: count +0x18, data +0x20).
   1800207c0  CNavGenPolyProcessorStage1 run (stage, ctx): in place on *(ctx + 0x30).
@@ -47,16 +47,17 @@ function dump(tag, vec) {
   all.set(new Uint8Array(verts), 8 + polys.byteLength);
   send({tag: tag}, all.buffer);
 }
-// resourcecompiler.dll 20261015: PhysDoc_ctor (180f4ab90; 20260923 180f4a620) and the node filter it
-// collects with (180f4d790; 20260923 180f4d220): each PhysDoc's flags word (+0) and who built it, and
-// the filter's rejections per flags word, as notes.
+// resourcecompiler.dll: PhysDoc_ctor (20261015 180f4ab90, 20261023 180f4b7e0; 20260923 180f4a620) and
+// the node filter it collects with (20261015 180f4d790, 20261023 180f4e3e0; 20260923 180f4d220): each
+// PhysDoc's flags word (+0) and who built it, and the filter's rejections per flags word, as notes.
+// RC_PHYSDOC and RC_FILTER are filled in for the installed build (RC_OFFSETS below).
 function hookRc() {
   const rc = Process.findModuleByName('resourcecompiler.dll');
   if (rc === null) { setTimeout(hookRc, 5); return; }
-  Interceptor.attach(rc.base.add(0xf4ab90), { onEnter(args) {
+  Interceptor.attach(rc.base.add(RC_PHYSDOC), { onEnter(args) {
     send({note: 'PhysDoc flags ' + args[2].toInt32() + ' from resourcecompiler.dll+0x' + this.returnAddress.sub(rc.base).toString(16)}); } });
   const rejected = {};
-  Interceptor.attach(rc.base.add(0xf4d790), {
+  Interceptor.attach(rc.base.add(RC_FILTER), {
     onEnter(args) { this.flags = args[0].readU32(); },
     onLeave(ret) {
       if ((ret.toInt32() & 0xff) === 0) {
@@ -137,6 +138,10 @@ function hook() {
         send({note: 'convars ' + JSON.stringify(out)});
       }
       const b = args[3];
+      // The NONAV boxes (0x50 bytes each) and the pad (the seventh argument, a float on the stack).
+      const nm = args[5].toInt32();
+      send({tag: 'navinput_extract_' + this.call + '_nonav'}, chunks([ints([nm]), nm > 0 ? args[4].readByteArray(nm * 0x50) : new ArrayBuffer(0),
+                                                               this.context.rsp.add(0x38).readByteArray(4)]));
       send({note: 'extract ' + this.call + ' bounds ' + JSON.stringify(Array.from(new Float32Array(b.readByteArray(24)))) +
         ' markups ' + args[4] + ' x' + args[5].toInt32() + ' bodies ' + JSON.stringify(bodies)});
     },
@@ -322,10 +327,20 @@ function hook() {
     const input = args[0].add(8).readPointer();
     if (input.isNull())
       return;
-    for (const [name, off, size] of [['seeds', 0x78, 12], ['markups', 0x90, 0x50], ['links', 0xc0, 0x18], ['ladders', 0x60, 0x28]]) {
+    // The markup tag table (1818c7010: +0x30 count, +0x38 entries of 0x80 bytes, tag +0, value +0x40).
+    for (const [name, off, size] of [['seeds', 0x78, 12], ['markups', 0x90, 0x50], ['links', 0xc0, 0x18], ['ladders', 0x60, 0x28],
+                                     ['tags', 0x30, 0x80]]) {
       const count = input.add(off).readS32();
       send({tag: 'navinput_' + name}, chunks([ints([count]), count > 0 ? input.add(off + 8).readPointer().readByteArray(count * size) : new ArrayBuffer(0)]));
     } } });
+  // RemovePolysMarkedNoNav (180074590) and SplitPolysByMarkup (180075f40): their stack arguments (the
+  // fifth on, eight bytes each) and the settings block (r9, 0x60 bytes), per call.
+  let markupCall = 0;
+  for (const [rva, name] of [[0x74590, 'nonav'], [0x75f40, 'split']]) {
+    Interceptor.attach(mod.base.add(rva), { onEnter(args) {
+      send({tag: 'navinput_' + name + '_args_' + (markupCall++)}, chunks([this.context.rsp.add(0x28).readByteArray(0x28), args[3].readByteArray(0x60)]));
+    } });
+  }
   for (const [rva, kind] of [[0x207c0, 1], [0x207f0, 2]]) {
     Interceptor.attach(mod.base.add(rva), {
       onEnter(args) {
@@ -345,6 +360,21 @@ function hook() {
 }
 hook();
 """
+
+
+# The installed resourcecompiler.dll's build (by its bytes against tools/re/binaries) -> the agent's offsets.
+RC_OFFSETS = {"20261015": (0xf4ab90, 0xf4d790), "20261023": (0xf4b7e0, 0xf4e3e0)}
+
+
+def rc_offsets():
+    import hashlib
+    here = os.path.join(os.path.dirname(os.path.abspath(__file__)), "binaries")
+    digest = hashlib.sha1(open(os.path.join(BIN, "resourcecompiler.dll"), "rb").read()).hexdigest()
+    for build, offsets in RC_OFFSETS.items():
+        path = os.path.join(here, f"resourcecompiler_{build}.dll")
+        if os.path.exists(path) and hashlib.sha1(open(path, "rb").read()).hexdigest() == digest:
+            return offsets
+    raise SystemExit("the installed resourcecompiler.dll is not a build RC_OFFSETS knows; port its offsets (port_addr.py)")
 
 
 def running(name):
@@ -393,7 +423,8 @@ def main():
     dev = frida.get_local_device()
     pid = dev.spawn(argv, cwd=BIN, stdio="pipe")
     ses = dev.attach(pid)
-    sc = ses.create_script(AGENT)
+    physdoc, node_filter = rc_offsets()
+    sc = ses.create_script(AGENT.replace("RC_PHYSDOC", hex(physdoc)).replace("RC_FILTER", hex(node_filter)))
     sc.on("message", on_message)
     sc.load()
     done = threading.Event()

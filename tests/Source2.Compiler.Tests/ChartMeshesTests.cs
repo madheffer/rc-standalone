@@ -160,7 +160,8 @@ public class ChartMeshesTests(ITestOutputHelper output)
         // LMGEOM_ARGS="name=value;...": the build's compile arguments (as -lightmapVRadQuality 1), over the keys.
         var arguments = (Environment.GetEnvironmentVariable("LMGEOM_ARGS") ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries)
             .Select(kv => kv.Split('=')).ToDictionary(kv => kv[0], kv => (object)int.Parse(kv[1], System.Globalization.CultureInfo.InvariantCulture));
-        var settings = LightmapSettings.From(LightmapSettings.Keys(MapSource.Read(vmap), arguments), 0x1000, 4096, sh2Dc: false);
+        var keys = LightmapSettings.Keys(MapSource.Read(vmap), arguments);
+        var settings = LightmapSettings.From(keys, LightmapSettings.Requested(keys), 4096, sh2Dc: false);
         output.WriteLine($"settings {settings}");
         var luxel = new List<float>();
         var (ours, packed) = ChartMeshes.Build(inputs.Entries, inputs.Volumes, m => inputs.RenderBackfaces.GetValueOrDefault(m), settings, 120f, luxel);
@@ -247,7 +248,7 @@ public class ChartMeshesTests(ITestOutputHelper output)
             return;
         var keys = MapSource.Read(vmap).OfType("CMapWorld").FirstOrDefault()?.Get<DmxBinary.Element>("entity_properties")?.Attributes
             .Where(a => a.Value is string).ToDictionary(a => a.Key, a => (string)a.Value!) ?? [];
-        var settings = LightmapSettings.From(keys, 0x1000, 4096, sh2Dc: false);
+        var settings = LightmapSettings.From(keys, LightmapSettings.Requested(keys), 4096, sh2Dc: false);
         var (geometry, _) = ChartMeshes.Build(inputs.Entries, inputs.Volumes, m => inputs.RenderBackfaces.GetValueOrDefault(m), settings, 120f);
         var ids = LightmapTexels.ChartIds(geometry, settings.Width, settings.Height, settings.Mip);
         var valve = File.ReadAllBytes(dat);
@@ -274,10 +275,10 @@ public class ChartMeshesTests(ITestOutputHelper output)
         if (Environment.GetEnvironmentVariable("LMSEAMS") is not { } dat
             || Environment.GetEnvironmentVariable("NODEENTRIES_VMAP") is not { } vmap || OurInputs(vmap) is not { } inputs)
             return;
-        var settings = LightmapSettings.From(new Dictionary<string, string>(), 0x1000, 4096, sh2Dc: false);
+        var settings = LightmapSettings.From(new Dictionary<string, string>(), int.MaxValue, 4096, sh2Dc: false);
         var meshes = new List<PackingAssembly.Mesh>();
         var (geometry, _) = ChartMeshes.Build(inputs.Entries, inputs.Volumes, m => inputs.RenderBackfaces.GetValueOrDefault(m), settings, 120f, null, meshes);
-        var size = settings.Width >> (settings.Mip - 1);
+        var size = settings.HalvedWidth;
         var ours = LightmapSeams.Write(meshes, LightmapSeams.Snap(geometry.AtlasUv, size));
         var valve = File.ReadAllBytes(dat);
         output.WriteLine($"records: ours {ours.Length / 32}, valve {valve.Length / 32}");
@@ -290,6 +291,33 @@ public class ChartMeshesTests(ITestOutputHelper output)
             output.WriteLine($"  valve {string.Join(" ", Enumerable.Range(first * 8, 8).Select(i => F(valve, i)))}");
         }
         Assert.True(ours.AsSpan().SequenceEqual(valve), "lightmap_seams.dat differs");
+    }
+
+    /// <summary>
+    /// BakeLighting's side (180217740 with the builder's +0x2f8 from 1802413ed): worldspawn's
+    /// max_lightmap_resolution caps lightmapMaxResolution only when above 0, and the uv snap and query
+    /// scale take the side left after the mip and MinSpecLightmapSize halvings.
+    /// </summary>
+    [Theory]
+    [InlineData(null, null, null, 4096, 1, 4096)]
+    [InlineData(null, "8192", null, 8192, 2, 4096)]
+    [InlineData("2048", "8192", null, 2048, 1, 2048)]
+    [InlineData("0", "8192", null, 8192, 2, 4096)]
+    [InlineData(null, null, "2", 4096, 2, 2048)]
+    [InlineData("256", null, null, 256, 1, 256)]
+    public void LightmapSideAndHalvings(string? worldMax, string? maxResolution, string? mipCount, int side, int mips, int halved)
+    {
+        var keys = new Dictionary<string, string>();
+        if (worldMax != null)
+            keys["max_lightmap_resolution"] = worldMax;
+        if (maxResolution != null)
+            keys["lightmapMaxResolution"] = maxResolution;
+        if (mipCount != null)
+            keys["lightmapMipCount"] = mipCount;
+        var settings = LightmapSettings.From(keys, LightmapSettings.Requested(keys), 4096, sh2Dc: false);
+        Assert.Equal((side, side, mips, halved), (settings.Width, settings.Height, settings.Mip, settings.HalvedWidth));
+        // The query data's scale (LightmapOutputs) takes the same side from the atlas.
+        Assert.Equal(halved, LightmapSettings.MipChain(side, int.Parse(mipCount ?? "1", System.Globalization.CultureInfo.InvariantCulture), 4096).Width);
     }
 
     private static int[] Ints(System.Text.Json.JsonElement e, string name)

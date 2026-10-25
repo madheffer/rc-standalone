@@ -42,6 +42,13 @@ MS = "s2c:physics/material-sampler"
 IO = "s2c:io"
 
 RESOURCECOMPILER = [
+    ('18023b500', 'WorldRendererBuilder_Construct', BAKE, "+0x2f8, the builder's requested lightmap side, 0x7fffffff; +0x2fc Engine2/LightmapQueries"),
+    ('180240b7f', 'WorldRendererBuilder_ReadWorldKeys', BAKE, "worldspawn's max_lightmap_resolution into +0x2f8 when above 0, else 0x7fffffff (1802413cd); novis_min_draw_volume_size +0x300, novis_max_triangles_per_cluster +0x304, lightmap_queries +0x2fc"),
+    ('18025dd8d', 'CWorldRendererBuilderNode_BakeLightMaps', BAKE, "BakeLighting (180217740) with the builder's +0x2f8 and +0x2fc"),
+    ('180f30580', 'EntityKeys_GetTagList', NAV, "a tag_list value's tokens, commas and white space between"),
+    ('180f8b7c0', 'MapNode_ChildIterator_Begin', NAV, "a depth-first iterator over a node's descendants of one type (180f8bd70 advances); AddMarkup takes the first CMapMesh"),
+    ('180f8bc60', 'MapNode_LocalBounds', NAV, "the node's bounds in its frame, +0x14c / +0x158"),
+    ('180f2de60', 'MapEntity_IsClass', NAV, "the class name or any FGD base (V_CompareNameWithWildcards over 180dd1fb0's list)"),
     ('1818c8c60', 'NavSettings_ReadProjectDefaults', NAV, "gameinfo NavSystem keys into 1830237b0; deprecated NavAgentNumHulls (1818c84f0); NavHullsPreset ('default')"),
     ('1818c7c90', 'NavSettings_LoadHullPreset', NAV, 'CNavHullPresetVData -> CNavHullVData entries (1818ca350); false when missing or empty'),
     ('1818ca350', 'NavHull_FromVData', NAV, '0x48-byte entry from CNavHullVData; erosion +0x30 -> +8'),
@@ -1194,6 +1201,17 @@ NAVGEN = "s2c:baked/navgen"
 
 # navsystem.dll (20261015): nav generation's polygon pipeline and its Recast (Maps/NavGen, ledger 92).
 NAVSYSTEM = [
+    ('18001ba90', 'NavGenInput_TagValue', NAVGEN, "a markup's tag value: +0x40 of its 0x80-byte entry at +0x38, null for -1 or past the count (+0x30)"),
+    ('180069a40', 'NavPolyBvh_Build', NAVGEN, "the polygons' float bounds grown by 1 (18004a070), each box quantised to int16 (floor / ceil of (v - origin) scale), leaf keys (180047aa0), std::sort (1800ee550), tree (180048980)"),
+    ('18004a070', 'NavBvh_SetBounds', NAVGEN, 'min - 1, max + 1; scale 65535 / (max - min); origin (max - min) 0.5000076 + min'),
+    ('180047aa0', 'NavBvh_LeafKeys', NAVGEN, 'per 16 items (index, Morton key of the box centre: (min + max) >> 1, + 0x7fff, >> 6) via 180044fb0'),
+    ('180044fb0', 'Morton30_x16', NAVGEN, '16 30-bit Morton codes, spread(z) << 2 | spread(y) << 1 | spread(x) (emu_navmorton.py)'),
+    ('1800ee550', 'std_sort_int64', NAVGEN, 'MSVC std::sort on int64 (key << 32 | index)'),
+    ('180048980', 'NavBvh_BuildTree', NAVGEN, 'leaf keys, sort, reorder (18004aff0), three-level tree of 16-wide nodes (180047fb0)'),
+    ('180060a60', 'NavPolyBvh_Query', NAVGEN, 'all items in key order when the box holds the bounds; else the box quantised (clamped to int16) and 18005f110; polygons not removed'),
+    ('1800610c0', 'NavPolyBvh_QueryOffset', NAVGEN, "180060a60 with the result offset by the BVH's first polygon (the pieces earlier markups added)"),
+    ('18005f110', 'NavBvh_Traverse', NAVGEN, '16-wide int16 box tests (pcmpgtw, inclusive), nodes then children in order: results in key order'),
+    ('18006a000', 'NavGen_ClipPolyByPlane', NAVGEN, 'lambda 1800ff838: skip removed or filtered polygons; split (18004fe60); behind only: listed; both sides: removed, front then back pieces appended (18004c280) and listed'),
     ('1800f30b0', 'Triangulate_QuadDiagonal', NAVGEN, 'squared diagonal, 3 when both triangles face the normal, 2 if not, 0 degenerate'),
     ('1800f3d70', 'Triangulate_EarScore', NAVGEN, '1 / max(min ear area, 1) + 2 (1 - max cosine); -1 when not an ear'),
     ('1800f33c0', 'Triangulate_PointInTriangle', NAVGEN, 'edge sides > -1e-7 about the normal, or within 1e-7 of an edge'),
@@ -1294,9 +1312,9 @@ NAVSYSTEM = [
     ('18005c130', 'NavGen_BoundaryPoint', NAVGEN, 'the point at a length along the boundary, cast-checked'),
     ('18004ea70', 'NavGen_FindClipDistance', NAVGEN, 'the clip plane distance (d - 0.1) - 0.5'),
     ('180052b10', 'NavGen_ClipDirectionClear', NAVGEN, ''),
-    ('180075f40', 'NavGen_SplitPolysByMarkup', NAVGEN, 'not ported'),
+    ('180075f40', 'NavGen_SplitPolysByMarkup', NAVGEN, 'stage 019: markups not WALKABLESEED / NONAV / NONAVNONSOLID, the box grown 2 (AVOID + hull radius), six planes over every polygon the box touches (180077cf0 -> 180078360)'),
     ('180076b70', 'NavGen_UnTransformRecastNonZup', NAVGEN, "only when ctx + 0x61 and a transformer; then each polygon's plane again"),
-    ('180074590', 'NavGen_RemovePolysMarkedNoNav', NAVGEN, 'NONAV markups (not ported); nothing without them'),
+    ('180074590', 'NavGen_RemovePolysMarkedNoNav', NAVGEN, 'stages 003 (shrink) and 009: per NONAV / NONAVNONSOLID markup, the box grown (pad + hull radius; NONAVNONSOLID 1 in z) or shrunk, z translation less 1; candidates from the two polygon BVHs (180060a60, 1800610c0), six planes through 18006a000, listed polygons inside all planes removed'),
     ('180075b90', 'NavGen_RemoveStrayVerticalPolys', NAVGEN, 'keeps |nz| > V_cosd((float)limit * 0.017453292f); everything with an oriented mesh (settings + 0x128) or off z-up'),
     ('180073ba0', 'NavGen_MergePolys', NAVGEN, 'nav_gen_opt_to_quads: six rounds of weld/degens/edge merge/weld/degens/vertex merge, then the 4-corner fan split; passes through with an oriented mesh'),
     ('180027dc0', 'NavGen_MergePolysInvoker', NAVGEN, 'closure: +0x28 angle, +0x24 deviation, +0x20/+0x1c merge tol start/end, +0x18/+0x14 weld start/end (as doubles), +0x10 rounds'),
@@ -1343,7 +1361,7 @@ NAVSYSTEM = [
     ('180048b20', 'NavGen_ExtractTriangles', NAVGEN, "bodies of type < 2 in world order (vfn 0x1c0/0x1c8), bounds and NONAV skips, shapes passing world vfn 0x4b0 with the 180028ae0 query, triangles via vphysics2's source (1800a32b0, vfn 0x18), then the body transform from vfn 0x1b0"),
     ('180028ae0', 'NavGen_QueryAttributes', NAVGEN, 'interacts with 0xc3021 | navclip (hash 0xdd7f7e69), excludes 0x400000, as 0x80000, ids -1, mask 0xffff, types 3, group 3, flags 0x49'),
     ('1800a32b0', 'NavGen_ShapeTriangleSource', NAVGEN, 'vphysics2 interface +0x3b0 builds the per-shape source in place'),
-    ('180049210', 'NavGen_ApplyNoNavMarkups', NAVGEN, 'after extraction (not ported)'),
+    ('180049210', 'NavGen_ApplyNoNavMarkups', NAVGEN, 'after extraction: triangles whose corners all lie in a NONAV box shrunk by the pad (local frame (d.y r1 + d.x r0) + d.z r2) dropped; a triangle BVH narrows the candidates'),
     ('180046fc0', 'NavGen_ClipToBounds', NAVGEN, 'when generation bounds are set (not ported)'),
     ('18004e4d0', 'NavGen_PolysFromTriangles', NAVGEN, 'pool = vertices as doubles; one triangle per 3 indices, +4/+0x64 -1, +0x60 5'),
     ('18004d9a0', 'CNavGenPoly_ComputePlane', NAVGEN, '(e2 x e1) of corners 0, 1, 2 in doubles, normalised above FLT_EPSILON, kept unless 0'),
@@ -1459,6 +1477,11 @@ MODTOOLS = [
 ]
 
 VPHYSICS2 = [
+    ('18016c9b0', 'RnSphere_GetTriangles', NAV, '18016c380 with 5 segments and 12 rings; indices offset by the vertices already there'),
+    ('18016c380', 'RnSphere_Tessellate', NAV, 'poles (-r, 0, 0), (r, 0, 0); segment angle i -2pi / n, ring j pi / (m + 1) - pi / 2; V_sinf / V_cosf; centre added last'),
+    ('18024bc00', 'CRnSphereShape::CastBox', NAV, 'vfn 0x40: ray trimmed (1802e6e60), GJK cast of the box (half extents negated) against the centre placed ((x + y) + z) + t, radius as margin'),
+    ('18024e6b0', 'CRnCapsuleShape::CastBox', NAV, "vfn 0x40: as the sphere's against the segment (18006d070)"),
+    ('18006d070', 'GjkSegmentSupport', NAV, 'vtable 1803df938: the second centre unless the first is strictly farther along d'),
     ('180296c00', 'CIntersectionDictionary_Find', PW, 'vf5 (vtable 0x28): the entry for a name hash (MurmurHash2 lower case, seed 0x31415926), or null; resourcecompiler registers none (capture_layers.py)'),
     ('18000bf60', 'CRnShapeTriangleSource::GetTriangles', NAV, "vtable slot 3 of navsystem's per-shape source -> 1802661f0"),
     ('1802661f0', 'RnShape_GetTriangles', NAV, 'by shape type: 0 sphere, 1 capsule, 2 hull (180130e60), 3 mesh (1802643e0), 4 compound'),

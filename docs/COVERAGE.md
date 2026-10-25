@@ -44,22 +44,28 @@ reads it as resourcecompiler does:
   a partial build.
 
 What runs today:
-- The world step without a bake: the world node and its models, the entity
-  lumps and brush entity models, and visibility only when `vis` is selected.
-  Without vis, CompileNode clusters by the node's box grid, as Valve does
-  (GROUND_TRUTH 55). The per-vertex lighting is the last bake's, from the
-  .vmap. probe01's `-world` package is Valve's byte for byte, bar .vwrld's
-  timestamp and fingerprint.
+- The world step: the world node and its models, the entity lumps and brush
+  entity models, and visibility only when `vis` is selected (byte-identical
+  VXVS from the .vmap, ledger 127). Without vis, CompileNode clusters by the
+  node's box grid, as Valve does (GROUND_TRUTH 55). Without a bake the
+  per-vertex lighting is the last bake's, from the .vmap. probe01's `-world`
+  package is Valve's byte for byte, bar .vwrld's timestamp and fingerprint.
+- The bake, two ways: `-s2cbake` runs our own GPU bake (the vrad3 port, no
+  vrad3; ze_hold_em_p 99.90% of bytes, probe01 quality 1 lightmaps exact),
+  `-vrad3output <folder>` takes a Valve vrad3 run's results (the lightmaps/
+  files byte for byte at every option, ledger 79).
 - The world step in entities-only mode: the entity lumps, settled unless
   `-nosettle`.
 - The physics step: world_physics.
 
 The world step bakes when no builder is named or `-bakelighting` is given,
-unless `-nobakedlighting` is given. The bake and Steam Audio are refused by
-name; the nav step generates the nav with its CS custom data, and the CS2 bomb
-damage post step runs after every build (ledger 109); a nav or bomb damage the
-port refuses (func_ladder, markups, nav links, movable meshes, hull worlds) refuses
-the build. `--skip-unported` runs the rest and leaves those parts as the
+unless `-nobakedlighting` is given; without `-s2cbake` or `-vrad3output` the
+bake is refused by name, as Steam Audio always is. The nav step generates the
+nav with its CS custom data, and the CS2 bomb damage post step runs after every
+build (ledger 109); a nav or bomb damage the port refuses (func_ladder, nav
+links, markups inside instances or prefabs, movable meshes, the analysis' casts
+against spheres and capsules, bomb damage over hull, sphere or capsule worlds)
+refuses the build. `--skip-unported` runs the rest and leaves those parts as the
 package has them, for quick test builds. A lump whose lights or probe
 volumes would lose their bake keys is refused unless `--accept-gaps` is
 passed. Hammer's Only Entities preset (`-entities -skipauxfiles
@@ -102,19 +108,19 @@ says so.
 | `-rebake_surfacegraph` | Build World Dynamic Surface Effects; Rebake All Surface Effects From Scratch ( recommended ) | not read |
 | `-debugvisgeo` | Debug Vis Geometry | not read |
 | `-skipauxfiles` | no label found | not read |
-| `-bakelighting` | Baked Lighting | read (turns the bake on in a partial build); the bake itself not started, refused or skipped |
-| `-lightmapMaxResolution N` | no label found | not started |
-| `-lightmapVRadQuality 0/1/2` | Quality | not started |
-| `-lightmapCompressionDisabled` | Compression (unticked) | not started |
-| `-lightmapDisableFiltering` | Noise Removal (unticked) | not started |
-| `-disableLightingCalculations` | Disable lighting calculations (debug texel density / chart allocation) | not started |
-| `-lightmapDeterministicCharts` | Deterministic Charting Computations (slow) | not started |
-| `-vrad3LargeBlockSize` | no label found | not started |
-| `-gpuraytracing` | GPU Lightmap Baking | not started |
+| `-bakelighting` | Baked Lighting | compile-map: turns the bake on in a partial build; the bake runs through `-s2cbake` (our GPU bake) or `-vrad3output` (vrad3's results), else refused |
+| `-lightmapMaxResolution N` | no label found | ported: probe01 at 8192, all seven lightmaps/ files byte for byte (ledger 79); the atlas side caps at worldspawn's max_lightmap_resolution and the node's uv snap uses the halved side (ledger 141) |
+| `-lightmapVRadQuality 0/1/2` | Quality | ported: the packer's passes, OIDN filters and ameliorate (ledgers 110-114), quality 1 through `-s2cbake` exact on probe01; the repack iterations past the free lines (no measured map reaches them) throw |
+| `-lightmapCompressionDisabled` | Compression (unticked) | ported: RGBA16161616F / RGBA8888, byte for byte (ledger 79) |
+| `-lightmapDisableFiltering` | Noise Removal (unticked) | partial: recorded in the root's and the textures' compile arguments; what it removes from vrad3's script is not read |
+| `-disableLightingCalculations` | Disable lighting calculations (debug texel density / chart allocation) | partial: turns the chart repacking off as Valve does; the rest of what it changes is not read |
+| `-lightmapDeterministicCharts` | Deterministic Charting Computations (slow) | not read |
+| `-vrad3LargeBlockSize` | no label found | partial: recorded in the compile arguments; lightmap_info.dat's 2048 block is ported (LightmapTexels) but the job always writes 1024 |
+| `-gpuraytracing` | GPU Lightmap Baking | not read (our bake always runs on the GPU) |
 | `-nolightmaps` | no label found | no output: resourcecompiler has no such argument |
-| `-vis` | Build vis | compile-map: off without it (no vvis, grid clustering); every vis stage exact against captured inputs, Mako included; not yet end to end on our own geometry |
+| `-vis` | Build vis | compile-map: off without it (no vvis, grid clustering); byte-identical VXVS from the .vmap end to end on five maps incl. s2c_prefabprobe4 and split hints (ledger 127); `-oldvis` is not reproducible in Valve's own tool |
 | `-phys` | Build physics | compile-map: world_physics, exact against Valve's decoded trees on 9 maps |
-| `-nav` | Nav | compile-map: generated from the .vmap with the CS custom data and the bomb damage after it; probe01 and cardtest Valve's (the custom data's heap pointer fields aside), ledger 109; markups, nav links and movable meshes refused |
+| `-nav` | Nav | compile-map: generated from the .vmap with the CS custom data and the bomb damage after it; probe01, cardtest and s2c_navmarkup (every markup kind) Valve's (the custom data's heap pointer fields aside), ledgers 109, 142; spheres and capsules in the nav world Valve's through stage 029 (s2c_navround, ledger 143); nav links, func_ladder, movable meshes and the analysis' casts against round shapes refused |
 | `-navdbg` | Save debug stages to file | not started |
 | `-gridnav` | Grid Nav, Build grid nav | not started |
 | `-lod` | Build LOD | not read |
@@ -146,7 +152,7 @@ these; a few are only reachable from resourcecompiler's command line.
 | `nosettle` | compile-map skips the settle |
 | `tileMeshBaseGeometry`, `deformables` | not read |
 | `bakelighting`, `nobakedlighting` | read: decide whether the world step bakes (GROUND_TRUTH 55) |
-| `lightmapMaxResolution` | not started |
+| `lightmapMaxResolution` | ported (with `lightmapMipCount`, `lightmapVRadQuality`, `lightmapChartPackIterations`, `lightmapNoWeld` and `lightmapCompressionDisabled`, read from the command line over the world's keys) |
 | `steamaudio`, `sareverb_*`, `sapaths_*`, `sacustomdata_*`, `sacustombake_*` | not started |
 | `meshletMaxTriangles`, `meshletMaxVertices` | not read (render geometry) |
 | `keep_vertices` | written into world_physics' compile arguments as Valve does; the option itself not read |
@@ -211,7 +217,7 @@ exact 30, partial 2, unpinned 0, no sample 0
 | env_light_probe_volume | Point | resourcecompiler | probe record for the bake; lightprobetexture* keys added; kept | lump keys exact on every pinned map, baked keys included (atlas textures, handshake, size) | exact |
 | env_sky | Point | resourcecompiler, physicsbuilder, vrad3 | upgrade of older vmaps only: skyname gets .vmat | lump pass-through ported; vmap upgrader not ported | exact |
 | func_movelinear | Solid | resourcecompiler | nav: movable nav mesh when CreateMovableNavMesh is set | lump ported; nav not started | partial (movable nav mesh not started) |
-| func_nav_markup | Solid | resourcecompiler | nav: markup volumes | lump ported; nav not started | exact |
+| func_nav_markup | Solid | resourcecompiler | nav: markup volumes | lump ported; nav markups ported (the collector, NONAV in the extraction, 003 / 009, 019, WALKABLESEED in 029; ledger 142); inside instances or prefabs refused | exact |
 | func_physbox | Solid | resourcecompiler, physicsbuilder, vrad3 | upgrade of older vmaps only: spawnflags to gravity-grab keys | lump ported; vmap upgrader not ported | exact |
 | info_cull_triangles | Point | resourcecompiler | dropped from the lump; a record for render-mesh triangle culling | dropped as Valve does; culling not ported (render geometry) | exact |
 | info_particle_system | Point | resourcecompiler, physicsbuilder, vrad3 | snapshot_mesh naming a map node: snapshot_file set to maps/<map>/particle_snapshots/node_<id>.vsnap and the snapshot generated from the node; upgrade of older vmaps: snapshot_file gets .vsnap | snapshot_file key ported (not inside instances); .vsnap not generated; vmap upgrader not ported | partial (.vsnap not generated) |
@@ -231,12 +237,12 @@ exact 30, partial 2, unpinned 0, no sample 0
 | point_scale_reference_human | Point | resourcecompiler | dropped from the lump | ported | exact |
 | point_template | Point | resourcecompiler | entities it names are left out of the settle | ported (settle) | exact |
 | prop_physics_override | Point | resourcecompiler, physicsbuilder, vrad3 | upgrade of older vmaps only: spawnflags to gravity-grab keys | lump and settle ported; vmap upgrader not ported | exact |
-| prop_static | Point | resourcecompiler, physicsbuilder | dropped from the lump; static prop record for render, lighting and world physics | dropped as Valve does; world physics hulls exact; render and lighting not started | exact |
+| prop_static | Point | resourcecompiler, physicsbuilder | dropped from the lump; static prop record for render, lighting and world physics | dropped as Valve does; world physics hulls exact; the world node's prop records and the path-trace scene's ported (GEOMETRY.md, ledger 105); its spheres and capsules in the nav world ported (ledger 143) | exact |
 | sky_camera | Point | resourcecompiler | none found at compile time | nothing found to port | exact |
 | snd_event_box_helper | Point | resourcecompiler | editor only (clone chaining) | nothing to port for the compile | exact |
 | snd_opvar_set_point | Point | resourcecompiler | Steam Audio probe positions | not started (Steam Audio) | exact |
 | visibility_hint | Point | resourcecompiler | dropped from the lump; the entity goes into the vis build's hints | dropped as Valve does; vis hints not wired | exact |
-| worldspawn | Solid | resourcecompiler, physicsbuilder, vrad3, worldrenderer | kept; pvstype and the lightmap/vis settings (max_lightmap_resolution, novis_*, lightmap_queries) read into the build | lump ported; pvstype read by the vis port; lightmap settings not started | exact |
+| worldspawn | Solid | resourcecompiler, physicsbuilder, vrad3, worldrenderer | kept; pvstype and the lightmap/vis settings (max_lightmap_resolution, novis_*, lightmap_queries) read into the build | lump ported; pvstype read by the vis port; the lightmap keys and max_lightmap_resolution read by the bake (LightmapSettings, ledger 141) | exact |
 
 ### Classes that only pass through the lump
 

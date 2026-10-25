@@ -60,7 +60,8 @@ public static class WorldNodeFiles
         Func<List<WorldNodeBuild.Built>, List<WorldNodeBuild.Built>>? bake = null;
         if (bakes)
         {
-            var settings = Lighting.LightmapSettings.From(Lighting.LightmapSettings.Keys(document, arguments), 0x1000, 4096, sh2Dc: false);
+            var keys = Lighting.LightmapSettings.Keys(document, arguments);
+            var settings = Lighting.LightmapSettings.From(keys, Lighting.LightmapSettings.Requested(keys), 4096, sh2Dc: false);
             var importance = WorldNodeBuild.ImportanceVolumes(world, props);
             var backfaces = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
             bool RenderBackfaces(string m)

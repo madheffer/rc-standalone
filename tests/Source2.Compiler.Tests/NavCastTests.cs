@@ -21,6 +21,29 @@ public sealed class NavCastTests(ITestOutputHelper output)
 
     internal sealed record CapturedHull(Vector3 Reference, Vector3[] Points, float Scale, byte[] Header);
 
+    /// <summary>A sphere (one centre) or capsule (two) as the shape holds it (+0xb8), in its body's frame.</summary>
+    internal sealed record CapturedRound(Vector3[] Centres, float Radius);
+
+    /// <summary>The spheres and capsules navcast_shapedata.bin dumped, by pointer.</summary>
+    internal static Dictionary<ulong, CapturedRound> RoundShapes(string dir)
+    {
+        var b = File.ReadAllBytes(Path.Combine(dir, "navcast_shapedata.bin"));
+        var round = new Dictionary<ulong, CapturedRound>();
+        for (var at = 0; at + 4 <= b.Length;)
+        {
+            var len = BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(at));
+            var r = b.AsSpan(at + 4, len);
+            at += 4 + len;
+            var type = BinaryPrimitives.ReadUInt32LittleEndian(r[8..]);
+            var p = r[12..];
+            if (type == 0)
+                round[BinaryPrimitives.ReadUInt64LittleEndian(r)] = new CapturedRound([V3(p)], BinaryPrimitives.ReadSingleLittleEndian(p[12..]));
+            else if (type == 1)
+                round[BinaryPrimitives.ReadUInt64LittleEndian(r)] = new CapturedRound([V3(p), V3(p[12..])], BinaryPrimitives.ReadSingleLittleEndian(p[24..]));
+        }
+        return round;
+    }
+
     private static Vector3 V3(ReadOnlySpan<byte> b) => new(BinaryPrimitives.ReadSingleLittleEndian(b), BinaryPrimitives.ReadSingleLittleEndian(b[4..]),
                                                            BinaryPrimitives.ReadSingleLittleEndian(b[8..]));
 
@@ -137,6 +160,43 @@ public sealed class NavCastTests(ITestOutputHelper output)
                 output.WriteLine($"cast {total}: ours {hit.Found} {ours:R}, Valve {c.Returned} {c.Fraction:R}, max {c.MaxFraction:R}");
         }
         output.WriteLine($"{same} of {total} mesh casts Valve's ({missing} on shapes not dumped, {closedSkipped} on closed meshes)");
+        Assert.Equal(total, same);
+    }
+
+    /// <summary>
+    /// Every box cast against a sphere or capsule (18024bc00 / 18024e6b0) replayed through
+    /// <see cref="HullCast.CastBoxRound"/> from Valve's inputs (s2c_navround: <c>NAVCAST_DIR</c>, default
+    /// %TEMP%/navgen_capture/s2c_navround_in).
+    /// </summary>
+    [Fact]
+    public void RoundBoxCastsMatchValve()
+    {
+        var dir = Environment.GetEnvironmentVariable("NAVCAST_DIR") ?? Path.Combine(Path.GetTempPath(), "navgen_capture", "s2c_navround_in");
+        if (!File.Exists(Path.Combine(dir, "navcast_shapedata.bin")))
+            return;
+        var round = RoundShapes(dir);
+        int total = 0, same = 0, missing = 0, shown = 0, hits = 0;
+        foreach (var c in ShapeCasts(dir))
+        {
+            if (c.Type > 1)
+                continue;
+            if (!round.TryGetValue(c.Shape, out var shape))
+            {
+                missing++;
+                continue;
+            }
+            total++;
+            var centres = shape.Centres.Select(p => Maps.NavGen.NavBoxWorld.World(p, c.Transform)).ToArray();
+            var hit = HullCast.CastBoxRound(centres, shape.Radius, c.Centre, c.Delta, c.Half, c.MaxFraction);
+            if (c.Returned)
+                hits++;
+            if (hit.Found == c.Returned && (!hit.Found || BitConverter.SingleToInt32Bits(hit.Fraction) == BitConverter.SingleToInt32Bits(c.Fraction)))
+                same++;
+            else if (shown++ < 15)
+                output.WriteLine($"cast {total} ({(c.Type == 0 ? "sphere" : "capsule")}): ours {hit.Found} {hit.Fraction:R}{(hit.StartSolid ? " solid" : "")}, Valve {c.Returned} {c.Fraction:R}; " +
+                                 $"start {c.Centre} delta {c.Delta} half {c.Half} max {c.MaxFraction:R}");
+        }
+        output.WriteLine($"{same} of {total} sphere and capsule casts Valve's ({hits} hits; {missing} on shapes not dumped)");
         Assert.Equal(total, same);
     }
 

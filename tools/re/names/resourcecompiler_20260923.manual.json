@@ -1,6 +1,48 @@
 {
  "functions": [
   {
+   "addr": "18023b500",
+   "name": "WorldRendererBuilder_Construct",
+   "module": "s2c:baked/lighting",
+   "note": "+0x2f8, the builder's requested lightmap side, 0x7fffffff; +0x2fc Engine2/LightmapQueries"
+  },
+  {
+   "addr": "180240b7f",
+   "name": "WorldRendererBuilder_ReadWorldKeys",
+   "module": "s2c:baked/lighting",
+   "note": "worldspawn's max_lightmap_resolution into +0x2f8 when above 0, else 0x7fffffff (1802413cd); novis_min_draw_volume_size +0x300, novis_max_triangles_per_cluster +0x304, lightmap_queries +0x2fc"
+  },
+  {
+   "addr": "18025dd8d",
+   "name": "CWorldRendererBuilderNode_BakeLightMaps",
+   "module": "s2c:baked/lighting",
+   "note": "BakeLighting (180217740) with the builder's +0x2f8 and +0x2fc"
+  },
+  {
+   "addr": "180f30580",
+   "name": "EntityKeys_GetTagList",
+   "module": "s2c:baked/nav",
+   "note": "a tag_list value's tokens, commas and white space between"
+  },
+  {
+   "addr": "180f8b7c0",
+   "name": "MapNode_ChildIterator_Begin",
+   "module": "s2c:baked/nav",
+   "note": "a depth-first iterator over a node's descendants of one type (180f8bd70 advances); AddMarkup takes the first CMapMesh"
+  },
+  {
+   "addr": "180f8bc60",
+   "name": "MapNode_LocalBounds",
+   "module": "s2c:baked/nav",
+   "note": "the node's bounds in its frame, +0x14c / +0x158"
+  },
+  {
+   "addr": "180f2de60",
+   "name": "MapEntity_IsClass",
+   "module": "s2c:baked/nav",
+   "note": "the class name or any FGD base (V_CompareNameWithWildcards over 180dd1fb0's list)"
+  },
+  {
    "addr": "1818c8c60",
    "name": "NavSettings_ReadProjectDefaults",
    "module": "s2c:baked/nav",

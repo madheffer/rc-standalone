@@ -551,12 +551,13 @@ public sealed partial class NavGenPolys
 
     // 18004c280 -> 18004bbe0: the clipped polygon fanned from its first corner into quads (0, k, k + 1,
     // k + 2) and a last triangle, each piece's corners appended to the pool afresh; kind, +0x62 and +0x64
-    // from the source, flags 0, the normal of its first three corners.
-    private void AddClipped(ClipPoly c, NavPoly src, List<NavPoly> to)
+    // from the source, flags 0, the normal of its first three corners. Returns the pieces added.
+    private int AddClipped(ClipPoly c, NavPoly src, List<NavPoly> to)
     {
         var count = c.Corners.Count;
         if (count - 1 < 2)
-            return;
+            return 0;
+        var added = 0;
         for (var k = 1; k < count - 1; k += 2)
         {
             var size = k + 2 < count ? 4 : 3;
@@ -590,6 +591,8 @@ public sealed partial class NavGenPolys
             {
                 Indices = idx, Kind = src.Kind, Flags = 0, Nx = nx, Ny = ny, Nz = nz, Field62 = src.Field62, Field64 = src.Field64,
             });
+            added++;
         }
+        return added;
     }
 }

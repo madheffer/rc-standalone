@@ -7,8 +7,9 @@ namespace Source2.Compiler.Lighting;
 /// and gameinfo:
 /// <list type="bullet">
 /// <item>the atlas side: lightmapMaxResolution (4096), lowered to the
-/// builder's requested size (+0x2f8) when that is smaller, raised to 512 when
-/// under it; it must be a power of two;</item>
+/// builder's requested size (+0x2f8: worldspawn's max_lightmap_resolution when
+/// above 0, else 0x7fffffff, 1802413cd-1802413ed) when that is smaller, raised
+/// to 512 when under it; it must be a power of two;</item>
 /// <item>the mips: lightmapMipCount (1), fewer when a mip would drop under
 /// 512, more until the largest fits ResourceCompiler/BakedLighting/
 /// MinSpecLightmapSize (4096 in CS2);</item>
@@ -24,6 +25,32 @@ namespace Source2.Compiler.Lighting;
 internal sealed record LightmapSettings(int Width, int Height, int Mip, int Passes, bool Weld, bool Sh2Dc)
 {
     private static readonly int[] PassesByQuality = [4, 7, 9];
+
+    /// <summary>The sides left after the mip and MinSpecLightmapSize halvings (r13d / r15d at 18021808b), which the uv snap and the query data's scale use.</summary>
+    public int HalvedWidth => Width >> (Mip - 1);
+    public int HalvedHeight => Height >> (Mip - 1);
+
+    /// <summary>
+    /// The builder's requested size (+0x2f8, 1802413cd-1802413ed): worldspawn's max_lightmap_resolution
+    /// read as an int, when above 0; otherwise 0x7fffffff, which leaves lightmapMaxResolution the side.
+    /// </summary>
+    public static int Requested(IReadOnlyDictionary<string, string> settings)
+        => settings.TryGetValue("max_lightmap_resolution", out var v) && LeadingInt(v) is > 0 and var r ? r : int.MaxValue;
+
+    // The entity key's int as atoi reads it: leading whitespace, a sign, then digits.
+    private static int LeadingInt(string s)
+    {
+        var i = 0;
+        while (i < s.Length && char.IsWhiteSpace(s[i]))
+            i++;
+        var negative = i < s.Length && s[i] == '-';
+        if (i < s.Length && s[i] is '-' or '+')
+            i++;
+        long n = 0;
+        for (; i < s.Length && s[i] is >= '0' and <= '9' && n <= int.MaxValue; i++)
+            n = n * 10 + (s[i] - '0');
+        return (int)Math.Clamp(negative ? -n : n, int.MinValue, int.MaxValue);
+    }
 
     /// <summary>
     /// The settings by name: the map's world keys, then the compile's arguments over them (the
@@ -45,7 +72,7 @@ internal sealed record LightmapSettings(int Width, int Height, int Mip, int Pass
     }
 
     /// <param name="settings">The map's lighting settings by name (absent ones take their defaults).</param>
-    /// <param name="requested">The builder's requested size (+0x2f8).</param>
+    /// <param name="requested">The builder's requested size (+0x2f8, <see cref="Requested"/>).</param>
     /// <param name="minSpec">gameinfo MinSpecLightmapSize (0: none).</param>
     /// <param name="sh2Dc">directional_irradiance_sh2_dc is a lightmap output.</param>
     public static LightmapSettings From(IReadOnlyDictionary<string, string> settings, int requested, int minSpec, bool sh2Dc)

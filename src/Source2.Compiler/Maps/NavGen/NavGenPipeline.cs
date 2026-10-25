@@ -11,9 +11,11 @@ namespace Source2.Compiler.Maps.NavGen;
 /// (180022b60) through IslandRemoval (029), ClipPolysToHullClearance (022) casting through
 /// <see cref="NavBoxWorld"/>, and LadderConnect (028) on the ladders of mapbuilder.ladder meshes
 /// (<see cref="NavGenMapInput.Ladders"/>) tracing through it. What is not ported refuses with
-/// <see cref="NotSupportedException"/>: func_nav_markup properties (markups, 019, NONAV), nav links,
-/// func_ladder, sphere shapes and casts against spheres and capsules, smart props and physics pins in
-/// the nav world's filter, several hulls, a deprecated agent setup.
+/// <see cref="NotSupportedException"/>: markups inside instances or prefabs, nav links, func_ladder,
+/// sphere shapes and casts against spheres and capsules, smart props and physics pins in the nav world's
+/// filter, several hulls, a deprecated agent setup. The markups (<see cref="NavMarkupInput.Collect"/>) run
+/// the extraction's NONAV filter, stages 003 and 009 (RemovePolysMarkedNoNav), 019 (SplitPolysByMarkup)
+/// and IslandRemoval's WALKABLESEED floods.
 /// </summary>
 public static class NavGenPipeline
 {
@@ -81,7 +83,7 @@ public static class NavGenPipeline
     /// <summary>
     /// The stage list on the map's settle world (<paramref name="bodies"/>, from
     /// <see cref="SettleWorld.Build"/>; unsettled placement) through 029. <paramref name="stage"/>, when
-    /// given, sees the polygons after stages 005, 018, 021, 022, 027 and 029 (by their number);
+    /// given, sees the polygons after stages 005, 018, 019, 021, 022, 027 and 029 (by their number);
     /// <paramref name="material"/> finds a compiled material's attributes (the ladders' mapbuilder.ladder).
     /// </summary>
     public static Result Generate(DmxBinary.Document document, IReadOnlyList<SettleWorld.BodyBuild> bodies, SettleWorld.CollisionRules rules,
@@ -94,19 +96,17 @@ public static class NavGenPipeline
             var cls = props?.Get<string>("classname");
             if (cls is "func_ladder" or "info_nav_link" or "point_nav_link")
                 throw new NotSupportedException($"nav generation with {cls} is not ported");
-            // 180f209f0: a func_nav_markup adds markups only through its navProperty_<tag> string keys
-            // (non-empty) or a navProperty_NavAttributes array (180f22330); one with neither adds none.
-            if (cls == "func_nav_markup" && props!.Attributes.Any(kv => kv.Key.StartsWith("navProperty_", StringComparison.OrdinalIgnoreCase)
-                                                                        && kv.Value is not null && kv.Value.ToString() is { Length: > 0 }))
-                throw new NotSupportedException("nav generation with func_nav_markup properties (markups) is not ported");
         }
         if (settings.Hulls.Count != 1)
             throw new NotSupportedException($"nav generation with {settings.Hulls.Count} hulls is not ported");
         var ladders = NavGenMapInput.Ladders(document, material);
         var inNavWorld = NavGenInput.NavWorldFilter(document, schema);
-        var (verts, indices) = NavGenInput.Extract(bodies, rules, inNavWorld: inNavWorld);
+        var markups = NavMarkupInput.Collect(document, schema);
+        var radius = settings.Hulls[0].Radius;
+        var (verts, indices) = NavGenInput.Extract(bodies, rules, inNavWorld: inNavWorld, noNav: markups.NoNav(),
+                                                   noNavPad: NavGenInputMarkups.NoNavPad(settings.Hulls.Select(h => h.Radius)));
         var g = NavGenPolys.FromTriangles(verts, indices);
-        if (!NavGenStages.BeforeRecast(g))
+        if (!NavGenStages.BeforeRecast(g, markups, radius))
             throw new InvalidOperationException("nav generation: ValidateVertices failed");
         var config = RecastConfig.From(settings.Bytes(), settings.Hulls[0].Bytes(), NavGenStages.RadiusPad, 0);
         var tiles = new RecastTiles(config, RecastInput.From([.. g.Pool], [.. g.Polys.Select(p => p.Indices.ToArray())]));
@@ -114,9 +114,11 @@ public static class NavGenPipeline
         var recast = NavGenPolys.FromRecast(polys, pool);
         stage?.Invoke("005", recast);
         var oriented = document.Elements.Any(e => e.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname") == "info_nav_oriented_mesh");
-        NavGenStages.AfterRecast(recast, oriented);
+        NavGenStages.AfterRecast(recast, oriented, markups, radius);
         stage?.Invoke("018", recast);
-        // 019 SplitPolysByMarkup (no markups: nothing), 020 WeldVertices, 021 RemoveDegens, 022 ClipPolysToHullClearance.
+        // 019 SplitPolysByMarkup, 020 WeldVertices, 021 RemoveDegens, 022 ClipPolysToHullClearance.
+        recast.SplitPolysByMarkup(markups, NavMarkupSettings.SplitGrow, NavMarkupSettings.SplitEps, NavMarkupSettings.SplitEpsPlain, radius);
+        stage?.Invoke("019", recast);
         var tol = (double)NavGenStages.WeldTolerance;
         recast.Weld(tol, tol);
         recast.RemoveDegens(tol);
@@ -128,7 +130,7 @@ public static class NavGenPipeline
         stage?.Invoke("027", recast);
         // 028 LadderConnect (its convar is on only with ladders), 029 IslandRemoval.
         var connectivity = ladders.Count == 0 ? [] : recast.LadderConnect(ladders, world);
-        NavGenStages.IslandStage(recast, new NavIslandInput(NavGenMapInput.Seeds(document), [], connectivity), settings);
+        NavGenStages.IslandStage(recast, new NavIslandInput(NavGenMapInput.Seeds(document), [], connectivity) { Markups = markups }, settings);
         stage?.Invoke("029", recast);
         return new Result(recast, settings, verts, indices);
     }
