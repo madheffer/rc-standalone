@@ -39,6 +39,11 @@ version that changes something a host sees.
 - `ShaderProgram.StaticComboRules`, `ShaderCombo.CompareValue`, `ShaderVariable.ChannelCount`.
 
 ### Fixed
+- KV3 node types 26 and 27 (a uint32 0 and 1 with no payload), which CS2's 2026-10 compiler
+  writes: every reader threw `Unknown KVType` on them. Measured on GFL's 2026-10-25 pack, 17 of
+  its 20 player models carry them in RED2 and four in DATA. `Kv3Type.UInt32Zero` / `UInt32One`;
+  `Kv3Tree` keeps them on a round trip, `Kv3Binary.Read` returns them as `uint`, and the writer
+  still encodes a `uint` 0 or 1 as before.
 - Binary KV3 is held to an absolute ceiling on what a block declares it decompresses to, instead of
   4096 times its stored size. The ratio let a 454 KB zstd block declare 1.9 GB (1.8 GB peak per
   decompile), refused valid output that compresses well (1.1M `{}` in a `.vdata` compile to 2 KB),

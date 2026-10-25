@@ -4,6 +4,7 @@ using ValvePak;
 using ValveResourceFormat;
 using ValveResourceFormat.ResourceTypes;
 using ValveResourceFormat.Serialization.KeyValues;
+using ValveKeyValue.KeyValues3;
 using Xunit;
 
 namespace Source2.Compiler.Tests;
@@ -117,6 +118,36 @@ public class Kv3TreeTests
         Assert.Equal(40, d.GetArray("longAux").Count);
         Assert.Equal(-7.0, (double)d.GetArray("nested")[0][7]);
         Assert.Equal(40000, d.GetArray<byte>("pose").Length);
+    }
+
+    // CS2's 2026-10 compiler stores a uint32 0 or 1 as the value-less types 26 and 27 (in the RED2
+    // and DATA of GFL's 2026-10-25 player models); both readers threw "Unknown KVType" on them.
+    [Fact]
+    public void Uint32_constants_round_trip_and_read_as_uint()
+    {
+        var t = new Kv3Tree { Format = Guid.NewGuid() };
+        var obj = new Kv3Node { Type = Kv3Type.Object, Items = [], KeyIds = [] };
+        void Put(string key, Kv3Node v) { obj.KeyIds!.Add(t.StringId(key)); obj.Items!.Add(v); }
+        Put("zero", Scalar(Kv3Type.UInt32Zero));
+        Put("one", Scalar(Kv3Type.UInt32One));
+        Put("after", Scalar(Kv3Type.UInt32, 7));
+        t.Root = obj;
+
+        var written = t.Write();
+        var back = Kv3Tree.Read(written);
+        Assert.Equal([Kv3Type.UInt32Zero, Kv3Type.UInt32One, Kv3Type.UInt32], back.Root.Items!.Select(n => n.Type));
+        Assert.Equal([0L, 1L, 7L], back.Root.Items!.Select(Kv3Tree.AsLong));
+        Assert.Equal(Kv3Type.UInt32, Kv3Tree.IntLike(back.Root.Items![0], 5).Type);
+        Assert.True(back.Encode().Buffer1.AsSpan().SequenceEqual(t.Encode().Buffer1));
+
+        var doc = Kv3Binary.Read(written);
+        foreach (var (key, value) in new[] { ("zero", 0u), ("one", 1u), ("after", 7u) })
+        {
+            Assert.Equal(ValveKeyValue.KVValueType.UInt32, doc[key].ValueType);
+            Assert.Equal(value, (uint)doc[key]);
+        }
+        var rewritten = Kv3Binary.Read(Kv3Binary.Write(doc, new KV3ID("generic", t.Format)));
+        Assert.Equal([0L, 1L, 7L], new[] { "zero", "one", "after" }.Select(k => (long)rewritten[k]));
     }
 
     /// <summary>

@@ -225,6 +225,10 @@ internal sealed partial class Kv3BinaryReader
                 return 0.0D;
             case Kv3Type.DoubleOne:
                 return 1.0D;
+            case Kv3Type.UInt32Zero:
+                return 0U;
+            case Kv3Type.UInt32One:
+                return 1U;
             case Kv3Type.String:
                 return GetString(context, reader.ReadInt32());
             case Kv3Type.BinaryBlob:

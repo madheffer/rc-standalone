@@ -96,6 +96,10 @@ public enum Kv3Type : byte
     ArrayTypeByteLength = 24,
     /// <summary>A typed array with an 8-bit length, elements in the auxiliary buffer.</summary>
     ArrayTypeAuxiliaryBuffer = 25,
+    /// <summary>The unsigned 32-bit integer 0, with no payload. CS2's 2026-10 compiler writes it.</summary>
+    UInt32Zero = 26,
+    /// <summary>The unsigned 32-bit integer 1, with no payload.</summary>
+    UInt32One = 27,
 }
 
 /// <summary>
@@ -173,8 +177,8 @@ public sealed class Kv3Tree
     {
         Kv3Type.Double => BitConverter.UInt64BitsToDouble(n.Bits),
         Kv3Type.Float => BitConverter.UInt32BitsToSingle((uint)n.Bits),
-        Kv3Type.DoubleZero or Kv3Type.Int64Zero => 0,
-        Kv3Type.DoubleOne or Kv3Type.Int64One => 1,
+        Kv3Type.DoubleZero or Kv3Type.Int64Zero or Kv3Type.UInt32Zero => 0,
+        Kv3Type.DoubleOne or Kv3Type.Int64One or Kv3Type.UInt32One => 1,
         _ => AsLong(n),
     };
 
@@ -182,8 +186,8 @@ public sealed class Kv3Tree
     /// <exception cref="InvalidDataException">The node is not a number.</exception>
     public static long AsLong(Kv3Node n) => n.Type switch
     {
-        Kv3Type.Int64Zero or Kv3Type.BooleanFalse or Kv3Type.DoubleZero => 0,
-        Kv3Type.Int64One or Kv3Type.BooleanTrue or Kv3Type.DoubleOne => 1,
+        Kv3Type.Int64Zero or Kv3Type.BooleanFalse or Kv3Type.DoubleZero or Kv3Type.UInt32Zero => 0,
+        Kv3Type.Int64One or Kv3Type.BooleanTrue or Kv3Type.DoubleOne or Kv3Type.UInt32One => 1,
         Kv3Type.Int8 => (sbyte)(byte)n.Bits,
         Kv3Type.Int16 => (short)(ushort)n.Bits,
         Kv3Type.Int32 => (int)(uint)n.Bits,
@@ -222,6 +226,8 @@ public sealed class Kv3Tree
         Kv3Type.Int32 => new() { Type = like.Type, Bits = (uint)(int)v },
         Kv3Type.Int16 => new() { Type = like.Type, Bits = (ushort)(short)v },
         Kv3Type.Int8 => new() { Type = like.Type, Bits = (byte)(sbyte)v },
+        Kv3Type.UInt32Zero or Kv3Type.UInt32One =>
+            v == 0 ? new() { Type = Kv3Type.UInt32Zero } : v == 1 ? new() { Type = Kv3Type.UInt32One } : new() { Type = Kv3Type.UInt32, Bits = (uint)v },
         Kv3Type.UInt8 or Kv3Type.UInt16 or Kv3Type.UInt32 or Kv3Type.UInt64 => new() { Type = like.Type, Bits = (ulong)v },
         _ => throw new InvalidDataException($"KV3: {like.Type} is not an integer"),
     };
@@ -421,7 +427,7 @@ public sealed class Kv3Tree
             switch (type)
             {
                 case Kv3Type.Null or Kv3Type.BooleanTrue or Kv3Type.BooleanFalse or Kv3Type.Int64Zero or Kv3Type.Int64One
-                    or Kv3Type.DoubleZero or Kv3Type.DoubleOne:
+                    or Kv3Type.DoubleZero or Kv3Type.DoubleOne or Kv3Type.UInt32Zero or Kv3Type.UInt32One:
                     break;
                 case Kv3Type.Boolean or Kv3Type.Int8 or Kv3Type.UInt8: n.Bits = l.ReadB1(); break;
                 case Kv3Type.Int16 or Kv3Type.UInt16: n.Bits = l.ReadB2(); break;
@@ -498,7 +504,7 @@ public sealed class Kv3Tree
         switch (n.Type)
         {
             case Kv3Type.Null or Kv3Type.BooleanTrue or Kv3Type.BooleanFalse or Kv3Type.Int64Zero or Kv3Type.Int64One
-                or Kv3Type.DoubleZero or Kv3Type.DoubleOne:
+                or Kv3Type.DoubleZero or Kv3Type.DoubleOne or Kv3Type.UInt32Zero or Kv3Type.UInt32One:
                 break;
             case Kv3Type.Boolean or Kv3Type.Int8 or Kv3Type.UInt8: o.Put(n.Bits, 1); break;
             case Kv3Type.Int16 or Kv3Type.UInt16: o.Put(n.Bits, 2); break;
