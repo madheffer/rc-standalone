@@ -107,24 +107,58 @@ Open:
      corpus model is known to use.
   2. Done (2026-10-25, ledger 138): the conical joint's spring and velocity
      motor (modes 0 and 2 of 180229870) and its plasticity (180205bd0).
-  3. The joint wrapper 18030f0b0 (priority and infinite-mass gating, record
-     0x12) and joints in the island solver: prepared first, iterated before
-     the contacts, position-solved first, impulses stored on the last
-     velocity iteration; vt 0x38 break test.
-  4. Joints in the island manager (notes_joints.md "Islands"): activate,
-     deactivate, merge (joints first), split flood fill (joints first), the
-     colouring's joint buckets; SetType's leave-and-return with
-     ContinuousSolve/WorldSolver's JoinedToDynamic walk of body +0x70.
-  5. The aggregate build from the model (180042ba0: bodies, part shapes,
-     mass, damping, drag, joints with the degrees round trip and friction
-     torque), rc's attribute pass and bone poses (18105dbd0), then
-     made dynamic body by body; check the step-0 world, joints and islands
-     against the capture byte for byte.
-  6. Step in lockstep with the capture's bodies and joints (SettleReplay
-     with joints), sleep with joints.
-  7. The write-back: bone 0 through bind pose 0 to the entity, the other
-     bones local into boneTransforms (18105b350, 18105cac0, 181004390,
-     serializer 18174aeb0); s2c_ragdollprobe's lump 0 differences.
+  3. The joint wrapper and joints in the island solver. Port 18030f0b0
+     (the stream header: solver indices from joint +0x68/+0x6c, the mass
+     scales from priority +0x2a and the infinite-mass/inertia flags
+     +0x2b/+0x2c, record 0x12 when both sides are infinite in the tested
+     axes, as ContactSolver's wrapper does for contacts), the per-joint
+     dispatch by vtable (prepare +0x28, the dof mask +0x30, the break test
+     +0x38 into world +0x88 +0x30) and the record dispatches 180312650
+     (velocity), 18030f860 (last velocity iteration: solve, then store),
+     1803120f0 (position). Wire them into Simulation/IslandSolver.cs:
+     joints prepared before contacts, iterated before them in each
+     velocity and position iteration, impulses stored on the last velocity
+     iteration. Check: an oracle test of the wrapper on random joint/body
+     pairs, then a two-body pendulum island stepped beside vphysics2's
+     island solve (the IslandSolver oracle tests' pattern) byte for byte.
+  4. Joints in the island manager (notes_joints.md "Islands"; today
+     IslandManagerOps.cs, WorldSolver.cs:66 and ContinuousSolve.cs:354
+     throw on a body with joints): CRnWorld_AddJoint 1801fd720 and
+     CRnJoint_SetBodies 1802055f0 (body +0x70 edge list, tagged pointers),
+     activate 1802cb0a0, deactivate 1802cd5b0, append 1802ca9c0 with the
+     colouring's joint buckets, merge 1802cc790 and the split flood fill
+     1802ce7b0 (joints first in both), SetType 1801bd3e0's leave-and-return
+     (1802ccbb0, 1802ce270, impulses scaled by 0 through vtable +0x18), and
+     WorldSolver's JoinedToDynamic walk of body +0x70. Check: the capture's
+     islands at steps 0..3 (13 holes, joint order 12, 11, 2, 3, 0, ...).
+  5. The aggregate build (CPhysAggregateInstance, vphysics2 180042ba0, from
+     rc's PhysPart_BuildFromModel 18105dbd0 when parts >= 2 or joints >= 1):
+     bodies per part at xf o bind pose (180045630), shapes, mass, inertia
+     scale, damping and drag (180044bc0), joints from VPhysXJoint_t
+     (180047600: type 3 -> 18005cb80 revolute, 4 and 10 -> 18005d370
+     conical, the degrees round trip x * 57.295776f * 0.017453292f), the
+     joint ctors' defaults and desc setters (friction torque 180204d70 with
+     the side from 180204ff0, elasticity 180204520, the anchors through
+     180205a20/180205aa0 divided by the body scale when desc +0x54), rc's
+     attribute pass and bone poses, then made dynamic body by body
+     (1800488d0 -> SetType 2). Lift SettleWorld.Run.cs:64's refusal of a
+     bind pose. Check: the capture's step-0 bodies, joints and islands byte
+     for byte.
+  6. Step in lockstep with the capture (SettleReplay with joints: bodies and
+     joints every recorded step), then sleep with joints; first divergence
+     wins, as for the single-body settle (SETTLE.md). Remember Valve's
+     settle varies run to run with heap order: capture --settle-only twice
+     before chasing a pose.
+  7. The write-back (18105b350 -> 18105a410): bone 0's transform through
+     bind pose 0 (translation times the aggregate scale) to the entity, the
+     other bones local, scaled 1 / aggScale, into boneTransforms (18105cac0,
+     node +0x438 180f934b0, lump key 181004390, serializer 18174aeb0); lift
+     SettleWriteBack.cs:64's scaled bind pose refusal if a corpus map needs
+     it. Check: s2c_ragdollprobe's lump 0 against Valve's, then the corpus
+     maps with ragdoll props.
+  Not on the path: CRnRevoluteBlockJoint (flags bit 1; port if a corpus
+  model turns out to use it, which ModelPhysicsProbe's joint listing shows),
+  constraints2 type-10 descs (180046ea0; ctm_sas has none).
 - **An edge between two coincident baked vertices:** MergeVertices
   (1813a8840) takes CollapseEdge (181383600 -> 181382170, with the
   attribute snapshots 1813a3d50 and 1813a3f40) on Hammer's 22-bit handle

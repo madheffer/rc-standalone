@@ -60,7 +60,7 @@ map loading ─┬─ mesh export ─┬─ trace scene ── visibility ─┬
 | containers and packaging | [CONTAINERS.md](CONTAINERS.md), [RESOURCES.md](RESOURCES.md) | 98%: every container authored; KV3 v5, VPK and the map root (.vmap_c) byte for byte on all 40 Valve references; Hammer's Only Entities preset whole-package exact |
 | geometry | [GEOMETRY.md](GEOMETRY.md) | 99%: probe01's -world package equals Valve's but a per-compile stamp; ze_hold_em_p world 100% |
 | visibility | [VISIBILITY.md](VISIBILITY.md) | 100% of the deterministic build: byte-identical VXVS from the .vmap on five maps incl. atixref-sized s2c_prefabprobe4 and split hints (2026-10-23); `-oldvis` is not reproducible in Valve's own tool |
-| physics | [PHYSICS.md](PHYSICS.md) | 98%: world_physics and entity models whole-file exact on every map with a compile, incl. cables and deformers placed through instances and prefabs (ledgers 128-133); ragdolls in the settle under way: the conical and revolute joints' solves oracle-exact (ledgers 135, 136), next the conical motor and the aggregate build (PHYSICS.md roadmap); left besides: instances inside prefab maps for entity models, render meshes |
+| physics | [PHYSICS.md](PHYSICS.md) | 98%: world_physics and entity models whole-file exact on every map with a compile, incl. cables and deformers placed through instances and prefabs (ledgers 128-133); ragdolls in the settle under way: both joint types' solver functions oracle-exact, every motor mode (ledgers 135, 136, 138), next the joint wrapper, islands and the aggregate build (PHYSICS.md roadmap); left besides: instances inside prefab maps for entity models, render meshes |
 | entity lump | [ENTITIES.md](ENTITIES.md), [SETTLE.md](SETTLE.md) | 99.9%: every lump of every pinned map and all 15 prefab, instance and deformer probes exact; the 14 prefab corpus maps against fresh Valve references (2026-10-23) differ only in Valve's run-to-run settle poses; left: two orders read from output only (GROUND_TRUTH 46) |
 | baked outputs | [BAKED.md](BAKED.md), [CUBEMAPS.md](CUBEMAPS.md) | 80%: lightmaps, probes, far field, fog, nav, bomb damage and .vmap_c done; cubemaps in progress |
 | own lighting (vrad3 port) | [VRAD3.md](VRAD3.md), [LIGHTING_ROADMAP.md](LIGHTING_ROADMAP.md) | 94%: `compile-map -s2cbake` bakes with no vrad3; ze_hold_em_p 99.90% of bytes |
@@ -105,7 +105,14 @@ carries the same state per item.
      varies there.
    - probe_classes crashes the engine on load (its package is missing entity
      models): recompile it, then capture its rect lights.
-2. **.vmap_c**: done (ledger 119). Every Valve root byte for byte (25 lit,
+2. **Ragdolls in the settle** ([PHYSICS.md](PHYSICS.md) "Aggregates in the settle", ledgers 135, 136,
+   138): props whose model has several physics parts or joints (the CT agents of s2c_ragdollprobe)
+   settle through their joints and write boneTransforms; the settle refuses them today. Done: both
+   joint types' solver functions, oracle-exact. Left, in order: the joint wrapper and joints in the
+   island solver, joints in the island manager, the aggregate build from the model, lockstep against
+   the capture, the boneTransforms write-back. Valve's truth capture recipe is in PHYSICS.md and
+   tools/re/out/settle_notes/notes_joints.md.
+3. **.vmap_c**: done (ledger 119). Every Valve root byte for byte (25 lit,
    15 unlit), and Hammer's Only Entities preset whole-package exact. Left:
    the context's +0x605 flag, unread.
    - The 10-23 "reopened by 1.41.9.2" was our tooling, not Valve
@@ -116,34 +123,50 @@ carries the same state per item.
      (ParityReport with PARITY_BASE, 25/25 and 27/27 files);
      UnlitMapRootsEqualValves passes. %TEMP%/preset_entities holds the new
      references; the wrong ones are in preset_entities_1023_withworld.
-3. **Nav** (LIGHTING_ROADMAP L9, L22, L23): markups, links, ladders, movable
+4. **Nav** (LIGHTING_ROADMAP L9, L22, L23): markups, links, ladders, movable
    meshes, spheres and capsules in the casts.
-4. **Own lighting:** OIDN for quality 1 and 2 end to end, more maps through
+5. **Own lighting:** OIDN for quality 1 and 2 end to end, more maps through
    `-s2cbake` (L16), the prefab world order (L20), AMD.
-5. **Smaller baked outputs:** precomputed shadows, occlusion data (de_ maps;
+6. **Smaller baked outputs:** precomputed shadows, occlusion data (de_ maps;
    where it is made is not traced), Steam Audio (no workshop map has it).
-6. **Geometry:** heap-ordered prop aggregate parts (Valve varies run to run),
+7. **Geometry:** heap-ordered prop aggregate parts (Valve varies run to run),
    subdivided entries' tangents, overlay tangents, detail grass.
-7. **Visibility:** done for parity (2026-10-23, ledger 127): s2c_prefabprobe4 byte-identical
+8. **Visibility:** done for parity (2026-10-23, ledger 127): s2c_prefabprobe4 byte-identical
    from the .vmap end to end, split hints exact on s2c_vishints, `-updateloshints` a no-op on
    a stock build. Left is speed (the PVS scan is ~90 of the 113 min on prefabprobe4), which
    waits for the user's OK for anything that could change bytes.
-8. **Entities:** done as measured (2026-10-23): prefab layouts (probes 7 to 12, the instance rounds
+9. **Entities:** done as measured (2026-10-23): prefab layouts (probes 7 to 12, the instance rounds
    read in MapDoc_BakeInstances and simulated) and the trace scene's inverse (translation summed as
    18125ade0 does), which closed the last light keys on c2m2 and coaster. Against fresh Valve
    references (%TEMP%/fresh_corpus) only the settle poses Valve itself varies remain. Left: reading
    the prefab document order in the light gather and the node copy behind the key flip (GROUND_TRUTH 46).
-9. **Containers and resources:** compiling the addon content a map
+10. **Containers and resources:** compiling the addon content a map
    references, a package made only of our outputs; glTF export, model
    internals, shaders.
-10. **Map scripts (user, 2026-10-23), once visibility is 100%:** compile cs_script
+11. **Map scripts (user, 2026-10-23), once visibility is 100%:** compile cs_script
     sources (.js/.ts) to `.vjs_c` ourselves; today resourcecompiler does it and the
     service only checks the file exists. The 1.41.9.2 update changed the compiler
     (new "Panorama Compiler Conditionals Fingerprint", every shipped `.vjs_c`
     rebuilt) and server.dll's script API; first get a pre-update `.vjs_c` to see
     what changed, and Valve's fresh `cs_script_demo` compile as the reference.
 
-## Latest session (2026-10-22/23, ended for a CS2 update)
+## Latest session (2026-10-25)
+
+- .vmap_c: the 10-23 "Only Entities reopened by 1.41.9.2" was compile_fresh.py adding
+  `-world -fshallow` to the switches (fixed); fresh references in %TEMP%/preset_entities match
+  whole-package on probe01 and cardtest.
+- Ragdolls: CRnRevoluteJoint ported (ledger 136; ctm_sas's knees are type 3, flags 0, listed by
+  ModelPhysicsProbe), the conical spring motor and plasticity ported (ledger 138); the conical
+  joint's shared pieces live in Simulation/JointRows.cs. RevoluteJointOracleTests and
+  JointSolverOracleTests: 11 tests, 20,000 random cases each, against vphysics2 0924.
+- Lessons: Ghidra misprints float association and constants in these SSE functions (the hinge
+  rotate, the position k sums, a copysign of 2.0 shown as 1); read clamps and singular tests
+  (comiss/jbe, maxss/minss) from the disassembly, and let the oracle decide.
+- A cubemap session shares this checkout (ledger 137 is theirs); check the ledger number before
+  adding one.
+
+
+## Earlier session (2026-10-22/23, ended for a CS2 update)
 
 - First after the update: `tools/re/patch_check.py` then `build_diff.py`; the
   10-15 addresses in tools/re/capture_argdeps.py (WRITER_RVA, RECORDER_RVA)
