@@ -1,6 +1,12 @@
 {
  "functions": [
   {
+   "addr": "181747070",
+   "name": "Matrix4_Invert",
+   "module": "s2c:baked/lighting",
+   "note": "4 x 4 inverse by Gauss-Jordan on [M | I]: per column the permuted row with the largest magnitude above 1e-6 (strictly), scaled by 1 / pivot, others r = (-r_k) pivot + r; the view's +0x2c8 from +0x288; AggregateCulling.Invert4"
+  },
+  {
    "addr": "1817465f0",
    "name": "Frustum_PlanesFromMatrix",
    "module": "s2c:baked/lighting",

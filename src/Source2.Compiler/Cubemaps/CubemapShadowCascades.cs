@@ -186,10 +186,12 @@ public static class CubemapShadowCascades
     /// </summary>
     public static List<Cascade> Fit(CubemapFaceViews.View v, Vector3 sunDirection, IReadOnlyList<float> distances, float near, float maxVisible, float pushback, int resolution)
     {
+        // 180494b40 normalises the light direction in place (180053800) first; SunDirections' ToSun is already that
+        // result (the capture's light view carries its bits), and normalising again would move them.
         var whole = Slice(v, near, distances[^1]).Diameter;
         var stretched = whole * 1.42f;
         var extended = Slice(v, near, stretched).Corners;
-        var reach = Max(stretched, Max(Max(maxVisible, distances[^1]), pushback));
+        var reach = Reach(v, distances, near, maxVisible, pushback);
         var light = LightView(sunDirection);
         var toSun = new Vector3(sunDirection.X * reach, sunDirection.Y * reach, sunDirection.Z * reach);
         var cascades = new List<Cascade>();
@@ -241,6 +243,44 @@ public static class CubemapShadowCascades
             cascades.Add(new Cascade(view, projection, sMinX, sMaxX, sMinY, sMaxY, depth, diameter));
         }
         return cascades;
+    }
+
+    /// <summary>
+    /// A cascade view's camera as its frustum object holds it (scenesystem 1804a7a60, +0): the translation column of the
+    /// inverted view (180498c70, the client's Gauss-Jordan 181747070 in scenesystem; <see cref="AggregateCulling.Invert4"/>).
+    /// </summary>
+    public static Vector3 Camera(Cascade c)
+    {
+        var v = c.View;
+        var inverse = AggregateCulling.Invert4([v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7], v[8], v[9], v[10], v[11], 0f, 0f, 0f, 1f])
+                      ?? throw new InvalidOperationException("a singular cascade view");
+        return new Vector3(inverse[3], inverse[7], inverse[11]);
+    }
+
+    /// <summary>180494b40's reach L toward the sun: max(1.42 x the whole range's diameter, max(max(maxVisible, last distance), pushback)).</summary>
+    public static float Reach(CubemapFaceViews.View v, IReadOnlyList<float> distances, float near, float maxVisible, float pushback)
+        => Max(Slice(v, near, distances[^1]).Diameter * 1.42f, Max(Max(maxVisible, distances[^1]), pushback));
+
+    /// <summary>The reaches of a face's two fits (the view cascades', the viewmodel cascade's), as <see cref="GameCascades"/> fits them.</summary>
+    public static (float View, float Viewmodel) GameReaches(CubemapFaceViews.View v, float near, float viewFar)
+        => (Reach(v, GameDistances(near, viewFar), near, Inputs.MaxVisible, Inputs.Pushback),
+            Reach(v, [Inputs.ViewmodelDistance], Inputs.ViewmodelNear, Inputs.ViewmodelMaxVisible, Inputs.ViewmodelPushback));
+
+    /// <summary>
+    /// 180053800 (VectorNormalize): times 1 / sqrt((y y + z z) + x x) when that length is within [1e-17, 1e17]; a zero
+    /// vector stays zero (the robust path for other lengths, 18049c220, is not ported).
+    /// </summary>
+    public static Vector3 Normalize(Vector3 d)
+    {
+        var len = MathF.Sqrt((d.Y * d.Y + d.Z * d.Z) + d.X * d.X);
+        if (len >= 1e-17f && len <= 1e17f)
+        {
+            var inv = 1f / len;
+            return new Vector3(inv * d.X, inv * d.Y, inv * d.Z);
+        }
+        if (len == 0f)
+            return Vector3.Zero;
+        throw new NotSupportedException("normalising a vector outside [1e-17, 1e17] (18049c220) is not ported");
     }
 
     /// <summary>

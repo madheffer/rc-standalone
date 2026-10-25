@@ -39,7 +39,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `client_20261015.dll`, 39,205,528 bytes, PE time 2026-10-14 23:41 UTC
 - SHA-256 `659940c1db362ed981d1df10637cec8c2a3d99409b77fc3b73e435e4649e36b0`
 - installed: a different build
-- 9 addresses
+- 10 addresses
 
 ### s2c:baked/lighting
 
@@ -49,10 +49,11 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1802091d0` | `BuildCubemaps_WriteExr` | the strip as an uncompressed half EXR through tinyexr's fast writer (1813dede0), channels B, G, R; Cubemaps/CubemapFaceExr.cs | `src/Source2.Compiler/Cubemaps/CubemapFaceExr.cs:8` |
 | `18020e130` | `BuildCubemaps_FaceToStrip` | a face's RGBA16F readback to a float bitmap (1813db210), QuarterSize (1813ddd00) down to EnvironmentMapFaceSize, flipped (1813dc290), copied into the 6x1 strip at x = face * size (181756620); Cubemaps/CubemapFaceExr.cs | `src/Source2.Compiler/Cubemaps/CubemapFaceExr.cs:8`, `src/Source2.Compiler/Cubemaps/CubemapFaceViews.cs:9` |
 | `1811d5ae0` | `Pipeline_DepthPrepassLayers` | creates Depth Prepass Large / Small / AlphaTested with +0x6d0 = threshold / 100 and its negation (the 3D skybox passes r_csgo_depth_prepass_skybox_small_cull_threshold) |  |
-| `181201670` | `GamePipeline_DepthPrepassLayers` | the game view's prepass layers: Large +0x6d0 = r_csgo_depth_prepass_cull_threshold (1825f6150, 60) / 100, Small = -that; AggregateCulling.PrepassSplit | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:314` |
-| `1817435e0` | `Frustum_PackPlanes` | six planes as two SoA blocks of four (normals, d, sign masks, absolute normals) at view +0x30; AggregateCulling.Pack | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:12`, `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:84` |
-| `1817465f0` | `Frustum_PlanesFromMatrix` | six planes from a row-major world-to-projection: r3 - r0, r3 + r0, r3 - r1, r3 + r1, r3 + r2 (r2 with the flag), r3 - r2 (the near plane when degenerate); (n, -w) normalised by 1 / sqrt((x x + y y) + z z) when >= 1e-20; AggregateCulling.ExtractPlanes | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:11`, `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:43` |
-| `18174fe70` | `View_BuildProjection` | the projection, then +0x288 (18174f330), the planes (1817465f0) moved to the camera, d + ((nz (-oz) + ny (-oy)) + nx (-ox)), and packed (1817435e0); AggregateCulling.FaceFrustum | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:12`, `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:76`, `src/Source2.Compiler/Cubemaps/CubemapFaceViews.cs:15` |
+| `181201670` | `GamePipeline_DepthPrepassLayers` | the game view's prepass layers: Large +0x6d0 = r_csgo_depth_prepass_cull_threshold (1825f6150, 60) / 100, Small = -that; AggregateCulling.PrepassSplit | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:549` |
+| `1817435e0` | `Frustum_PackPlanes` | six planes as two SoA blocks of four (normals, d, sign masks, absolute normals) at view +0x30; AggregateCulling.Pack | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:12`, `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:88` |
+| `1817465f0` | `Frustum_PlanesFromMatrix` | six planes from a row-major world-to-projection: r3 - r0, r3 + r0, r3 - r1, r3 + r1, r3 + r2 (r2 with the flag), r3 - r2 (the near plane when degenerate); (n, -w) normalised by 1 / sqrt((x x + y y) + z z) when >= 1e-20; AggregateCulling.ExtractPlanes | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:11`, `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:47` |
+| `181747070` | `Matrix4_Invert` | 4 x 4 inverse by Gauss-Jordan on [M \| I]: per column the permuted row with the largest magnitude above 1e-6 (strictly), scaled by 1 / pivot, others r = (-r_k) pivot + r; the view's +0x2c8 from +0x288; AggregateCulling.Invert4 | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:146`, `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:250` |
+| `18174fe70` | `View_BuildProjection` | the projection, then +0x288 (18174f330), the planes (1817465f0) moved to the camera, d + ((nz (-oz) + ny (-oy)) + nx (-ox)), and packed (1817435e0); AggregateCulling.FaceFrustum | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:12`, `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:80`, `src/Source2.Compiler/Cubemaps/CubemapFaceViews.cs:15` |
 | `18237eab0` | `g_buildcubemaps_renderdoc_capture` | the convar's data pointer (name at +0, int value at +0x58); BuildCubemaps compares the value with the cube counter (from 0) and calls the render device's StartCapture (vfunc 0x638) and EndCapture (0x640) around that cube; read at 18020e5cc and 18020f5b2. cubehost --renderdoc-capture writes it in its own process |  |
 
 ## client.dll, build 20261021
@@ -1921,7 +1922,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `scenesystem_20261015.dll`, 7,094,936 bytes, PE time 2026-10-14 18:43 UTC
 - SHA-256 `040eb851fa7875523346b890f1ed6e158abc59e08bccbd8dc60539435277efa5`
 - installed: a different build
-- 52 addresses
+- 57 addresses
 
 ### s2c:baked/lighting
 
@@ -1937,11 +1938,16 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1800450f0` | `Aggregate_SelectLods` | per LOD setup (0x34 bytes): size as 18004c390 with the setup's scale, f = 50 / (size x view height), the highest LOD whose switch distance is below f; cross-fade bytes under the LOD fade convars; AggregateCulling.SelectLod | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:27`, `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:205` |
 | `180047530` | `AggregateDesc_OnBeginRenderingFrame` | per aggregate: fragment draw slots +0x34/+0x38 to -1, +0x210/+0x214 from +0x1fc/+0x200, the transform block +500 to -1 |  |
 | `18004c390` | `View_SphereScreenSize` | clamp(r cot rsqrtss((dy dy + dx dx) + dz dz), 0, 1), 1 inside the sphere; orthographic views 2r / height; AggregateCulling.ScreenSize | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:282` |
+| `180053800` | `VectorNormalize` | times 1 / sqrt((y y + z z) + x x) within [1e-17, 1e17]; CubemapShadowCascades.Normalize | `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:189`, `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:270` |
 | `1801a5c28` | `CSM_SetupForView` | calls 180496ef0 with the frustum at view +0x10 (or vfunc 0x240's +0x10 under view flag bit 0xc), copied with +0x18 replaced by a view attribute when non-zero |  |
-| `180494b40` | `CSM_FitCascade` | one cascade's light view, ortho and snapped bounds; CubemapShadowCascades.Fit | `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:7`, `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:126`, `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:180` |
+| `180494b40` | `CSM_FitCascade` | a fit's cascades (light view, ortho, snapped bounds; CubemapShadowCascades.Fit) and their culling: per cascade the shadow view (1804a7a60), the previous cascade's ortho pulled 15% in as six planes with d negated (first culling-box set, +0x174 count 6), the fit's caster volume (180495df0, up to 12, d negated) as the second set (+0x170); AggregateCulling.CascadeFrustum | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:129`, `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:290`, `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:322` +5 |
+| `180495df0` | `CSM_CasterVolume` | the sun's caster volume from the main view's inverse world-to-projection corners and the corners pushed by light x reach: back-facing planes, the cap (1.125 x the double running minimum), silhouette edge planes (1805ab720 / 1805ab738), none when the centroid is outside or fewer than 6; AggregateCulling.CasterVolume | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:211` |
 | `180496ef0` | `CSM_SetupCascades` | count = min(view +0x38, light desc +0x3e) or csm_max_num_cascades_override (> 0); distances: the light desc's +0x48 (each later one doubled from the last given), csm_cascadeN_override_dist (> 0), the practical split ((V_powf(M/n, k/N) n - lin) 0.85 + lin) + 0.1 from n = max(0.125, frustum near), then the view attributes 0x61fac369, 0x70644345, ... replace each (1804976e5 on); M = csm_max_shadow_dist_override (> 0, view flag bit 4 clear) else ShadowFarZ (0x7b2a64e1, default 1000) at most the frustum far (+0x24 of the frustum at r8 +0x18); CubemapShadowCascades.SplitDistances / MaxDistance | `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:6`, `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:23`, `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:55` +1 |
 | `180498520` | `Frustum_PlanesFromMatrix` | scenesystem's copy of client 1817465f0; the cascade fit calls it with the zero-to-one flag |  |
+| `180498c70` | `Matrix4_Invert` | the client's 181747070 (Gauss-Jordan with row pivoting); AggregateCulling.Invert4 | `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:250` |
+| `18049bcb0` | `Frustum_PackPlanes` | scenesystem's copy of client 1817435e0 | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:131` |
 | `18049dd60` | `Matrix3x4_TransformPoint` | through 18049c3a0: x' = (y m1 + m3) + (x m0 + z m2); AggregateCulling.TransformPoint | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:133`, `src/Source2.Compiler/Lighting/Bake/PathTraceBounds.cs:12` |
+| `1804a7a60` | `CSM_ShadowViewFrustum` | a cascade's frustum object: camera = translation of the inverted view (180498c70), planes from projection x (view x translate(camera)) through 180498520 with the zero-to-one flag, packed by 18049bcb0; CubemapShadowCascades.Camera, AggregateCulling.CascadeFrustum | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:129`, `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:272`, `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:249` |
 | `1804c9ad0` | `TinyBvh_BuildCustomAabb` | tiny_bvh.h BVH::Build(customGetAABB, count): root bounds, then 1804c87c0 (the same build as resourcecompiler's 181ed64a0); Lighting/TinyBvh.cs | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:354` |
 
 ### s2c:baked/vrad3

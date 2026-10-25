@@ -226,7 +226,37 @@
    "addr": "180494b40",
    "name": "CSM_FitCascade",
    "module": "s2c:baked/lighting",
-   "note": "one cascade's light view, ortho and snapped bounds; CubemapShadowCascades.Fit"
+   "note": "a fit's cascades (light view, ortho, snapped bounds; CubemapShadowCascades.Fit) and their culling: per cascade the shadow view (1804a7a60), the previous cascade's ortho pulled 15% in as six planes with d negated (first culling-box set, +0x174 count 6), the fit's caster volume (180495df0, up to 12, d negated) as the second set (+0x170); AggregateCulling.CascadeFrustum"
+  },
+  {
+   "addr": "1804a7a60",
+   "name": "CSM_ShadowViewFrustum",
+   "module": "s2c:baked/lighting",
+   "note": "a cascade's frustum object: camera = translation of the inverted view (180498c70), planes from projection x (view x translate(camera)) through 180498520 with the zero-to-one flag, packed by 18049bcb0; CubemapShadowCascades.Camera, AggregateCulling.CascadeFrustum"
+  },
+  {
+   "addr": "180495df0",
+   "name": "CSM_CasterVolume",
+   "module": "s2c:baked/lighting",
+   "note": "the sun's caster volume from the main view's inverse world-to-projection corners and the corners pushed by light x reach: back-facing planes, the cap (1.125 x the double running minimum), silhouette edge planes (1805ab720 / 1805ab738), none when the centroid is outside or fewer than 6; AggregateCulling.CasterVolume"
+  },
+  {
+   "addr": "180498c70",
+   "name": "Matrix4_Invert",
+   "module": "s2c:baked/lighting",
+   "note": "the client's 181747070 (Gauss-Jordan with row pivoting); AggregateCulling.Invert4"
+  },
+  {
+   "addr": "18049bcb0",
+   "name": "Frustum_PackPlanes",
+   "module": "s2c:baked/lighting",
+   "note": "scenesystem's copy of client 1817435e0"
+  },
+  {
+   "addr": "180053800",
+   "name": "VectorNormalize",
+   "module": "s2c:baked/lighting",
+   "note": "times 1 / sqrt((y y + z z) + x x) within [1e-17, 1e17]; CubemapShadowCascades.Normalize"
   },
   {
    "addr": "18003c5a0",

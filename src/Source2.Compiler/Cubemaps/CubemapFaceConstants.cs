@@ -269,9 +269,8 @@ public static class CubemapFaceConstants
         var v = c.View;
         float[] rotation = [v[0], v[1], v[2], 0f, v[4], v[5], v[6], 0f, v[8], v[9], v[10], 0f, 0f, 0f, 0f, 1f];
         var relative = CubemapFaceViews.Mul4(projection, rotation);
-        // The camera: the sun's normalised direction times the view's depth offset (the capture's values).
-        var depthOffset = v[11];
-        var camera = new Vector3(cameraDirection.X * depthOffset, cameraDirection.Y * depthOffset, cameraDirection.Z * depthOffset);
+        // The camera: the inverted view's translation, as the cascade's frustum object holds it (1804a7a60).
+        var camera = CubemapShadowCascades.Camera(c);
         Transposed(0, relative);                                       // g_matWorldToProjection
         Transposed(128, v);                                            // g_matWorldToView
         for (var i = 0; i < 16; i++)                                   // g_matViewToProjection

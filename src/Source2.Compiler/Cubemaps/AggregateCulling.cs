@@ -37,7 +37,11 @@ public static class AggregateCulling
     /// A view's culling frustum as scenesystem reads it: the camera and two blocks of four planes, each block 40
     /// floats (nx[4], ny[4], nz[4], d[4], mask x[4], mask y[4], mask z[4], |nx|[4], |ny|[4], |nz|[4]).
     /// </summary>
-    public sealed record Frustum(Vector3 Origin, float[] Blocks);
+    /// <param name="Exclusion">Planes (n, d) a fragment is culled inside of (all of them), world space: the view's
+    /// culling-box set at +0xdc0 (count +0xf34), which a sun cascade gets from the previous cascade.</param>
+    /// <param name="Volume">Planes (n, d) a fragment is culled outside of (any of them), world space: the view's second
+    /// culling-box set at +0xe70 (count +0xf30), the sun cascades' caster volume.</param>
+    public sealed record Frustum(Vector3 Origin, float[] Blocks, float[]? Exclusion = null, float[]? Volume = null);
 
     /// <summary>
     /// 1817465f0 on a row-major world-to-projection: planes r3 - r0, r3 + r0, r3 - r1, r3 + r1, r3 + r2 (the near
@@ -105,29 +109,260 @@ public static class AggregateCulling
         return b;
     }
 
-    /// <summary>A face view's frustum: +0x288 = 181746490(projection, world-to-view with the row (0, 0, 0, 1)).</summary>
-    public static Frustum FaceFrustum(CubemapFaceViews.View v)
+    /// <summary>A face view's world-to-projection, the client view's +0x288: 181746490(projection, world-to-view with the row (0, 0, 0, 1)).</summary>
+    public static float[] WorldToProjection(CubemapFaceViews.View v)
     {
         var w = v.WorldToView;
         float[] worldToView4 = [w[0], w[1], w[2], w[3], w[4], w[5], w[6], w[7], w[8], w[9], w[10], w[11], 0f, 0f, 0f, 1f];
-        var planes = ExtractPlanes(CubemapFaceViews.Mul4(v.Projection, worldToView4));
+        return CubemapFaceViews.Mul4(v.Projection, worldToView4);
+    }
+
+    /// <summary>A face view's frustum from <see cref="WorldToProjection"/>.</summary>
+    public static Frustum FaceFrustum(CubemapFaceViews.View v)
+    {
+        var planes = ExtractPlanes(WorldToProjection(v));
         ToCamera(planes, v.Origin);
         return new Frustum(v.Origin, Pack(planes));
     }
 
     /// <summary>
-    /// A sun cascade's frustum, taken the face's way: planes from the identity jitter times the cascade's orthographic
-    /// projection times its light view, moved to the cascade camera (the sun's normalised direction times the view's
-    /// depth offset, as the per-view block uploads it). Checked against the captures' cascade draws, not read.
+    /// A sun cascade's shadow view frustum (scenesystem 1804a7a60, called per cascade by the fit 180494b40): planes
+    /// with the zero-to-one near plane (180498520 with its flag) from projection x (view x translate(camera)), so
+    /// already relative to the camera, packed as the client's (18049bcb0). The camera is the inverted view's
+    /// translation (<see cref="CubemapShadowCascades.Camera"/>). <paramref name="previous"/>, the cascade before it in
+    /// the same fit, adds its exclusion planes; <paramref name="volume"/> is the fit's culling volume.
     /// </summary>
-    public static Frustum CascadeFrustum(CubemapShadowCascades.Cascade c, Vector3 cameraDirection, bool zeroToOneDepth = false)
+    public static Frustum CascadeFrustum(CubemapShadowCascades.Cascade c, CubemapShadowCascades.Cascade? previous = null, float[]? volume = null)
     {
-        float[] identity = [1f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 1f];
-        var planes = ExtractPlanes(CubemapFaceViews.Mul4(CubemapFaceViews.Mul4(identity, c.Projection), c.View), zeroToOneDepth);
-        var offset = c.View[11];
-        var camera = new Vector3(cameraDirection.X * offset, cameraDirection.Y * offset, cameraDirection.Z * offset);
-        ToCamera(planes, camera);
-        return new Frustum(camera, Pack(planes));
+        var camera = CubemapShadowCascades.Camera(c);
+        float[] translate = [1f, 0f, 0f, camera.X, 0f, 1f, 0f, camera.Y, 0f, 0f, 1f, camera.Z, 0f, 0f, 0f, 1f];
+        var v = c.View;
+        float[] view4 = [v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7], v[8], v[9], v[10], v[11], 0f, 0f, 0f, 1f];
+        var planes = ExtractPlanes(CubemapFaceViews.Mul4(c.Projection, CubemapFaceViews.Mul4(view4, translate)), zeroToOneDepth: true);
+        return new Frustum(camera, Pack(planes), previous == null ? null : ExclusionPlanes(previous), volume);
+    }
+
+    /// <summary>
+    /// client 181747070: a 4 x 4's inverse by Gauss-Jordan on [M | I] with row pivoting through a permutation: in each
+    /// column the row (from the column on, in permuted order) whose entry's magnitude is largest and above 1e-6 (the
+    /// first of equals wins), its 8 entries times 1 / the pivot (the pivot then exactly 1), every other row r = (-r_k)
+    /// pivot + r (r_k then 0); the inverse is the identity half in permuted row order. Null when singular.
+    /// </summary>
+    public static float[]? Invert4(float[] m)
+    {
+        var a = new float[4, 8];
+        for (var r = 0; r < 4; r++)
+        {
+            for (var c = 0; c < 4; c++)
+                a[r, c] = m[r * 4 + c];
+            a[r, 4 + r] = 1f;
+        }
+        int[] perm = [0, 1, 2, 3];
+        for (var k = 0; k < 4; k++)
+        {
+            var best = 1e-6f;
+            var at = -1;
+            for (var i = k; i < 4; i++)
+            {
+                var v = MathF.Abs(a[perm[i], k]);
+                if (best < v)
+                    (best, at) = (v, i);
+            }
+            if (at < 0)
+                return null;
+            var p = perm[at];
+            perm[at] = perm[k];
+            perm[k] = p;
+            var inverse = 1f / a[p, k];
+            for (var j = 0; j < 8; j++)
+                a[p, j] *= inverse;
+            a[p, k] = 1f;
+            for (var i = 0; i < 4; i++)
+            {
+                if (i == k)
+                    continue;
+                var r = perm[i];
+                var f = -a[r, k];
+                for (var j = 0; j < 8; j++)
+                    a[r, j] = f * a[p, j] + a[r, j];
+                a[r, k] = 0f;
+            }
+        }
+        var o = new float[16];
+        for (var i = 0; i < 4; i++)
+            for (var j = 0; j < 4; j++)
+                o[i * 4 + j] = a[perm[i], 4 + j];
+        return o;
+    }
+
+    // The NDC corners scenesystem's table holds (18066c4a0): near (z 0) then far (z 1), each (-1,-1) (1,-1) (1,1) (-1,1).
+    private static readonly Vector3[] NdcCorners =
+    [
+        new(-1f, -1f, 0f), new(1f, -1f, 0f), new(1f, 1f, 0f), new(-1f, 1f, 0f),
+        new(-1f, -1f, 1f), new(1f, -1f, 1f), new(1f, 1f, 1f), new(-1f, 1f, 1f),
+    ];
+
+    // The frustum's 12 edges as corner pairs (1805ab720) and the pairs of planes meeting there, in the reordered set
+    // (left, right, bottom, top, near, far) (1805ab738).
+    private static readonly (int A, int B)[] Edges = [(4, 0), (0, 3), (3, 7), (7, 4), (1, 5), (5, 6), (6, 2), (2, 1), (4, 5), (1, 0), (6, 7), (3, 2)];
+    private static readonly (int A, int B)[] EdgePlanes = [(0, 2), (0, 4), (0, 3), (0, 5), (1, 2), (1, 5), (1, 3), (1, 4), (2, 5), (2, 4), (3, 5), (3, 4)];
+
+    /// <summary>
+    /// scenesystem 180495df0, the sun's shadow caster volume for a view (world space), float for float from the
+    /// disassembly; null where the game returns no planes. The view's eight frustum corners come from its inverse
+    /// world-to-projection (each ((r_x x + y r_y) + r_z z) + r_w, times 1 / the w row's); a non-finite one gives none.
+    /// Their centroid (sum of c 0.125) must lie strictly inside the six planes (180498520 with the zero-to-one flag,
+    /// reordered left, right, bottom, top, near, far). Kept: each plane facing away from the light (0 &gt; (nz (-lz) +
+    /// ny (-ly)) + nx (-lx)), the cap (l, 1.125 min(0, the corners' and the corners pushed by l x reach's (p.x lx +
+    /// p.y ly) + p.z lz), the minimum taken in double), and per edge between a facing and a non-facing plane the plane
+    /// through it along the light, turned so the centroid is inside. Fewer than six planes give none.
+    /// </summary>
+    public static float[]? CasterVolume(float[] worldToProjection, float[] inverse, Vector3 light, float reach)
+    {
+        var p = ExtractPlanes(worldToProjection, zeroToOneDepth: true);
+        int[] order = [1, 0, 3, 2, 4, 5];
+        var points = new Vector3[16];
+        float cx = 0f, cy = 0f, cz = 0f;
+        float Row(int r, Vector3 q) => ((inverse[r * 4] * q.X + q.Y * inverse[r * 4 + 1]) + inverse[r * 4 + 2] * q.Z) + inverse[r * 4 + 3];
+        for (var i = 0; i < 8; i++)
+        {
+            var q = NdcCorners[i];
+            var w = 1f / Row(3, q);
+            var corner = new Vector3(Row(0, q) * w, Row(1, q) * w, Row(2, q) * w);
+            if (!float.IsFinite(corner.X) || !float.IsFinite(corner.Y) || !float.IsFinite(corner.Z))
+                return null;
+            points[i] = corner;
+            cx = corner.X * 0.125f + cx;
+            cy = corner.Y * 0.125f + cy;
+            cz = corner.Z * 0.125f + cz;
+            points[i + 8] = new Vector3(light.X * reach + corner.X, light.Y * reach + corner.Y, light.Z * reach + corner.Z);
+        }
+        foreach (var k in order)
+            if (!(0f < (p[k * 4 + 2] * cz + p[k * 4 + 1] * cy) + p[k * 4] * cx - p[k * 4 + 3]))
+                return null;
+        var (nlx, nly, nlz) = (-light.X, -light.Y, -light.Z);
+        var planes = new List<float>();
+        var facing = new bool[6];
+        for (var i = 0; i < 6; i++)
+        {
+            var k = order[i];
+            facing[i] = 0f > (p[k * 4 + 2] * nlz + p[k * 4 + 1] * nly) + p[k * 4] * nlx;
+            if (facing[i])
+                planes.AddRange(p.AsSpan(k * 4, 4).ToArray());
+        }
+        var low = 0d;
+        foreach (var q in points)
+        {
+            var t = (double)((q.X * light.X + q.Y * light.Y) + q.Z * light.Z) - low;
+            if (0d > t)
+                low += t;
+        }
+        planes.AddRange([light.X, light.Y, light.Z, (float)(low * 1.125)]);
+        for (var e = 0; e < Edges.Length; e++)
+        {
+            if (facing[EdgePlanes[e].A] == facing[EdgePlanes[e].B])
+                continue;
+            var (a, b) = (points[Edges[e].A], points[Edges[e].B]);
+            var (ex, ey, ez) = (a.X - b.X, a.Y - b.Y, a.Z - b.Z);
+            var len = MathF.Sqrt((ez * ez + ey * ey) + ex * ex);
+            if (len < 1e-17f || len > 1e17f)
+            {
+                if (len != 0f)
+                    throw new NotSupportedException("a frustum edge outside [1e-17, 1e17] (18049c220) is not ported");
+                (ex, ey, ez) = (0f, 0f, 0f);
+            }
+            else
+            {
+                var inv = 1f / len;
+                (ex, ey, ez) = (inv * ex, inv * ey, inv * ez);
+            }
+            var nx = ey * nlz - ez * nly;
+            var ny = ez * nlx - ex * nlz;
+            var nz = ex * nly - ey * nlx;
+            var d = (nz * a.Z + ny * a.Y) + nx * a.X;
+            if (0f > (nz * cz + ny * cy) + nx * cx - d)
+                (nx, ny, nz, d) = (-nx, -ny, -nz, -d);
+            planes.AddRange([nx, ny, nz, d]);
+        }
+        return planes.Count / 4 < 6 ? null : [.. planes];
+    }
+
+    /// <summary>180494b40's second culling set for each cascade of a fit: the caster volume's planes (at most 12), each d negated.</summary>
+    public static float[]? CullingVolume(float[]? casterVolume)
+    {
+        if (casterVolume == null)
+            return null;
+        var count = Math.Min(casterVolume.Length / 4, 12);
+        var o = new float[count * 4];
+        Array.Copy(casterVolume, o, count * 4);
+        for (var i = 0; i < count; i++)
+            o[i * 4 + 3] = -o[i * 4 + 3];
+        return o;
+    }
+
+    /// <summary>
+    /// 18003d380's second culling-box set: per plane v = (|nz| ez + (|nx| ex + |ny| ey)) + DPPS(c, plane) over the box's
+    /// centre (w 1) and extents; the minimum from 1 on; the fragment is culled when it has its sign set (outside a plane).
+    /// </summary>
+    public static bool OutsideAny(float[] planes, Vector3 min, Vector3 max)
+    {
+        var c = new Vector3((min.X + max.X) * 0.5f, (min.Y + max.Y) * 0.5f, (min.Z + max.Z) * 0.5f);
+        var e = new Vector3(max.X - c.X, max.Y - c.Y, max.Z - c.Z);
+        var m = 1f;
+        for (var i = 0; i < planes.Length / 4; i++)
+        {
+            var (x, y, z, d) = (planes[i * 4], planes[i * 4 + 1], planes[i * 4 + 2], planes[i * 4 + 3]);
+            var v = (MathF.Abs(z) * e.Z + (MathF.Abs(x) * e.X + MathF.Abs(y) * e.Y)) + CubemapFaceViews.Dot4(c.X, c.Y, c.Z, 1f, x, y, z, d);
+            m = m < v ? m : v;
+        }
+        return BitConverter.SingleToUInt32Bits(m) >> 31 != 0;
+    }
+
+    /// <summary>
+    /// 180494b40's exclusion volume for the next cascade: the cascade's orthographic box pulled 15% in from each x and y
+    /// side ((a - b) 0.15 + b in float, so p2 = (minX - maxX) 0.15 + maxX and so on), times its view, through
+    /// 180498520 with the zero-to-one flag; each plane's d negated (world space, not camera relative).
+    /// </summary>
+    public static float[] ExclusionPlanes(CubemapShadowCascades.Cascade c)
+    {
+        const float shrink = 0.15f;
+        var ortho = CubemapShadowCascades.Ortho((c.MinX - c.MaxX) * shrink + c.MaxX, (c.MaxY - c.MinY) * shrink + c.MinY,
+            (c.MaxX - c.MinX) * shrink + c.MinX, (c.MinY - c.MaxY) * shrink + c.MaxY, MathF.Floor(0f), c.Depth);
+        var planes = ExtractPlanes(CubemapFaceViews.Mul4(ortho, c.View), zeroToOneDepth: true);
+        for (var i = 0; i < 6; i++)
+            planes[i * 4 + 3] = -planes[i * 4 + 3];
+        return planes;
+    }
+
+    /// <summary>
+    /// 18003d380's culling-box test, the set at +0xdc0: centre c = (min + max) 0.5 (w 1), extents e = max - c, per plane
+    /// v = DPPS(c, plane) - (|nz| ez + (|nx| ex + |ny| ey)); the fragment is culled when the minimum of the v has its
+    /// sign clear (inside every plane). Six or more planes reduce as min(min(min(v0, v1), min(v2, v3)), min(v4, v5)),
+    /// then on from the seventh; fewer start from 1.
+    /// </summary>
+    public static bool InsideAll(float[] planes, Vector3 min, Vector3 max)
+    {
+        var c = new Vector3((min.X + max.X) * 0.5f, (min.Y + max.Y) * 0.5f, (min.Z + max.Z) * 0.5f);
+        var e = new Vector3(max.X - c.X, max.Y - c.Y, max.Z - c.Z);
+        var count = planes.Length / 4;
+        float V(int i)
+        {
+            var (x, y, z, d) = (planes[i * 4], planes[i * 4 + 1], planes[i * 4 + 2], planes[i * 4 + 3]);
+            return CubemapFaceViews.Dot4(c.X, c.Y, c.Z, 1f, x, y, z, d) - (MathF.Abs(z) * e.Z + (MathF.Abs(x) * e.X + MathF.Abs(y) * e.Y));
+        }
+        static float Min(float a, float b) => a < b ? a : b;
+        float m;
+        int next;
+        if (count >= 6)
+        {
+            m = Min(Min(Min(V(0), V(1)), Min(V(2), V(3))), Min(V(4), V(5)));
+            next = 6;
+        }
+        else
+            (m, next) = (1f, 0);
+        for (var i = next; i < count; i++)
+            m = Min(m, V(i));
+        return BitConverter.SingleToUInt32Bits(m) >> 31 == 0;
     }
 
     /// <summary>18049c3a0 through 18049dd60: a point through a row-major 3 x 4, x' = (y m1 + m3) + (x m0 + z m2).</summary>
@@ -377,6 +612,8 @@ public static class AggregateCulling
         var visible = new List<int>();
         foreach (var i in CullOrder(fragments))
             if (!Outside(f, fragments[i].Min, fragments[i].Max)
+                && (f.Exclusion == null || !InsideAll(f.Exclusion, fragments[i].Min, fragments[i].Max))
+                && (f.Volume == null || !OutsideAny(f.Volume, fragments[i].Min, fragments[i].Max))
                 && (fragments[i].LodSetup < 0 || (fragments[i].LodMask >> lods![fragments[i].LodSetup] & 1) != 0))
                 visible.Add(i);
         return visible;

@@ -20,7 +20,8 @@ namespace Source2.Compiler.Tests;
 /// our visible order: the index ranges must be equal, and each aggregate's first instances must differ from ours
 /// by one constant (the game hands out each view's instance block per aggregate in thread order). The face view's
 /// depth prepass lists are matched against the Large / Small split (<see cref="AggregateCulling.PrepassSplit"/>);
-/// the sun cascades' lists are skipped unless <c>CUBECULL_CASCADES=1</c> (their culling is not ported).
+/// each sun cascade's lists (by their atlas tile) against its shadow view, its predecessor's exclusion volume and the
+/// fit's caster volume. Other atlas tiles (shadowed lights' own views) are not compared.
 /// </summary>
 public sealed class AggregateCullingCaptureTests(ITestOutputHelper output)
 {
@@ -97,7 +98,7 @@ public sealed class AggregateCullingCaptureTests(ITestOutputHelper output)
     /// </summary>
     private static Vector3 CubeZeroOrigin(string vpk) => CubeZero(vpk).Origin;
 
-    /// <summary>Cube 0's origin and light_environment's angles as the scene light keeps them (through AngleQuaternion and back).</summary>
+    /// <summary>Cube 0's origin and light_environment's angles as the lump holds them (the scene light's own angles: probe01's give the capture's sun bit for bit).</summary>
     private static (Vector3 Origin, Vector3 SunAngles) CubeZero(string vpk)
     {
         using var package = new ValvePak.Package();
@@ -110,12 +111,39 @@ public sealed class AggregateCullingCaptureTests(ITestOutputHelper output)
         }
         static Vector3 V(string text) => text.Split(' ').Select(v => float.Parse(v, System.Globalization.CultureInfo.InvariantCulture)).ToArray() is var a ? new Vector3(a[0], a[1], a[2]) : default;
         var sun = entities.FirstOrDefault(e => e.Class == "light_environment") is { Key: not null } light && light.Key("angles") is { } angles
-            ? CubemapFaceViews.MatrixAngles(CubemapFaceViews.QuaternionMatrix(CubemapFaceViews.AngleQuaternion(V(angles))))
+            ? V(angles)
             : Vector3.Zero;
         foreach (var cls in new[] { "env_cubemap", "env_cubemap_box", "env_combined_light_probe_volume", "func_combined_light_probe_volume" })
             if (entities.FirstOrDefault(e => e.Class == cls) is { Key: not null } e)
                 return (V(e.Key("origin")!), sun);
         throw new InvalidDataException("no cubemap entity");
+    }
+
+    /// <summary>Diagnosis: light_environment's angles in the lump, and the sun vectors they give raw, through the quaternion and as probe01's capture settled them.</summary>
+    [Fact]
+    public void SunAngleSources()
+    {
+        if (Environment.GetEnvironmentVariable("CUBECULL") is not { Length: > 0 } dir)
+            return;
+        using var package = new ValvePak.Package();
+        package.Read(Directory.GetFiles(dir, "*.vpk").Single());
+        foreach (var entry in package.Entries!.GetValueOrDefault("vents_c") ?? [])
+        {
+            package.ReadEntry(entry, out var bytes);
+            foreach (var (cls, key) in SceneInfoTests.LumpEntities(bytes, entry.GetFullPath()).Where(e => e.Class == "light_environment"))
+            {
+                var raw = key("angles")!.Split(' ').Select(v => float.Parse(v, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+                var a = new Vector3(raw[0], raw[1], raw[2]);
+                var trip = CubemapFaceViews.MatrixAngles(CubemapFaceViews.QuaternionMatrix(CubemapFaceViews.AngleQuaternion(a)));
+                string Bits(Vector3 v) => $"{BitConverter.SingleToUInt32Bits(v.X):x8} {BitConverter.SingleToUInt32Bits(v.Y):x8} {BitConverter.SingleToUInt32Bits(v.Z):x8}";
+                output.WriteLine($"angles '{key("angles")}' raw {a.X:R} {a.Y:R} {a.Z:R}");
+                foreach (var (name, v) in new[] { ("raw", a), ("round trip", trip), ("probe01 capture", new Vector3(74.99999f, 180.00002f, 0f)) })
+                {
+                    var (toSun, _, cam) = CubemapShadowCascades.SunDirections(v);
+                    output.WriteLine($"  {name}: toSun {Bits(toSun)} camera {Bits(cam)} normalised (180053800) {Bits(CubemapShadowCascades.Normalize(toSun))}");
+                }
+            }
+        }
     }
 
     [Fact]
@@ -146,12 +174,24 @@ public sealed class AggregateCullingCaptureTests(ITestOutputHelper output)
     private void CompareFace(string dir, Vector3 origin, Vector3 sunAngles, int face, List<Aggregate> aggregates, List<string> failures)
     {
         var view = CubemapFaceViews.Face(origin, Vector3.Zero, 1f, 10000f, face);
-        var (toSun, _, cameraDirection) = CubemapShadowCascades.SunDirections(sunAngles);
+        var (toSun, _, _) = CubemapShadowCascades.SunDirections(sunAngles);
         var cascades = CubemapShadowCascades.GameCascades(view, toSun, 1f, 10000f);
         // Each view's frustum and camera: -1 the face, 0 to 3 its cascades.
         var views = new Dictionary<int, AggregateCulling.Frustum> { [-1] = AggregateCulling.FaceFrustum(view) };
+        // The view cascades come from one fit, the viewmodel cascade (the last) from its own: each view cascade after
+        // the first excludes what its predecessor covers, and every cascade of a fit culls to that fit's caster volume.
+        var light = toSun;
+        var worldToProjection = AggregateCulling.WorldToProjection(view);
+        var inverse = AggregateCulling.Invert4(worldToProjection)!;
+        var (viewReach, viewmodelReach) = CubemapShadowCascades.GameReaches(view, 1f, 10000f);
+        var viewVolume = AggregateCulling.CullingVolume(AggregateCulling.CasterVolume(worldToProjection, inverse, light, viewReach));
+        var viewmodelVolume = AggregateCulling.CullingVolume(AggregateCulling.CasterVolume(worldToProjection, inverse, light, viewmodelReach));
         for (var c = 0; c < cascades.Count; c++)
-            views[c] = AggregateCulling.CascadeFrustum(cascades[c], cameraDirection, zeroToOneDepth: true);
+        {
+            var viewmodel = c == cascades.Count - 1;
+            views[c] = AggregateCulling.CascadeFrustum(cascades[c], c > 0 && !viewmodel ? cascades[c - 1] : null,
+                viewmodel ? viewmodelVolume : viewVolume);
+        }
         var visibleOf = views.ToDictionary(kv => kv.Key, kv => aggregates.Select(a => AggregateCulling.Visible(kv.Value, a.Fragments, a.Lods, origin)).ToList());
         for (var k = 0; k < aggregates.Count; k++)
             output.WriteLine($"  visible in face {face}: {aggregates[k].Name}: [{string.Join(", ", visibleOf[-1][k])}]");
@@ -189,14 +229,11 @@ public sealed class AggregateCullingCaptureTests(ITestOutputHelper output)
             else
             {
                 var tile = scissorOf.GetValueOrDefault(eid, scissorOf.Where(kv => kv.Key > eid).OrderBy(kv => kv.Key).Select(kv => kv.Value).FirstOrDefault());
-                // The cascades' own culling (scenesystem 180494b40: the shadow view 1804a7a60, the previous cascade's
-                // box shrunk by 15% as an exclusion volume) is not ported; CUBECULL_CASCADES=1 compares them anyway.
-                if (Environment.GetEnvironmentVariable("CUBECULL_CASCADES") != "1")
-                    continue;
                 viewKey = Array.IndexOf(CascadeTiles, tile);
                 if (viewKey < 0 || viewKey >= cascades.Count)
                 {
-                    failures.Add($"face {face} {eid}: a shadow draw in no known cascade tile {tile}");
+                    // Another tile of the atlas: a shadowed light's own shadow view (atixref's), not a sun cascade.
+                    output.WriteLine($"face {face} {eid}: a light shadow view at {tile}, not compared");
                     continue;
                 }
             }

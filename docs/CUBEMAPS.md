@@ -491,16 +491,29 @@ world node aggregate to a view's indirect draws, all CPU in these captures:
 The 42 atixref draws that are not aggregate draws (individual scene objects)
 go through scenesystem's generic object culling, not this port.
 
-The cascades (`CUBECULL_CASCADES=1`): taking the face's way on the cascade's
-orthographic matrices is too loose (probe01 cube 0: 8 of the cascade lists
-differ). The fit (scenesystem 180494b40) gives each cascade its own shadow
-view (1804a7a60) and turns the previous cascade's box, shrunk by 15%, into
-six inverted planes (the call to 180498520 with the zero-to-one flag), which
-18003d380's culling-box test uses to skip fragments the finer cascade already
-covers. Port next, checked against the same captures' cascade lists (the sun
-angles also need their exact source: the lump's angles through the
-quaternion give 74.999985, -179.99997 where the capture settled 74.99999,
-180.00002).
+**The sun cascades** (ledger 140) are ported too: every cascade list of the
+three captures equals ours (39, 39 and 225 lists; atixref's other atlas tiles
+are its shadowed lights' own views, 96 draws, not compared). Per fit
+(scenesystem 180494b40: the three view cascades, then the viewmodel cascade
+on its own):
+
+- Each cascade's shadow view (1804a7a60): planes with the zero-to-one near
+  plane from projection x (view x translate(camera)), already camera
+  relative; the camera is the inverted view's translation (180498c70, the
+  client's Gauss-Jordan). That camera also fixed the cascade per-view
+  block's camera words (`CubemapCascadeTests` passes now).
+- Each view cascade after the first: the previous cascade's box pulled 15%
+  in from each x and y side, as six planes with d negated; 18003d380's first
+  culling-box set skips a fragment inside all six.
+- Every cascade of a fit: the fit's caster volume (180495df0) with d
+  negated, the second culling-box set (outside any plane culls): the main
+  view's frustum corners (its inverse world-to-projection) and the corners
+  pushed toward the sun by the fit's reach; the planes facing away from the
+  sun, a cap along the sun at 1.125 x the smallest dot, and a plane along
+  the sun through each silhouette edge.
+- The sun direction is the lump's light_environment angles as they are
+  (SunDirections' ToSun is already the fit's normalised vector; normalising
+  again moves its bits).
 
 ## Open
 
@@ -519,8 +532,8 @@ quaternion give 74.999985, -179.99997 where the capture settled 74.99999,
   material inputs already equal the package's data (ledger 120). The
   readback after the colour pass makes the game's EXR byte for byte (ledger
   137). The face views' draw arguments come from our culling now (ledger
-  139); the cascades' do not yet. Next: the cascades' culling, then all faces
-  chained, then reduce to the EXR and compare with the game's.
+  139), and the sun cascades' (ledger 140). Next: all faces chained, then
+  reduce to the EXR and compare with the game's.
 - A second map, s2c_l5probe (omni2 and barn lights; capture and dumps in
   %TEMP%/cubehost_run/s2c_l5probe), replays face 0 bit for bit (38 actions,
   push constants for the light binner). Its frame also draws 16 animatable
@@ -532,8 +545,8 @@ quaternion give 74.999985, -179.99997 where the capture settled 74.99999,
   (the game links stage libraries; ledger 121). The RenderDoc tools for
   comparing a draw on both sides are in tools/cubehost (rdc_postvs.py,
   rdc_debugpixel.py, rdc_pixelhistory.py, rdc_bindings.py, rdc_events.py).
-- The per-view culling: the face views are done (above, ledger 139); the sun
-  cascades' own culling is the open part.
+- The per-view culling: done for the face views and the sun cascades
+  (above, ledgers 139 and 140); shadowed lights' own views are not compared.
 - The cascade inputs depend on the game's video settings, not the map: the
   shadow-quality preset (the run detects level 2) sets
   csm_max_shadow_dist_override 560, 3 cascades and 1280 tiles

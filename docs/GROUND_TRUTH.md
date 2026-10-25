@@ -3841,6 +3841,27 @@ game can answer is raised with the user first, and runs with -insecure.
       as six inverted planes for the culling-box test), LOD cross-fades and forced LODs, the per-view PVS test
       (FUN_180036840), the small-object fade, and the non-aggregate scene objects' culling.
 
+
+140. **The sun cascades' culling** (2026-10-25: disassembly of scenesystem 10-15 and client 10-15; the three
+    cubehost captures, AggregateCullingCaptureTests; Cubemaps/AggregateCulling.cs, CubemapShadowCascades.cs).
+    - Settled against the captures: every sun cascade draw list of all six faces of probe01, s2c_l5probe and
+      atixref cube 0 (39, 39 and 225 lists); CubemapCascadeTests (probe01's cascade per-view blocks, all faces)
+      passes now that the camera is the inverted view's; the chained face 0 replay still equals the capture.
+    - Read: per cascade the fit (180494b40) builds a shadow view (1804a7a60): camera = translation column of the
+      view's inverse (180498c70 = client 181747070, Gauss-Jordan on [M | I] with row pivoting above 1e-6), planes
+      from projection x (view x translate(camera)) through 180498520 with the zero-to-one near plane.
+    - Read: each view cascade after the first gets the previous cascade's ortho pulled 15% in on each x and y side
+      ((a - b) 0.15 + b in float) times its view, six planes with d negated, as the view's first culling-box set
+      (+0xdc0, count +0xf34): culled inside all (min of DPPS(c, P) - (|nz| ez + (|nx| ex + |ny| ey)) not negative).
+    - Read: every cascade of a fit gets the fit's caster volume (180495df0) with d negated as the second set (+0xe70,
+      count +0xf30, at most 12): culled outside any. The volume from the main view's inverse world-to-projection
+      corners, their centroid (must lie inside), the corners pushed by the normalised sun times the fit's reach,
+      the planes facing away from the sun, a cap (sun, 1.125 x the running minimum of the 16 dots, in double) and
+      one plane per silhouette edge (edge tables 1805ab720 / 1805ab738), oriented by the centroid.
+    - Read: the light direction is normalised in place (180053800) before the fit reads it; SunDirections' ToSun
+      from the lump's light_environment angles (stored exactly, e.g. 74.99999 180.00002 0) is that result already.
+    - Open: shadowed lights' own shadow views (atixref, other atlas tiles), not compared.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).
