@@ -308,12 +308,15 @@ and Steam closed (`run_probe.py --out <name>` keeps each run apart;
   on the time and entity state at the build, which no compile from the .vmap
   can know.
 
-So the reference for byte parity needs fixing per map: for static scenes, the
-game's build after a settle (reproducible); for scenes with animated materials
-or moving entities, the inputs of one captured run (its time constants and
-entity transforms, read from the capture) rather than its output alone, and a
-choice of time for our own compile. After a settled run the engine sometimes
-crashes reloading the map (access violation; the EXRs are written by then).
+Scope (user, 2026-10-25): parity is 1:1 with Valve in every aspect, animated
+scenes included; reducing it to static maps is not 1:1 and is not the goal.
+So the time-dependent state is part of the port: what the game renders at the
+moment of the build (its clocks, entity simulation, animated materials,
+texture residency) has to be known and reproduced, and a Valve build has to be
+made reproducible (its time pinned) to serve as the byte reference. The
+roadmap's items 0a-0e below carry this. After a settled run the engine
+sometimes crashes reloading the map (access violation; the EXRs are written by
+then).
 
 ## The render, captured (2026-10-21)
 
@@ -558,63 +561,118 @@ sub-frusta, the tile sizes and places in the atlas) and their constant blocks.
 
 ## Roadmap to env_cubemap_array.vtex_c from the .vmap (2026-10-25)
 
-Done: the array's compile (ledger 117), readback -> EXR (137), face views,
-constant blocks and the chained face 0 (118-121), and the per-view culling of
-world aggregates for faces and sun cascades (139, 140). In order:
+The goal is 1:1 with Valve in every aspect: every map, static or animated,
+every compile option, byte for byte against the game's own build of the same
+package. Nothing is limited to static scenes.
 
-0. **The reference** (ledger 144): the game's build differs run to run with
-   texture streaming (settle first) and, on atixref, with time (foliage,
-   moving entities). Decide per map what a byte reference is (a settled build;
-   for animated scenes the captured run's inputs) and which time our compile
-   renders at.
-1. **Shadowed lights' own shadow views** (atixref's six tiles, 96 draws per
-   capture): the culling is settled (the frustum alone, all 96 lists equal);
-   left are the view setup from the light's precomputed sub-frusta, the
-   atlas tiles and their constant blocks. Check: `AggregateCullingCaptureTests`
-   with our frusta instead of the captured blocks; the face's replay with our
-   blocks. Read offline (CS2 open OK).
-2. **Non-aggregate scene objects** (atixref's 42 draws: static props kept as
-   their own objects, entity models): scenesystem's generic object culling,
-   their instance records and draw lists. Check: the same test with those
-   draws matched to package models.
-3. **The remaining cull gates**: LOD cross-fades and forced LODs (1800450f0's
-   other paths), the per-view PVS test (FUN_180036840), the small-object fade
-   (view +0x5724 / +0x572c), culling boxes on face views. Each either ported
-   or shown inactive for the BuildCubemaps view (a Frida read of the view
-   fields, CS2 and Steam closed).
-4. **Layer and primitive order**: which layer lists a material lands in, and
-   the order of the primitives within a pass (the 16-bit sort key from
-   180041a00's +0x20, the pipeline sort). Check: the captured action order
-   of every pass, all three maps.
-5. **The light binner's inputs from our own lights** (s2c_l5probe's omni and
-   barn lights) and the bindless material set (atixref): the descriptor heap
-   and texture slots from our materials. Check: the replay with nothing
-   taken from the capture but geometry buffers.
-6. **atixref draw 2305**: one half-float ulp on 38 pixels; build pipelines
-   from stage libraries (VK_EXT_graphics_pipeline_library) as the game does.
-7. **All six faces chained**, every cube of probe01, s2c_l5probe and atixref,
-   from cleared targets on our data. Check: each face against
-   `tools/cubehost/rdc_readback.py`'s readbacks bit for bit (GPU on the 4070;
-   the dev box GTX 1080 drifts on two draws). Needs face 1..5 dumps
-   (rdc_replay.py per face range, CS2 closed).
-8. **The cube set and the strip**: cubemap records as client 1801ea0a0
-   gathers them (class order, near 1, far 10000, handshakes, cube array
-   index), each cube rendered, reduced and written (`CubemapFaceExr`), then
-   `CubemapArrayVtex.Build`. Check: the whole env_cubemap_array.vtex_c
-   against the game's build of the same package (`GameCubemapTests` style),
-   all three maps.
-9. **compile-map and the service**: render the cubemaps in our own Vulkan
-   device after the lit compile (Hammer's "build cubemaps" equivalent), write
-   the array and the .vtex into the package. Check: ParityReport's cubemaps
-   row at 100% on the parity matrix maps.
-10. **More maps and the open questions**: a ze map and a workshop map with
-    props, decals, overlays, water and translucency in view (passes the
-    three captures do not exercise: MBOIT, water refraction, decals, sky
-    variants, fog volumes); the
-    CPU-vendor dependent rsqrtss in the size metric (an AMD reference).
-11. **Independence**: the BC6H encoder from Intel's source instead of the
-    game's ispc_texcomp.dll; DX11 float parity of the blur only if a
-    reference needs it.
+Done: the array's compile (ledger 117), readback -> EXR (137), face views,
+constant blocks and the chained face 0 (118-121), the per-view culling of
+world aggregates for faces and sun cascades (139, 140), the shadowed light's
+views given their frusta (144), and the finding that the game's build varies
+run to run (144). In order:
+
+**0. The state at the moment of the build** (ledger 144: streaming and time
+change the game's output). Without this no animated map has a reference.
+
+- **0a. What decides the state.** From client.dll's BuildCubemaps
+  (1801ea0a0 and its callers) and the engine's frame loop: whether the build
+  stops or advances simulation and render time between faces and cubes, which
+  clocks the render reads (the per-view block's time words, the client's
+  curtime and frametime, the material system's time, the server tick), and
+  what changes with them: moving brush entities (func_door, func_movelinear,
+  func_rotating, func_tracktrain and the rest), animated models and their
+  sequences, foliage wind and other vertex animation in the shaders, texture
+  scroll and animated textures, light styles (atixref's eight fast_strobe
+  lights), particles, sky and fog animation, physics props settling (Valve's
+  own settle varies by heap order, docs/PHYSICS.md). Check: each candidate's
+  words in the captured per-view and material blocks against two runs'
+  captures; a Frida trace of the clock reads inside cubehost (function
+  entries only, as the 10-22 lesson says).
+- **0b. A reproducible Valve build.** Pin what 0a finds, in cubehost only: a
+  fixed time base for the build (a hook of the time source, or the engine's
+  own convars if one freezes it), a fixed point of entity simulation, the
+  settle for streaming. Check: two runs of atixref bit-identical, all 42
+  cubes. That pinned run is the byte reference for animated maps; probe01's
+  settled run already is one for static maps.
+- **0c. Texture residency.** Which mips a settled build has resident per
+  texture (the streaming rule: the 512 preload rule seen for the blend
+  sampler, r_texture_stream_max_resolution and the screen-size request), and
+  what an unsettled build has (the warm run's finer mips). Check: our
+  residency gives the settled EXRs of probe01, s2c_l5probe and atixref.
+- **0d. The time-dependent inputs ported.** Each thing 0a lists, computed for
+  a given time as the game computes it: entity transforms at that time (from
+  the entity lump and our entity and physics ports), material time constants
+  and vertex animation inputs, light style values, animated model poses.
+  Check: the pinned run's per-view, material and instance blocks word for
+  word; then its EXRs.
+- **0e. The time our compile renders at.** What Hammer's and the game's build
+  have at the build (map load to buildcubemaps), chosen so our output equals
+  a pinned Valve build of the same package; and for Valve's shipped maps,
+  whether their arrays' time can be recovered (render at candidate times and
+  compare) so they serve as references too.
+
+**1. Shadowed lights' own shadow views** (atixref's six tiles, 96 draws per
+capture): the culling is settled (the frustum alone, all 96 lists equal);
+left are the view setup from the light's precomputed sub-frusta, the atlas
+allocator (tile sizes and places, priority, shadowmapsize -1), their constant
+blocks, and spot, barn and rect lights' shadow views (none captured yet).
+Check: `AggregateCullingCaptureTests` with our frusta instead of the captured
+blocks; the face's replay with our blocks.
+
+**2. Non-aggregate scene objects** (atixref's 98 draws: static props kept as
+their own objects, entity models, the sky): scenesystem's generic object
+culling, their instance records and draw lists, animated models' bones.
+Check: the same test with those draws matched to package models.
+
+**3. The remaining cull gates**: LOD cross-fades and forced LODs (1800450f0's
+other paths), the per-view PVS test (FUN_180036840), the small-object fade
+(view +0x5724 / +0x572c), culling boxes on face views. Each ported or shown
+inactive for the BuildCubemaps view (a Frida read of the view fields, CS2 and
+Steam closed).
+
+**4. Layer and primitive order**: which layer lists a material lands in, and
+the order of the primitives within a pass (the 16-bit sort key from
+180041a00's +0x20, the pipeline sort). Check: the captured action order of
+every pass, all three maps.
+
+**5. The light binner from our own lights** (s2c_l5probe's omni and barn
+lights; dynamic lights and light styles) and the bindless material set
+(atixref): descriptor heap and texture slots from our materials. Check: the
+replay with nothing taken from the capture but geometry buffers.
+
+**6. atixref draw 2305**: one half-float ulp on 38 pixels; build pipelines
+from stage libraries (VK_EXT_graphics_pipeline_library) as the game does.
+
+**7. All six faces chained**, every cube of probe01, s2c_l5probe and atixref,
+from cleared targets on our data. Check: each face against
+`tools/cubehost/rdc_readback.py`'s readbacks bit for bit (GPU on the 4070;
+the dev box GTX 1080 drifts on two draws). Needs face 1..5 dumps
+(rdc_replay.py per face range, CS2 closed), of a pinned run (0b) for atixref.
+
+**8. The cube set and the strip**: cubemap records as client 1801ea0a0
+gathers them (class order, near 1, far 10000, handshakes, cube array index),
+each cube rendered, reduced and written (`CubemapFaceExr`), then
+`CubemapArrayVtex.Build`. Check: the whole env_cubemap_array.vtex_c against
+the game's build of the same package (settled, and pinned where animated),
+all three maps.
+
+**9. compile-map and the service**: render the cubemaps in our own Vulkan
+device after the lit compile (Hammer's "build cubemaps" equivalent) at 0e's
+time, and write the array and the .vtex into the package. Check:
+ParityReport's cubemaps row at 100% on the parity matrix maps, every preset
+and switch.
+
+**10. Every pass and map feature**: a ze map and a workshop map with props,
+decals, overlays, water and translucency in view (passes the three captures
+do not exercise: MBOIT, water refraction, decals, sky variants, fog volumes,
+env_cubemap_box and parallax volumes, env_cubemap_fog), each with a pinned
+capture; video config dependence (shadow quality presets, ledger 121) as the
+build sees it; the CPU-vendor dependent rsqrtss in the size metric and an AMD
+GPU reference.
+
+**11. Independence**: the BC6H encoder from Intel's source instead of the
+game's ispc_texcomp.dll; DX11 float parity of the blur where a reference
+needs it.
 
 ## Open
 

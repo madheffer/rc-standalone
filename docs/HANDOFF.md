@@ -90,12 +90,15 @@ carries the same state per item.
 
 1. **Cubemaps, the face render** ([CUBEMAPS.md](CUBEMAPS.md), ledgers 117-121, 137-140, 144; the
    ordered plan to the array from the .vmap is CUBEMAPS.md "Roadmap"):
-   - The reference (ledger 144): the game's own build is not reproducible as
-     is. probe01 is with a settle before the build (`run_probe.py --settle 20`;
-     an unsettled warm run samples finer mips); atixref differs on every cube
-     run to run (foliage and moving entities follow time; pausing does not
-     help). Deciding what a byte reference is for animated scenes, and which
-     time our compile renders at, comes before the atixref parity work.
+   - The state at the build (ledger 144, CUBEMAPS.md roadmap 0a-0e): the
+     game's own build is not reproducible as is. probe01 is with a settle
+     (`run_probe.py --settle 20`; an unsettled warm run samples finer mips);
+     atixref differs on every cube run to run (foliage and moving entities
+     follow time; pausing does not help). Scope is 1:1 with Valve for animated
+     maps too, never static-only: find what the build's state depends on, pin
+     it in cubehost so a Valve build repeats, port the time-dependent inputs
+     and the texture residency, and render our compile at the time that
+     equals Valve's build.
    - atixref draw 2305: one half-float ulp on 38 pixels. Build the pipeline
      from one-stage libraries (VK_EXT_graphics_pipeline_library) as the game
      does; the first attempt crashed with an access violation in our code.

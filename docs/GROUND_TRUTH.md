@@ -3931,7 +3931,9 @@ game can answer is raised with the user first, and runs with -insecure.
       1536), (1344, 1536), (1664, 1536), (0, 1280), faces 0 and 3) cull with the plain frustum of their per-view
       blocks (zero-to-one near plane) through 18003d380: all 96 lists equal, no culling box sets.
     - Open: the light's view setup (six projections from its precomputed sub-frusta, the tile sizes and places)
-      and its constant blocks; what reference and which time to render at for time-dependent scenes.
+      and its constant blocks; what the build's state depends on (clocks, entity simulation, animated materials,
+      texture residency), pinning it so a Valve build of atixref repeats, and porting it: animated scenes are in
+      scope (1:1 with Valve in every aspect, user 2026-10-25; CUBEMAPS.md roadmap 0a-0e).
 
 ## Resolved
 
