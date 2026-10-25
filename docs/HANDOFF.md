@@ -88,7 +88,8 @@ carries the same state per item.
 
 ## Roadmap: what is left, in the order worth taking it
 
-1. **Cubemaps, the face render** ([CUBEMAPS.md](CUBEMAPS.md), ledgers 117-121):
+1. **Cubemaps, the face render** ([CUBEMAPS.md](CUBEMAPS.md), ledgers 117-121, 137-140; the
+   ordered plan to the array from the .vmap is CUBEMAPS.md "Roadmap"):
    - atixref draw 2305: one half-float ulp on 38 pixels. Build the pipeline
      from one-stage libraries (VK_EXT_graphics_pipeline_library) as the game
      does; the first attempt crashed with an access violation in our code.
