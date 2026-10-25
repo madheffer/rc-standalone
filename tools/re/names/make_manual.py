@@ -3124,6 +3124,12 @@ CLIENT_1021 = [
     ("180130342", "Convar_csm_viewmodel_max_shadow_dist", BAKE, "registration, default 21 (csm_viewmodel_max_visible_dist 1000 at 1801303f2, csm_viewmodel_nearz 0.5 at 1801304a2)"),
 ]
 
+# client.dll 20261023, 1.41.9.2 (installed; tools/re/binaries/client_20261023.dll).
+CLIENT_1023 = [
+    ("1800538d8", "Convar_buildcubemaps_renderdoc_capture", BAKE, "registration as in 10-15 (flags 2, development-only); the handle it passes at 1800538ed is 1823806d0, so the data pointer is the global 1823806d8"),
+    ("1823806d8", "g_buildcubemaps_renderdoc_capture", BAKE, "the convar's data pointer (name at +0, int value at +0x58), 18237eab0 in the 10-15 and 10-21 builds; cubehost --renderdoc-capture picks it by client.dll's PE time stamp 6ada7340"),
+]
+
 # server.dll 20261021 (installed; tools/re/binaries/server_20261021.dll).
 SERVER_1021 = [
     ("18017c8d0", "CLightComponent_Construct", BAKE, "every cascade field zeroed (+0xe4 .. +0xf8 through the network-var initialisers 18017c390 .. 18017c3e0): with csgo.fgd's remove_key the light gives no cascade distances"),
@@ -3185,6 +3191,7 @@ if __name__ == "__main__":
     write("bc7e_20261015.manual.json", BC7E)
     write("client_20261015.manual.json", CLIENT_1015)
     write("client_20261021.manual.json", CLIENT_1021)
+    write("client_20261023.manual.json", CLIENT_1023)
     write("worldrenderer_20261023.manual.json", WORLDRENDERER_1023)
     write("server_20261021.manual.json", SERVER_1021)
     print(len(RESOURCECOMPILER), len(VPHYSICS2), len(PHYSICSBUILDER), len(VISBUILDER), len(SMARTPROPS), len(TIER0), len(HAMMER))

@@ -96,34 +96,58 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
     /// </summary>
     private static Dictionary<string, byte[]> OurBlocks()
     {
-        var view = Cubemaps.CubemapFaceViews.Face(new System.Numerics.Vector3(512, 96, 112), System.Numerics.Vector3.Zero, 1f, 10000f, 0);
+        var byRole = OurBlocks(0);
+        string[] roles = ["world", "sky", "csgo", "baked", "transforms", "instances", "cascade0", "cascade1", "cascade2", "cascade3", "lights"];
+        string[] prefixes = ["9cb9e491", "1b1f6cc0", "37c443a8", "d831320f", "40190a9e", "5708ccca", "c84b0bea", "14ee9dcb", "4db015a3", "f0d466f1", "37b7646c"];
+        return roles.Zip(prefixes).ToDictionary(p => p.Second, p => byRole[p.First]);
+    }
+
+    /// <summary>
+    /// probe01's two env_combined_light_probe_volumes (array_index 0 and 1): each is a cube record (its origin)
+    /// and a light probe volume. A face's light block lists the volumes whose box meets the face's frustum, in the
+    /// order the captures show (volume 1, then volume 0, on every face of both cubes); the gather and its order are
+    /// not read (GROUND_TRUTH 147).
+    /// </summary>
+    private static readonly Cubemaps.CubemapFaceConstants.LightProbeVolume[] Probe01Volumes =
+    [
+        new(new(512, 96, 112), new(-768, -1088, -112), new(768, 896, 176), new(0, 32, 0)),
+        new(new(512, 1104, 112), new(-576, -144, -112), new(640, 336, 144), new(0, 32, 0), 1),
+    ];
+
+    private static readonly int[] Probe01VolumeOrder = [1, 0];
+
+    /// <summary>The same blocks for any face of one of probe01's cubes, by role (<see cref="BlockRoles"/>).</summary>
+    private static Dictionary<string, byte[]> OurBlocks(int face, int cube = 0)
+    {
+        var origin = Probe01Volumes[cube].Origin;
+        var view = Cubemaps.CubemapFaceViews.Face(origin, System.Numerics.Vector3.Zero, 1f, 10000f, face);
+        var frustum = Cubemaps.AggregateCulling.FaceFrustum(view);
+        var volumes = Probe01VolumeOrder.Select(i => Probe01Volumes[i])
+            .Where(v => !Cubemaps.AggregateCulling.Outside(frustum, v.Origin + v.BoxMins, v.Origin + v.BoxMaxs)).ToList();
         var fog = new Cubemaps.CubemapFaceConstants.CubeFog(400f, 12000f, 0.5f, 1.2f, new System.Numerics.Vector4(0f, 2000f, 1f, 1f),
             System.Numerics.Matrix4x4.CreateTranslation(512, 112, 80));
         var ours = new Dictionary<string, byte[]>
         {
-            ["9cb9e491"] = Cubemaps.CubemapFaceConstants.PerView(view, 1024, 0f, 0.95f),
-            ["1b1f6cc0"] = Cubemaps.CubemapFaceConstants.PerView(view, 1024, 1f, 1f),
-            ["37c443a8"] = Cubemaps.CubemapFaceConstants.Csgo(view, fog, 4096f),
-            ["d831320f"] = Cubemaps.CubemapFaceConstants.BakedLighting(new System.Numerics.Vector2(1.1428397f, 1.1428397f), 4096, 4096, false),
+            ["world"] = Cubemaps.CubemapFaceConstants.PerView(view, 1024, 0f, 0.95f),
+            ["sky"] = Cubemaps.CubemapFaceConstants.PerView(view, 1024, 1f, 1f),
+            ["csgo"] = Cubemaps.CubemapFaceConstants.Csgo(view, fog, 4096f),
+            ["baked"] = Cubemaps.CubemapFaceConstants.BakedLighting(new System.Numerics.Vector2(1.1428397f, 1.1428397f), 4096, 4096, false),
             // Our own slots: two identity transforms, every instance pointing at the second.
-            ["40190a9e"] = Cubemaps.CubemapFaceConstants.Transforms([Cubemaps.CubemapFaceConstants.Identity3x4, Cubemaps.CubemapFaceConstants.Identity3x4]),
-            ["5708ccca"] = Cubemaps.CubemapFaceConstants.Instances([.. Enumerable.Repeat(1, 63)]),
+            ["transforms"] = Cubemaps.CubemapFaceConstants.Transforms([Cubemaps.CubemapFaceConstants.Identity3x4, Cubemaps.CubemapFaceConstants.Identity3x4]),
+            ["instances"] = Cubemaps.CubemapFaceConstants.Instances([.. Enumerable.Repeat(1, 63)]),
         };
-        // The sun cascades' per-view blocks (face 0: three cascades and the viewmodel one).
+        // The sun cascades' per-view blocks (three cascades and the viewmodel one).
         var (sun, _, cameraDirection) = Cubemaps.CubemapShadowCascades.SunDirections(new System.Numerics.Vector3(74.99999f, 180.00002f, 0f));
         var cascades = Cubemaps.CubemapShadowCascades.GameCascades(view, sun, 1f, 10000f);
-        string[] cascadeShas = ["c84b0bea", "14ee9dcb", "4db015a3", "f0d466f1"];
-        int[][] tiles = [[0, 0], [1280, 0], [2560, 0], [0, 2048]];
+        var tiles = CascadeTiles;
         for (var k = 0; k < 4; k++)
-            ours[cascadeShas[k]] = Cubemaps.CubemapFaceConstants.CascadePerView(cascades[k], cameraDirection, tiles[k][0], tiles[k][1], Cubemaps.CubemapShadowCascades.Inputs.Resolution, Cubemaps.CubemapShadowCascades.Inputs.AtlasWidth, Cubemaps.CubemapShadowCascades.Inputs.AtlasHeight);
-        // The light block: probe01's light_environment and light probe volume.
+            ours[$"cascade{k}"] = Cubemaps.CubemapFaceConstants.CascadePerView(cascades[k], cameraDirection, tiles[k][0], tiles[k][1], Cubemaps.CubemapShadowCascades.Inputs.Resolution, Cubemaps.CubemapShadowCascades.Inputs.AtlasWidth, Cubemaps.CubemapShadowCascades.Inputs.AtlasHeight);
+        // The light block: probe01's light_environment and the cube's light probe volume.
         var (_, lightDir, _) = Cubemaps.CubemapShadowCascades.SunDirections(new System.Numerics.Vector3(74.99999f, 180.00002f, 0f));
         var sunLight = new Cubemaps.CubemapFaceConstants.Sun(lightDir, Lighting.SceneLights.SrgbToLinear(248, 249, 232) * 2.25f, 0.1f, 0.05f,
             Lighting.SceneLights.SrgbToLinear(138, 200, 255), 0.875f);
-        var volume = new Cubemaps.CubemapFaceConstants.LightProbeVolume(new System.Numerics.Vector3(512, 96, 112), new System.Numerics.Vector3(-768, -1088, -112),
-            new System.Numerics.Vector3(768, 896, 176), new System.Numerics.Vector3(0, 32, 0));
         var stretched = Cubemaps.CubemapShadowCascades.Slice(view, 1f, Cubemaps.CubemapShadowCascades.GameDistances(1f, 10000f)[^1]).Diameter * 1.42f;
-        ours["37b7646c"] = Cubemaps.CubemapFaceConstants.LightBlock(sunLight, volume, cascades, tiles, Cubemaps.CubemapShadowCascades.Inputs.Resolution, Cubemaps.CubemapShadowCascades.Inputs.AtlasWidth, Cubemaps.CubemapShadowCascades.Inputs.AtlasHeight, new System.Numerics.Vector3(512, 96, 112), stretched);
+        ours["lights"] = Cubemaps.CubemapFaceConstants.LightBlock(sunLight, volumes, cascades, tiles, Cubemaps.CubemapShadowCascades.Inputs.Resolution, Cubemaps.CubemapShadowCascades.Inputs.AtlasWidth, Cubemaps.CubemapShadowCascades.Inputs.AtlasHeight, origin, stretched);
         return ours;
     }
 
@@ -169,6 +193,153 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
             output.WriteLine(f);
         Assert.Empty(failures);
     }
+
+    /// <summary>
+    /// A whole cube of probe01 (<c>CUBEREPLAY_CUBE</c>, 0 by default): each face's dump (<c>CUBEFACES=&lt;dir&gt;</c> holding replay_face0 .. 5, each
+    /// rdc_replay.py with RDC_DUMP=1 over that face's events) chained from cleared targets with our blocks for that
+    /// face, found by role (<see cref="BlockRoles"/>). The colour target after the face's last draw must equal the
+    /// capture's readback (<c>CUBEREADBACK</c>, rdc_readback.py), and the six through <see cref="Cubemaps.CubemapFaceExr"/>
+    /// the game's EXR of the cube (<c>CUBEREADBACK_EXR</c>), byte for byte.
+    /// </summary>
+    [Fact]
+    public void ChainedCubeMakesTheGamesExr()
+    {
+        if (Environment.GetEnvironmentVariable("CUBEFACES") is not { Length: > 0 } facesDir
+            || Environment.GetEnvironmentVariable("CUBEREPLAY_SPIRV") is not { Length: > 0 } spirvDir
+            || Environment.GetEnvironmentVariable("CUBEREADBACK") is not { Length: > 0 } readbackDir
+            || Environment.GetEnvironmentVariable("CUBEREADBACK_EXR") is not { Length: > 0 } exrPath)
+            return;
+        var cube = int.Parse(Environment.GetEnvironmentVariable("CUBEREPLAY_CUBE") ?? "0", System.Globalization.CultureInfo.InvariantCulture);
+        using var gpu = new GpuDevice(rayTracingShaderFeatures: Environment.GetEnvironmentVariable("CUBEREPLAY_BASIC_DEVICE") != "1");
+        var runner = new SceneDrawRunner(gpu);
+        var faces = new List<Half[]>();
+        var failures = new List<string>();
+        for (var f = 0; f < 6; f++)
+        {
+            var dir = Path.Combine(facesDir, $"replay_face{f}");
+            var resources = JsonNode.Parse(File.ReadAllText(Path.Combine(dir, "resources.json")))!;
+            using var replay = new Replay(dir, spirvDir, resources, gpu, runner) { Chain = true, StartFromClear = true };
+            var actions = File.ReadLines(Path.Combine(dir, "actions.jsonl")).Select(l => JsonNode.Parse(l)!)
+                .Where(r => r["contents"] is not null && (r["stages"]?["vs"] is not null || r["stages"]?["cs"] is not null)).ToList();
+            var ours = OurBlocks(f, cube);
+            var roles = BlockRoles(actions, sha => File.ReadAllBytes(Path.Combine(dir, "blobs", sha + ".bin")));
+            foreach (var (sha, role) in roles)
+            {
+                // The light block's visible volumes (g_VisibleLPV, g_nNumLPVs) word for word: no draw shows a
+                // volume no pixel reaches, so the face's output alone does not check them.
+                if (role == "lights")
+                {
+                    var theirs = File.ReadAllBytes(Path.Combine(dir, "blobs", sha + ".bin"));
+                    if (!theirs.AsSpan(18832, 2 * 96).SequenceEqual(ours[role].AsSpan(18832, 2 * 96)) || BitConverter.ToInt32(theirs, 31960) != BitConverter.ToInt32(ours[role], 31960))
+                    {
+                        var words = Enumerable.Range(18832 / 4, 2 * 96 / 4).Where(w => BitConverter.ToUInt32(theirs, w * 4) != BitConverter.ToUInt32(ours[role], w * 4))
+                            .Select(w => $"+{w * 4} {BitConverter.ToUInt32(theirs, w * 4):x8}/{BitConverter.ToUInt32(ours[role], w * 4):x8}");
+                        failures.Add($"face {f}: the light block's volumes are not the capture's ({BitConverter.ToInt32(theirs, 31960)} there, {BitConverter.ToInt32(ours[role], 31960)} ours; {string.Join(", ", words)})");
+                        output.WriteLine("  " + failures[^1]);
+                    }
+                }
+                // A range bound longer than the block keeps the capture's bytes past it (no shader reads them).
+                var captured = File.ReadAllBytes(Path.Combine(dir, "blobs", sha + ".bin"));
+                replay.Overrides[sha] = captured.Length > ours[role].Length ? [.. ours[role], .. captured.AsSpan(ours[role].Length)] : ours[role];
+            }
+            output.WriteLine($"face {f}: {actions.Count} actions; blocks {string.Join(", ", roles.Values.Order())}");
+            // A face that sees no world (probe01's +Z) draws the sky alone; any other face uses every block.
+            foreach (var role in (roles.ContainsValue("world") ? ours.Keys : (IEnumerable<string>)["sky"]).Except(roles.Values))
+                failures.Add($"face {f}: no captured block for {role}");
+            foreach (var r in actions)
+            {
+                var result = r["stages"]!["cs"] is not null ? replay.RunCompute(r) : replay.Run(r);
+                if (!result.StartsWith("equal", StringComparison.Ordinal))
+                {
+                    output.WriteLine($"  {r["eid"]} {r["name"]}: {result}");
+                    failures.Add($"face {f} {r["eid"]}: {result}");
+                }
+            }
+            var colorName = actions.Where(r => r["outputs"]!.AsArray().Count > 0).Select(r => (string)r["outputs"]![0]!).Last();
+            var face = replay.ReadLive(colorName);
+            var readback = File.ReadAllBytes(Path.Combine(readbackDir, $"readback_{f}.bin"));
+            var differ = Enumerable.Range(0, Math.Min(face.Length, readback.Length) / 2).Count(i => BitConverter.ToUInt16(face, i * 2) != BitConverter.ToUInt16(readback, i * 2));
+            output.WriteLine($"  {colorName} against readback_{f}: {(face.Length == readback.Length && differ == 0 ? "equal" : $"{differ} halves differ")}");
+            if (face.Length != readback.Length || differ != 0)
+                failures.Add($"face {f}: {differ} halves differ from the readback");
+            faces.Add(System.Runtime.InteropServices.MemoryMarshal.Cast<byte, Half>(face).ToArray());
+        }
+        var game = File.ReadAllBytes(exrPath);
+        var exr = Cubemaps.CubemapFaceExr.Build(faces, 1024, Lighting.Vrad3Exr.Read(game).Height);
+        output.WriteLine($"EXR: {(exr.AsSpan().SequenceEqual(game) ? "the game's, byte for byte" : "differs")} ({exr.Length} / {game.Length} bytes)");
+        // CUBEREPLAY_EXR_OUT=<dir>: our EXR under the game's name, for GameCubemapTests to build the array from.
+        if (Environment.GetEnvironmentVariable("CUBEREPLAY_EXR_OUT") is { Length: > 0 } exrOut)
+        {
+            Directory.CreateDirectory(exrOut);
+            File.WriteAllBytes(Path.Combine(exrOut, Path.GetFileName(exrPath)), exr);
+        }
+        Assert.Empty(failures);
+        Assert.Equal(game, exr);
+    }
+
+    /// <summary>
+    /// Which of our blocks each captured constant block or buffer of a face's actions is, by where it is bound: set 0/1
+    /// binding 1 (640 bytes) is a per-view block, the sky's when its depth range (+368) starts at 1, a sun cascade's when
+    /// drawn into the D16 shadow atlas (cascade by the viewport's tile); binding 3 PerViewConstantBufferCsgo_t, set 1
+    /// binding 4 BakedLightingConstantBuffer_t, set 3 binding 0 the light block, set 4 bindings 30 and 32 the transforms
+    /// and instances.
+    /// </summary>
+    private static Dictionary<string, string> BlockRoles(IEnumerable<JsonNode> actions, Func<string, byte[]> blob)
+    {
+        var roles = new Dictionary<string, string>();
+        void Add(string sha, string role)
+        {
+            if (roles.TryGetValue(sha, out var had) && had != role)
+                throw new InvalidOperationException($"{sha} is both {had} and {role}");
+            roles[sha] = role;
+        }
+        foreach (var r in actions)
+        {
+            if (r["stages"]?["vs"] is null)
+                continue;
+            var vp = r["viewportScissor"]!["viewportScissors"]![0]!["vp"]!;
+            var depthName = (string?)r["depthOut"];
+            var atlas = depthName != null && r["outputs"]!.AsArray().Count == 0 && depthName.Contains("Depth Attachment", StringComparison.Ordinal) && !depthName.Contains("Stencil", StringComparison.Ordinal);
+            foreach (var stage in new[] { r["stages"]!["vs"], r["stages"]!["ps"] }.Where(s => s != null))
+            {
+                foreach (var cb in stage!["constantBlocks"]!.AsArray())
+                {
+                    var block = cb!["block"]!;
+                    if (cb["bytes"] is not { } bytes || block["bufferBacked"] is { } backed && !(bool)backed)
+                        continue;
+                    var sha = (string)bytes["sha1"]!;
+                    var (set, binding, size) = ((int)block["fixedBindSetOrSpace"]!, (int)block["fixedBindNumber"]!, (long)bytes["size"]!);
+                    if (binding == 1 && size == 640)
+                    {
+                        if (atlas)
+                        {
+                            var (x, y) = ((int)(float)vp["x"]!, (int)(float)vp["y"]!);
+                            Add(sha, $"cascade{Array.FindIndex(CascadeTiles, t => t[0] == x && t[1] == y)}");
+                        }
+                        else
+                            Add(sha, BitConverter.ToSingle(blob(sha), 368) == 1f ? "sky" : "world");
+                    }
+                    else if (binding == 3 && size >= 656)   // the bound range can be longer (1024 on cube 1's -X)
+                        Add(sha, "csgo");
+                    else if (set == 1 && binding == 4 && size == 64)
+                        Add(sha, "baked");
+                    else if (set == 3 && binding == 0 && size == 32256)
+                        Add(sha, "lights");
+                }
+                // Storage buffers the shaders only read are still declared read-write.
+                foreach (var rw in stage["readWrite"]!.AsArray().Concat(stage["readOnly"]!.AsArray()))
+                {
+                    var bind = rw!["bind"]!;
+                    if ((int)bind["set"]! == 4 && (int)bind["binding"]! is 30 or 32
+                        && r["contents"]!["before"]![(string)rw["descriptor"]!["resource"]!] is JsonObject buffer)
+                        Add((string)buffer["sha1"]!, (int)bind["binding"]! == 30 ? "transforms" : "instances");
+                }
+            }
+        }
+        return roles;
+    }
+
+    private static readonly int[][] CascadeTiles = [[0, 0], [1280, 0], [2560, 0], [0, 2048]];
 
     /// <summary>Which instance / transform fields the colour draws read: variants of the two buffers, each replayed.</summary>
     [Fact]
@@ -357,6 +528,12 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
         /// instead of the capture's contents, which hold earlier renders' leftovers.
         /// </summary>
         public static bool StartCleared { get; } = Environment.GetEnvironmentVariable("CUBEREPLAY_START") == "clear";
+
+        /// <summary>This replay's chained targets start from a clear whatever CUBEREPLAY_START says.</summary>
+        public bool StartFromClear { get; init; } = StartCleared;
+
+        /// <summary>A chained target's contents as our draws left it.</summary>
+        public byte[] ReadLive(string name) => runner.Read(_live[name], SceneDrawRunner.IsDepth(_live[name].Format) ? 0u : 8u);
 
         private static byte[] Cleared(Format format, uint width, uint height, int size)
         {
@@ -714,7 +891,7 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                 var t = resources["textures"]![name]!;
                 var image = runner.CreateImage(Format((string)t["format"]!), (uint)(int)t["width"]!, (uint)(int)t["height"]!, 1, 1, 1, ImageViewType.Type2D, usage);
                 var start = Blob(BeforeSha(rec, before, name));
-                if (Chain && StartCleared)
+                if (Chain && StartFromClear)
                     start = Cleared(image.Format, image.Width, image.Height, start.Length);
                 runner.Write(image, 0, 0, start);
                 if (Chain)
@@ -765,7 +942,7 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                     if (ours[i] != theirs[i])
                     {
                         // From a cleared start, bytes no draw wrote keep our clear where the capture kept leftovers.
-                        if (Chain && StartCleared && Baselines == null && theirs[i] == beforeBytes[i])
+                        if (Chain && StartFromClear && Baselines == null && theirs[i] == beforeBytes[i])
                             kept++;
                         else
                             diff++;

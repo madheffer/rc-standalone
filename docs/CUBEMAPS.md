@@ -559,6 +559,54 @@ all 96 lists equal the capture: no culling box beyond the frustum. What is not
 ported is the view setup itself (the light's six projections from its
 sub-frusta, the tile sizes and places in the atlas) and their constant blocks.
 
+## Whole cubes from our blocks (2026-10-26)
+
+`CubemapFaceReplayTests.ChainedCubeMakesTheGamesExr` renders every face of a
+cube on our device and checks the result at three levels. Each face's dump is
+chained from cleared targets. Every constant block and buffer the face reads
+from our data is ours: the world and sky per-view blocks,
+PerViewConstantBufferCsgo_t, BakedLightingConstantBuffer_t, the transforms and
+instances, the four sun cascades' per-view blocks and the light block. The
+checks: every action's output equals the capture, the colour target after the
+last draw equals the game's readback, and the six faces through
+`CubemapFaceExr` equal the game's EXR byte for byte. The test finds the
+blocks by role (`BlockRoles`: binding, the per-view block's depth range, the
+shadow-atlas tile), not by face 0's hashes. probe01's +Z face sees no world
+and draws the sky alone.
+
+    RDC_IN=<capture.rdc> RDC_OUT=<dir>/replay_face<f> RDC_DUMP=1 RDC_FIRST=<eid> RDC_LAST=<eid> qrenderdoc.exe --python tools/cubehost/rdc_replay.py
+    CUBEFACES=<dir> CUBEREPLAY_SPIRV=<spirv> CUBEREADBACK=<readback dir> CUBEREADBACK_EXR=<game EXR> [CUBEREPLAY_CUBE=1] [CUBEREPLAY_EXR_OUT=<dir>] dotnet test --filter ChainedCubeMakesTheGamesExr
+
+(A face's events run from the event after the previous face's
+`vkCmdCopyImageToBuffer` to its own, from rdc_summary.py's list. A face takes
+700 to 900 MB of dumps. The six faces replay in about 70 s on the RTX 4070.)
+
+- **probe01, both cubes** (cube 0 from the 10-21 capture, faces 1 to 5
+  dumped 10-26; cube 1 captured 10-26 with `run_probe.py --renderdoc 1
+  --settle 20`): all twelve faces equal their readbacks, both EXRs are the
+  game's byte for byte, and `CubemapArrayVtex.Build` on our two EXRs gives
+  the game's whole `env_cubemap_array.vtex_c` (945,838 bytes; GameCubemapTests
+  on a folder of our EXRs with the game's .vtex, `CUBEREPLAY_EXR_OUT`).
+- The light block lists each face's visible light probe volumes
+  (g_VisibleLPV, 96 bytes each; g_nNumLPVs at +31960): those whose box meets
+  the face's frustum, volume 1 before volume 0, and each entry's last int is
+  the volume's array_index. The test checks these words against the capture,
+  since an unreached volume changes no pixel. Measured, not read
+  (GROUND_TRUTH 147).
+- Still the capture's: the pipelines and draw arguments (our culling gives
+  the same index ranges, ledger 139), the geometry, lightmap and material
+  contents (equal to the package's, ledger 120), generic's `_Globals_`
+  (ProgramGlobals.Fill gives it word for word, ledger 120), and these small
+  blocks: the light binner's 160-byte block, the sky's two blocks and the
+  downsample's.
+
+The 10-23 update (1.41.9.2) left the settled build unchanged. probe01's two
+EXRs from the 10-26 run equal the 10-21 run's bit for bit. The compiled array
+shrank from 945,886 to 945,838 bytes, and `CubemapArrayVtex.Build` already
+gives the new file byte for byte (`GameCubemapTests` on the 10-26
+intermediates). cubehost's RenderDoc convar moved to client 1823806d8 in that
+build; cubehost now picks the address by client.dll's PE time stamp.
+
 ## Roadmap to env_cubemap_array.vtex_c from the .vmap (2026-10-25)
 
 The goal is 1:1 with Valve in every aspect: every map, static or animated,

@@ -80,6 +80,20 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180e0ed60` | `Panorama_StartCamera` | sets 1825c9e3b (StopCamera 180e0ee40 clears it); registered beside CloseScoreboard / ClearModels |  |
 | `1811d9d30` | `RenderPipeline_SetViewAttributes` | game pipeline view attributes; at 1811da3f4 cascade 0's distance (0x61fac369) = 1808898d0() when above 0, after the local pawn's camera-services FOV (0x172c3cca); 1811da45f..1811da4fc copies 0x172c3cca / 0x61fac369 / 0x70644345 from another view's attributes when above 0; then CsmPushbackDistance (0xb7a3d0d5) and CsmMaxVisibleDistance (0xb506b94b) from convars | `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:30` |
 
+## client.dll, build 20261023
+
+- file: `client_20261023.dll`, 39,215,768 bytes, PE time 2026-10-22 20:34 UTC
+- SHA-256 `ccaf4e4926babc052994502b19ec61198a11008a39dce712921b93dd993be9f5`
+- installed: a different build
+- 2 addresses
+
+### s2c:baked/lighting
+
+| address | name | what | cited in |
+|---|---|---|---|
+| `1800538d8` | `Convar_buildcubemaps_renderdoc_capture` | registration as in 10-15 (flags 2, development-only); the handle it passes at 1800538ed is 1823806d0, so the data pointer is the global 1823806d8 |  |
+| `1823806d8` | `g_buildcubemaps_renderdoc_capture` | the convar's data pointer (name at +0, int value at +0x58), 18237eab0 in the 10-15 and 10-21 builds; cubehost --renderdoc-capture picks it by client.dll's PE time stamp 6ada7340 |  |
+
 ## hammer.dll, build 20260924
 
 - file: `hammer_20260924.dll`, 39,597,208 bytes, PE time 2026-09-23 22:00 UTC

@@ -109,9 +109,12 @@ carries the same state per item.
      Left: those lights' view setup from their sub-frusta, LOD cross-fades, the per-view PVS test,
      and the generic culling of non-aggregate scene objects (42 atixref
      draws).
-   - The light binner's inputs from our own lights, then all six faces of a
-     cube. The readback, QuarterSize, the EXR strip and the array are exact
-     against the game from the captured readbacks (ledger 137).
+   - All six faces of probe01's cubes chained on our blocks give the game's
+     EXRs byte for byte (2026-10-26, CUBEMAPS.md "Whole cubes from our
+     blocks"), and the two EXRs build the game's whole array. Left on that path: the light binner's block, the sky's and the
+     downsample's blocks from our data, the visible probe volume gather
+     (GROUND_TRUTH 147), then the draws from our culling and pipelines
+     without the capture.
    - atixref cube 0's readbacks miss the game's EXR on one mesh's material
      (ledger 137): run atixref's buildcubemaps twice without RenderDoc (CS2
      and Steam closed) and compare the EXRs to see whether Valve's own output
@@ -167,7 +170,20 @@ carries the same state per item.
     rebuilt) and server.dll's script API; first get a pre-update `.vjs_c` to see
     what changed, and Valve's fresh `cs_script_demo` compile as the reference.
 
-## Latest session (2026-10-25, the nav analysis' overlapping connections)
+## Latest session (2026-10-26, whole cubemaps from our blocks)
+
+- CUBEMAPS.md "Whole cubes from our blocks": probe01's cubes rendered on our device, all six faces chained from
+  cleared targets, with every constant block and buffer from our data (blocks found by role, not by face 0's
+  hashes). Each face equals the game's readback, and the six give the game's EXR byte for byte
+  (`ChainedCubeMakesTheGamesExr`); our two EXRs build the game's whole env_cubemap_array.vtex_c. Cube 1 was
+  captured 10-26 (Steam closed by the user). Each face's light block lists the probe volumes in its frustum
+  (GROUND_TRUTH 147: measured on all twelve faces, the gather not read yet).
+- The 10-23 update left the settled probe01 build unchanged (both EXRs equal 10-21's); the compiled array is 48
+  bytes smaller and `CubemapArrayVtex.Build` already writes it. cubehost picks its RenderDoc convar address by
+  client.dll's PE time stamp (10-23: 1823806d8), and its csproj no longer compiles spvmatch's sources.
+- Captures and dumps: %TEMP%/cubehost_run/probe01 (cube 0, replay_face0..5) and probe01_cube1.
+
+## Earlier session (2026-10-25, the nav analysis' overlapping connections)
 
 - L24 closed (ledger 146, Maps/NavGen/NavMeshOverlaps.cs): CSNavMesh::Analyze's shared step (server.dll
   1814cfaa0) removes overlapping connections per edge (1814b86f0 over 1814ada50's intervals) before the AI

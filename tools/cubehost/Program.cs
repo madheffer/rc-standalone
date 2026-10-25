@@ -117,10 +117,16 @@ static class Program
     // client.dll's buildcubemaps_renderdoc_capture (which cubemap BuildCubemaps captures with RenderDoc under
     // -renderdoc) is development-only (registered with flags 2, client 10-15 1800538d8): neither the console nor
     // the command line sets it in a release build. In our own process we set it the way the convar system would:
-    // the cvar's data pointer is client's global 18237eab0 (the one the capture test reads), its name at +0 and
-    // its int value at +0x58. The name is checked first; another client build is left alone.
+    // the cvar's data pointer is a client global (18237eab0 in the 10-15 and 10-21 builds, 1823806d8 in 10-23:
+    // the handle 1800538ed passes to the registration, plus 8), its name at +0 and its int value at +0x58. The
+    // build is told by client.dll's PE time stamp and the name is checked; another client build is left alone.
     private const string RenderDocConvar = "buildcubemaps_renderdoc_capture";
-    private const int ClientConvarGlobal = 0x237eab0;
+    private static readonly Dictionary<uint, int> ClientConvarGlobals = new()
+    {
+        [0x6ad01314] = 0x237eab0,   // 2026-10-15
+        [0x6ad7b41c] = 0x237eab0,   // 2026-10-21
+        [0x6ada7340] = 0x23806d8,   // 2026-10-23 (1.41.9.2)
+    };
 
     private static void SetRenderDocCapture(int index)
     {
@@ -132,7 +138,13 @@ static class Program
                 var client = GetModuleHandleW(name);
                 if (client == 0)
                     continue;
-                var data = Marshal.ReadIntPtr(client + ClientConvarGlobal);
+                var stamp = (uint)Marshal.ReadInt32(client + Marshal.ReadInt32(client + 0x3c) + 8);
+                if (!ClientConvarGlobals.TryGetValue(stamp, out var global))
+                {
+                    Console.WriteLine($"cubehost: client.dll build {stamp:x8} has no known {RenderDocConvar} global; not set.");
+                    return;
+                }
+                var data = Marshal.ReadIntPtr(client + global);
                 if (data == 0)
                     continue;
                 var convarName = Marshal.PtrToStringUTF8(Marshal.ReadIntPtr(data));
@@ -141,7 +153,7 @@ static class Program
                     continue;
                 if (convarName != RenderDocConvar)
                 {
-                    Console.WriteLine($"cubehost: client's convar at +{ClientConvarGlobal:x} is \"{convarName}\", not {RenderDocConvar}; not set (another client build).");
+                    Console.WriteLine($"cubehost: client's convar at +{global:x} is \"{convarName}\", not {RenderDocConvar}; not set (another client build).");
                     return;
                 }
                 Marshal.WriteInt32(data + 0x58, index);

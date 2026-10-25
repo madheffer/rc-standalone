@@ -326,8 +326,11 @@ public static class CubemapFaceConstants
         return b;
     }
 
-    /// <summary>A light probe volume as the light block carries it (env_combined_light_probe_volume).</summary>
-    public sealed record LightProbeVolume(Vector3 Origin, Vector3 BoxMins, Vector3 BoxMaxs, Vector3 EdgeFadeDists);
+    /// <summary>
+    /// A light probe volume as the light block carries it (env_combined_light_probe_volume). The entry's last word
+    /// is an int that follows the entity's array_index on probe01 (0 and 1; measured, GROUND_TRUTH 147).
+    /// </summary>
+    public sealed record LightProbeVolume(Vector3 Origin, Vector3 BoxMins, Vector3 BoxMaxs, Vector3 EdgeFadeDists, int ArrayIndex = 0);
 
     /// <summary>The sun as the light block carries it.</summary>
     public sealed record Sun(Vector3 Direction, Vector3 Color, float CrossFade, float DistanceFade, Vector3 SkyColorLinear, float SkyIntensity);
@@ -337,8 +340,11 @@ public static class CubemapFaceConstants
     /// arrays 4 long). In progress: the fields decoded so far, the rest left 0, compared word for word in
     /// CubemapLightBlockTests. Cascades: g_mWorldToShadowCascade = ((jitter x P) V) T(lighting offset), transposed
     /// (checked on all four of probe01's); atlas offsets (tile centre / atlas, half tile / atlas, y negated).
+    /// <paramref name="volumes"/> are the view's visible light probe volumes in the game's order (g_VisibleLPV, 96
+    /// bytes each): probe01's cube 0 has its own, cube 1 its own then cube 0's (which ones the game lists is not
+    /// read, GROUND_TRUTH 147).
     /// </summary>
-    public static byte[] LightBlock(Sun sun, LightProbeVolume? volume, IReadOnlyList<CubemapShadowCascades.Cascade> cascades, int[][] tiles, int tileSize,
+    public static byte[] LightBlock(Sun sun, IReadOnlyList<LightProbeVolume> volumes, IReadOnlyList<CubemapShadowCascades.Cascade> cascades, int[][] tiles, int tileSize,
                                     int atlasWidth, int atlasHeight, Vector3 lightingOffset, float maxShadowDistance, int frame = 0)
     {
         var b = new byte[32256];
@@ -375,7 +381,7 @@ public static class CubemapFaceConstants
         I(308, 8192);                                                  // g_vLightCullParams
         I(324, 8192);                                                  // g_vEnvMapCullParams
         I(340, 8192);                                                  // g_vLPVCullParams
-        I(344, volume != null ? 1 : 0);
+        I(344, volumes.Count > 0 ? 1 : 0);
         I(352, 3);                                                     // g_vTileCullParams
         I(356, 128);
         I(360, 128);
@@ -385,22 +391,24 @@ public static class CubemapFaceConstants
         F(384, 256f);                                                  // g_vEnvironmentMapSizeConstants
         F(388, 5f);
         F(392, 8f);
-        if (volume != null)
+        for (var v = 0; v < volumes.Count; v++)
         {
-            // g_VisibleLPV[0]: world to volume (a translation), the box padded by 0.1, 1 / edge fade (FLT_MAX for 0).
+            // g_VisibleLPV[v]: world to volume (a translation), the box padded by 0.1, 1 / edge fade (FLT_MAX for 0).
+            var (volume, at) = (volumes[v], 18832 + v * 96);
             float[] rows = [1f, 0f, -0f, -volume.Origin.X, 0f, 1f, 0f, -volume.Origin.Y, 0f, 0f, 1f, -volume.Origin.Z];
             for (var i = 0; i < 12; i++)
-                F(18832 + i * 4, rows[i]);
-            F(18880, volume.BoxMins.X - 0.1f);
-            F(18884, volume.BoxMins.Y - 0.1f);
-            F(18888, volume.BoxMins.Z - 0.1f);
-            F(18896, volume.BoxMaxs.X + 0.1f);
-            F(18900, volume.BoxMaxs.Y + 0.1f);
-            F(18904, volume.BoxMaxs.Z + 0.1f);
+                F(at + i * 4, rows[i]);
+            F(at + 48, volume.BoxMins.X - 0.1f);
+            F(at + 52, volume.BoxMins.Y - 0.1f);
+            F(at + 56, volume.BoxMins.Z - 0.1f);
+            F(at + 64, volume.BoxMaxs.X + 0.1f);
+            F(at + 68, volume.BoxMaxs.Y + 0.1f);
+            F(at + 72, volume.BoxMaxs.Z + 0.1f);
             float Inv(float d) => d != 0f ? 1f / d : 3.4028235e38f;
-            F(18912, Inv(volume.EdgeFadeDists.X));
-            F(18916, Inv(volume.EdgeFadeDists.Y));
-            F(18920, Inv(volume.EdgeFadeDists.Z));
+            F(at + 80, Inv(volume.EdgeFadeDists.X));
+            F(at + 84, Inv(volume.EdgeFadeDists.Y));
+            F(at + 88, Inv(volume.EdgeFadeDists.Z));
+            I(at + 92, volume.ArrayIndex);
         }
         F(31120, sun.Direction.X);                                     // g_vFastPathSunLightDir
         F(31124, sun.Direction.Y);
@@ -440,7 +448,7 @@ public static class CubemapFaceConstants
             F(31816 + k * 16, half / atlasWidth);
             F(31820 + k * 16, -(half / atlasHeight));
         }
-        I(31960, volume != null ? 1 : 0);                              // g_nNumLPVs
+        I(31960, volumes.Count);                                       // g_nNumLPVs
         for (var i = 0; i < 16; i++)
         {
             // g_vShadowSampleRotations: V_sincosf(i / 16 * 2 pi + (frame mod 32) * golden ratio).

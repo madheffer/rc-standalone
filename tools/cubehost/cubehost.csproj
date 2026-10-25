@@ -13,4 +13,10 @@
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
   </PropertyGroup>
 
+  <!-- spvmatch is its own project in a subfolder. -->
+  <ItemGroup>
+    <Compile Remove="spvmatch/**" />
+    <None Remove="spvmatch/**" />
+  </ItemGroup>
+
 </Project>

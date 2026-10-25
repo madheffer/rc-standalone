@@ -3967,6 +3967,20 @@ game can answer is raised with the user first, and runs with -insecure.
     - Open: the oriented path (attribute 0x8000, 1814eada0) and direction 8 are refused; more than 32 intervals on
       one edge (the introsort) is refused.
 
+147. **The cubemap view's visible light probe volumes** (2026-10-26: measured in two cubehost captures of probe01,
+    cube 0 on 10-21 and cube 1 on 10-26, all twelve faces; CubemapFaceConstants.LightBlock).
+    - Measured: per face, the light block's g_VisibleLPV (from +18832, 96 bytes each: world-to-volume rows, the box
+      padded by 0.1, 1 / edge fade, then an int) and g_nNumLPVs (+31960) hold the volumes whose box meets the face
+      view's frustum (AggregateCulling.FaceFrustum and Outside give every face's list): cube 0 lists volume 0 on four
+      faces and volume 1, volume 0 on +Y; cube 1 lists volume 1, volume 0 on five faces and volume 1 alone on +Y.
+      The order is volume 1 before volume 0 wherever both are listed. The entry's last int is 0 for volume 0 and 1
+      for volume 1, the entities' array_index. +344 is 1 on every face.
+    - Not read: the gather itself (scenesystem's per-view lighting setup, the writer 1801af7b0): whether it is this
+      frustum test or another (the box padded or not, an LPV cull), what orders the list (reverse entity order,
+      size, array_index descending) and what the last int is.
+    - Settle by decompiling 1801af7b0's LPV gather in the installed scenesystem.dll, then check on a map with more
+      volumes and cubes outside every volume.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

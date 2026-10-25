@@ -209,7 +209,7 @@ public sealed class CubemapLightBlockTests(ITestOutputHelper output)
         var volume = new CubemapFaceConstants.LightProbeVolume(new Vector3(512, 96, 112), new Vector3(-768, -1088, -112), new Vector3(768, 896, 176), new Vector3(0, 32, 0));
         var stretched = CubemapShadowCascades.Slice(view, 1f, distances[^1]).Diameter * 1.42f;
         int[][] tiles = [[0, 0], [1280, 0], [2560, 0], [0, 2048]];
-        var ours = CubemapFaceConstants.LightBlock(sun, volume, cascades, tiles, CubemapShadowCascades.Inputs.Resolution, CubemapShadowCascades.Inputs.AtlasWidth, CubemapShadowCascades.Inputs.AtlasHeight, new Vector3(512, 96, 112), stretched);
+        var ours = CubemapFaceConstants.LightBlock(sun, [volume], cascades, tiles, CubemapShadowCascades.Inputs.Resolution, CubemapShadowCascades.Inputs.AtlasWidth, CubemapShadowCascades.Inputs.AtlasHeight, new Vector3(512, 96, 112), stretched);
         var diffs = Enumerable.Range(0, theirs.Length / 4).Where(i => BitConverter.ToUInt32(ours, i * 4) != BitConverter.ToUInt32(theirs, i * 4)).ToList();
         output.WriteLine($"{theirs.Length / 4 - diffs.Count} of {theirs.Length / 4} words equal");
         foreach (var i in diffs)
