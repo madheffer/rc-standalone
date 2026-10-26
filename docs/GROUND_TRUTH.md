@@ -4065,6 +4065,12 @@ game can answer is raised with the user first, and runs with -insecure.
       constant bias is 0.
     - Every world, sky and downsample draw of the three cubes takes our state, field for field the capture's, and
       the cubes' EXRs stay the game's. The viewmodel's draws and the pawn's AO box keep the capture's.
+    - Settled by the shaders' files and replay: generic's colour combo binds its textures at set 1, binding 30 + the
+      variable's slot in the write sequence (Sequence.RenderState). The lightmap attributes are the package's
+      lightmaps of the same names, the artist textures the material's (every subresource of every face equal to the
+      capture's), SSAOOcclusionFactor and ParticleShadowBuffer a 1 x 1 white, CubemapFogTexture a 1 x 1 cube of
+      zeros. LightCookieTexture and EnvironmentMap are not read in the cubemap view (no light or environment map
+      binned): zeros in their place leave every face equal, s2c_l5probe's stale contents included.
 
 ## Resolved
 

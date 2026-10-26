@@ -662,6 +662,27 @@ capture. Still taken from the capture: the vertex layout, the viewport and
 scissor rectangles, the samplers, and the state of the draws whose programs
 are not ported (the viewmodel, the pawn's AO box).
 
+### The textures (2026-10-26, ledger 150)
+
+Every texture the world colour and sky draws read now comes from our data.
+Each binding's variable is looked up in the draw's program: set 1, binding 30
+plus its slot in the combo's write sequence.
+- The lightmap attributes (direct_light_shadows, irradiance,
+  directional_irradiance, debug_chart_color) are the package's
+  `lightmaps/*.vtex_c`.
+- g_tColor and g_tNormal come from the material's .vtex_c, and the sky's
+  g_tSkyTexture from its material.
+- SSAOOcclusionFactor and ParticleShadowBuffer are a 1 x 1 white.
+- CubemapFogTexture is a 1 x 1 cube of zeros.
+- LightCookieTexture and EnvironmentMap are bound as zeros. No light or
+  environment map is binned in the cubemap view, so no pixel reads them
+  (s2c_l5probe's capture holds stale contents there and its face still
+  matches).
+
+Every subresource we know is checked against the capture's. The shadow atlas
+and the AO targets are the face's own live targets. probe01's faces now draw
+every draw with our state and textures.
+
 The 10-23 update (1.41.9.2) left the settled build unchanged. probe01's two
 EXRs from the 10-26 run equal the 10-21 run's bit for bit. The compiled array
 shrank from 945,886 to 945,838 bytes, and `CubemapArrayVtex.Build` already

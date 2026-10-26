@@ -41,6 +41,13 @@ public sealed class CubemapPipelineProbe(ITestOutputHelper output)
                 output.WriteLine($"  raster fill {r.FillMode} cull {r.CullMode} clip {r.DepthClipEnable} ms {r.MultisampleEnable} bias {r.DepthBias} clamp {r.DepthBiasClamp} slope {r.SlopeScaledDepthBias}");
             if (ps.DepthStencilStateDesc is { } d)
                 output.WriteLine($"  depth test {d.DepthTestEnable} write {d.DepthWriteEnable} func {d.DepthFunc} stencil {d.StencilEnable} read {d.StencilReadMask} write {d.StencilWriteMask} front {d.FrontStencilFunc} {d.FrontStencilFailOp}/{d.FrontStencilDepthFailOp}/{d.FrontStencilPassOp} back {d.BackStencilFunc} {d.BackStencilFailOp}/{d.BackStencilDepthFailOp}/{d.BackStencilPassOp}");
+            // CUBEPIPE_SLOTS=1: every texture and sampler variable the combo binds, by set and slot.
+            if (Environment.GetEnvironmentVariable("CUBEPIPE_SLOTS") == "1")
+                foreach (var f in p.Sequence.RenderState)
+                {
+                    var v = p.Program.VariableDescriptions[f.VariableIndex];
+                    output.WriteLine($"  slot set {f.LayoutSet} binding {f.BindingSlot}: {v.Name} {v.RegisterType} {v.VariableSource} '{v.SourceString}' default '{v.DefaultInputTexture}'");
+                }
             if (ps.BlendStateDesc is { } b)
                 output.WriteLine($"  blend {b.BlendEnable[0]} {b.SrcBlend[0]}/{b.DestBlend[0]}/{b.BlendOp[0]} alpha {b.SrcBlendAlpha[0]}/{b.DestBlendAlpha[0]}/{b.BlendOpAlpha[0]} mask {b.RenderTargetWriteMask[0]} srgb {b.SrgbWriteEnable[0]} a2c {b.AlphaToCoverageEnable}");
         }

@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text.Json.Nodes;
 using Silk.NET.Vulkan;
 using Source2.Compiler.Gpu;
+using ValveResourceFormat.CompiledShader;
 using ValveResourceFormat.ResourceTypes;
 using ValveResourceFormat.Serialization.KeyValues;
 using Xunit;
@@ -265,7 +266,8 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
             }
             // generic's _Globals_ of each world colour draw from its material (the package names it per draw call).
             var programs = new Dictionary<string, (CubemapFacePipelines.Pass, ValveResourceFormat.CompiledShader.VfxRenderStateInfoPixelShader?)>(FacePrograms.Value);
-            foreach (var (sha, (material, globals)) in MaterialGlobals(actions, sha => File.ReadAllBytes(Path.Combine(dir, "blobs", sha + ".bin")), facesDir, spirvDir, failures, programs))
+            var drawMaterials = new Dictionary<int, (string, ValveProgram)>();
+            foreach (var (sha, (material, globals)) in MaterialGlobals(actions, sha => File.ReadAllBytes(Path.Combine(dir, "blobs", sha + ".bin")), facesDir, spirvDir, failures, programs, drawMaterials))
             {
                 var captured = File.ReadAllBytes(Path.Combine(dir, "blobs", sha + ".bin"));
                 if (!captured.AsSpan().SequenceEqual(globals))
@@ -279,6 +281,13 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                 roles[sha] = "material " + material;
             }
             output.WriteLine($"face {f}: {actions.Count} actions; blocks {string.Join(", ", roles.Values.Order())}");
+            // Every texture of the world colour and sky draws from the package, the materials and the engine's defaults.
+            var textureNotes = new List<string>();
+            foreach (var (sha, data) in TextureInputs(actions, sha => File.ReadAllBytes(Path.Combine(dir, "blobs", sha + ".bin")), facesDir, drawMaterials, SkyProgram.Value, failures, textureNotes))
+                replay.ImageOverrides[sha] = data;
+            foreach (var n in textureNotes.Distinct())
+                output.WriteLine("  textures: " + n);
+            output.WriteLine($"  textures: {replay.ImageOverrides.Count} subresources ours");
             // Every draw's fixed-function state from its programs and pass (CubemapFacePipelines), field by field
             // against the capture's, and drawn with ours; the draws of programs not ported keep the capture's.
             var keptPipelines = 0;
@@ -356,6 +365,14 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
         return map;
     });
 
+    private static readonly Lazy<ValveProgram> SkyProgram = new(() =>
+    {
+        var game = Path.Combine(Environment.GetEnvironmentVariable("CS2_DIR") ?? @"D:\Steam\steamapps\common\Counter-Strike Global Offensive", "game");
+        using var csgo = new ValvePak.Package();
+        csgo.Read(Path.Combine(game, "csgo", "shaders_vulkan_dir.vpk"));
+        return ValveProgram.Load(csgo, "sky", "vulkan_50", "ps", new Dictionary<string, int>(), new Dictionary<string, int> { ["D_FOG_TYPE"] = 0 });
+    });
+
     /// <summary>
     /// Our fixed-function state for a captured draw, or null when its programs are not ours (the viewmodel, the
     /// pawn's AO box). A depth-only draw is a sun cascade's when it draws into the shadow atlas (a depth target with
@@ -400,7 +417,8 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
     /// ShaderIDColors (ledger 120). By captured block hash: the material and our block.
     /// </summary>
     private static Dictionary<string, (string Material, byte[] Globals)> MaterialGlobals(IEnumerable<JsonNode> actions, Func<string, byte[]> blob, string facesDir, string spirvDir, List<string> failures,
-        Dictionary<string, (CubemapFacePipelines.Pass, ValveResourceFormat.CompiledShader.VfxRenderStateInfoPixelShader?)>? programs = null)
+        Dictionary<string, (CubemapFacePipelines.Pass, ValveResourceFormat.CompiledShader.VfxRenderStateInfoPixelShader?)>? programs = null,
+        Dictionary<int, (string Material, ValveProgram Program)>? draws = null)
     {
         var models = PackageModels.Value.GetOrAdd(Directory.GetFiles(facesDir, "*.vpk").Single(), LoadModels);
         var result = new Dictionary<string, (string, byte[])>();
@@ -421,9 +439,10 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                 continue;
             }
             var sha = (string)cb["bytes"]!["sha1"]!;
+            var (program, globals) = GlobalsCache.GetOrAdd((materialPath, blob(sha).Length), k => Globals(k.Item1, k.Item2));
+            draws?.TryAdd((int)r["eid"]!, (materialPath, program));
             if (result.TryGetValue(sha, out var had) && had.Item1.Split(" = ").Contains(materialPath))
                 continue;
-            var (program, globals) = Globals(materialPath, blob(sha).Length);
             var module = File.ReadAllBytes(Path.Combine(spirvDir, $"{int.Parse(((string)ps["shader"]!).Split(' ')[^1], System.Globalization.CultureInfo.InvariantCulture):x}.spv"));
             if (!program.Spirv.AsSpan().SequenceEqual(module))
                 failures.Add($"{r["eid"]}: {materialPath}'s generic colour program is not the draw's module");
@@ -434,6 +453,150 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
             result[sha] = (had.Item1 != null ? had.Item1 + " = " + materialPath : materialPath, globals);
         }
         return result;
+    }
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<(string, int), (ValveProgram, byte[])> GlobalsCache = new();
+
+    /// <summary>
+    /// Every texture the world colour and sky draws read, from our data, by captured subresource hash: each binding's
+    /// variable in the draw's program (set 1, binding 30 + its slot in the combo's write sequence): the lightmap
+    /// attributes (direct_light_shadows, irradiance, directional_irradiance, debug_chart_color) are the package's
+    /// lightmaps/*.vtex_c, the artist textures the material's .vtex_c (and the sky's g_tSkyTexture its material's),
+    /// SSAOOcclusionFactor and ParticleShadowBuffer a 1 x 1 white, CubemapFogTexture a 1 x 1 cube of zeros (no fog
+    /// cube in the view), LightCookieTexture and EnvironmentMap zeros: no light or environment map is binned in the
+    /// cubemap view, so neither is read (the face's output checks it). Each captured subresource must be ours where
+    /// we know the content; the shadow atlas and AO targets are live.
+    /// </summary>
+    private static Dictionary<string, byte[]> TextureInputs(IEnumerable<JsonNode> actions, Func<string, byte[]> blob, string facesDir,
+        Dictionary<int, (string Material, ValveProgram Program)> draws, ValveProgram sky, List<string> failures, List<string> notes)
+    {
+        var game = Path.Combine(Environment.GetEnvironmentVariable("CS2_DIR") ?? @"D:\Steam\steamapps\common\Counter-Strike Global Offensive", "game");
+        var vpk = Directory.GetFiles(facesDir, "*.vpk").Single();
+        var result = new Dictionary<string, byte[]>();
+        void Check(JsonNode r, string binding, JsonArray subs, Func<int, int, int, byte[]> ours, string what)
+        {
+            foreach (var sub in subs)
+            {
+                var sha = (string)sub!["sha1"]!;
+                var data = ours((int)sub["mip"]!, (int)sub["slice"]!, blob(sha).Length);
+                if (data.Length != blob(sha).Length || !data.AsSpan().SequenceEqual(blob(sha)))
+                {
+                    // Zeros stand in for contents no pixel reads; anything else must be the capture's.
+                    if (!what.EndsWith("(unread)", StringComparison.Ordinal))
+                        failures.Add($"{r["eid"]} {binding} {what} mip {sub["mip"]} slice {sub["slice"]}: not the capture's ({data.Length} / {blob(sha).Length} bytes)");
+                }
+                result[sha] = data;
+            }
+        }
+        foreach (var r in actions)
+        {
+            if (r["stages"]?["ps"] is not { } ps)
+                continue;
+            var eid = (int)r["eid"]!;
+            ValveProgram? program = null;
+            string? material = null;
+            if (draws.TryGetValue(eid, out var d))
+                (material, program) = d;
+            else if (((string)ps["shader"]!).Split(' ')[^1] is var module && r["stages"]!["ps"] is not null
+                     && ps["readOnly"]!.AsArray().Any(x => (int)x!["bind"]!["set"]! == 1 && (int)x["bind"]!["binding"]! == 50) && r["outputs"]!.AsArray().Count > 0
+                     && !r["stages"]!["vs"]!["readWrite"]!.AsArray().Concat(r["stages"]!["vs"]!["readOnly"]!.AsArray()).Any(x => (int)x!["bind"]!["set"]! == 4))
+                (material, program) = ("materials/editor/toolscene_lighting_sky_dust.vmat", sky);
+            if (program == null)
+                continue;
+            var slots = program.Sequence.RenderState.Select(f => (f.LayoutSet, f.BindingSlot, Variable: program.Program.VariableDescriptions[f.VariableIndex]))
+                .Where(f => f.Variable.RegisterType == VfxRegisterType.Texture).ToList();
+            foreach (var x in ps["readOnly"]!.AsArray())
+            {
+                var (set, binding) = ((int)x!["bind"]!["set"]!, (int)x["bind"]!["binding"]!);
+                var name = (string)x["descriptor"]!["resource"]!;
+                if (set != 1 || r["contents"]!["before"]![name] is not JsonArray subs)
+                    continue;
+                var v = slots.FirstOrDefault(f => f.LayoutSet == 1 && f.BindingSlot + 30 == binding).Variable;
+                if (v == null)
+                {
+                    notes.Add($"{eid} set 1 binding {binding}: no variable of {program.Name}");
+                    continue;
+                }
+                var label = $"b{binding} {v.Name}";
+                if (v.VariableSource == VfxVariableSourceType.__SetByArtist__)
+                {
+                    var path = LoadMaterial(game, material!).TextureParams.GetValueOrDefault(v.Name);
+                    if (path == null)
+                    {
+                        failures.Add($"{eid} {label}: {material} names no texture");
+                        continue;
+                    }
+                    var tex = TextureCache.GetOrAdd(path, p2 => LoadTexture(game, vpk, p2));
+                    Check(r, label, subs, (mip, slice, _) => tex(mip, slice), $"{path}");
+                    continue;
+                }
+                switch (v.SourceString)
+                {
+                    case "direct_light_shadows" or "irradiance" or "directional_irradiance" or "debug_chart_color":
+                        var lightmap = TextureCache.GetOrAdd(vpk + "|" + v.SourceString, _ => LoadLightmap(vpk, v.SourceString));
+                        Check(r, label, subs, (mip, slice, _) => lightmap(mip, slice), $"lightmaps/{v.SourceString}");
+                        break;
+                    case "SSAOOcclusionFactor" or "ParticleShadowBuffer":
+                        Check(r, label, subs, (_, _, n) => Enumerable.Repeat((byte)0xff, n).ToArray(), "white");
+                        break;
+                    case "CubemapFogTexture":
+                        Check(r, label, subs, (_, _, n) => new byte[n], "no fog cube");
+                        break;
+                    case "LightCookieTexture" or "EnvironmentMap":
+                        Check(r, label, subs, (_, _, n) => new byte[n], $"{v.SourceString} (unread)");
+                        break;
+                    case "ShadowDepthBuffer" or "DynamicAmbientOcclusion" or "DynamicAmbientOcclusionDepth":
+                        break;   // live targets of the face
+                    default:
+                        notes.Add($"{eid} {label}: attribute {v.SourceString} not built");
+                        break;
+                }
+            }
+        }
+        return result;
+    }
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Func<int, int, byte[]>> TextureCache = new();
+
+    /// <summary>A .vtex_c's subresources (mip, slice) as RenderDoc dumps them: a cube or array mip's layers one after another.</summary>
+    private static Func<int, int, byte[]> Subresources(byte[] vtex)
+    {
+        using var resource = new ValveResourceFormat.Resource();
+        resource.Read(new MemoryStream(vtex));
+        var tex = (Texture)resource.DataBlock!;
+        var layers = tex.Depth > 1 ? tex.Depth : (tex.Flags & ValveResourceFormat.VTexFlags.CUBE_TEXTURE) != 0 ? 6 : 1;
+        var mips = new Dictionary<uint, byte[]>();
+        foreach (var (level, _, _, _, size) in tex.GetEveryMipLevelMetrics())
+        {
+            var data = new byte[size];
+            tex.ReadTextureMipLevel(data, level);
+            mips[level] = data;
+        }
+        return (mip, slice) => mips[(uint)mip].AsSpan(slice * (mips[(uint)mip].Length / layers), mips[(uint)mip].Length / layers).ToArray();
+    }
+
+    private static Func<int, int, byte[]> LoadTexture(string game, string vpk, string path)
+    {
+        foreach (var pak in new[] { vpk, Path.Combine(game, "csgo", "pak01_dir.vpk"), Path.Combine(game, "core", "pak01_dir.vpk") })
+        {
+            using var p = new ValvePak.Package();
+            p.Read(pak);
+            if (p.FindEntry(path + "_c") is { } e)
+            {
+                p.ReadEntry(e, out var bytes);
+                return Subresources(bytes);
+            }
+        }
+        throw new FileNotFoundException(path);
+    }
+
+    private static Func<int, int, byte[]> LoadLightmap(string vpk, string name)
+    {
+        using var p = new ValvePak.Package();
+        p.Read(vpk);
+        var entry = (p.Entries!.GetValueOrDefault("vtex_c") ?? []).Single(e => e.DirectoryName.EndsWith("lightmaps", StringComparison.Ordinal) && e.FileName == name);
+        p.ReadEntry(entry, out var bytes);
+        return Subresources(bytes);
     }
 
     /// <summary>A world node model of a package: its vertex buffer's hash and its draw calls' ranges and materials.</summary>
@@ -808,6 +971,9 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
         /// </summary>
         public Dictionary<string, byte[]>? Baselines { get; set; } = Environment.GetEnvironmentVariable("CUBEREPLAY_BASELINE") == "1" ? [] : null;
 
+        /// <summary>Texture subresource contents to upload in place of the captured blob of that hash (ours).</summary>
+        public Dictionary<string, byte[]> ImageOverrides { get; } = [];
+
         /// <summary>Given the draw and its captured fixed-function state, the state to draw with (ours, where we build it).</summary>
         public Func<JsonNode, SceneDrawState, SceneDrawState>? StateHook { get; set; }
 
@@ -1144,7 +1310,7 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
             image = runner.CreateImage(format, (uint)(int)t["width"]!, (uint)(int)t["height"]!, (uint)Math.Max(1, (int)t["depth"]!), mips, layers, viewType, usage);
             foreach (var s in subs)
             {
-                var data = Blob((string)s!["sha1"]!);
+                var data = ImageOverrides.TryGetValue((string)s!["sha1"]!, out var ours) ? ours : Blob((string)s!["sha1"]!);
                 if (Blank.Contains(name))
                     data = new byte[data.Length];
                 runner.Write(image, (uint)(int)s["mip"]!, (uint)(int)s["slice"]!, data);
