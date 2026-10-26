@@ -745,8 +745,9 @@ needs it.
   material inputs already equal the package's data (ledger 120). The
   readback after the colour pass makes the game's EXR byte for byte (ledger
   137). The face views' draw arguments come from our culling now (ledger
-  139), and the sun cascades' (ledger 140). Next: all faces chained, then
-  reduce to the EXR and compare with the game's.
+  139), and the sun cascades' (ledger 140). All faces of probe01's two cubes
+  are chained and reduced to the game's EXRs and array (2026-10-26, "Whole
+  cubes from our blocks"). Next: the draws without the capture.
 - A second map, s2c_l5probe (omni2 and barn lights; capture and dumps in
   %TEMP%/cubehost_run/s2c_l5probe), replays face 0 bit for bit (38 actions,
   push constants for the light binner). Its frame also draws 16 animatable
