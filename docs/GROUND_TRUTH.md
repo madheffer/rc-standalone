@@ -4104,6 +4104,19 @@ game can answer is raised with the user first, and runs with -insecure.
       vertices (the other six, the far plane's corners in the capture, are not read: zeros keep every face).
     - Every range the world, sky and downsample draws read is ours on the three cubes, and the EXRs stay the game's.
 
+153. **The cubemap face's samplers from the programs** (2026-10-26: the .vcs write sequences' sampler states;
+    CubemapFaceSamplers; the whole-cube test draws with them).
+    - Settled by the shaders' files and capture: a sampler slot's state variables (Filter, AddressU/V/W,
+      ComparisonFunc, BorderColor, MaxAniso) give the bound sampler at set 1, binding 14 + the slot. Filter is
+      D3D11's code (bit 0 linear mip, bit 2 linear magnification, bit 4 linear minification, 0x55 anisotropic, 0x80
+      comparison; generic's slots carry 21, 21, 0, 255, 20 and 149); 255, and a slot with no Filter (the sky's bare
+      DefaultSamplerState), is anisotropic. Address modes are Source 2's (0 wrap, 2 clamp, 3 border), wrap where a
+      slot has none; MaxAniso -1 takes the default; every sampler's LOD range is 0 .. 15, no bias, border
+      transparent black.
+    - Measured, not read: the anisotropy is 4 (the video config's level, as the shadow quality sets the cascades)
+      and the 0 .. 15 LOD range comes from the engine.
+    - Every sampler of the world colour and sky draws is ours, field for field the capture's, on the three cubes.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

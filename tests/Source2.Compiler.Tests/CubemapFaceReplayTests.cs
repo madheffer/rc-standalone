@@ -318,6 +318,28 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
             // Every draw's fixed-function state from its programs and pass (CubemapFacePipelines), field by field
             // against the capture's, and drawn with ours; the draws of programs not ported keep the capture's.
             var keptPipelines = 0;
+            var oursSamplers = 0;
+            replay.SamplerHook = (r, smp) =>
+            {
+                if ((int)smp["bind"]!["set"]! != 1)
+                    return null;
+                Dictionary<int, SamplerCreateInfo>? slots = null;
+                if (drawMaterials.TryGetValue((int)r["eid"]!, out var dm))
+                    slots = SamplerSlots.GetOrAdd(dm.Item1, path =>
+                    {
+                        var game = Path.Combine(Environment.GetEnvironmentVariable("CS2_DIR") ?? @"D:\Steam\steamapps\common\Counter-Strike Global Offensive", "game");
+                        return CubemapFaceSamplers.Samplers(dm.Item2, new ProgramGlobals.MaterialScope(LoadMaterial(game, path), dm.Item2, new Dictionary<string, VfxExpression.Value>()));
+                    });
+                else if (r["stages"]?["ps"] is { } ps && Sha1(File.ReadAllBytes(Path.Combine(spirvDir, $"{int.Parse(((string)ps["shader"]!).Split(' ')[^1], System.Globalization.CultureInfo.InvariantCulture):x}.spv"))) == Sha1(SkyProgram.Value.Spirv))
+                    slots = SamplerSlots.GetOrAdd("sky", _ => CubemapFaceSamplers.Samplers(SkyProgram.Value));
+                if (slots == null || !slots.TryGetValue((int)smp["bind"]!["binding"]! - 14, out var ours))
+                    return null;
+                var theirs = Replay.CapturedSampler(smp["sampler"]!);
+                foreach (var difference in SamplerDifferences(theirs, ours))
+                    failures.Add($"face {f} {r["eid"]} sampler b{smp["bind"]!["binding"]}: {difference}");
+                oursSamplers++;
+                return ours;
+            };
             replay.StateHook = (r, theirs) =>
             {
                 if (OurPipeline(r, theirs, programs) is not { } ours)
@@ -341,7 +363,7 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                     failures.Add($"face {f} {r["eid"]}: {result}");
                 }
             }
-            output.WriteLine($"  pipelines: {keptPipelines} draws keep the capture's (programs not ported)");
+            output.WriteLine($"  pipelines: {keptPipelines} draws keep the capture's (programs not ported); samplers: {oursSamplers} bindings ours");
             var colorName = actions.Where(r => r["outputs"]!.AsArray().Count > 0).Select(r => (string)r["outputs"]![0]!).Last();
             var face = replay.ReadLive(colorName);
             var readback = File.ReadAllBytes(Path.Combine(readbackDir, $"readback_{f}.bin"));
@@ -413,6 +435,25 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
             return null;
         var atlas = theirs.DepthFormat == Silk.NET.Vulkan.Format.D16Unorm;
         return CubemapFacePipelines.Apply(theirs, atlas ? CubemapFacePipelines.Pass.SunShadow : CubemapFacePipelines.Pass.DepthPrepass, null);
+    }
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Dictionary<int, SamplerCreateInfo>> SamplerSlots = new();
+
+    /// <summary>Each sampler field where ours is not the capture's.</summary>
+    private static IEnumerable<string> SamplerDifferences(SamplerCreateInfo theirs, SamplerCreateInfo ours)
+    {
+        (string, object, object)[] fields =
+        [
+            ("mag", theirs.MagFilter, ours.MagFilter), ("min", theirs.MinFilter, ours.MinFilter), ("mip", theirs.MipmapMode, ours.MipmapMode),
+            ("u", theirs.AddressModeU, ours.AddressModeU), ("v", theirs.AddressModeV, ours.AddressModeV), ("w", theirs.AddressModeW, ours.AddressModeW),
+            ("bias", theirs.MipLodBias, ours.MipLodBias), ("anisotropy", theirs.AnisotropyEnable, ours.AnisotropyEnable),
+            ("max anisotropy", theirs.MaxAnisotropy, ours.MaxAnisotropy), ("compare", theirs.CompareEnable, ours.CompareEnable),
+            ("compare op", theirs.CompareEnable ? theirs.CompareOp : "-", ours.CompareEnable ? ours.CompareOp : "-"),
+            ("min lod", theirs.MinLod, ours.MinLod), ("max lod", theirs.MaxLod, ours.MaxLod), ("border", theirs.BorderColor, ours.BorderColor),
+        ];
+        foreach (var (name, a, b) in fields)
+            if (!Equals(a, b))
+                yield return $"{name} {a} captured, {b} ours";
     }
 
     /// <summary>Each fixed-function field where our state is not the capture's (the colour write mask only with a colour target).</summary>
@@ -1352,6 +1393,24 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
             var key = s.ToJsonString();
             if (_samplers.TryGetValue(key, out var made))
                 return made;
+            return _samplers[key] = runner.CreateSampler(CapturedSampler(s));
+        }
+
+        /// <summary>Our sampler for a state (cached by its fields).</summary>
+        private Sampler OurSampler(SamplerCreateInfo info)
+        {
+            var key = $"ours {info.MagFilter} {info.MinFilter} {info.MipmapMode} {info.AddressModeU} {info.AddressModeV} {info.AddressModeW} {info.MipLodBias} {info.AnisotropyEnable} {info.MaxAnisotropy} {info.CompareEnable} {info.CompareOp} {info.MinLod} {info.MaxLod} {info.BorderColor}";
+            if (_samplers.TryGetValue(key, out var made))
+                return made;
+            return _samplers[key] = runner.CreateSampler(info);
+        }
+
+        /// <summary>The draw's sampler entry (stage, bind, sampler) to our sampler's state, or null to keep the capture's.</summary>
+        public Func<JsonNode, JsonNode, SamplerCreateInfo?>? SamplerHook { get; set; }
+
+        /// <summary>A captured sampler as Vulkan's create info.</summary>
+        public static SamplerCreateInfo CapturedSampler(JsonNode s)
+        {
             var f = s["filter"]!;
             // RenderDoc's FilterMode: NoFilter, Point, Linear, Cubic, Anisotropic; FilterFunction: Normal, Comparison, Min, Max.
             Filter Mode(int m) => m == 1 ? Filter.Nearest : Filter.Linear;
@@ -1374,7 +1433,7 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                 MaxLod = (float)s["maxLOD"]!,
                 BorderColor = border[3] == 0 ? BorderColor.FloatTransparentBlack : border[0] == 0 ? BorderColor.FloatOpaqueBlack : BorderColor.FloatOpaqueWhite,
             };
-            return _samplers[key] = runner.CreateSampler(info);
+            return info;
         }
 
         private static ImageViewType ViewType(string dim) => dim switch
@@ -1520,7 +1579,8 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                     }
                 }
                 foreach (var smp in stage["samplers"]!.AsArray())
-                    bindings.Sampler((int)smp!["bind"]!["set"]!, (int)smp["bind"]!["binding"]!, (uint)(int)smp["access"]!["arrayElement"]!, SamplerFor(smp["sampler"]!));
+                    bindings.Sampler((int)smp!["bind"]!["set"]!, (int)smp["bind"]!["binding"]!, (uint)(int)smp["access"]!["arrayElement"]!,
+                        SamplerHook?.Invoke(rec, smp) is { } ours ? OurSampler(ours) : SamplerFor(smp["sampler"]!));
             }
 
             var vi = rec["vertexInput"]!;

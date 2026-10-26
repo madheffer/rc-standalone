@@ -46,7 +46,7 @@ public sealed class CubemapPipelineProbe(ITestOutputHelper output)
                 foreach (var f in p.Sequence.RenderState)
                 {
                     var v = p.Program.VariableDescriptions[f.VariableIndex];
-                    output.WriteLine($"  slot set {f.LayoutSet} binding {f.BindingSlot}: {v.Name} {v.RegisterType} {v.VariableSource} '{v.SourceString}' default '{v.DefaultInputTexture}'");
+                    output.WriteLine($"  slot set {f.LayoutSet} binding {f.BindingSlot}: {v.Name} {v.RegisterType} {v.VariableSource} '{v.SourceString}' default '{v.DefaultInputTexture}' ints [{string.Join(",", v.IntDefs)}] floats [{string.Join(",", v.FloatDefs)}] expr {v.CompiledExpression.Length}");
                 }
             if (ps.BlendStateDesc is { } b)
                 output.WriteLine($"  blend {b.BlendEnable[0]} {b.SrcBlend[0]}/{b.DestBlend[0]}/{b.BlendOp[0]} alpha {b.SrcBlendAlpha[0]}/{b.DestBlendAlpha[0]}/{b.BlendOpAlpha[0]} mask {b.RenderTargetWriteMask[0]} srgb {b.SrgbWriteEnable[0]} a2c {b.AlphaToCoverageEnable}");
