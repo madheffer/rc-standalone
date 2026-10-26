@@ -260,13 +260,18 @@ public static class MapEntities
         // (MapDoc_CollapseInstance) puts the copy there. c2m2_fairgrounds_csgo_multi
         // numbers its own entities 2119 to 2123, last in the tree, 1 to 4 and
         // its environment prefab (first in the tree) from 5.
-        var prefabs = new List<(DmxBinary.Element Child, int Id, DmxBinary.Element World)>();
+        var prefabs = new List<(DmxBinary.Element Child, int Id, DmxBinary.Element World, bool Enclosed)>();
         foreach (var child in node.GetElements("children"))
         {
             // A map can nest groups inside groups, and a cycle would hang the walk.
             if (!seen.Add(child))
                 continue;
             var id = child.GetValue<int>("nodeID") ?? int.MinValue;
+            // force_hidden (CMapNode +0x366, 180f94900) fails the node filter (180f77240) whatever its flags, and
+            // the visibility state (+0x370, 180f6ffc0: the filter through vf 0x358, the parent visible first) the
+            // subasset gather reads (180fc9930) is off for the node and all below it: s2c_deformpath2's hidden
+            // cable and its three path nodes, and its one hidden path node, are not in the .vmap_c's table.
+            var within = child.GetValue<bool>("force_hidden") == true ? prefab with { Enclosed = true } : prefab;
             if (GameKeyBearer.Contains(child.Type) && Read(child, isWorld: false) is { } entity)
             {
                 // An editorOnly node (CMapNode +0x365) fails the compile's node
@@ -275,7 +280,7 @@ public static class MapEntities
                 var editorOnly = child.GetValue<bool>("editorOnly") == true;
                 if (editorOnly && child.GetElements("children").Any())
                     throw new NotSupportedException($"node {id}: an editorOnly node with children is not measured");
-                entity = entity with { Layer = layer, Hidden = prefab.Enclosed || prefab.Hidden.Contains(id) || editorOnly, Prefabs = prefab.Ids, NamePrefix = prefab.NamePrefix, PrefabMap = prefab.Map };
+                entity = entity with { Layer = layer, Hidden = within.Enclosed || prefab.Hidden.Contains(id) || editorOnly, Prefabs = prefab.Ids, NamePrefix = prefab.NamePrefix, PrefabMap = prefab.Map };
                 // A node of a prefab's map is placed as the prefab moves it.
                 if (prefab.Chain.Length > 0)
                 {
@@ -294,13 +299,13 @@ public static class MapEntities
             }
             if (child.Type is "CMapPrefab" && child.Get<DmxBinary.Element>(Maps.MapPrefabs.WorldKey) is { } prefabWorld)
             {
-                prefabs.Add((child, id, prefabWorld));
+                prefabs.Add((child, id, prefabWorld, within.Enclosed));
                 continue;
             }
             Walk(child, entities, seen,
-                 child.Type is "CMapWorldLayer" ? child.Get<string>("worldLayerName") ?? layer : layer, prefab);
+                 child.Type is "CMapWorldLayer" ? child.Get<string>("worldLayerName") ?? layer : layer, within);
         }
-        foreach (var (child, id, prefabWorld) in prefabs)
+        foreach (var (child, id, prefabWorld, enclosed) in prefabs)
         {
             // fixupEntityNames prefixes the contents' names with the prefab's
             // targetName when useTargetNameAsPrefix is on and it has one, else
@@ -323,7 +328,7 @@ public static class MapEntities
                 entities.Add(nested with { Layer = layer, Hidden = true, Prefabs = [.. prefab.Ids, id], PrefabMap = MapPathOf(child) });
             Walk(prefabWorld, entities, seen, layer,
                  new Prefab([.. prefab.Ids, id], [.. prefab.Chain, child],
-                            child.Get<HashSet<int>>(Maps.MapPrefabs.HiddenKey) ?? [], prefab.Enclosed, namePrefix, MapPathOf(child)));
+                            child.Get<HashSet<int>>(Maps.MapPrefabs.HiddenKey) ?? [], enclosed, namePrefix, MapPathOf(child)));
         }
     }
 

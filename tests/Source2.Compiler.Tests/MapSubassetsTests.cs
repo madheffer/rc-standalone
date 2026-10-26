@@ -208,7 +208,15 @@ public class MapRootFileTests(ITestOutputHelper output)
             var baked = children.Any(c => c.EndsWith("/lightmaps/irradiance.vtex", StringComparison.Ordinal));
             var probes = children.Any(c => c.EndsWith("env_light_probe_volume_atlas.vtex", StringComparison.Ordinal));
             var entities = MapEntities.From(document);
-            var ours = MapRootFile.Write(new MapRootFile.Compile("s2c_rc_probe", inputs, baked, probes, new Dictionary<string, object>()), children,
+            // The probes are compiled whole or by the capture tools' partial builds (-world -phys -fshallow,
+            // -world -vis -fshallow, -world -phys -nav), each with its package moved aside first: the builders
+            // that ran are the ones whose outputs the package holds. A full build bakes any map with world
+            // geometry; one with none (the _gameplay prefab maps: a world node and no node models) has no lightmaps.
+            var geometry = children.Any(c => c.Contains("/worldnodes/", StringComparison.Ordinal) && c.EndsWith(".vmdl", StringComparison.Ordinal));
+            var steps = baked || !geometry ? null : Steps(children);
+            var compile = new MapRootFile.Compile("s2c_rc_probe", inputs, baked, probes, new Dictionary<string, object>(), steps,
+                                                  steps is not null && MapRootFile.ReadsStaticModelRecords(document));
+            var ours = MapRootFile.Write(compile, children,
                                          MapAssets.References(document, MapSubassets.LumpOrder(entities, document), schema, $"maps/{map}"),
                                          MapSubassets.References(entities, schema, document));
             var same = ours.AsSpan().SequenceEqual(valve);
@@ -315,6 +323,17 @@ public class MapRootFileTests(ITestOutputHelper output)
         if (compared == 0)
             MapFixtures.Skip("Valve's unlit references (%TEMP%/nobake_refs, fresh_refs, nolight_1023)");
         Assert.Empty(failed);
+    }
+
+    // A partial build's builders from the children its package holds (the nav writes no child and reads no argument).
+    private static HashSet<string> Steps(IReadOnlyList<string> children)
+    {
+        var steps = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "world" };
+        if (children.Any(c => c.EndsWith("/world_physics.vmdl", StringComparison.Ordinal)))
+            steps.Add("phys");
+        if (children.Any(c => c.EndsWith("/world_visibility.vvis", StringComparison.Ordinal)))
+            steps.Add("vis");
+        return steps;
     }
 
     private static IEnumerable<string> Prefabs(DmxBinary.Document document)

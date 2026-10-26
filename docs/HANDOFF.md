@@ -71,9 +71,7 @@ carries the same state per item.
 ## Running things
 
 - **The suite:** `dotnet test tests/Source2.Compiler.Tests` takes about 40 minutes now. Last full run:
-  1053 of 1055 on 2026-10-26; the two failures (MapRootFileTests.MapRootEqualsValves and
-  MapSubassetsTests.ReferencesEqualValves, on the cable and deformer probes s2c_cableinst*, s2c_deformpath*,
-  s2c_tangentinst, s2c_prefabinst) fail the same way at 04b0d52, before that day's cubemap work. Long or
+  1055 of 1055 on 2026-10-26 (37 minutes, after the map-root/subasset blocker, ledger 155). Long or
   diagnostic cases are env-gated, for example `VISBUILD_BIG=1` and `PVS=<map>`. Game-dependent tests skip
   without CS2.
 - **Test data:**
@@ -91,14 +89,14 @@ carries the same state per item.
 
 ## Roadmap: what is left, in the order worth taking it
 
-**Blocker, first:** two suite tests fail and must pass before more work lands on the modules they cover:
-`MapRootFileTests.MapRootEqualsValves` (s2c_cableinst, s2c_cableinst2, s2c_deformnest, s2c_deformnest2,
-s2c_deformpath, ...) and `MapSubassetsTests.ReferencesEqualValves` (s2c_deformpath2..4, s2c_prefabinst,
-s2c_tangentinst; e.g. s2c_tangentinst counts ours/Valve's cable_dynamic 2/0, path_node_cable 15/9), both in
-`tests/Source2.Compiler.Tests/MapSubassetsTests.cs`. They already failed at 04b0d52 (2026-10-26), before that
-day's cubemap work. Find whether our cable and deformer output through instances and prefabs regressed
-(ledgers 128-134, PHYSICS.md) or the Valve references are stale (compare each reference's
-m_nCompileTimestamp with the last CS2 update). Fix the cause at 1:1, never by loosening the tests.
+**The 10-26 blocker is closed (ledger 155).** `MapRootFileTests.MapRootEqualsValves` and
+`MapSubassetsTests.ReferencesEqualValves` pass on all 54 s2c_rc_probe maps. There were three causes. The test read
+the capture tools' partial builds as full ones (it now takes the builders from the package's outputs). A
+force_hidden node and its subtree are dropped from the subasset table, which is now ported (MapEntities). Five
+references were stale against their .vmap and were recompiled (old packages in `%TEMP%/refresh_1026/old`). A
+capture tool restores the package it moved aside, so **after regenerating a probe .vmap, recompile its
+reference** (`tools/pipeline/compile_fresh.py` with the switches it was built with, then copy the result into
+the addon).
 
 1. **Cubemaps** ([CUBEMAPS.md](CUBEMAPS.md) "Whole cubes from our blocks", "A second map", "The pipelines",
    "The textures", "The buffers", "The binner's items" and "Roadmap", ledgers 117-121, 137-140, 144, 147-154).

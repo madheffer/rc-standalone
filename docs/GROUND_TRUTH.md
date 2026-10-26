@@ -4128,6 +4128,33 @@ game can answer is raised with the user first, and runs with -insecure.
       and the zero stream.
     - Every world, sky and downsample draw's layout is ours, field for field the capture's, on the three cubes.
 
+155. **force_hidden in the subasset table; the probe references' builders and staleness** (2026-10-26: decompile
+    of resourcecompiler 0923; s2c_rc_probe's references against MapRootFileTests and MapSubassetsTests).
+    - Settled from the decompile: the subasset gather (180fc9930) walks the world's nodes and skips one whose
+      visibility state (+0x370) is 0. The manager computes it (180f72fb0 -> 180f6ffc0) with the parent visible
+      first, recursively, then vf 0x358, which on CMapGameDataNode is CMapNode_PassesFilter (180f77240; vtable slot
+      read from the RTTI locator, tools/re/vtslot.py). The filter fails any node whose force_hidden (+0x366,
+      180f94900) is set, whatever the flags. So a force_hidden node and everything below it add no subasset:
+      s2c_deformpath2's force_hidden cable (one cable_static, three path_node_cable) and its one force_hidden
+      path node are not in Valve's table, and neither are their copies in s2c_deformpath3 and 4, which take
+      s2c_deformpath2 as a prefab (16/15, 41/40, 42/41 cable_static; 53/49, 136/132, 138/134 path nodes before
+      the fix). MapEntities marks the node and its subtree hidden, as it does an editorOnly node. The path's
+      geometry keeps its hidden nodes (ledger 132's deformer capture and world physics, unchanged).
+    - Not measured: a force_hidden group's point entities in the lump. Valve's lump of these maps has no
+      cable_static or path nodes, so only the subasset table saw this case.
+    - Found: MapRootEqualsValves read every probe as a full build, but the capture tools leave partial builds
+      (-world -phys -fshallow, -world -vis -fshallow, -world -phys -nav) with the package moved aside first.
+      The test now takes the builders from the outputs the package holds (world_physics.vmdl phys,
+      world_visibility.vvis vis, lightmaps a full build; a map with no world node models, such as the _gameplay
+      prefabs, is a full build that bakes nothing), then reads the argument table through MapRootFile as ledger
+      119 settled it.
+    - Found: five references predated their .vmap. s2c_tangentinst and s2c_prefabinst were compiled from
+      cable_tangent_map.py's first run (07:48; its tangentinst CRC 3225174595 is the reference's input CRC), and
+      the 07:50 rerun (adding the cable_dynamic) was captured but never recompiled as a reference.
+      s2c_prefabprobe7, 8 and 9 were compiled at 12:29 to 12:35 on 10-23, and their prefab maps (s2c_fixinner,
+      s2c_fixmid and the probes) were regenerated at 13:32. All five were recompiled from the current .vmaps
+      (tools/pipeline/compile_fresh.py, the original switches).
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

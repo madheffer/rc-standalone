@@ -1717,6 +1717,24 @@
    "note": "force_hidden: +0x366, then the document's visibility notice"
   },
   {
+   "addr": "180f72fb0",
+   "name": "VisibilityMgr_UpdateNode",
+   "module": "s2c:geometry/mesh-export",
+   "note": "a node's visibility state: 180f6ffc0, stored through vf 0x608 at +0x370, then the instance and target flags"
+  },
+  {
+   "addr": "180f6ffc0",
+   "name": "VisibilityMgr_IsNodeVisible",
+   "module": "s2c:geometry/mesh-export",
+   "note": "the parent visible first (recursive), the manager's hidden sets, then vf 0x358 (CMapNode_PassesFilter 180f77240) with the manager's flags; force_hidden so hides a node and all below it"
+  },
+  {
+   "addr": "180fc9930",
+   "name": "MapWorld_GatherSubassetReferences",
+   "module": "s2c:baked/lighting",
+   "note": "the world's nodes depth first (180f8b7c0 / 180f8bd70): a node whose +0x370 visibility is 0 is skipped, one in an instance target only when an instance refers to it (180f88460); each kept node's references to the collector (180f8c400); MapEntities' force_hidden"
+  },
+  {
    "addr": "181019d00",
    "name": "CMapPrefab_PlaceGroup",
    "module": "s2c:geometry/mesh-export",
