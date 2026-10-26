@@ -111,10 +111,10 @@ carries the same state per item.
      draws).
    - All six faces of probe01's cubes chained on our blocks give the game's
      EXRs byte for byte (2026-10-26, CUBEMAPS.md "Whole cubes from our
-     blocks"), and the two EXRs build the game's whole array. Left on that path: the light binner's block, the sky's and the
-     downsample's blocks from our data, the visible probe volume gather
-     (GROUND_TRUTH 147), then the draws from our culling and pipelines
-     without the capture.
+     blocks"), and the two EXRs build the game's whole array. The binner, sky and downsample blocks
+     are ours as well (ledger 148). Left on that path: generic's _Globals_ per
+     material in the replay, the visible probe volume gather (GROUND_TRUTH
+     147), then the draws from our culling and pipelines without the capture.
    - atixref cube 0's readbacks miss the game's EXR on one mesh's material
      (ledger 137): run atixref's buildcubemaps twice without RenderDoc (CS2
      and Steam closed) and compare the EXRs to see whether Valve's own output
@@ -182,6 +182,9 @@ carries the same state per item.
   bytes smaller and `CubemapArrayVtex.Build` already writes it. cubehost picks its RenderDoc convar address by
   client.dll's PE time stamp (10-23: 1823806d8), and its csproj no longer compiles spvmatch's sources.
 - Captures and dumps: %TEMP%/cubehost_run/probe01 (cube 0, replay_face0..5) and probe01_cube1.
+- Later 10-26 (ledger 148): the light binner's CullParams_t (scenesystem 1801b2850 / 1801a8150), the sky's
+  g_matSkyWsToOs (180155117) and pixel $Globals, and the depth downsamples' ratios (client HalfResDepth /
+  QuarterResDepth layers) from our data, each equal to the capture word for word on all twelve faces.
 
 ## Earlier session (2026-10-25, the nav analysis' overlapping connections)
 

@@ -147,7 +147,7 @@ public sealed class AggregateCullingCaptureTests(ITestOutputHelper output)
         }
     }
 
-    /// <summary>Diagnosis: the captured package's light entities, every key (which of them cast shadows into the atlas).</summary>
+    /// <summary>Diagnosis: the captured package's light entities (or <c>CUBECULL_CLASS</c>'s), every key (which of them cast shadows into the atlas).</summary>
     [Fact]
     public void LightEntities()
     {
@@ -163,7 +163,7 @@ public sealed class AggregateCullingCaptureTests(ITestOutputHelper output)
             {
                 var values = entity.GetSubCollection("keyValues3Data")?.GetSubCollection("values")?.Children.ToList() ?? [];
                 var cls = values.FirstOrDefault(v => v.Key == "classname").Value?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "";
-                if (cls.Contains("light", StringComparison.Ordinal))
+                if (cls.Contains(Environment.GetEnvironmentVariable("CUBECULL_CLASS") ?? "light", StringComparison.Ordinal))
                     output.WriteLine($"{entry.GetFullPath()} {cls}: {string.Join(" | ", values.Select(v => v.Key + "=" + (v.Value.IsArray ? string.Join(" ", v.Value.Values.Select(x => x.ToString(System.Globalization.CultureInfo.InvariantCulture))) : v.Value.ToString(System.Globalization.CultureInfo.InvariantCulture))))}");
             }
         }

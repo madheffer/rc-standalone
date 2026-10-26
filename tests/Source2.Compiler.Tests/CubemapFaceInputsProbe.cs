@@ -47,7 +47,9 @@ public sealed class CubemapFaceInputsProbe(ITestOutputHelper output)
         var spec = (Environment.GetEnvironmentVariable("CUBEREPLAY_PROGRAM") ?? "generic|1267|S_MODE_TOOLS_VIS=1|D_BAKED_LIGHTING_FROM_LIGHTMAP=1").Split('|');
         static Dictionary<string, int> Pairs(string text) => text.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Split('=')).ToDictionary(p => p[0], p => int.Parse(p[1]));
         var module = int.Parse(spec[1]);
-        var program = Gpu.ValveProgram.Load(shaders, spec[0], "vulkan_50", "ps", Pairs(spec[2]), Pairs(spec.Length > 3 ? spec[3] : ""), features);
+        // CUBEREPLAY_STAGE=vs: the vertex shader's _Globals_ (set 0 binding 0) instead of the pixel shader's (set 1).
+        var stage = Environment.GetEnvironmentVariable("CUBEREPLAY_STAGE") ?? "ps";
+        var program = Gpu.ValveProgram.Load(shaders, spec[0], "vulkan_50", stage, Pairs(spec[2]), Pairs(spec.Length > 3 ? spec[3] : ""), features);
         var captured = File.ReadAllBytes(Path.Combine(spirvDir, $"{module:x}.spv"));
         output.WriteLine($"{program.Name}: SPIR-V {(program.Spirv.AsSpan().SequenceEqual(captured) ? "equals" : "DIFFERS from")} the capture's module");
         var attributes = (Environment.GetEnvironmentVariable("CUBEREPLAY_ATTRS") ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries)
@@ -55,8 +57,10 @@ public sealed class CubemapFaceInputsProbe(ITestOutputHelper output)
         var ours = new byte[128];
         var idColors = Gpu.ProgramGlobals.ShaderIdColors(File.ReadAllText(Path.Combine(game, "csgo", "gameinfo.gi")));
         var (r, g, b) = idColors.GetValueOrDefault(mat.ShaderName, (0, 0, 0));
-        var scope = new Gpu.ProgramGlobals.MaterialScope(mat, program, attributes, Gpu.ProgramGlobals.ShaderIdColor(r, g, b));
+        var asked = new AskedAttributes(attributes);
+        var scope = new Gpu.ProgramGlobals.MaterialScope(mat, program, asked, Gpu.ProgramGlobals.ShaderIdColor(r, g, b));
         Gpu.ProgramGlobals.Fill(program, ours, scope, (_, _) => -1, _ => -1);
+        output.WriteLine($"render attributes the expressions read: {string.Join(", ", asked.Asked.Distinct())}");
 
         // The material's textures, every mip, by content: which captured subresources they are.
         var mips = new Dictionary<string, string>();
@@ -88,7 +92,7 @@ public sealed class CubemapFaceInputsProbe(ITestOutputHelper output)
         foreach (var line in File.ReadLines(Path.Combine(dir, "actions.jsonl")))
         {
             var rec = JsonNode.Parse(line)!;
-            if (rec["stages"]?["ps"] is not { } ps || !((string)ps["shader"]!).EndsWith($" {module}", StringComparison.Ordinal))
+            if (rec["stages"]?[stage] is not { } ps || !((string)ps["shader"]!).EndsWith($" {module}", StringComparison.Ordinal))
                 continue;
             foreach (var ro in ps["readOnly"]!.AsArray())
             {
@@ -99,7 +103,7 @@ public sealed class CubemapFaceInputsProbe(ITestOutputHelper output)
                 if (hits.Count > 0)
                     output.WriteLine($"{rec["eid"]} b{ro["bind"]!["binding"]} {name}: {subs.Count} subresources, {hits.Count} are the material's: {string.Join(", ", hits)}");
             }
-            var cb = ps["constantBlocks"]!.AsArray().First(c => (int)c!["block"]!["fixedBindSetOrSpace"]! == 1 && (int)c["block"]!["fixedBindNumber"]! == 0)!;
+            var cb = ps["constantBlocks"]!.AsArray().First(c => (int)c!["block"]!["fixedBindSetOrSpace"]! == (stage == "vs" ? 0 : 1) && (int)c["block"]!["fixedBindNumber"]! == 0)!;
             var sha = (string)cb["bytes"]!["sha1"]!;
             if (!seen.Add(sha))
                 continue;
@@ -121,6 +125,20 @@ public sealed class CubemapFaceInputsProbe(ITestOutputHelper output)
                 if (!covered[i] && BitConverter.ToUInt32(theirs, i) != 0)
                     output.WriteLine($"  +{i,-4} (not in the write sequence): {BitConverter.ToUInt32(theirs, i):x8}");
         }
+    }
+
+    /// <summary>The render attributes a fill asks for, by name (which inputs an expression reads).</summary>
+    private sealed class AskedAttributes(IReadOnlyDictionary<string, Gpu.VfxExpression.Value> inner) : IReadOnlyDictionary<string, Gpu.VfxExpression.Value>
+    {
+        public List<string> Asked { get; } = [];
+        public Gpu.VfxExpression.Value this[string key] => inner[key];
+        public IEnumerable<string> Keys => inner.Keys;
+        public IEnumerable<Gpu.VfxExpression.Value> Values => inner.Values;
+        public int Count => inner.Count;
+        public bool ContainsKey(string key) { Asked.Add(key); return inner.ContainsKey(key); }
+        public bool TryGetValue(string key, out Gpu.VfxExpression.Value value) { Asked.Add(key); return inner.TryGetValue(key, out value); }
+        public IEnumerator<KeyValuePair<string, Gpu.VfxExpression.Value>> GetEnumerator() => inner.GetEnumerator();
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
     }
 
     /// <summary>Every captured texture subresource that is a mip (or a layer of a mip) of one of the package's .vtex_c.</summary>

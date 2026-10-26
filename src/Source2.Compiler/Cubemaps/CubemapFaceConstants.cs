@@ -197,6 +197,71 @@ public static class CubemapFaceConstants
     }
 
     /// <summary>
+    /// The light binner's CullParams_t (160 bytes), as ComputeCullBitsGPU writes it (scenesystem 1801b2850,
+    /// lightbinner_gpu.cpp) for both cull dispatches, from the view's binner state (1801a8150): the tile size is
+    /// lb_tile_pixels (8; at least 4, rounded up to a power of two), the bins lb_bin_slices (8192; clamped to
+    /// 1 .. 8192, rounded up to 32), the tiles the view's size over the tile rounded up. Each cull item type
+    /// (lights, environment maps, light probe volumes) takes (count + 31) / 32 mask words (1801a9b70), and its
+    /// items start at the previous types' items padded to 32. Near plane and tile epsilon are 0.
+    /// </summary>
+    public static byte[] LightBinnerCullParams(int width, int height, float farPlane, int lights, int envMaps, int lpvs,
+                                               int tilePixels = 8, int binSlices = 8192)
+    {
+        var b = new byte[160];
+        void I(int offset, int value) => BinaryPrimitives.WriteInt32LittleEndian(b.AsSpan(offset), value);
+        void F(int offset, float value) => BinaryPrimitives.WriteSingleLittleEndian(b.AsSpan(offset), value);
+        var bins = (int)(((uint)Math.Clamp(binSlices, 1, 0x2000) + 31) & ~31u);
+        var tile = tilePixels < 4 ? 4 : (int)System.Numerics.BitOperations.RoundUpToPowerOf2((uint)tilePixels);
+        var shift = System.Numerics.BitOperations.TrailingZeroCount(tile);
+        var tilesX = (width - 1 + tile) >> shift;
+        var tilesY = (height - 1 + tile) >> shift;
+        static int Words(int count) => count != 0 ? (count + 31) / 32 : 0;
+        static int Pad(int count) => (count + 31) & ~31;
+        var (wl, we, wp) = (Words(lights), Words(envMaps), Words(lpvs));
+        I(0, tilesX * tilesY);                                      // g_nTiles
+        I(4, tilesX);
+        I(8, tilesY);
+        F(16, (float)tile * 2f / width);                            // g_vTileToCenterScale
+        F(20, (float)tile * -2f / height);
+        F(24, (float)tile / width - 1f);                            // g_vTileToCenterOffset
+        F(28, 1f - (float)tile / height);
+        I(32, bins);                                                // g_nDepthBins
+        F(36, farPlane / bins);                                     // g_fDepthBinWidth
+        F(40, 0.001f);                                              // g_fBinEpsilon
+        I(52, wl);                                                  // g_nFirstMaskForBatch (0, wl, wl + we, 0)
+        I(56, wl + we);
+        var words = wl + we + wp;
+        var envStart = Pad(lights);
+        var lpvStart = Pad(envStart + envMaps);
+        // g_TileBatches then g_BinBatches: (first mask word, mask words, first item, item end) per type.
+        int[] tileBatches = [words * bins, wl, 0, lights, words * bins + wl * tilesX * tilesY, we, envStart, envStart + envMaps,
+                             words * bins + (wl + we) * tilesX * tilesY, wp, lpvStart, lpvStart + lpvs];
+        int[] binBatches = [0, wl, 0, lights, wl * bins, we, envStart, envStart + envMaps, (wl + we) * bins, wp, lpvStart, lpvStart + lpvs];
+        for (var i = 0; i < 12; i++)
+        {
+            I(64 + i * 4, tileBatches[i]);
+            I(112 + i * 4, binBatches[i]);
+        }
+        return b;
+    }
+
+    /// <summary>
+    /// sky's $Globals (64 bytes): g_matSkyWsToOs, which scenesystem's sky object sets (attribute SkyWsToOs,
+    /// 180155117) as its object-to-world rotation transposed (18049b6d0: the translation dropped as +0) with the
+    /// row (0, 0, 0, 1). <paramref name="objectToWorld"/> is the sky object's 3 x 4.
+    /// </summary>
+    public static byte[] SkyWsToOs(float[] objectToWorld)
+    {
+        var b = new byte[64];
+        void F(int offset, float value) => BinaryPrimitives.WriteSingleLittleEndian(b.AsSpan(offset), value);
+        for (var r = 0; r < 3; r++)
+            for (var c = 0; c < 3; c++)
+                F((r * 4 + c) * 4, objectToWorld[c * 4 + r]);
+        F(60, 1f);
+        return b;
+    }
+
+    /// <summary>
     /// BakedLightingConstantBuffer_t (64 bytes): g_vLightmapUvScale = the world's m_worldLightingInfo
     /// m_vLightmapUvScale and the lightmaps' size (read from the capture against probe01; the writer, in
     /// worldrenderer, is not read yet), g_bBakedShadowsGamma20. The texture indices are bindless slots, 0 here.

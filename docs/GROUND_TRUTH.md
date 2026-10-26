@@ -3981,6 +3981,23 @@ game can answer is raised with the user first, and runs with -insecure.
     - Settle by decompiling 1801af7b0's LPV gather in the installed scenesystem.dll, then check on a map with more
       volumes and cubes outside every volume.
 
+148. **The cubemap face's light binner, sky and depth downsample blocks** (2026-10-26: decompile and disassembly of
+    scenesystem 20261015, the same addresses and code in 20261023: 1801b2850, 1801a8150, 1801a9b70, 18000f900,
+    18000f9b0, 180155117, 18049b6d0; client 20261015 1811d62a0, 1811e58b0, 180124b60; CubemapFaceConstants
+    LightBinnerCullParams and SkyWsToOs; the replay test checks each block word for word on all twelve faces).
+    - Settled from the code: CullParams_t (ComputeCullBitsGPU): the tiles from lb_tile_pixels (default 8, at least 4,
+      a power of two) over the view's size, lb_bin_slices (default 8192, clamped, a multiple of 32) bins over the
+      far plane, epsilon 0.001, near plane and tile epsilon 0, and per item type (lights, environment maps, probe
+      volumes) (count + 31) / 32 mask words and items padded to 32, in the tile and bin batch records.
+    - Settled from the code: g_matSkyWsToOs is the sky object's rotation transposed with no translation and the row
+      (0, 0, 0, 1); SkyTint is the object's +0xe8. The sky's pixel $Globals and the downsamples' are the programs'
+      own write sequences (ProgramGlobals.Fill): the sky material with SkyTint, and g_nDownsampleRatio, which the
+      HalfResDepth layer sets to r_csgo_mixed_resolution_particles_scale (default 2) and QuarterResDepth to 4.
+    - Measured, not read: the sky object's rotation is AngleMatrix of env_sky's angles (only angles 0 seen; the
+      client's sky object setup is not read); SkyTint from env_sky's tint_color (only white seen); the cubemap view
+      sets no tile-size attribute (0x5af50a7c) and bins no lights or environment maps on probe01.
+    - Open: a map with an env_sky at other angles and tint, binned lights (s2c_l5probe's omni and barn) and env maps.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

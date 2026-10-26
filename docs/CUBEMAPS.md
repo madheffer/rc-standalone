@@ -596,9 +596,15 @@ and draws the sky alone.
 - Still the capture's: the pipelines and draw arguments (our culling gives
   the same index ranges, ledger 139), the geometry, lightmap and material
   contents (equal to the package's, ledger 120), generic's `_Globals_`
-  (ProgramGlobals.Fill gives it word for word, ledger 120), and these small
-  blocks: the light binner's 160-byte block, the sky's two blocks and the
-  downsample's.
+  (ProgramGlobals.Fill gives it word for word, ledger 120).
+- The light binner's CullParams_t, the sky's g_matSkyWsToOs and pixel
+  $Globals, and both depth downsamples' $Globals are ours too since 10-26
+  (ledger 148), checked word for word against every face's capture: the
+  binner from lb_tile_pixels / lb_bin_slices and the visible item counts, the
+  sky from env_sky's rotation and material, the downsamples from the
+  HalfResDepth (r_csgo_mixed_resolution_particles_scale, 2) and
+  QuarterResDepth (4) layers' g_nDownsampleRatio through the programs' own
+  expressions.
 
 The 10-23 update (1.41.9.2) left the settled build unchanged. probe01's two
 EXRs from the 10-26 run equal the 10-21 run's bit for bit. The compiled array

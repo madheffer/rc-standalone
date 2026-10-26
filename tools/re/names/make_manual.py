@@ -2936,6 +2936,14 @@ TIER0_1015 = [
 
 
 SCENESYSTEM = [
+    # The cubemap face render's light binner and sky (decompile of 20261015; the same addresses and code in 20261023).
+    ("1801b2850", "LightBinner_ComputeCullBitsGPU", BAKE, "lightbinner_gpu.cpp: the cull items, then CullParams_t (160 bytes from the stack at local_1b08) for both cull dispatches: tiles +0xf38c/+0xf378/+0xf37c, scale 2t/w, -2t/h, offset t/w - 1, 1 - t/h, bins +0xf380, bin width view +0x34 / bins, 0.001, near 0, first masks (0, wl, wl + we, 0), tile and bin batches per type; items padded to 32 per type; CubemapFaceConstants.LightBinnerCullParams"),
+    ("1801a8150", "LightBinner_SetupView", BAKE, "bins = lb_bin_slices clamped 1..8192 rounded up to 32 (+0xf380); tile = view attribute 0x5af50a7c or lb_tile_pixels, at least 4, rounded up to a power of two (+0xf370, log2 +0xf374); tiles (size - 1 + t) >> log2 (+0xf378, +0xf37c), their product +0xf38c"),
+    ("1801a9b70", "LightBinner_GatherItems", BAKE, "a chunk of 1801a9410: mask words per type (count + 31) / 32, 0 for none: lights +0xe3a8 -> +0xf390, environment maps -> +0xf394, light probe volumes +0xe520 -> +0xf398"),
+    ("18000f900", "Convar_lb_tile_pixels", BAKE, "registration, default 8 (data 1809239a8)"),
+    ("18000f9b0", "Convar_lb_bin_slices", BAKE, "registration, default 8192 (data 1809239b8)"),
+    ("180155117", "SkyObject_SetSkyWsToOs", BAKE, "inside the sky object's draw setup: attribute SkyWsToOs (0xfba7d427) = 18049b6d0(object +0x30) with the row (0, 0, 0, 1); SkyTint (0x99e6002a) = object +0xe8 (float3, w 0); CubemapFaceConstants.SkyWsToOs"),
+    ("18049b6d0", "Matrix3x4_TransposedRotation", BAKE, "dst row r = (src[0][r], src[1][r], src[2][r], +0): the rotation transposed, translation dropped"),
     # Read by hand (decompile of scenesystem 20261015), the path-trace scene vrad3 loads.
     ("1800912d0", "PathTraceScene_Load", V3, "scene_info.kv3 and scene_meshes.kv3 into the GPU scene: meshes, instances (180094d30), materials (180098660), lights (18008beb0), the ibl (1800999d0), then the upload (180095180)"),
     ("180094d30", "PathTraceScene_AddInstance", V3, "0x48-byte instance record: mask = (~material and & instance flags) | material or, packed nMaterialFlags << 16 | instance bits, +0xc the facing-cull-disable byte = material flags & 1; grows the scene bounds"),
@@ -3126,6 +3134,9 @@ CLIENT_1021 = [
 
 # client.dll 20261023, 1.41.9.2 (installed; tools/re/binaries/client_20261023.dll).
 CLIENT_1023 = [
+    ("1811e7ae0", "RenderPipeline_HalfResDepth", BAKE, "the HalfResDepth layer at the view's size / r_csgo_mixed_resolution_particles_scale; its depth downsample's g_nDownsampleRatio (0x779e702b) is that scale (10-15: 1811e58b0)"),
+    ("1811d84d0", "RenderPipeline_QuarterResDepth", BAKE, "the QuarterResDepth layer; its depth downsample's g_nDownsampleRatio is 4 (10-15: 1811d62a0)"),
+    ("180124b40", "Convar_r_csgo_mixed_resolution_particles_scale", BAKE, "registration, default 2, flags 0x4000 (10-15: 180124b60)"),
     ("1800538d8", "Convar_buildcubemaps_renderdoc_capture", BAKE, "registration as in 10-15 (flags 2, development-only); the handle it passes at 1800538ed is 1823806d0, so the data pointer is the global 1823806d8"),
     ("1823806d8", "g_buildcubemaps_renderdoc_capture", BAKE, "the convar's data pointer (name at +0, int value at +0x58), 18237eab0 in the 10-15 and 10-21 builds; cubehost --renderdoc-capture picks it by client.dll's PE time stamp 6ada7340"),
 ]

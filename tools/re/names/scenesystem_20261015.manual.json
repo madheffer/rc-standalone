@@ -1,6 +1,48 @@
 {
  "functions": [
   {
+   "addr": "1801b2850",
+   "name": "LightBinner_ComputeCullBitsGPU",
+   "module": "s2c:baked/lighting",
+   "note": "lightbinner_gpu.cpp: the cull items, then CullParams_t (160 bytes from the stack at local_1b08) for both cull dispatches: tiles +0xf38c/+0xf378/+0xf37c, scale 2t/w, -2t/h, offset t/w - 1, 1 - t/h, bins +0xf380, bin width view +0x34 / bins, 0.001, near 0, first masks (0, wl, wl + we, 0), tile and bin batches per type; items padded to 32 per type; CubemapFaceConstants.LightBinnerCullParams"
+  },
+  {
+   "addr": "1801a8150",
+   "name": "LightBinner_SetupView",
+   "module": "s2c:baked/lighting",
+   "note": "bins = lb_bin_slices clamped 1..8192 rounded up to 32 (+0xf380); tile = view attribute 0x5af50a7c or lb_tile_pixels, at least 4, rounded up to a power of two (+0xf370, log2 +0xf374); tiles (size - 1 + t) >> log2 (+0xf378, +0xf37c), their product +0xf38c"
+  },
+  {
+   "addr": "1801a9b70",
+   "name": "LightBinner_GatherItems",
+   "module": "s2c:baked/lighting",
+   "note": "a chunk of 1801a9410: mask words per type (count + 31) / 32, 0 for none: lights +0xe3a8 -> +0xf390, environment maps -> +0xf394, light probe volumes +0xe520 -> +0xf398"
+  },
+  {
+   "addr": "18000f900",
+   "name": "Convar_lb_tile_pixels",
+   "module": "s2c:baked/lighting",
+   "note": "registration, default 8 (data 1809239a8)"
+  },
+  {
+   "addr": "18000f9b0",
+   "name": "Convar_lb_bin_slices",
+   "module": "s2c:baked/lighting",
+   "note": "registration, default 8192 (data 1809239b8)"
+  },
+  {
+   "addr": "180155117",
+   "name": "SkyObject_SetSkyWsToOs",
+   "module": "s2c:baked/lighting",
+   "note": "inside the sky object's draw setup: attribute SkyWsToOs (0xfba7d427) = 18049b6d0(object +0x30) with the row (0, 0, 0, 1); SkyTint (0x99e6002a) = object +0xe8 (float3, w 0); CubemapFaceConstants.SkyWsToOs"
+  },
+  {
+   "addr": "18049b6d0",
+   "name": "Matrix3x4_TransposedRotation",
+   "module": "s2c:baked/lighting",
+   "note": "dst row r = (src[0][r], src[1][r], src[2][r], +0): the rotation transposed, translation dropped"
+  },
+  {
    "addr": "1800912d0",
    "name": "PathTraceScene_Load",
    "module": "s2c:baked/vrad3",

@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text.Json.Nodes;
 using Silk.NET.Vulkan;
 using Source2.Compiler.Gpu;
+using ValveResourceFormat.ResourceTypes;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -147,6 +148,12 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
         var sunLight = new Cubemaps.CubemapFaceConstants.Sun(lightDir, Lighting.SceneLights.SrgbToLinear(248, 249, 232) * 2.25f, 0.1f, 0.05f,
             Lighting.SceneLights.SrgbToLinear(138, 200, 255), 0.875f);
         var stretched = Cubemaps.CubemapShadowCascades.Slice(view, 1f, Cubemaps.CubemapShadowCascades.GameDistances(1f, 10000f)[^1]).Diameter * 1.42f;
+        // The light binner, from the face's visible items: no lights or environment maps, the volumes above.
+        ours["binner"] = Cubemaps.CubemapFaceConstants.LightBinnerCullParams(1024, 1024, 10000f, 0, 0, volumes.Count);
+        // The sky: env_sky's angles as the sky object's rotation, its material's $Globals, and the depth downsamples'.
+        ours["skyview"] = Cubemaps.CubemapFaceConstants.SkyWsToOs(Cubemaps.CubemapFaceViews.AngleMatrix(System.Numerics.Vector3.Zero, new(512, 112, 48)));
+        foreach (var (role, bytes) in ProgramBlocks.Value)
+            ours[role] = bytes;
         ours["lights"] = Cubemaps.CubemapFaceConstants.LightBlock(sunLight, volumes, cascades, tiles, Cubemaps.CubemapShadowCascades.Inputs.Resolution, Cubemaps.CubemapShadowCascades.Inputs.AtlasWidth, Cubemaps.CubemapShadowCascades.Inputs.AtlasHeight, origin, stretched);
         return ours;
     }
@@ -240,6 +247,15 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                 }
                 // A range bound longer than the block keeps the capture's bytes past it (no shader reads them).
                 var captured = File.ReadAllBytes(Path.Combine(dir, "blobs", sha + ".bin"));
+                // The blocks built whole from the code: every word the capture's.
+                if (role is "binner" or "skyview" or "skyglobals" or "downsample_half" or "downsample_quarter"
+                    && !captured.AsSpan(0, Math.Min(captured.Length, ours[role].Length)).SequenceEqual(ours[role].AsSpan(0, Math.Min(captured.Length, ours[role].Length))))
+                {
+                    var words = Enumerable.Range(0, Math.Min(captured.Length, ours[role].Length) / 4).Where(w => BitConverter.ToUInt32(captured, w * 4) != BitConverter.ToUInt32(ours[role], w * 4))
+                        .Select(w => $"+{w * 4} {BitConverter.ToUInt32(captured, w * 4):x8}/{BitConverter.ToUInt32(ours[role], w * 4):x8}");
+                    failures.Add($"face {f}: {role} is not the capture's ({string.Join(", ", words)})");
+                    output.WriteLine("  " + failures[^1]);
+                }
                 replay.Overrides[sha] = captured.Length > ours[role].Length ? [.. ours[role], .. captured.AsSpan(ours[role].Length)] : ours[role];
             }
             output.WriteLine($"face {f}: {actions.Count} actions; blocks {string.Join(", ", roles.Values.Order())}");
@@ -282,7 +298,10 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
     /// binding 1 (640 bytes) is a per-view block, the sky's when its depth range (+368) starts at 1, a sun cascade's when
     /// drawn into the D16 shadow atlas (cascade by the viewport's tile); binding 3 PerViewConstantBufferCsgo_t, set 1
     /// binding 4 BakedLightingConstantBuffer_t, set 3 binding 0 the light block, set 4 bindings 30 and 32 the transforms
-    /// and instances.
+    /// and instances. A dispatch's set 0 binding 1 (160 bytes) is the binner's CullParams_t. The sky draw's vertex
+    /// $Globals (set 0 binding 0, 64 bytes) is g_matSkyWsToOs and its pixel $Globals (set 1 binding 0) the sky
+    /// material's; a 16-byte pixel $Globals is a depth downsample's, the half or quarter resolution layer's by its
+    /// viewport (the face's half or quarter).
     /// </summary>
     private static Dictionary<string, string> BlockRoles(IEnumerable<JsonNode> actions, Func<string, byte[]> blob)
     {
@@ -295,9 +314,15 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
         }
         foreach (var r in actions)
         {
+            if (r["stages"]?["cs"] is { } cs)
+                foreach (var cb in cs["constantBlocks"]!.AsArray())
+                    if (cb!["bytes"] is { } bytes && (int)cb["block"]!["fixedBindNumber"]! == 1 && (long)bytes["size"]! == 160)
+                        Add((string)bytes["sha1"]!, "binner");
             if (r["stages"]?["vs"] is null)
                 continue;
             var vp = r["viewportScissor"]!["viewportScissors"]![0]!["vp"]!;
+            var sky = r["stages"]!["vs"]!["constantBlocks"]!.AsArray().Any(c => c!["bytes"] is { } b && (int)c["block"]!["fixedBindSetOrSpace"]! == 0
+                && (int)c["block"]!["fixedBindNumber"]! == 0 && (long)b["size"]! == 64);
             var depthName = (string?)r["depthOut"];
             var atlas = depthName != null && r["outputs"]!.AsArray().Count == 0 && depthName.Contains("Depth Attachment", StringComparison.Ordinal) && !depthName.Contains("Stencil", StringComparison.Ordinal);
             foreach (var stage in new[] { r["stages"]!["vs"], r["stages"]!["ps"] }.Where(s => s != null))
@@ -325,6 +350,12 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                         Add(sha, "baked");
                     else if (set == 3 && binding == 0 && size == 32256)
                         Add(sha, "lights");
+                    else if (sky && set == 0 && binding == 0 && size == 64)
+                        Add(sha, "skyview");
+                    else if (sky && set == 1 && binding == 0)
+                        Add(sha, "skyglobals");
+                    else if (set == 1 && binding == 0 && size == 16)
+                        Add(sha, (float)vp["width"]! == 512f ? "downsample_half" : (float)vp["width"]! == 256f ? "downsample_quarter" : $"downsample at {vp["width"]}");
                 }
                 // Storage buffers the shaders only read are still declared read-write.
                 foreach (var rw in stage["readWrite"]!.AsArray().Concat(stage["readOnly"]!.AsArray()))
@@ -340,6 +371,54 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
     }
 
     private static readonly int[][] CascadeTiles = [[0, 0], [1280, 0], [2560, 0], [0, 2048]];
+
+    /// <summary>
+    /// The $Globals that Valve's programs compute from a material and render attributes (<see cref="ProgramGlobals.Fill"/>):
+    /// the sky's from env_sky's material and SkyTint (white on probe01), and the depth downsamples' g_nDownsampleRatioW/H
+    /// from the g_nDownsampleRatio attribute: the half resolution layer sets r_csgo_mixed_resolution_particles_scale (2,
+    /// client 1811e7ae0), the quarter one 4 (1811d84d0).
+    /// </summary>
+    private static readonly Lazy<Dictionary<string, byte[]>> ProgramBlocks = new(() =>
+    {
+        var game = Path.Combine(Environment.GetEnvironmentVariable("CS2_DIR") ?? @"D:\Steam\steamapps\common\Counter-Strike Global Offensive", "game");
+        Material Load(string path)
+        {
+            foreach (var pak in new[] { Path.Combine(game, "csgo", "pak01_dir.vpk"), Path.Combine(game, "core", "pak01_dir.vpk") })
+            {
+                using var p = new ValvePak.Package();
+                p.Read(pak);
+                if (p.FindEntry(path + "_c") is { } e)
+                {
+                    p.ReadEntry(e, out var bytes);
+                    using var resource = new ValveResourceFormat.Resource();
+                    resource.Read(new MemoryStream(bytes));
+                    return (Material)resource.DataBlock!;
+                }
+            }
+            throw new FileNotFoundException(path);
+        }
+        byte[] Globals(string vpk, string shader, Dictionary<string, int> dynamics, Material material, Dictionary<string, VfxExpression.Value> attributes, int size)
+        {
+            using var shaders = new ValvePak.Package();
+            shaders.Read(Path.Combine(game, vpk, "shaders_vulkan_dir.vpk"));
+            var program = ValveProgram.Load(shaders, shader, "vulkan_50", "ps", new Dictionary<string, int>(), dynamics, material.IntParams.ToDictionary(kv => kv.Key, kv => (int)kv.Value));
+            var block = new byte[size];
+            // Render attributes are string tokens of the lowered name: an expression asks for "g_ndownsampleratio".
+            var tokens = new Dictionary<string, VfxExpression.Value>(attributes, StringComparer.OrdinalIgnoreCase);
+            ProgramGlobals.Fill(program, block, new ProgramGlobals.MaterialScope(material, program, tokens), (_, _) => -1, _ => -1);
+            return block;
+        }
+        var sky = Load("materials/editor/toolscene_lighting_sky_dust.vmat");
+        var downsample = Load("materials/dev/downsample_depth.vmat");
+        return new()
+        {
+            ["skyglobals"] = Globals("csgo", "sky", new() { ["D_FOG_TYPE"] = 0 }, sky, new() { ["SkyTint"] = VfxExpression.Value.Of(1f, 1f, 1f, 0f) }, 128),
+            ["downsample_half"] = Globals("core", "downsample_depth", new() { ["D_MINMAX_CHECKER_2X2"] = 1, ["D_NON_MSAA_DEPTH"] = 1 }, downsample,
+                new() { ["g_nDownsampleRatio"] = VfxExpression.Value.Of(2f) }, 16),
+            ["downsample_quarter"] = Globals("core", "downsample_depth", new() { ["D_MAX"] = 1, ["D_NON_MSAA_DEPTH"] = 1 }, downsample,
+                new() { ["g_nDownsampleRatio"] = VfxExpression.Value.Of(4f) }, 16),
+        };
+    });
 
     /// <summary>Which instance / transform fields the colour draws read: variants of the two buffers, each replayed.</summary>
     [Fact]

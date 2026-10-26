@@ -1,6 +1,24 @@
 {
  "functions": [
   {
+   "addr": "1811e7ae0",
+   "name": "RenderPipeline_HalfResDepth",
+   "module": "s2c:baked/lighting",
+   "note": "the HalfResDepth layer at the view's size / r_csgo_mixed_resolution_particles_scale; its depth downsample's g_nDownsampleRatio (0x779e702b) is that scale (10-15: 1811e58b0)"
+  },
+  {
+   "addr": "1811d84d0",
+   "name": "RenderPipeline_QuarterResDepth",
+   "module": "s2c:baked/lighting",
+   "note": "the QuarterResDepth layer; its depth downsample's g_nDownsampleRatio is 4 (10-15: 1811d62a0)"
+  },
+  {
+   "addr": "180124b40",
+   "name": "Convar_r_csgo_mixed_resolution_particles_scale",
+   "module": "s2c:baked/lighting",
+   "note": "registration, default 2, flags 0x4000 (10-15: 180124b60)"
+  },
+  {
    "addr": "1800538d8",
    "name": "Convar_buildcubemaps_renderdoc_capture",
    "module": "s2c:baked/lighting",

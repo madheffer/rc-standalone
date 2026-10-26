@@ -85,13 +85,16 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `client_20261023.dll`, 39,215,768 bytes, PE time 2026-10-22 20:34 UTC
 - SHA-256 `ccaf4e4926babc052994502b19ec61198a11008a39dce712921b93dd993be9f5`
 - installed: a different build
-- 2 addresses
+- 5 addresses
 
 ### s2c:baked/lighting
 
 | address | name | what | cited in |
 |---|---|---|---|
 | `1800538d8` | `Convar_buildcubemaps_renderdoc_capture` | registration as in 10-15 (flags 2, development-only); the handle it passes at 1800538ed is 1823806d0, so the data pointer is the global 1823806d8 |  |
+| `180124b40` | `Convar_r_csgo_mixed_resolution_particles_scale` | registration, default 2, flags 0x4000 (10-15: 180124b60) |  |
+| `1811d84d0` | `RenderPipeline_QuarterResDepth` | the QuarterResDepth layer; its depth downsample's g_nDownsampleRatio is 4 (10-15: 1811d62a0) |  |
+| `1811e7ae0` | `RenderPipeline_HalfResDepth` | the HalfResDepth layer at the view's size / r_csgo_mixed_resolution_particles_scale; its depth downsample's g_nDownsampleRatio (0x779e702b) is that scale (10-15: 1811e58b0) |  |
 | `1823806d8` | `g_buildcubemaps_renderdoc_capture` | the convar's data pointer (name at +0, int value at +0x58), 18237eab0 in the 10-15 and 10-21 builds; cubehost --renderdoc-capture picks it by client.dll's PE time stamp 6ada7340 |  |
 
 ## hammer.dll, build 20260924
@@ -1955,12 +1958,14 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `scenesystem_20261015.dll`, 7,094,936 bytes, PE time 2026-10-14 18:43 UTC
 - SHA-256 `040eb851fa7875523346b890f1ed6e158abc59e08bccbd8dc60539435277efa5`
 - installed: a different build
-- 57 addresses
+- 64 addresses
 
 ### s2c:baked/lighting
 
 | address | name | what | cited in |
 |---|---|---|---|
+| `18000f900` | `Convar_lb_tile_pixels` | registration, default 8 (data 1809239a8) |  |
+| `18000f9b0` | `Convar_lb_bin_slices` | registration, default 8192 (data 1809239b8) |  |
 | `1800380a0` | `CAggregateSceneObject_AddFragment` | vfunc 0x28 (worldrenderer 18001e920 per AggregateMeshInfo_t): a transform slot (0x38 each at +0x150) unless the last slot has the same base vertex (draw +0x54), packed tint (18049ca70 then 18049c8d0) and transform within 1e-5 (18049ad90); the 0x50-byte fragment record (+0x14 flags, +0x16 meshlets, +0x18 draw call, +0x1c index count, +0x20 slot, +0x22 LOD setup, +0x24 LOD mask, +0x28 tint); bounds (+0x180, 0x20 each) the draw's bounds through 18049bfb0 when it has meshlets, radius 0.5 sqrt((dz dz + dy dy) + dx dx); AggregateCulling.Fragments | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:15` |
 | `180038650` | `CAggregateSceneObject_Setup` | vfunc 0x30: above sc_aggregate_bvh_threshold (18089cfa8) builds tinybvh (1804c9ad0, c_trav 16, c_int 1) over the fragment bounds and reorders fragments and bounds into left-first leaf order; AggregateCulling.CullOrder | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:588` |
 | `18003c2a0` | `AggregateDesc_UploadDraws` | vfunc 0x50: uploads the frame's indirect commands (desc +0x68, count +0x60, 20 bytes each) to the buffer at +0x80 |  |
@@ -1972,15 +1977,20 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180047530` | `AggregateDesc_OnBeginRenderingFrame` | per aggregate: fragment draw slots +0x34/+0x38 to -1, +0x210/+0x214 from +0x1fc/+0x200, the transform block +500 to -1 |  |
 | `18004c390` | `View_SphereScreenSize` | clamp(r cot rsqrtss((dy dy + dx dx) + dz dz), 0, 1), 1 inside the sphere; orthographic views 2r / height; AggregateCulling.ScreenSize | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:517` |
 | `180053800` | `VectorNormalize` | times 1 / sqrt((y y + z z) + x x) within [1e-17, 1e17]; CubemapShadowCascades.Normalize | `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:189`, `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:270` |
+| `180155117` | `SkyObject_SetSkyWsToOs` | inside the sky object's draw setup: attribute SkyWsToOs (0xfba7d427) = 18049b6d0(object +0x30) with the row (0, 0, 0, 1); SkyTint (0x99e6002a) = object +0xe8 (float3, w 0); CubemapFaceConstants.SkyWsToOs | `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:250` |
 | `1801a5c28` | `CSM_SetupForView` | calls 180496ef0 with the frustum at view +0x10 (or vfunc 0x240's +0x10 under view flag bit 0xc), copied with +0x18 replaced by a view attribute when non-zero |  |
+| `1801a8150` | `LightBinner_SetupView` | bins = lb_bin_slices clamped 1..8192 rounded up to 32 (+0xf380); tile = view attribute 0x5af50a7c or lb_tile_pixels, at least 4, rounded up to a power of two (+0xf370, log2 +0xf374); tiles (size - 1 + t) >> log2 (+0xf378, +0xf37c), their product +0xf38c | `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:201` |
+| `1801a9b70` | `LightBinner_GatherItems` | a chunk of 1801a9410: mask words per type (count + 31) / 32, 0 for none: lights +0xe3a8 -> +0xf390, environment maps -> +0xf394, light probe volumes +0xe520 -> +0xf398 | `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:204` |
+| `1801b2850` | `LightBinner_ComputeCullBitsGPU` | lightbinner_gpu.cpp: the cull items, then CullParams_t (160 bytes from the stack at local_1b08) for both cull dispatches: tiles +0xf38c/+0xf378/+0xf37c, scale 2t/w, -2t/h, offset t/w - 1, 1 - t/h, bins +0xf380, bin width view +0x34 / bins, 0.001, near 0, first masks (0, wl, wl + we, 0), tile and bin batches per type; items padded to 32 per type; CubemapFaceConstants.LightBinnerCullParams | `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:200` |
 | `180494b40` | `CSM_FitCascade` | a fit's cascades (light view, ortho, snapped bounds; CubemapShadowCascades.Fit) and their culling: per cascade the shadow view (1804a7a60), the previous cascade's ortho pulled 15% in as six planes with d negated (first culling-box set, +0x174 count 6), the fit's caster volume (180495df0, up to 12, d negated) as the second set (+0x170); AggregateCulling.CascadeFrustum | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:129`, `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:290`, `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:322` +5 |
 | `180495df0` | `CSM_CasterVolume` | the sun's caster volume from the main view's inverse world-to-projection corners and the corners pushed by light x reach: back-facing planes, the cap (1.125 x the double running minimum), silhouette edge planes (1805ab720 / 1805ab738), none when the centroid is outside or fewer than 6; AggregateCulling.CasterVolume | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:211` |
 | `180496ef0` | `CSM_SetupCascades` | count = min(view +0x38, light desc +0x3e) or csm_max_num_cascades_override (> 0); distances: the light desc's +0x48 (each later one doubled from the last given), csm_cascadeN_override_dist (> 0), the practical split ((V_powf(M/n, k/N) n - lin) 0.85 + lin) + 0.1 from n = max(0.125, frustum near), then the view attributes 0x61fac369, 0x70644345, ... replace each (1804976e5 on); M = csm_max_shadow_dist_override (> 0, view flag bit 4 clear) else ShadowFarZ (0x7b2a64e1, default 1000) at most the frustum far (+0x24 of the frustum at r8 +0x18); CubemapShadowCascades.SplitDistances / MaxDistance | `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:6`, `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:23`, `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:55` +1 |
 | `180498520` | `Frustum_PlanesFromMatrix` | scenesystem's copy of client 1817465f0; the cascade fit calls it with the zero-to-one flag | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:130`, `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:214`, `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:324` |
 | `180498c70` | `Matrix4_Invert` | the client's 181747070 (Gauss-Jordan with row pivoting); AggregateCulling.Invert4 | `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:250` |
+| `18049b6d0` | `Matrix3x4_TransposedRotation` | dst row r = (src[0][r], src[1][r], src[2][r], +0): the rotation transposed, translation dropped | `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:250` |
 | `18049bcb0` | `Frustum_PackPlanes` | scenesystem's copy of client 1817435e0 | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:131` |
 | `18049dd60` | `Matrix3x4_TransformPoint` | through 18049c3a0: x' = (y m1 + m3) + (x m0 + z m2); AggregateCulling.TransformPoint | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:368`, `src/Source2.Compiler/Lighting/Bake/PathTraceBounds.cs:12` |
-| `1804a7a60` | `CSM_ShadowViewFrustum` | a cascade's frustum object: camera = translation of the inverted view (180498c70), planes from projection x (view x translate(camera)) through 180498520 with the zero-to-one flag, packed by 18049bcb0; CubemapShadowCascades.Camera, AggregateCulling.CascadeFrustum | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:129`, `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:272`, `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:249` |
+| `1804a7a60` | `CSM_ShadowViewFrustum` | a cascade's frustum object: camera = translation of the inverted view (180498c70), planes from projection x (view x translate(camera)) through 180498520 with the zero-to-one flag, packed by 18049bcb0; CubemapShadowCascades.Camera, AggregateCulling.CascadeFrustum | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:129`, `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:337`, `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:249` |
 | `1804c9ad0` | `TinyBvh_BuildCustomAabb` | tiny_bvh.h BVH::Build(customGetAABB, count): root bounds, then 1804c87c0 (the same build as resourcecompiler's 181ed64a0); Lighting/TinyBvh.cs | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:589` |
 
 ### s2c:baked/vrad3
