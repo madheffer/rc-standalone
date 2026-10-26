@@ -70,11 +70,12 @@ carries the same state per item.
 
 ## Running things
 
-- **The suite:** `dotnet test tests/Source2.Compiler.Tests` takes several
-  minutes. Last full run: 984 of 984 on 2026-10-22; since then only the
-  touched modules' tests have run (10-26: the cubemap replay tests). Long or
-  diagnostic cases are env-gated, for example `VISBUILD_BIG=1` and
-  `PVS=<map>`. Game-dependent tests skip without CS2.
+- **The suite:** `dotnet test tests/Source2.Compiler.Tests` takes about 40 minutes now. Last full run:
+  1053 of 1055 on 2026-10-26; the two failures (MapRootFileTests.MapRootEqualsValves and
+  MapSubassetsTests.ReferencesEqualValves, on the cable and deformer probes s2c_cableinst*, s2c_deformpath*,
+  s2c_tangentinst, s2c_prefabinst) fail the same way at 04b0d52, before that day's cubemap work. Long or
+  diagnostic cases are env-gated, for example `VISBUILD_BIG=1` and `PVS=<map>`. Game-dependent tests skip
+  without CS2.
 - **Test data:**
   - Valve compiles of test maps: `MapFixtures.RcCompiledLump(s)` compiles
     into the scratch addon `s2c_rc_probe`.
