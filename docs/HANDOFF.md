@@ -91,6 +91,15 @@ carries the same state per item.
 
 ## Roadmap: what is left, in the order worth taking it
 
+**Blocker, first:** two suite tests fail and must pass before more work lands on the modules they cover:
+`MapRootFileTests.MapRootEqualsValves` (s2c_cableinst, s2c_cableinst2, s2c_deformnest, s2c_deformnest2,
+s2c_deformpath, ...) and `MapSubassetsTests.ReferencesEqualValves` (s2c_deformpath2..4, s2c_prefabinst,
+s2c_tangentinst; e.g. s2c_tangentinst counts ours/Valve's cable_dynamic 2/0, path_node_cable 15/9), both in
+`tests/Source2.Compiler.Tests/MapSubassetsTests.cs`. They already failed at 04b0d52 (2026-10-26), before that
+day's cubemap work. Find whether our cable and deformer output through instances and prefabs regressed
+(ledgers 128-134, PHYSICS.md) or the Valve references are stale (compare each reference's
+m_nCompileTimestamp with the last CS2 update). Fix the cause at 1:1, never by loosening the tests.
+
 1. **Cubemaps** ([CUBEMAPS.md](CUBEMAPS.md) "Whole cubes from our blocks", "A second map", "The pipelines",
    "The textures", "The buffers", "The binner's items" and "Roadmap", ledgers 117-121, 137-140, 144, 147-154).
    Where it stands: three cubes from two maps (probe01's two, s2c_l5probe's cube 0) give the game's EXRs byte
