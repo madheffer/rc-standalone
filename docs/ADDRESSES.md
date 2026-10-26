@@ -1958,7 +1958,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `scenesystem_20261015.dll`, 7,094,936 bytes, PE time 2026-10-14 18:43 UTC
 - SHA-256 `040eb851fa7875523346b890f1ed6e158abc59e08bccbd8dc60539435277efa5`
 - installed: a different build
-- 84 addresses
+- 86 addresses
 
 ### s2c:baked/lighting
 
@@ -2011,6 +2011,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18049dd60` | `Matrix3x4_TransformPoint` | through 18049c3a0: x' = (y m1 + m3) + (x m0 + z m2); AggregateCulling.TransformPoint | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:368`, `src/Source2.Compiler/Lighting/Bake/PathTraceBounds.cs:12` |
 | `1804a7a60` | `CSM_ShadowViewFrustum` | a cascade's frustum object: camera = translation of the inverted view (180498c70), planes from projection x (view x translate(camera)) through 180498520 with the zero-to-one flag, packed by 18049bcb0; CubemapShadowCascades.Camera, AggregateCulling.CascadeFrustum | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:129`, `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:337`, `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:255` |
 | `1804c9ad0` | `TinyBvh_BuildCustomAabb` | tiny_bvh.h BVH::Build(customGetAABB, count): root bounds, then 1804c87c0 (the same build as resourcecompiler's 181ed64a0); Lighting/TinyBvh.cs | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:589` |
+| `1805ec900` | `SkyCube_Vertices` | data: the sky's unit cube, eight corners at +-0.5; CubemapFaceMeshes.SkyCubeVertices | `src/Source2.Compiler/Cubemaps/CubemapFaceMeshes.cs:9` |
+| `1805ec960` | `SkyCube_Triangles` | data: its twelve triangles as one-based ints (1 3 2, 1 4 3, ...); CubemapFaceMeshes.SkyCubeIndices | `src/Source2.Compiler/Cubemaps/CubemapFaceMeshes.cs:17` |
 | `1805fe430` | `LightBinner_SilhouetteTable` | data (20261023; 1805fe400 in 20261015): per eye-outside plane mask, a count and up to 8 box corner indices of the outline | `src/Source2.Compiler/Cubemaps/LightBinnerItems.cs:17` |
 
 ### s2c:baked/vrad3

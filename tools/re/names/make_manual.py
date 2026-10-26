@@ -2959,6 +2959,8 @@ SCENESYSTEM = [
     ("1801c6b60", "ClipPolygon_Y", BAKE, "against w >= k y"),
     ("1801c7100", "ClipPolygon_X", BAKE, "against w >= k x"),
     ("1801ad810", "LightBinner_FootprintEdges", BAKE, "edges of the footprint hull (count +0x80, points +0x84) as (nx, ny, quarter diagonal - (ny y + nx x), 0): longer than two pixel diagonals, turning one way; rsqrtss with (3 - r len2 r) (r 0.5); the last folded into the first when they turn back; LightBinnerItems.Edges"),
+    ("1805ec900", "SkyCube_Vertices", BAKE, "data: the sky's unit cube, eight corners at +-0.5; CubemapFaceMeshes.SkyCubeVertices"),
+    ("1805ec960", "SkyCube_Triangles", BAKE, "data: its twelve triangles as one-based ints (1 3 2, 1 4 3, ...); CubemapFaceMeshes.SkyCubeIndices"),
     ("1805fe430", "LightBinner_SilhouetteTable", BAKE, "data (20261023; 1805fe400 in 20261015): per eye-outside plane mask, a count and up to 8 box corner indices of the outline"),
     ("1801cc400", "LPV_SortRecords", BAKE, "std::sort (introsort, insertion below 0x2520 bytes) of the 0x120-byte records: +0x14 descending, then the float +0x10 ascending, then the object pointer +0 ascending; 1801a9b70 calls it after capping the list at 128 (1801cbc20 nth_element first, logging 'Exceeded maximum number visible lpvs')"),
     ("1801af7b0", "LightBinner_WriteLightBlock", BAKE, "PerViewLightingConstantBufferGpu_t: g_VisibleLPV from +0xe528 (at most 128): world-to-volume rows 18049b3b0(object +0x30), box +0xd0 .. +0xe4 padded by 0.1, 1 / +0xe8, +0xec, +0xf0 (FLT_MAX for 0), then the int from the view's map; g_vShadowSampleRotations V_sincosf(i / 16 2pi + frame 1.618034); CubemapFaceConstants.LightBlock"),

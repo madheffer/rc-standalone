@@ -303,6 +303,11 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                 roles[sha] = "material " + material;
             }
             output.WriteLine($"face {f}: {actions.Count} actions; blocks {string.Join(", ", roles.Values.Order())}");
+            // Every vertex and index buffer of the world, sky and downsample draws from the package and the engine's meshes.
+            var buffers = BufferInputs(actions, sha => File.ReadAllBytes(Path.Combine(dir, "blobs", sha + ".bin")), facesDir, failures);
+            foreach (var (sha, data) in buffers)
+                replay.Overrides[sha] = data;
+            output.WriteLine($"  buffers: {buffers.Count} ours");
             // Every texture of the world colour and sky draws from the package, the materials and the engine's defaults.
             var textureNotes = new List<string>();
             foreach (var (sha, data) in TextureInputs(actions, sha => File.ReadAllBytes(Path.Combine(dir, "blobs", sha + ".bin")), facesDir, drawMaterials, SkyProgram.Value, failures, textureNotes))
@@ -480,6 +485,92 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<(string, int), (ValveProgram, byte[])> GlobalsCache = new();
 
     /// <summary>
+    /// Every vertex and index buffer the world, sky and downsample draws read, from the package and the engine's
+    /// meshes (<see cref="Cubemaps.CubemapFaceMeshes"/>), by captured buffer hash: a world draw's first stream is its
+    /// model's vertex buffer (the same bytes), the pooled index buffer holds each model's indices whole at the
+    /// offset the draws bind it at (the pool's allocation, the capture's), the second stream is the instance ids,
+    /// the third a 16-byte zero; the sky draws the engine's cube; a downsample its quad at the offset it binds. Each
+    /// range a draw reads must be the capture's.
+    /// </summary>
+    private static Dictionary<string, byte[]> BufferInputs(IEnumerable<JsonNode> actions, Func<string, byte[]> blob, string facesDir, List<string> failures)
+    {
+        var models = PackageModels.Value.GetOrAdd(Directory.GetFiles(facesDir, "*.vpk").Single(), LoadModels);
+        var result = new Dictionary<string, byte[]>();
+        byte[] Ours(string sha) => result.TryGetValue(sha, out var b) ? b : result[sha] = new byte[blob(sha).Length];
+        void Check(JsonNode r, string what, byte[] ours, byte[] theirs, int offset, int length)
+        {
+            if (offset + length > theirs.Length || !ours.AsSpan(offset, length).SequenceEqual(theirs.AsSpan(offset, length)))
+                failures.Add($"{r["eid"]}: {what} at {offset} ({length} bytes) is not the capture's");
+        }
+        foreach (var r in actions)
+        {
+            if (r["vertexInput"]?["vertexBuffers"] is not JsonArray vbs || vbs.Count == 0 || r["contents"] is null)
+                continue;
+            var before = r["contents"]!["before"]!;
+            string Sha(string name) => (string)before[name]!["sha1"]!;
+            var vb0 = (string)vbs[0]!["resourceId"]!;
+            var indexed = ((string)r["flags"]!).Contains("Indexed");
+            if (models.FirstOrDefault(m => m.VertexSha == Sha(vb0)) is { } model)
+            {
+                // The model's own vertex buffer, then the pooled indices it draws from.
+                result[Sha(vb0)] = model.Vertices;
+                if (indexed)
+                {
+                    var ib = r["ibuffer"]!;
+                    var pool = Ours(Sha((string)ib["resourceId"]!));
+                    var at = (int)(long)ib["byteOffset"]!;
+                    model.Indices.CopyTo(pool, at);
+                    var stride = (int)ib["byteStride"]!;
+                    Check(r, $"{model.Name}'s indices", pool, blob(Sha((string)ib["resourceId"]!)), at + (int)r["indexOffset"]! * stride, (int)r["numIndices"]! * stride);
+                }
+                for (var i = 1; i < vbs.Count; i++)
+                {
+                    var name = (string)vbs[i]!["resourceId"]!;
+                    var stride = (int)vbs[i]!["byteStride"]!;
+                    var data = Ours(Sha(name));
+                    if (stride == 4)
+                        Cubemaps.CubemapFaceMeshes.InstanceIds(data.Length).CopyTo(data, 0);
+                    Check(r, stride == 4 ? "instance ids" : "the zero stream", data, blob(Sha(name)), 0, data.Length);
+                }
+                continue;
+            }
+            var attributes = r["vertexInput"]!["attributes"]!.AsArray();
+            if (indexed && (int)vbs[0]!["byteStride"]! == 12 && (int)r["numIndices"]! == 36)
+            {
+                // The sky's cube.
+                var vertices = Ours(Sha(vb0));
+                System.Runtime.InteropServices.MemoryMarshal.AsBytes(Cubemaps.CubemapFaceMeshes.SkyCubeVertices.AsSpan()).CopyTo(vertices);
+                Check(r, "the sky cube's corners", vertices, blob(Sha(vb0)), 0, vertices.Length);
+                var ib = (string)r["ibuffer"]!["resourceId"]!;
+                var indices = Ours(Sha(ib));
+                System.Runtime.InteropServices.MemoryMarshal.AsBytes(Cubemaps.CubemapFaceMeshes.SkyCubeIndices.AsSpan()).CopyTo(indices);
+                Check(r, "the sky cube's indices", indices, blob(Sha(ib)), 0, indices.Length);
+                foreach (var extra in vbs.Skip(1))
+                {
+                    var name = (string)extra!["resourceId"]!;
+                    var data = Ours(Sha(name));
+                    if ((int)extra["byteStride"]! == 4)
+                        Cubemaps.CubemapFaceMeshes.InstanceIds(data.Length).CopyTo(data, 0);
+                }
+                continue;
+            }
+            if (!indexed && (int)vbs[0]!["byteStride"]! == 32 && (int)r["numIndices"]! == 4 && attributes.Count == 1)
+            {
+                // A downsample's quad: only the positions are read (the layout's one attribute).
+                var ring = Ours(Sha(vb0));
+                var at = (int)(long)vbs[0]!["byteOffset"]!;
+                Cubemaps.CubemapFaceMeshes.DownsampleQuad().CopyTo(ring, at);
+                var theirs = blob(Sha(vb0));
+                for (var v = 0; v < 4; v++)
+                    Check(r, "the quad's positions", ring, theirs, at + v * 32, 8);
+                foreach (var extra in vbs.Skip(1))
+                    Ours(Sha((string)extra!["resourceId"]!));
+            }
+        }
+        return result;
+    }
+
+    /// <summary>
     /// Every texture the world colour and sky draws read, from our data, by captured subresource hash: each binding's
     /// variable in the draw's program (set 1, binding 30 + its slot in the combo's write sequence): the lightmap
     /// attributes (direct_light_shadows, irradiance, directional_irradiance, debug_chart_color) are the package's
@@ -622,7 +713,7 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
     }
 
     /// <summary>A world node model of a package: its vertex buffer's hash and its draw calls' ranges and materials.</summary>
-    private sealed record PackageModel(string Name, string VertexSha, List<(int Start, int Count, int BaseVertex, string? Material)> Draws);
+    private sealed record PackageModel(string Name, string VertexSha, List<(int Start, int Count, int BaseVertex, string? Material)> Draws, byte[] Vertices, byte[] Indices, int IndexSize);
 
     private static readonly Lazy<System.Collections.Concurrent.ConcurrentDictionary<string, List<PackageModel>>> PackageModels = new(() => new());
 
@@ -643,7 +734,8 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                 var draws = mesh.Data.GetArray("m_sceneObjects").SelectMany(so => so.GetArray("m_drawCalls"))
                     .Select(dc => (dc.GetInt32Property("m_nStartIndex"), dc.GetInt32Property("m_nIndexCount"), dc.GetInt32Property("m_nBaseVertex"), dc.GetStringProperty("m_material"))).ToList();
                 if (mesh.VBIB.VertexBuffers.Count > 0)
-                    models.Add(new PackageModel(entry.GetFullPath(), Sha1(mesh.VBIB.VertexBuffers[0].Data), draws));
+                    models.Add(new PackageModel(entry.GetFullPath(), Sha1(mesh.VBIB.VertexBuffers[0].Data), draws,
+                        mesh.VBIB.VertexBuffers[0].Data, mesh.VBIB.IndexBuffers[0].Data, (int)mesh.VBIB.IndexBuffers[0].ElementSizeInBytes));
             }
         }
         return models;

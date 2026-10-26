@@ -648,6 +648,14 @@ checked; that needs `run_probe.py --renderdoc 1` with CS2 and Steam closed.
 
     RDC_IN=<capture.rdc> RDC_OUT=<capture dir>/passes.jsonl qrenderdoc.exe --python tools/cubehost/rdc_passes.py
 
+### The buffers (2026-10-26, ledger 152)
+
+The world, sky and downsample draws now read our buffers. The world draws use
+the package models' vertex and index buffers, the latter in the pool at the
+capture's offsets. The instance id ramp and the zero stream are ours. The sky
+cube's mesh is scenesystem's (`CubemapFaceMeshes`), and the downsample quad's
+positions are ours. Each range a draw reads is checked against the capture.
+
 ### The binner's items (2026-10-26, ledger 151)
 
 The light binner's cull dispatches read two buffers the CPU uploads for each

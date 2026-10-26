@@ -121,6 +121,18 @@
    "note": "edges of the footprint hull (count +0x80, points +0x84) as (nx, ny, quarter diagonal - (ny y + nx x), 0): longer than two pixel diagonals, turning one way; rsqrtss with (3 - r len2 r) (r 0.5); the last folded into the first when they turn back; LightBinnerItems.Edges"
   },
   {
+   "addr": "1805ec900",
+   "name": "SkyCube_Vertices",
+   "module": "s2c:baked/lighting",
+   "note": "data: the sky's unit cube, eight corners at +-0.5; CubemapFaceMeshes.SkyCubeVertices"
+  },
+  {
+   "addr": "1805ec960",
+   "name": "SkyCube_Triangles",
+   "module": "s2c:baked/lighting",
+   "note": "data: its twelve triangles as one-based ints (1 3 2, 1 4 3, ...); CubemapFaceMeshes.SkyCubeIndices"
+  },
+  {
    "addr": "1805fe430",
    "name": "LightBinner_SilhouetteTable",
    "module": "s2c:baked/lighting",

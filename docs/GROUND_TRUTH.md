@@ -4093,6 +4093,17 @@ game can answer is raised with the user first, and runs with -insecure.
       0x6e59bbf1, never set here); the clip path (boxes across the camera plane) is ported but no captured face
       takes it; lights and environment maps as items (none binned in these views).
 
+152. **The cubemap face's vertex and index buffers from our data** (2026-10-26: scenesystem 20261023 .rdata
+    1805ec900 and 1805ec960; Cubemaps.CubemapFaceMeshes; the whole-cube test).
+    - Settled by the DLL's data: the sky draws scenesystem's unit cube, eight corners at +-0.5 (1805ec900) and twelve
+      triangles from the table that follows them, one-based ints (1805ec960), as 16-bit indices.
+    - Settled by capture: a world draw's first stream is its world node model's vertex buffer, the pooled index
+      buffer holds each model's indices whole at the offset the draws bind it at (the pool allocation is the
+      capture's, which no output shows), the second stream is the instance ids (instance i reads i), the third a
+      16-byte zero; a downsample's quad is (-1, -1), (1, -1), (-1, 1), (1, 1) in the first two floats of 32-byte
+      vertices (the other six, the far plane's corners in the capture, are not read: zeros keep every face).
+    - Every range the world, sky and downsample draws read is ours on the three cubes, and the EXRs stay the game's.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).
