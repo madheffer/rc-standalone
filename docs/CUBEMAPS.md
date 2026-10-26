@@ -648,6 +648,20 @@ checked; that needs `run_probe.py --renderdoc 1` with CS2 and Steam closed.
 
     RDC_IN=<capture.rdc> RDC_OUT=<capture dir>/passes.jsonl qrenderdoc.exe --python tools/cubehost/rdc_passes.py
 
+### The pipelines (2026-10-26, ledger 150)
+
+`CubemapFacePipelines.Apply` gives a draw's fixed-function state from its
+pass and its pixel program's .vcs render state (`ValveProgram.RenderState`),
+plus the engine's part. That part is depth bias on with front faces
+counter-clockwise, and the depth-only passes' state. The sun cascades get the
+2.13 slope bias of `sc_shadow_slopescale_depth_bias`. The colour pass gets its
+stencil test, and the quarter downsample its stencil replace. The viewport
+depth ranges come from the pass. The whole-cube test draws every world, sky
+and downsample draw with that state and checks each field against the
+capture. Still taken from the capture: the vertex layout, the viewport and
+scissor rectangles, the samplers, and the state of the draws whose programs
+are not ported (the viewmodel, the pawn's AO box).
+
 The 10-23 update (1.41.9.2) left the settled build unchanged. probe01's two
 EXRs from the 10-26 run equal the 10-21 run's bit for bit. The compiled array
 shrank from 945,886 to 945,838 bytes, and `CubemapArrayVtex.Build` already

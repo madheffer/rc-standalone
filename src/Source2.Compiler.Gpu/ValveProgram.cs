@@ -29,6 +29,12 @@ public sealed class ValveProgram
     /// <summary>The shader's feature names (F_...), in the order expressions index them.</summary>
     public required IReadOnlyList<string> FeatureNames { get; init; }
 
+    /// <summary>
+    /// The picked dynamic combo's render state: for a pixel program its rasterizer, depth-stencil and blend
+    /// descriptors (<see cref="VfxRenderStateInfoPixelShader"/>).
+    /// </summary>
+    public required VfxRenderStateInfo RenderState { get; init; }
+
     private static VfxProgramData Read(Package package, string name)
     {
         var entry = package.FindEntry($"shaders/vfx/{name}.vcs") ?? throw new FileNotFoundException(name);
@@ -97,6 +103,7 @@ public sealed class ValveProgram
             Program = program,
             Sequence = sequence,
             FeatureNames = featureNames,
+            RenderState = combo.DynamicComboRenderStates[index],
         };
     }
 }

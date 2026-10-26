@@ -19,6 +19,30 @@
    "note": "a chunk of 1801a9410: mask words per type (count + 31) / 32, 0 for none: lights +0xe3a8 -> +0xf390, environment maps -> +0xf394, light probe volumes +0xe520 -> +0xf398"
   },
   {
+   "addr": "180006c00",
+   "name": "Convar_sc_shadow_depth_bias_state_override",
+   "module": "s2c:baked/lighting",
+   "note": "registration, bool default 0"
+  },
+  {
+   "addr": "180006ca0",
+   "name": "Convar_sc_shadow_depth_bias",
+   "module": "s2c:baked/lighting",
+   "note": "registration; stores 0x100 as the default (not decoded; the captured constant bias is 0)"
+  },
+  {
+   "addr": "180006d50",
+   "name": "Convar_sc_shadow_slopescale_depth_bias",
+   "module": "s2c:baked/lighting",
+   "note": "registration, float default 2.13 (0x400851ec): the sun cascades' slope bias; CubemapFacePipelines.ShadowSlopeBias"
+  },
+  {
+   "addr": "180006e00",
+   "name": "Convar_sc_shadow_depth_bias_clamp",
+   "module": "s2c:baked/lighting",
+   "note": "registration, default 0"
+  },
+  {
    "addr": "1801c1f70",
    "name": "CLightProbeVolumeSceneObject_AddToView",
    "module": "s2c:baked/lighting",

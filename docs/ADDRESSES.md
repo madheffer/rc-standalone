@@ -1958,12 +1958,16 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `scenesystem_20261015.dll`, 7,094,936 bytes, PE time 2026-10-14 18:43 UTC
 - SHA-256 `040eb851fa7875523346b890f1ed6e158abc59e08bccbd8dc60539435277efa5`
 - installed: a different build
-- 71 addresses
+- 75 addresses
 
 ### s2c:baked/lighting
 
 | address | name | what | cited in |
 |---|---|---|---|
+| `180006c00` | `Convar_sc_shadow_depth_bias_state_override` | registration, bool default 0 |  |
+| `180006ca0` | `Convar_sc_shadow_depth_bias` | registration; stores 0x100 as the default (not decoded; the captured constant bias is 0) |  |
+| `180006d50` | `Convar_sc_shadow_slopescale_depth_bias` | registration, float default 2.13 (0x400851ec): the sun cascades' slope bias; CubemapFacePipelines.ShadowSlopeBias | `src/Source2.Compiler.Gpu/CubemapFacePipelines.cs:37` |
+| `180006e00` | `Convar_sc_shadow_depth_bias_clamp` | registration, default 0 | `src/Source2.Compiler.Gpu/CubemapFacePipelines.cs:39` |
 | `18000f900` | `Convar_lb_tile_pixels` | registration, default 8 (data 1809239a8) |  |
 | `18000f9b0` | `Convar_lb_bin_slices` | registration, default 8192 (data 1809239b8) |  |
 | `1800380a0` | `CAggregateSceneObject_AddFragment` | vfunc 0x28 (worldrenderer 18001e920 per AggregateMeshInfo_t): a transform slot (0x38 each at +0x150) unless the last slot has the same base vertex (draw +0x54), packed tint (18049ca70 then 18049c8d0) and transform within 1e-5 (18049ad90); the 0x50-byte fragment record (+0x14 flags, +0x16 meshlets, +0x18 draw call, +0x1c index count, +0x20 slot, +0x22 LOD setup, +0x24 LOD mask, +0x28 tint); bounds (+0x180, 0x20 each) the draw's bounds through 18049bfb0 when it has meshlets, radius 0.5 sqrt((dz dz + dy dy) + dx dx); AggregateCulling.Fragments | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:15` |

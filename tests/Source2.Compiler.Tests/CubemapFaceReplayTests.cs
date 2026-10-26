@@ -264,7 +264,8 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                 }
             }
             // generic's _Globals_ of each world colour draw from its material (the package names it per draw call).
-            foreach (var (sha, (material, globals)) in MaterialGlobals(actions, sha => File.ReadAllBytes(Path.Combine(dir, "blobs", sha + ".bin")), facesDir, spirvDir, failures))
+            var programs = new Dictionary<string, (CubemapFacePipelines.Pass, ValveResourceFormat.CompiledShader.VfxRenderStateInfoPixelShader?)>(FacePrograms.Value);
+            foreach (var (sha, (material, globals)) in MaterialGlobals(actions, sha => File.ReadAllBytes(Path.Combine(dir, "blobs", sha + ".bin")), facesDir, spirvDir, failures, programs))
             {
                 var captured = File.ReadAllBytes(Path.Combine(dir, "blobs", sha + ".bin"));
                 if (!captured.AsSpan().SequenceEqual(globals))
@@ -278,6 +279,20 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                 roles[sha] = "material " + material;
             }
             output.WriteLine($"face {f}: {actions.Count} actions; blocks {string.Join(", ", roles.Values.Order())}");
+            // Every draw's fixed-function state from its programs and pass (CubemapFacePipelines), field by field
+            // against the capture's, and drawn with ours; the draws of programs not ported keep the capture's.
+            var keptPipelines = 0;
+            replay.StateHook = (r, theirs) =>
+            {
+                if (OurPipeline(r, theirs, programs) is not { } ours)
+                {
+                    keptPipelines++;
+                    return theirs;
+                }
+                foreach (var difference in PipelineDifferences(theirs, ours))
+                    failures.Add($"face {f} {r["eid"]}: {difference}");
+                return ours;
+            };
             // A face that sees no world (probe01's +Z) draws the sky alone; any other face uses every block.
             foreach (var role in (roles.ContainsValue("world") ? ours.Keys : (IEnumerable<string>)["sky"]).Except(roles.Values))
                 failures.Add($"face {f}: no captured block for {role}");
@@ -290,6 +305,7 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                     failures.Add($"face {f} {r["eid"]}: {result}");
                 }
             }
+            output.WriteLine($"  pipelines: {keptPipelines} draws keep the capture's (programs not ported)");
             var colorName = actions.Where(r => r["outputs"]!.AsArray().Count > 0).Select(r => (string)r["outputs"]![0]!).Last();
             var face = replay.ReadLive(colorName);
             var readback = File.ReadAllBytes(Path.Combine(readbackDir, $"readback_{f}.bin"));
@@ -313,6 +329,69 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// Our programs of the face's passes, by the SHA-1 of their SPIR-V: csgo_depth_only's vertex program (both
+    /// D_COMPRESSED_NORMALS_AND_TANGENTS combos; no pixel program, the pass from its target), the sky's and both
+    /// depth downsamples' pixel programs with their render state. generic's colour programs come per material
+    /// (<see cref="MaterialGlobals"/>).
+    /// </summary>
+    private static readonly Lazy<Dictionary<string, (CubemapFacePipelines.Pass, ValveResourceFormat.CompiledShader.VfxRenderStateInfoPixelShader?)>> FacePrograms = new(() =>
+    {
+        var game = Path.Combine(Environment.GetEnvironmentVariable("CS2_DIR") ?? @"D:\Steam\steamapps\common\Counter-Strike Global Offensive", "game");
+        using var csgo = new ValvePak.Package();
+        csgo.Read(Path.Combine(game, "csgo", "shaders_vulkan_dir.vpk"));
+        using var core = new ValvePak.Package();
+        core.Read(Path.Combine(game, "core", "shaders_vulkan_dir.vpk"));
+        var map = new Dictionary<string, (CubemapFacePipelines.Pass, ValveResourceFormat.CompiledShader.VfxRenderStateInfoPixelShader?)>();
+        foreach (var compressed in new[] { 0, 1 })
+            map[Sha1(ValveProgram.Load(csgo, "csgo_depth_only", "vulkan_50", "vs", new Dictionary<string, int>(), new Dictionary<string, int> { ["D_COMPRESSED_NORMALS_AND_TANGENTS"] = compressed }).Spirv)]
+                = (CubemapFacePipelines.Pass.DepthPrepass, null);
+        void Pixel(ValvePak.Package pak, string shader, Dictionary<string, int> dynamics, CubemapFacePipelines.Pass pass)
+        {
+            var program = ValveProgram.Load(pak, shader, "vulkan_50", "ps", new Dictionary<string, int>(), dynamics);
+            map[Sha1(program.Spirv)] = (pass, (ValveResourceFormat.CompiledShader.VfxRenderStateInfoPixelShader)program.RenderState);
+        }
+        Pixel(csgo, "sky", new() { ["D_FOG_TYPE"] = 0 }, CubemapFacePipelines.Pass.Sky);
+        Pixel(core, "downsample_depth", new() { ["D_MINMAX_CHECKER_2X2"] = 1, ["D_NON_MSAA_DEPTH"] = 1 }, CubemapFacePipelines.Pass.DownsampleHalf);
+        Pixel(core, "downsample_depth", new() { ["D_MAX"] = 1, ["D_NON_MSAA_DEPTH"] = 1 }, CubemapFacePipelines.Pass.DownsampleQuarter);
+        return map;
+    });
+
+    /// <summary>
+    /// Our fixed-function state for a captured draw, or null when its programs are not ours (the viewmodel, the
+    /// pawn's AO box). A depth-only draw is a sun cascade's when it draws into the shadow atlas (a depth target with
+    /// no stencil), else the prepass's.
+    /// </summary>
+    private static SceneDrawState? OurPipeline(JsonNode r, SceneDrawState theirs, Dictionary<string, (CubemapFacePipelines.Pass Pass, ValveResourceFormat.CompiledShader.VfxRenderStateInfoPixelShader? State)> programs)
+    {
+        if (theirs.PixelSpirv is { } ps)
+            return programs.TryGetValue(Sha1(ps), out var p) && p.State != null ? CubemapFacePipelines.Apply(theirs, p.Pass, p.State) : null;
+        if (!programs.TryGetValue(Sha1(theirs.VertexSpirv), out var v) || v.State != null)
+            return null;
+        var atlas = theirs.DepthFormat == Silk.NET.Vulkan.Format.D16Unorm;
+        return CubemapFacePipelines.Apply(theirs, atlas ? CubemapFacePipelines.Pass.SunShadow : CubemapFacePipelines.Pass.DepthPrepass, null);
+    }
+
+    /// <summary>Each fixed-function field where our state is not the capture's (the colour write mask only with a colour target).</summary>
+    private static IEnumerable<string> PipelineDifferences(SceneDrawState theirs, SceneDrawState ours)
+    {
+        (string, object, object)[] fields =
+        [
+            ("topology", theirs.Topology, ours.Topology), ("cull", theirs.Cull, ours.Cull), ("front", theirs.Front, ours.Front),
+            ("bias", theirs.DepthBias, ours.DepthBias), ("bias constant", theirs.DepthBiasConstant, ours.DepthBiasConstant),
+            ("bias slope", theirs.DepthBiasSlope, ours.DepthBiasSlope), ("bias clamp", theirs.DepthBiasClamp, ours.DepthBiasClamp),
+            ("depth clamp", theirs.DepthClamp, ours.DepthClamp), ("depth test", theirs.DepthTest, ours.DepthTest),
+            ("depth write", theirs.DepthWrite, ours.DepthWrite), ("depth compare", theirs.DepthCompare, ours.DepthCompare),
+            ("stencil", theirs.StencilTest, ours.StencilTest), ("stencil front", theirs.StencilFront, ours.StencilFront),
+            ("stencil back", theirs.StencilBack, ours.StencilBack), ("blend", theirs.Blend?.ToString() ?? "none", ours.Blend?.ToString() ?? "none"),
+            ("min depth", theirs.Viewport.MinDepth, ours.Viewport.MinDepth), ("max depth", theirs.Viewport.MaxDepth, ours.Viewport.MaxDepth),
+            ("write mask", theirs.ColorFormat != null ? theirs.ColorWriteMask : "-", theirs.ColorFormat != null ? ours.ColorWriteMask : "-"),
+        ];
+        foreach (var (name, a, b) in fields)
+            if (!Equals(a, b))
+                yield return $"{name} {a} captured, {b} ours";
+    }
+
+    /// <summary>
     /// generic's pixel _Globals_ (set 1 binding 0) of every world colour draw, from the captured package: the draw's
     /// first vertex stream is a world node model's vertex buffer (byte for byte), its first index and vertex offset
     /// name the draw call, and the draw call names the material. The program is generic's colour combo for the
@@ -320,7 +399,8 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
     /// module, and the block is <see cref="ProgramGlobals.Fill"/> with g_bRenderingToCubemaps = 1 and gameinfo's
     /// ShaderIDColors (ledger 120). By captured block hash: the material and our block.
     /// </summary>
-    private static Dictionary<string, (string Material, byte[] Globals)> MaterialGlobals(IEnumerable<JsonNode> actions, Func<string, byte[]> blob, string facesDir, string spirvDir, List<string> failures)
+    private static Dictionary<string, (string Material, byte[] Globals)> MaterialGlobals(IEnumerable<JsonNode> actions, Func<string, byte[]> blob, string facesDir, string spirvDir, List<string> failures,
+        Dictionary<string, (CubemapFacePipelines.Pass, ValveResourceFormat.CompiledShader.VfxRenderStateInfoPixelShader?)>? programs = null)
     {
         var models = PackageModels.Value.GetOrAdd(Directory.GetFiles(facesDir, "*.vpk").Single(), LoadModels);
         var result = new Dictionary<string, (string, byte[])>();
@@ -347,6 +427,7 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
             var module = File.ReadAllBytes(Path.Combine(spirvDir, $"{int.Parse(((string)ps["shader"]!).Split(' ')[^1], System.Globalization.CultureInfo.InvariantCulture):x}.spv"));
             if (!program.Spirv.AsSpan().SequenceEqual(module))
                 failures.Add($"{r["eid"]}: {materialPath}'s generic colour program is not the draw's module");
+            programs?.TryAdd(Sha1(program.Spirv), (CubemapFacePipelines.Pass.Colour, (ValveResourceFormat.CompiledShader.VfxRenderStateInfoPixelShader)program.RenderState));
             // Materials whose blocks are the same bytes share one captured block (the game uploads by content).
             if (had.Item2 != null && !had.Item2.AsSpan().SequenceEqual(globals))
                 failures.Add($"{r["eid"]}: block {sha[..8]} serves {had.Item1} and {materialPath}, whose blocks differ");
@@ -726,6 +807,9 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
         /// capture: CUBEREPLAY_BASELINE=1, for sensitivity sweeps on a GPU other than the one that made the capture.
         /// </summary>
         public Dictionary<string, byte[]>? Baselines { get; set; } = Environment.GetEnvironmentVariable("CUBEREPLAY_BASELINE") == "1" ? [] : null;
+
+        /// <summary>Given the draw and its captured fixed-function state, the state to draw with (ours, where we build it).</summary>
+        public Func<JsonNode, SceneDrawState, SceneDrawState>? StateHook { get; set; }
 
         /// <summary>Buffer contents to use in place of the captured blob of that hash (constant blocks we build).</summary>
         public Dictionary<string, byte[]> Overrides { get; } = [];
@@ -1207,6 +1291,8 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
             }
             if (blends.Skip(1).Any(b => (bool)b!["enabled"]!))
                 return "blending on a second target not modelled";
+            if (StateHook != null)
+                state = StateHook(rec, state);
             // CUBEREPLAY_LOOSE=<eid>: that draw with no depth or stencil test, no culling and the whole target as
             // viewport and scissor, to see where its triangles land at all.
             if (Environment.GetEnvironmentVariable("CUBEREPLAY_LOOSE") is { } loose && loose == ((int)rec["eid"]!).ToString(System.Globalization.CultureInfo.InvariantCulture))

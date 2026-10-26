@@ -4044,6 +4044,28 @@ game can answer is raised with the user first, and runs with -insecure.
     - Open: s2c_l5probe's cube 1 (needs a capture, CS2 and Steam closed) for its whole array; the viewmodel's own
       draws (models, skinning, per-view and light blocks); a map whose volumes have other priorities or equal boxes.
 
+150. **The cubemap face's fixed-function state from the programs** (2026-10-26: Valve's .vcs render state through
+    ValveProgram.RenderState; scenesystem 20261023's convar registrations 180006c00 .. 180006eb0;
+    CubemapFacePipelines; checked inside CubemapFaceReplayTests.ChainedCubeMakesTheGamesExr, which now draws with
+    our state, on probe01's two cubes and s2c_l5probe's cube 0).
+    - Settled by the shaders' files: a pixel program's .vcs carries the rasterizer, depth-stencil and blend
+      descriptors of its dynamic combo (VfxRenderStateInfoPixelShader), and those are the captured pipeline's for
+      generic's colour combo (back faces culled, depth less-or-equal and written), the sky (no culling, depth tested
+      and not written), and both depth downsamples (depth always, written, no colour writes).
+    - Settled by the capture, the engine's part on top: every pipeline has depth bias on and counter-clockwise
+      front faces; the depth-only passes (csgo_depth_only, no pixel program) cull back faces and test
+      less-or-equal with writes; the sun cascades' slope bias is sc_shadow_slopescale_depth_bias's default 2.13
+      (180006d50 stores it as the registration's default), constant bias and clamp 0 (sc_shadow_depth_bias_clamp
+      defaults to 0, 180006e00); the colour pass's stencil is front not-equal (stencil & 1, reference 3), back
+      always, write mask 254, keep everywhere; the quarter downsample's stencil always replaces with 0 under
+      compare mask 0; viewport depth 0 .. 0.95 for the prepass and colour, 1 .. 1 for the sky, 0 .. 1 otherwise;
+      the downsamples draw 4-vertex strips. Which engine code sets the stencil states, the depth ranges and the
+      depth-only passes' state is not read.
+    - Not decoded: sc_shadow_depth_bias's registration stores 0x100 as its default (180006ca0), while the captured
+      constant bias is 0.
+    - Every world, sky and downsample draw of the three cubes takes our state, field for field the capture's, and
+      the cubes' EXRs stay the game's. The viewmodel's draws and the pawn's AO box keep the capture's.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).
