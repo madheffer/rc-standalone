@@ -35,6 +35,9 @@ public sealed class ValveProgram
     /// </summary>
     public required VfxRenderStateInfo RenderState { get; init; }
 
+    /// <summary>The picked combo's shader file (a Vulkan file carries the vertex inputs' attribute map).</summary>
+    public required VfxShaderFile ShaderFile { get; init; }
+
     private static VfxProgramData Read(Package package, string name)
     {
         var entry = package.FindEntry($"shaders/vfx/{name}.vcs") ?? throw new FileNotFoundException(name);
@@ -104,6 +107,7 @@ public sealed class ValveProgram
             Sequence = sequence,
             FeatureNames = featureNames,
             RenderState = combo.DynamicComboRenderStates[index],
+            ShaderFile = file,
         };
     }
 }

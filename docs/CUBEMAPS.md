@@ -678,9 +678,12 @@ depth ranges come from the pass. The whole-cube test draws every world, sky
 and downsample draw with that state and checks each field against the
 capture. Since ledger 153 the samplers are ours too (`CubemapFaceSamplers`:
 each slot's state variables from the write sequence, set 1 binding 14 +
-slot). Still taken from the capture: the vertex layout, the viewport and
-scissor rectangles, and the state of the draws whose programs are not ported
-(the viewmodel, the pawn's AO box).
+slot), and since ledger 154 the vertex layouts (`CubemapFaceVertexLayout`:
+each input's semantic from the shader file's attribute map, fed from the
+mesh, the instance ids or the zero stream). Still taken from the capture: the
+viewport and scissor rectangles, the draw list and its arguments, and the
+state of the draws whose programs are not ported (the viewmodel, the pawn's
+AO box).
 
 ### The textures (2026-10-26, ledger 150)
 

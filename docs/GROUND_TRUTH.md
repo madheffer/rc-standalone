@@ -4117,6 +4117,17 @@ game can answer is raised with the user first, and runs with -insecure.
       and the 0 .. 15 LOD range comes from the engine.
     - Every sampler of the world colour and sky draws is ours, field for field the capture's, on the three cubes.
 
+154. **The cubemap face's vertex layouts from the programs** (2026-10-26: the Vulkan shader files' attribute maps,
+    VfxShaderFileVulkan.AttribMap; CubemapFaceVertexLayout; the whole-cube test draws with them).
+    - Settled by the shaders' files and capture: each vertex input's location has a D3D semantic in the shader
+      file's attribute map; the input reads the mesh's field of that semantic from binding 0 (generic's colour
+      combo: POSITION0, TEXCOORD0, NORMAL0, TEXCOORD3 of the world model; csgo_depth_only: POSITION0; the sky its
+      cube's R32G32B32 position; a downsample its quad's R32G32 position); TEXCOORD13 is the per-instance id stream
+      (binding 1, 4 bytes); an input the mesh lacks (BLENDINDICES0 on these models) reads the 16-byte zero stream
+      (binding 2, stride 0, per instance) in its own type. Scene draws bind the three streams, a downsample its quad
+      and the zero stream.
+    - Every world, sky and downsample draw's layout is ours, field for field the capture's, on the three cubes.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

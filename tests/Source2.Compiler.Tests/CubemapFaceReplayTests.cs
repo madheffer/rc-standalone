@@ -319,6 +319,7 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
             // against the capture's, and drawn with ours; the draws of programs not ported keep the capture's.
             var keptPipelines = 0;
             var oursSamplers = 0;
+            var oursLayouts = 0;
             replay.SamplerHook = (r, smp) =>
             {
                 if ((int)smp["bind"]!["set"]! != 1)
@@ -347,6 +348,36 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                     keptPipelines++;
                     return theirs;
                 }
+                // The vertex layout from the vertex program's inputs over the mesh.
+                if (VertexPrograms.Value.TryGetValue(Sha1(theirs.VertexSpirv), out var vp))
+                {
+                    var vb0 = (string)r["vertexInput"]!["vertexBuffers"]![0]!["resourceId"]!;
+                    var model = vp.Mesh == "model"
+                        ? PackageModels.Value.GetOrAdd(Directory.GetFiles(facesDir, "*.vpk").Single(), LoadModels).FirstOrDefault(m => m.VertexSha == (string)r["contents"]!["before"]![vb0]!["sha1"]!)
+                        : null;
+                    var (fields, stride) = vp.Mesh switch
+                    {
+                        "model" when model != null => (model.Fields, model.Stride),
+                        "sky" => (CubemapFaceVertexLayout.SkyCube, 12u),
+                        "quad" => (CubemapFaceVertexLayout.DownsampleQuad, 32u),
+                        _ => (null, 0u),
+                    };
+                    if (fields != null)
+                    {
+                        var instanced = vp.Mesh != "quad";
+                        ours = ours with { Attributes = CubemapFaceVertexLayout.Attributes(vp.Program, fields, instanced), Bindings = CubemapFaceVertexLayout.Bindings(stride, instanced) };
+                        var a = string.Join(" ", theirs.Attributes.OrderBy(x => x.Location).Select(x => $"{x.Location}:{x.Binding}:{x.Format}:{x.Offset}"));
+                        var b = string.Join(" ", ours.Attributes.OrderBy(x => x.Location).Select(x => $"{x.Location}:{x.Binding}:{x.Format}:{x.Offset}"));
+                        if (a != b)
+                            failures.Add($"face {f} {r["eid"]}: attributes {a} captured, {b} ours");
+                        var bt = string.Join(" ", theirs.Bindings.Select(x => $"{x.Stride}{(x.PerInstance ? "i" : "v")}"));
+                        var bo = string.Join(" ", ours.Bindings.Select(x => $"{x.Stride}{(x.PerInstance ? "i" : "v")}"));
+                        // The capture lists every bound stream; ours name the ones a layout uses.
+                        if (!bt.StartsWith(bo, StringComparison.Ordinal))
+                            failures.Add($"face {f} {r["eid"]}: bindings {bt} captured, {bo} ours");
+                        oursLayouts++;
+                    }
+                }
                 foreach (var difference in PipelineDifferences(theirs, ours))
                     failures.Add($"face {f} {r["eid"]}: {difference}");
                 return ours;
@@ -363,7 +394,7 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                     failures.Add($"face {f} {r["eid"]}: {result}");
                 }
             }
-            output.WriteLine($"  pipelines: {keptPipelines} draws keep the capture's (programs not ported); samplers: {oursSamplers} bindings ours");
+            output.WriteLine($"  pipelines: {keptPipelines} draws keep the capture's (programs not ported); samplers: {oursSamplers} bindings ours; vertex layouts: {oursLayouts} draws ours");
             var colorName = actions.Where(r => r["outputs"]!.AsArray().Count > 0).Select(r => (string)r["outputs"]![0]!).Last();
             var face = replay.ReadLive(colorName);
             var readback = File.ReadAllBytes(Path.Combine(readbackDir, $"readback_{f}.bin"));
@@ -411,6 +442,34 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
         Pixel(csgo, "sky", new() { ["D_FOG_TYPE"] = 0 }, CubemapFacePipelines.Pass.Sky);
         Pixel(core, "downsample_depth", new() { ["D_MINMAX_CHECKER_2X2"] = 1, ["D_NON_MSAA_DEPTH"] = 1 }, CubemapFacePipelines.Pass.DownsampleHalf);
         Pixel(core, "downsample_depth", new() { ["D_MAX"] = 1, ["D_NON_MSAA_DEPTH"] = 1 }, CubemapFacePipelines.Pass.DownsampleQuarter);
+        return map;
+    });
+
+    /// <summary>
+    /// Our vertex programs of the face's draws by the SHA-1 of their SPIR-V, each with the mesh it reads: generic's
+    /// colour combo (lightmapped; both D_COMPRESSED_NORMALS_AND_TANGENTS combos; the world model's fields),
+    /// csgo_depth_only (both combos), the sky (its cube) and the depth downsample (its quad; not instanced).
+    /// </summary>
+    private static readonly Lazy<Dictionary<string, (ValveProgram Program, string Mesh)>> VertexPrograms = new(() =>
+    {
+        var game = Path.Combine(Environment.GetEnvironmentVariable("CS2_DIR") ?? @"D:\Steam\steamapps\common\Counter-Strike Global Offensive", "game");
+        using var csgo = new ValvePak.Package();
+        csgo.Read(Path.Combine(game, "csgo", "shaders_vulkan_dir.vpk"));
+        using var core = new ValvePak.Package();
+        core.Read(Path.Combine(game, "core", "shaders_vulkan_dir.vpk"));
+        var map = new Dictionary<string, (ValveProgram, string)>();
+        void Add(ValvePak.Package pak, string shader, Dictionary<string, int> statics, Dictionary<string, int> dynamics, string mesh)
+        {
+            var p = ValveProgram.Load(pak, shader, "vulkan_50", "vs", statics, dynamics);
+            map[Sha1(p.Spirv)] = (p, mesh);
+        }
+        foreach (var compressed in new[] { 0, 1 })
+        {
+            Add(csgo, "generic", new() { ["S_MODE_TOOLS_VIS"] = 1 }, new() { ["D_BAKED_LIGHTING_FROM_LIGHTMAP"] = 1, ["D_COMPRESSED_NORMALS_AND_TANGENTS"] = compressed }, "model");
+            Add(csgo, "csgo_depth_only", [], new() { ["D_COMPRESSED_NORMALS_AND_TANGENTS"] = compressed }, "model");
+        }
+        Add(csgo, "sky", [], [], "sky");
+        Add(core, "downsample_depth", [], [], "quad");
         return map;
     });
 
@@ -754,7 +813,8 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
     }
 
     /// <summary>A world node model of a package: its vertex buffer's hash and its draw calls' ranges and materials.</summary>
-    private sealed record PackageModel(string Name, string VertexSha, List<(int Start, int Count, int BaseVertex, string? Material)> Draws, byte[] Vertices, byte[] Indices, int IndexSize);
+    private sealed record PackageModel(string Name, string VertexSha, List<(int Start, int Count, int BaseVertex, string? Material)> Draws, byte[] Vertices, byte[] Indices, int IndexSize,
+        CubemapFaceVertexLayout.Field[] Fields, uint Stride);
 
     private static readonly Lazy<System.Collections.Concurrent.ConcurrentDictionary<string, List<PackageModel>>> PackageModels = new(() => new());
 
@@ -776,7 +836,9 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                     .Select(dc => (dc.GetInt32Property("m_nStartIndex"), dc.GetInt32Property("m_nIndexCount"), dc.GetInt32Property("m_nBaseVertex"), dc.GetStringProperty("m_material"))).ToList();
                 if (mesh.VBIB.VertexBuffers.Count > 0)
                     models.Add(new PackageModel(entry.GetFullPath(), Sha1(mesh.VBIB.VertexBuffers[0].Data), draws,
-                        mesh.VBIB.VertexBuffers[0].Data, mesh.VBIB.IndexBuffers[0].Data, (int)mesh.VBIB.IndexBuffers[0].ElementSizeInBytes));
+                        mesh.VBIB.VertexBuffers[0].Data, mesh.VBIB.IndexBuffers[0].Data, (int)mesh.VBIB.IndexBuffers[0].ElementSizeInBytes,
+                        [.. mesh.VBIB.VertexBuffers[0].InputLayoutFields.Select(x => new CubemapFaceVertexLayout.Field(x.SemanticName, x.SemanticIndex, CubemapFaceVertexLayout.FromDxgi(x.Format.ToString()), x.Offset))],
+                        mesh.VBIB.VertexBuffers[0].ElementSizeInBytes));
             }
         }
         return models;

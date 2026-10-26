@@ -11,6 +11,37 @@ namespace Source2.Compiler.Tests;
 /// </summary>
 public sealed class CubemapPipelineProbe(ITestOutputHelper output)
 {
+    /// <summary><c>CUBEPIPE=1</c>: each vertex program's inputs, location by location, with the attribute map's D3D semantic.</summary>
+    [Fact]
+    public void VertexInputs()
+    {
+        if (Environment.GetEnvironmentVariable("CUBEPIPE") != "1")
+            return;
+        var game = Path.Combine(Environment.GetEnvironmentVariable("CS2_DIR") ?? @"D:\Steam\steamapps\common\Counter-Strike Global Offensive", "game");
+        using var csgo = new ValvePak.Package();
+        csgo.Read(Path.Combine(game, "csgo", "shaders_vulkan_dir.vpk"));
+        using var core = new ValvePak.Package();
+        core.Read(Path.Combine(game, "core", "shaders_vulkan_dir.vpk"));
+        (string Name, ValvePak.Package Pak, string Shader, Dictionary<string, int> Statics, Dictionary<string, int> Dynamics)[] programs =
+        [
+            ("generic colour", csgo, "generic", new() { ["S_MODE_TOOLS_VIS"] = 1 }, new() { ["D_BAKED_LIGHTING_FROM_LIGHTMAP"] = 1, ["D_COMPRESSED_NORMALS_AND_TANGENTS"] = 1 }),
+            ("depth only", csgo, "csgo_depth_only", [], new() { ["D_COMPRESSED_NORMALS_AND_TANGENTS"] = 1 }),
+            ("depth only 0", csgo, "csgo_depth_only", [], []),
+            ("sky", csgo, "sky", [], []),
+            ("downsample", core, "downsample_depth", [], []),
+        ];
+        foreach (var (name, pak, shader, statics, dynamics) in programs)
+        {
+            var p = ValveProgram.Load(pak, shader, "vulkan_50", "vs", statics, dynamics);
+            output.WriteLine($"{name}: {p.Name} ({p.ShaderFile.GetType().Name})");
+            foreach (var input in p.Reflection.Inputs.OrderBy(i => i.Location))
+            {
+                var semantic = p.ShaderFile is VfxShaderFileVulkan v && v.TryGetInputSemantic((uint)input.Location, out var sn, out var si) ? $"{sn}{si}" : "?";
+                output.WriteLine($"  location {input.Location}: {input.Name} {input.Type} x{input.Components} {semantic}");
+            }
+        }
+    }
+
     [Fact]
     public void RenderStates()
     {
