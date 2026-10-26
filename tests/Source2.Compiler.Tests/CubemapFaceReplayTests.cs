@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using Silk.NET.Vulkan;
 using Source2.Compiler.Gpu;
 using ValveResourceFormat.ResourceTypes;
+using ValveResourceFormat.Serialization.KeyValues;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -104,10 +105,10 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// probe01's two env_combined_light_probe_volumes (array_index 0 and 1): each is a cube record (its origin)
-    /// and a light probe volume. A face's light block lists the volumes whose box meets the face's frustum, in the
-    /// order the captures show (volume 1, then volume 0, on every face of both cubes); the gather and its order are
-    /// not read (GROUND_TRUTH 147).
+    /// probe01's two env_combined_light_probe_volumes (array_index 0 and 1; s2c_l5probe has the same two): each is a
+    /// cube record (its origin) and a light probe volume. A face's light block lists the visible volumes in
+    /// <see cref="Cubemaps.CubemapFaceConstants.VisibleVolumes"/>' order: both have priority 0, and volume 1's box is
+    /// the smaller, so it comes first wherever both are seen.
     /// </summary>
     private static readonly Cubemaps.CubemapFaceConstants.LightProbeVolume[] Probe01Volumes =
     [
@@ -115,16 +116,13 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
         new(new(512, 1104, 112), new(-576, -144, -112), new(640, 336, 144), new(0, 32, 0), 1),
     ];
 
-    private static readonly int[] Probe01VolumeOrder = [1, 0];
-
     /// <summary>The same blocks for any face of one of probe01's cubes, by role (<see cref="BlockRoles"/>).</summary>
-    private static Dictionary<string, byte[]> OurBlocks(int face, int cube = 0)
+    private static Dictionary<string, byte[]> OurBlocks(int face, int cube = 0, bool scriptedCamera = true)
     {
         var origin = Probe01Volumes[cube].Origin;
         var view = Cubemaps.CubemapFaceViews.Face(origin, System.Numerics.Vector3.Zero, 1f, 10000f, face);
         var frustum = Cubemaps.AggregateCulling.FaceFrustum(view);
-        var volumes = Probe01VolumeOrder.Select(i => Probe01Volumes[i])
-            .Where(v => !Cubemaps.AggregateCulling.Outside(frustum, v.Origin + v.BoxMins, v.Origin + v.BoxMaxs)).ToList();
+        var volumes = Cubemaps.CubemapFaceConstants.VisibleVolumes(frustum, Probe01Volumes);
         var fog = new Cubemaps.CubemapFaceConstants.CubeFog(400f, 12000f, 0.5f, 1.2f, new System.Numerics.Vector4(0f, 2000f, 1f, 1f),
             System.Numerics.Matrix4x4.CreateTranslation(512, 112, 80));
         var ours = new Dictionary<string, byte[]>
@@ -139,7 +137,7 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
         };
         // The sun cascades' per-view blocks (three cascades and the viewmodel one).
         var (sun, _, cameraDirection) = Cubemaps.CubemapShadowCascades.SunDirections(new System.Numerics.Vector3(74.99999f, 180.00002f, 0f));
-        var cascades = Cubemaps.CubemapShadowCascades.GameCascades(view, sun, 1f, 10000f);
+        var cascades = Cubemaps.CubemapShadowCascades.GameCascades(view, sun, 1f, 10000f, scriptedCamera);
         var tiles = CascadeTiles;
         for (var k = 0; k < 4; k++)
             ours[$"cascade{k}"] = Cubemaps.CubemapFaceConstants.CascadePerView(cascades[k], cameraDirection, tiles[k][0], tiles[k][1], Cubemaps.CubemapShadowCascades.Inputs.Resolution, Cubemaps.CubemapShadowCascades.Inputs.AtlasWidth, Cubemaps.CubemapShadowCascades.Inputs.AtlasHeight);
@@ -147,7 +145,7 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
         var (_, lightDir, _) = Cubemaps.CubemapShadowCascades.SunDirections(new System.Numerics.Vector3(74.99999f, 180.00002f, 0f));
         var sunLight = new Cubemaps.CubemapFaceConstants.Sun(lightDir, Lighting.SceneLights.SrgbToLinear(248, 249, 232) * 2.25f, 0.1f, 0.05f,
             Lighting.SceneLights.SrgbToLinear(138, 200, 255), 0.875f);
-        var stretched = Cubemaps.CubemapShadowCascades.Slice(view, 1f, Cubemaps.CubemapShadowCascades.GameDistances(1f, 10000f)[^1]).Diameter * 1.42f;
+        var stretched = Cubemaps.CubemapShadowCascades.Slice(view, 1f, Cubemaps.CubemapShadowCascades.GameDistances(1f, 10000f, scriptedCamera)[^1]).Diameter * 1.42f;
         // The light binner, from the face's visible items: no lights or environment maps, the volumes above.
         ours["binner"] = Cubemaps.CubemapFaceConstants.LightBinnerCullParams(1024, 1024, 10000f, 0, 0, volumes.Count);
         // The sky: env_sky's angles as the sky object's rotation, its material's $Globals, and the depth downsamples'.
@@ -228,7 +226,7 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
             using var replay = new Replay(dir, spirvDir, resources, gpu, runner) { Chain = true, StartFromClear = true };
             var actions = File.ReadLines(Path.Combine(dir, "actions.jsonl")).Select(l => JsonNode.Parse(l)!)
                 .Where(r => r["contents"] is not null && (r["stages"]?["vs"] is not null || r["stages"]?["cs"] is not null)).ToList();
-            var ours = OurBlocks(f, cube);
+            var ours = OurBlocks(f, cube, Environment.GetEnvironmentVariable("CUBEREPLAY_SCRIPTEDCAMERA") != "0");
             var roles = BlockRoles(actions, sha => File.ReadAllBytes(Path.Combine(dir, "blobs", sha + ".bin")));
             foreach (var (sha, role) in roles)
             {
@@ -257,6 +255,27 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                     output.WriteLine("  " + failures[^1]);
                 }
                 replay.Overrides[sha] = captured.Length > ours[role].Length ? [.. ours[role], .. captured.AsSpan(ours[role].Length)] : ours[role];
+                // CUBEREPLAY_WORDS=1: how many words of each block differ from the capture's (diagnosis).
+                if (Environment.GetEnvironmentVariable("CUBEREPLAY_WORDS") == "1")
+                {
+                    var n = Math.Min(captured.Length, ours[role].Length) / 4;
+                    var wrong = Enumerable.Range(0, n).Where(w => BitConverter.ToUInt32(captured, w * 4) != BitConverter.ToUInt32(ours[role], w * 4)).ToList();
+                    output.WriteLine($"  {role} {sha[..6]}: {wrong.Count} of {n} words differ{(wrong.Count > 0 ? ": " + string.Join(", ", wrong.Take(24).Select(w => $"+{w * 4} {BitConverter.ToSingle(captured, w * 4):G9}/{BitConverter.ToSingle(ours[role], w * 4):G9}")) : "")}");
+                }
+            }
+            // generic's _Globals_ of each world colour draw from its material (the package names it per draw call).
+            foreach (var (sha, (material, globals)) in MaterialGlobals(actions, sha => File.ReadAllBytes(Path.Combine(dir, "blobs", sha + ".bin")), facesDir, spirvDir, failures))
+            {
+                var captured = File.ReadAllBytes(Path.Combine(dir, "blobs", sha + ".bin"));
+                if (!captured.AsSpan().SequenceEqual(globals))
+                {
+                    var words = Enumerable.Range(0, Math.Min(captured.Length, globals.Length) / 4).Where(w => BitConverter.ToUInt32(captured, w * 4) != BitConverter.ToUInt32(globals, w * 4))
+                        .Select(w => $"+{w * 4} {BitConverter.ToUInt32(captured, w * 4):x8}/{BitConverter.ToUInt32(globals, w * 4):x8}");
+                    failures.Add($"face {f}: {material}'s _Globals_ is not the capture's ({string.Join(", ", words)})");
+                    output.WriteLine("  " + failures[^1]);
+                }
+                replay.Overrides[sha] = globals;
+                roles[sha] = "material " + material;
             }
             output.WriteLine($"face {f}: {actions.Count} actions; blocks {string.Join(", ", roles.Values.Order())}");
             // A face that sees no world (probe01's +Z) draws the sky alone; any other face uses every block.
@@ -294,6 +313,112 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// generic's pixel _Globals_ (set 1 binding 0) of every world colour draw, from the captured package: the draw's
+    /// first vertex stream is a world node model's vertex buffer (byte for byte), its first index and vertex offset
+    /// name the draw call, and the draw call names the material. The program is generic's colour combo for the
+    /// cubemap view (S_MODE_TOOLS_VIS, lightmapped) with the material's features; its SPIR-V must be the draw's
+    /// module, and the block is <see cref="ProgramGlobals.Fill"/> with g_bRenderingToCubemaps = 1 and gameinfo's
+    /// ShaderIDColors (ledger 120). By captured block hash: the material and our block.
+    /// </summary>
+    private static Dictionary<string, (string Material, byte[] Globals)> MaterialGlobals(IEnumerable<JsonNode> actions, Func<string, byte[]> blob, string facesDir, string spirvDir, List<string> failures)
+    {
+        var models = PackageModels.Value.GetOrAdd(Directory.GetFiles(facesDir, "*.vpk").Single(), LoadModels);
+        var result = new Dictionary<string, (string, byte[])>();
+        foreach (var r in actions)
+        {
+            if (r["stages"]?["ps"] is not { } ps || r["outputs"]!.AsArray().Count == 0
+                || ps["constantBlocks"]!.AsArray().FirstOrDefault(c => c!["bytes"] is not null && (int)c["block"]!["fixedBindSetOrSpace"]! == 1 && (int)c["block"]!["fixedBindNumber"]! == 0) is not { } cb
+                || !r["stages"]!["vs"]!["readWrite"]!.AsArray().Concat(r["stages"]!["vs"]!["readOnly"]!.AsArray()).Any(x => (int)x!["bind"]!["set"]! == 4 && (int)x["bind"]!["binding"]! == 30))
+                continue;
+            var vb = (string)r["vertexInput"]!["vertexBuffers"]![0]!["resourceId"]!;
+            var vbSha = (string)r["contents"]!["before"]![vb]!["sha1"]!;
+            if (models.FirstOrDefault(m => m.VertexSha == vbSha) is not { } model)
+                continue;   // not a world node model (the viewmodel's draws)
+            var (first, baseVertex) = ((int)r["indexOffset"]!, (int)r["baseVertex"]!);
+            if (model.Draws.FirstOrDefault(d => d.Start == first && d.BaseVertex == baseVertex) is not { Material: { } materialPath })
+            {
+                failures.Add($"{r["eid"]}: no draw call of {model.Name} starts at index {first}");
+                continue;
+            }
+            var sha = (string)cb["bytes"]!["sha1"]!;
+            if (result.TryGetValue(sha, out var had) && had.Item1.Split(" = ").Contains(materialPath))
+                continue;
+            var (program, globals) = Globals(materialPath, blob(sha).Length);
+            var module = File.ReadAllBytes(Path.Combine(spirvDir, $"{int.Parse(((string)ps["shader"]!).Split(' ')[^1], System.Globalization.CultureInfo.InvariantCulture):x}.spv"));
+            if (!program.Spirv.AsSpan().SequenceEqual(module))
+                failures.Add($"{r["eid"]}: {materialPath}'s generic colour program is not the draw's module");
+            // Materials whose blocks are the same bytes share one captured block (the game uploads by content).
+            if (had.Item2 != null && !had.Item2.AsSpan().SequenceEqual(globals))
+                failures.Add($"{r["eid"]}: block {sha[..8]} serves {had.Item1} and {materialPath}, whose blocks differ");
+            result[sha] = (had.Item1 != null ? had.Item1 + " = " + materialPath : materialPath, globals);
+        }
+        return result;
+    }
+
+    /// <summary>A world node model of a package: its vertex buffer's hash and its draw calls' ranges and materials.</summary>
+    private sealed record PackageModel(string Name, string VertexSha, List<(int Start, int Count, int BaseVertex, string? Material)> Draws);
+
+    private static readonly Lazy<System.Collections.Concurrent.ConcurrentDictionary<string, List<PackageModel>>> PackageModels = new(() => new());
+
+    private static List<PackageModel> LoadModels(string vpk)
+    {
+        using var package = new ValvePak.Package();
+        package.Read(vpk);
+        var models = new List<PackageModel>();
+        foreach (var entry in package.Entries!.GetValueOrDefault("vmdl_c") ?? [])
+        {
+            if (!entry.DirectoryName.Contains("worldnodes", StringComparison.OrdinalIgnoreCase))
+                continue;
+            package.ReadEntry(entry, out var bytes);
+            using var resource = new ValveResourceFormat.Resource();
+            resource.Read(new MemoryStream(bytes));
+            foreach (var (mesh, _, _, _) in ((Model)resource.DataBlock!).GetEmbeddedMeshesAndLoD())
+            {
+                var draws = mesh.Data.GetArray("m_sceneObjects").SelectMany(so => so.GetArray("m_drawCalls"))
+                    .Select(dc => (dc.GetInt32Property("m_nStartIndex"), dc.GetInt32Property("m_nIndexCount"), dc.GetInt32Property("m_nBaseVertex"), dc.GetStringProperty("m_material"))).ToList();
+                if (mesh.VBIB.VertexBuffers.Count > 0)
+                    models.Add(new PackageModel(entry.GetFullPath(), Sha1(mesh.VBIB.VertexBuffers[0].Data), draws));
+            }
+        }
+        return models;
+    }
+
+    private static string Sha1(byte[] data) => Convert.ToHexStringLower(SHA1.HashData(data));
+
+    /// <summary>generic's colour program for a material in the cubemap view and its _Globals_ (<paramref name="size"/> bytes).</summary>
+    private static (ValveProgram Program, byte[] Globals) Globals(string materialPath, int size)
+    {
+        var game = Path.Combine(Environment.GetEnvironmentVariable("CS2_DIR") ?? @"D:\Steam\steamapps\common\Counter-Strike Global Offensive", "game");
+        var material = LoadMaterial(game, materialPath);
+        using var shaders = new ValvePak.Package();
+        shaders.Read(Path.Combine(game, "csgo", "shaders_vulkan_dir.vpk"));
+        var program = ValveProgram.Load(shaders, "generic", "vulkan_50", "ps", new Dictionary<string, int> { ["S_MODE_TOOLS_VIS"] = 1 },
+            new Dictionary<string, int> { ["D_BAKED_LIGHTING_FROM_LIGHTMAP"] = 1 }, material.IntParams.ToDictionary(kv => kv.Key, kv => (int)kv.Value));
+        var (r, g, b) = ProgramGlobals.ShaderIdColors(File.ReadAllText(Path.Combine(game, "csgo", "gameinfo.gi"))).GetValueOrDefault(material.ShaderName, (0, 0, 0));
+        var attributes = new Dictionary<string, VfxExpression.Value>(StringComparer.OrdinalIgnoreCase) { ["g_bRenderingToCubemaps"] = VfxExpression.Value.Of(1f) };
+        var block = new byte[size];
+        ProgramGlobals.Fill(program, block, new ProgramGlobals.MaterialScope(material, program, attributes, ProgramGlobals.ShaderIdColor(r, g, b)), (_, _) => -1, _ => -1);
+        return (program, block);
+    }
+
+    private static Material LoadMaterial(string game, string path)
+    {
+        foreach (var pak in new[] { Path.Combine(game, "csgo", "pak01_dir.vpk"), Path.Combine(game, "core", "pak01_dir.vpk") })
+        {
+            using var p = new ValvePak.Package();
+            p.Read(pak);
+            if (p.FindEntry(path + "_c") is { } e)
+            {
+                p.ReadEntry(e, out var bytes);
+                using var resource = new ValveResourceFormat.Resource();
+                resource.Read(new MemoryStream(bytes));
+                return (Material)resource.DataBlock!;
+            }
+        }
+        throw new FileNotFoundException(path);
+    }
+
+    /// <summary>
     /// Which of our blocks each captured constant block or buffer of a face's actions is, by where it is bound: set 0/1
     /// binding 1 (640 bytes) is a per-view block, the sky's when its depth range (+368) starts at 1, a sun cascade's when
     /// drawn into the D16 shadow atlas (cascade by the viewport's tile); binding 3 PerViewConstantBufferCsgo_t, set 1
@@ -306,6 +431,7 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
     private static Dictionary<string, string> BlockRoles(IEnumerable<JsonNode> actions, Func<string, byte[]> blob)
     {
         var roles = new Dictionary<string, string>();
+        var viewmodel = new HashSet<string>();
         void Add(string sha, string role)
         {
             if (roles.TryGetValue(sha, out var had) && had != role)
@@ -325,6 +451,18 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                 && (int)c["block"]!["fixedBindNumber"]! == 0 && (long)b["size"]! == 64);
             var depthName = (string?)r["depthOut"];
             var atlas = depthName != null && r["outputs"]!.AsArray().Count == 0 && depthName.Contains("Depth Attachment", StringComparison.Ordinal) && !depthName.Contains("Stencil", StringComparison.Ordinal);
+            // The local player's first-person viewmodel (s2c_l5probe's build had a spawned pawn): its own per-view
+            // block, depth range 0 .. 0.1 (+368, +372) where the world's ends at 0.95, and its own scene and light
+            // blocks. Not ported: the blocks only its draws read stay the capture's.
+            if (!atlas && r["stages"]!["vs"]!["constantBlocks"]!.AsArray().FirstOrDefault(c => c!["bytes"] is { } b && (int)c["block"]!["fixedBindNumber"]! == 1
+                    && (long)b["size"]! == 640) is { } view && BitConverter.ToSingle(blob((string)view["bytes"]!["sha1"]!), 372) is var maxDepth && maxDepth != 0.95f && maxDepth != 1f)
+            {
+                foreach (var stage in new[] { r["stages"]!["vs"], r["stages"]!["ps"] }.Where(s => s != null))
+                    foreach (var cb in stage!["constantBlocks"]!.AsArray())
+                        if (cb!["bytes"] is { } bytes && (cb["block"]!["bufferBacked"] is not { } backed || (bool)backed))
+                            viewmodel.Add((string)bytes["sha1"]!);
+                continue;
+            }
             foreach (var stage in new[] { r["stages"]!["vs"], r["stages"]!["ps"] }.Where(s => s != null))
             {
                 foreach (var cb in stage!["constantBlocks"]!.AsArray())
@@ -367,6 +505,7 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                 }
             }
         }
+        // A block the viewmodel shares with the world's draws (the prepass's light block) is the world's: the same bytes.
         return roles;
     }
 
@@ -599,6 +738,7 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
         /// </summary>
         public bool Chain { get; set; }
         private readonly Dictionary<string, SceneDrawRunner.SceneImage> _live = [];
+        private readonly Dictionary<(string, Format), ImageView> _liveViews = [];
         private readonly Dictionary<string, GpuDevice.GpuBuffer> _liveBuffers = [];
         public List<string> FirstUses { get; } = [];
 
@@ -611,8 +751,120 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
         /// <summary>This replay's chained targets start from a clear whatever CUBEREPLAY_START says.</summary>
         public bool StartFromClear { get; init; } = StartCleared;
 
+        /// <summary>
+        /// The capture's render passes (tools/cubehost/rdc_passes.py: passes.jsonl beside the face dumps, its first line
+        /// the image of each view): chained from cleared targets, each pass's CLEAR attachments are cleared to the
+        /// pass's value over its render area when the pass begins, as the game's vkCmdBeginRendering does.
+        /// </summary>
+        private readonly List<(int Eid, Rect2D Area, List<(string Image, char Aspect, float[] Value)> Clears, Dictionary<string, Format> ViewFormats)>? _passes = Passes(Path.Combine(dir, "..", "passes.jsonl"));
+        private int _clearedThrough = -1;
+
+        private static List<(int, Rect2D, List<(string, char, float[])>, Dictionary<string, Format>)>? Passes(string path)
+        {
+            if (!File.Exists(path))
+                return null;
+            var lines = File.ReadAllLines(path);
+            var views = JsonNode.Parse(lines[0])!["views"]!.AsObject();
+            var passes = new List<(int, Rect2D, List<(string, char, float[])>, Dictionary<string, Format>)>();
+            foreach (var line in lines.Skip(1))
+            {
+                var p = JsonNode.Parse(line)!;
+                var info = p["args"]!["pRenderingInfo"]!;
+                var area = info["renderArea"]!;
+                var clears = new List<(string, char, float[])>();
+                var formats = new Dictionary<string, Format>();
+                void Add(JsonNode? a, char aspect)
+                {
+                    if (a is null)
+                        return;
+                    var view = views[(string)a["imageView"]!]!;
+                    formats[(string)view["image"]!] = (Format)(int)view["format"]!;
+                    if ((int)a["loadOp"]! != 1)   // VK_ATTACHMENT_LOAD_OP_CLEAR
+                        return;
+                    var cv = a["clearValue"]!;
+                    float[] value = aspect == 'C' ? [.. cv["color"]!["float32"]!.AsArray().Select(v => (float)v!)]
+                        : aspect == 'D' ? [(float)cv["depthStencil"]!["depth"]!] : [(float)(uint)cv["depthStencil"]!["stencil"]!];
+                    clears.Add(((string)view["image"]!, aspect, value));
+                }
+                foreach (var c in info["pColorAttachments"]?.AsArray() ?? [])
+                    Add(c, 'C');
+                Add(info["pDepthAttachment"], 'D');
+                Add(info["pStencilAttachment"], 'S');
+                passes.Add(((int)p["eid"]!, new Rect2D(new Offset2D((int)area["offset"]!["x"]!, (int)area["offset"]!["y"]!),
+                    new Extent2D((uint)area["extent"]!["width"]!, (uint)area["extent"]!["height"]!)), clears, formats));
+            }
+            return passes;
+        }
+
+        /// <summary>The passes begun since the last action, up to <paramref name="eid"/>: their clears on the live targets.</summary>
+        private void ApplyClears(int eid)
+        {
+            if (_passes == null || !Chain || !StartFromClear)
+                return;
+            foreach (var (passEid, area, clears, _) in _passes.Where(p => p.Eid > _clearedThrough && p.Eid < eid))
+                foreach (var (name, aspect, value) in clears)
+                {
+                    if (resources["textures"]![name] is not { } t)
+                        continue;
+                    var format = Format((string)t["format"]!);
+                    if (!_live.TryGetValue(name, out var image))
+                    {
+                        image = runner.CreateImage(format, (uint)(int)t["width"]!, (uint)(int)t["height"]!, 1, 1, 1, ImageViewType.Type2D,
+                            SceneDrawRunner.IsDepth(format) ? ImageUsageFlags.DepthStencilAttachmentBit : ImageUsageFlags.ColorAttachmentBit);
+                        var depthBytes = SceneDrawRunner.IsDepth(format) ? (int)SceneDrawRunner.DepthTexelBytes(format) : ColorTexelBytes(format);
+                        var size = (int)(image.Width * image.Height) * depthBytes + (SceneDrawRunner.HasStencil(format) ? (int)(image.Width * image.Height) : 0);
+                        runner.Write(image, 0, 0, Cleared(format, image.Width, image.Height, size));
+                        _live[name] = image;
+                        FirstUses.Add($"{passEid} {name}: created by the pass clear");
+                    }
+                    var data = runner.Read(image, SceneDrawRunner.IsDepth(format) ? 0u : (uint)ColorTexelBytes(format));
+                    var texel = ClearTexel(format, aspect, value);
+                    var plane = aspect == 'S' ? (int)(image.Width * image.Height * SceneDrawRunner.DepthTexelBytes(format)) : 0;
+                    // D24's depth is the texel's low 24 bits; its fourth byte is not depth.
+                    var write = format == Silk.NET.Vulkan.Format.D24UnormS8Uint && aspect == 'D' ? 3 : texel.Length;
+                    var stride = aspect == 'S' ? 1 : SceneDrawRunner.IsDepth(format) ? (int)SceneDrawRunner.DepthTexelBytes(format) : texel.Length;
+                    for (var y = area.Offset.Y; y < area.Offset.Y + area.Extent.Height && y < image.Height; y++)
+                        for (var x = area.Offset.X; x < area.Offset.X + area.Extent.Width && x < image.Width; x++)
+                            texel.AsSpan(0, write).CopyTo(data.AsSpan(plane + (int)(y * image.Width + x) * stride));
+                    runner.Write(image, 0, 0, data);
+                }
+            _clearedThrough = eid - 1;
+        }
+
+        private static int ColorTexelBytes(Format f) => f switch
+        {
+            Silk.NET.Vulkan.Format.R16G16B16A16Sfloat or Silk.NET.Vulkan.Format.R32G32Sfloat => 8,
+            Silk.NET.Vulkan.Format.R32G32B32A32Sfloat => 16,
+            _ => 4,
+        };
+
+        /// <summary>One texel of a clear value in <see cref="SceneDrawRunner.Write"/>'s layout (a stencil clear: the stencil byte).</summary>
+        private static byte[] ClearTexel(Format f, char aspect, float[] v)
+        {
+            if (aspect == 'S')
+                return [(byte)v[0]];
+            if (aspect == 'D')
+                return f switch
+                {
+                    Silk.NET.Vulkan.Format.D16Unorm => BitConverter.GetBytes((ushort)MathF.Round(v[0] * 65535f)),
+                    Silk.NET.Vulkan.Format.D24UnormS8Uint => BitConverter.GetBytes((uint)MathF.Round(v[0] * 16777215f)),
+                    Silk.NET.Vulkan.Format.D32Sfloat => BitConverter.GetBytes(v[0]),
+                    _ => throw new NotSupportedException($"depth clear of {f}"),
+                };
+            byte Unorm(float x) => x is 0f or 1f ? (byte)(x * 255f) : throw new NotSupportedException($"clear {x} of {f} (only 0 and 1 are exact)");
+            return f switch
+            {
+                Silk.NET.Vulkan.Format.R8G8B8A8Srgb or Silk.NET.Vulkan.Format.R8G8B8A8Unorm => [Unorm(v[0]), Unorm(v[1]), Unorm(v[2]), Unorm(v[3])],
+                Silk.NET.Vulkan.Format.B8G8R8A8Srgb or Silk.NET.Vulkan.Format.B8G8R8A8Unorm => [Unorm(v[2]), Unorm(v[1]), Unorm(v[0]), Unorm(v[3])],
+                Silk.NET.Vulkan.Format.R16G16B16A16Sfloat => [.. v.SelectMany(x => BitConverter.GetBytes((Half)x))],
+                Silk.NET.Vulkan.Format.R32G32B32A32Sfloat => [.. v.SelectMany(BitConverter.GetBytes)],
+                Silk.NET.Vulkan.Format.R32Sfloat => BitConverter.GetBytes(v[0]),
+                _ => throw new NotSupportedException($"colour clear of {f}"),
+            };
+        }
+
         /// <summary>A chained target's contents as our draws left it.</summary>
-        public byte[] ReadLive(string name) => runner.Read(_live[name], SceneDrawRunner.IsDepth(_live[name].Format) ? 0u : 8u);
+        public byte[] ReadLive(string name) => runner.Read(_live[name], SceneDrawRunner.IsDepth(_live[name].Format) ? 0u : (uint)ColorTexelBytes(_live[name].Format));
 
         private static byte[] Cleared(Format format, uint width, uint height, int size)
         {
@@ -632,6 +884,9 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
         /// <summary>Drops the chained state (live targets and dispatch outputs) for another chained run.</summary>
         public void ResetChain()
         {
+            foreach (var v in _liveViews.Values)
+                runner.DestroyView(v);
+            _liveViews.Clear();
             foreach (var b in _liveBuffers.Values)
                 gpu.Destroy(b);
             foreach (var i in _live.Values)
@@ -770,9 +1025,18 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
         {
             if (Chain && _live.TryGetValue(name, out var drawn))
             {
-                if (drawn.Format != format || viewType != ImageViewType.Type2D)
+                if (viewType != ImageViewType.Type2D)
                     throw new NotSupportedException($"{name} read as {format} {viewType}, drawn as {drawn.Format}");
-                return drawn;
+                if (drawn.Format == format)
+                    return drawn;
+                // The colour pass reads the sRGB AO target through a UNORM view.
+                if (!_liveViews.TryGetValue((name, format), out var other))
+                    _liveViews[(name, format)] = other = runner.ViewAs(drawn, format);
+                return new SceneDrawRunner.SceneImage
+                {
+                    Image = drawn.Image, Memory = drawn.Memory, View = other, Format = format, Width = drawn.Width, Height = drawn.Height,
+                    Depth = drawn.Depth, Mips = drawn.Mips, Layers = drawn.Layers,
+                };
             }
             var key = $"{name}|{format}|{viewType}|{string.Join(",", subs.Select(s => (string)s!["sha1"]!))}";
             if (_images.TryGetValue(key, out var image))
@@ -816,6 +1080,7 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
 
         public string Run(JsonNode rec)
         {
+            ApplyClears((int)rec["eid"]!);
             var before = rec["contents"]!["before"]!;
             var after = rec["contents"]!["after"]!;
             var vs = rec["stages"]!["vs"]!;
@@ -930,8 +1195,18 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                 ColorWriteMask = blends.Count > 0 ? (ColorComponentFlags)(int)blends[0]!["writeMask"]! : ColorComponentFlags.None,
                 DepthFormat = depthName != null ? Format((string)resources["textures"]![depthName]!["format"]!) : null,
             };
-            if (blends.Any(b => (bool)b!["enabled"]!))
-                return "blending not modelled";
+            // RenderDoc's BlendMultiplier and BlendOperation enumerate as Vulkan's BlendFactor and BlendOp do; the
+            // constant-colour factors (10 to 13) would need the blend constants, which no draw here sets.
+            if (blends.Count > 0 && (bool)blends[0]!["enabled"]!)
+            {
+                var (cb, ab) = (blends[0]!["colorBlend"]!, blends[0]!["alphaBlend"]!);
+                int[] factors = [(int)cb["source"]!, (int)cb["destination"]!, (int)ab["source"]!, (int)ab["destination"]!];
+                if (factors.Any(f => f is >= 10 and <= 13))
+                    return "blend constants not modelled";
+                state = state with { Blend = ((BlendFactor)factors[0], (BlendFactor)factors[1], (BlendOp)(int)cb["operation"]!, (BlendFactor)factors[2], (BlendFactor)factors[3], (BlendOp)(int)ab["operation"]!) };
+            }
+            if (blends.Skip(1).Any(b => (bool)b!["enabled"]!))
+                return "blending on a second target not modelled";
             // CUBEREPLAY_LOOSE=<eid>: that draw with no depth or stencil test, no culling and the whole target as
             // viewport and scissor, to see where its triangles land at all.
             if (Environment.GetEnvironmentVariable("CUBEREPLAY_LOOSE") is { } loose && loose == ((int)rec["eid"]!).ToString(System.Globalization.CultureInfo.InvariantCulture))
@@ -976,13 +1251,34 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                 if (Chain)
                 {
                     _live[name] = image;
-                    var texel = SceneDrawRunner.IsDepth(image.Format) ? (int)SceneDrawRunner.DepthTexelBytes(image.Format) : 8;
+                    var texel = SceneDrawRunner.IsDepth(image.Format) ? (int)SceneDrawRunner.DepthTexelBytes(image.Format) : ColorTexelBytes(image.Format);
                     var uniform = Enumerable.Range(0, start.Length / texel).All(i => start.AsSpan(i * texel, texel).SequenceEqual(start.AsSpan(0, texel)));
                     FirstUses.Add($"{rec["eid"]} {name}: starts {(uniform ? "uniform 0x" + Convert.ToHexString(start, 0, texel) : "NOT uniform")}");
                 }
                 return image;
             }
             var color = Target(colorName, ImageUsageFlags.ColorAttachmentBit);
+            // The pass may render the target through a view of another format of its class (the AO target's UNORM
+            // view of an sRGB image): blending and the store then work in that format.
+            if (color != null && _passes?.LastOrDefault(p => p.Eid < (int)rec["eid"]!).ViewFormats is { } viewFormats
+                && viewFormats.TryGetValue(colorName!, out var passFormat) && passFormat != color.Format)
+            {
+                // Unchained, the target is this draw's own: its view goes with it (the image's own view is dropped here).
+                if (!_liveViews.TryGetValue((colorName!, passFormat), out var other))
+                {
+                    other = runner.ViewAs(color, passFormat);
+                    if (Chain)
+                        _liveViews[(colorName!, passFormat)] = other;
+                    else
+                        runner.DestroyView(color.View);
+                }
+                color = new SceneDrawRunner.SceneImage
+                {
+                    Image = color.Image, Memory = color.Memory, View = other, Format = passFormat, Width = color.Width, Height = color.Height,
+                    Depth = color.Depth, Mips = color.Mips, Layers = color.Layers,
+                };
+                state = state with { ColorFormat = passFormat };
+            }
             var depth = Target(depthName, ImageUsageFlags.DepthStencilAttachmentBit);
             // CUBEREPLAY_RENDERDOC=<eid>: our device's draw captured by RenderDoc (ENABLE_VULKAN_RENDERDOC_CAPTURE=1).
             var capture = Environment.GetEnvironmentVariable("CUBEREPLAY_RENDERDOC") == ((int)rec["eid"]!).ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -994,7 +1290,7 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
 
             var report = new List<string>();
             var equal = true;
-            foreach (var (name, image, texel) in new[] { (colorName, color, 8u), (depthName, depth, 0u) })
+            foreach (var (name, image, texel) in new[] { (colorName, color, color != null ? (uint)ColorTexelBytes(color.Format) : 8u), (depthName, depth, 0u) })
             {
                 if (name == null || image == null)
                     continue;
@@ -1041,6 +1337,7 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
         /// <summary>A dispatch from fresh copies of its read-write buffers; each must equal the capture's after it.</summary>
         public string RunCompute(JsonNode rec)
         {
+            ApplyClears((int)rec["eid"]!);
             var before = rec["contents"]!["before"]!;
             var after = rec["contents"]!["after"]!;
             var cs = rec["stages"]!["cs"]!;
@@ -1109,6 +1406,8 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
 
         public void Dispose()
         {
+            foreach (var v in _liveViews.Values)
+                runner.DestroyView(v);
             foreach (var b in _overridden)
                 gpu.Destroy(b);
             foreach (var b in _liveBuffers.Values)

@@ -41,6 +41,9 @@ public sealed record SceneDrawState
 
     public ColorComponentFlags ColorWriteMask { get; init; } = ColorComponentFlags.RBit | ColorComponentFlags.GBit | ColorComponentFlags.BBit | ColorComponentFlags.ABit;
 
+    /// <summary>The colour target's blend (factors and operations for colour, then alpha); null for none.</summary>
+    public (BlendFactor SrcColor, BlendFactor DstColor, BlendOp ColorOp, BlendFactor SrcAlpha, BlendFactor DstAlpha, BlendOp AlphaOp)? Blend { get; init; }
+
     /// <summary>The depth (and stencil) target's format; null for none.</summary>
     public Format? DepthFormat { get; init; }
 }
@@ -100,7 +103,9 @@ public sealed unsafe class SceneDrawRunner(GpuDevice gpu)
             Usage = usage | ImageUsageFlags.TransferDstBit | ImageUsageFlags.TransferSrcBit | ImageUsageFlags.SampledBit,
             SharingMode = SharingMode.Exclusive,
             InitialLayout = ImageLayout.Undefined,
-            Flags = cube ? ImageCreateFlags.CreateCubeCompatibleBit : 0,
+            // 8-bit RGBA targets are mutable: the game samples its sRGB AO target through a UNORM view (ViewAs).
+            Flags = (cube ? ImageCreateFlags.CreateCubeCompatibleBit : 0)
+                    | (format is Format.R8G8B8A8Srgb or Format.R8G8B8A8Unorm or Format.B8G8R8A8Srgb or Format.B8G8R8A8Unorm ? ImageCreateFlags.CreateMutableFormatBit : 0),
         };
         GpuDevice.Check(_vk.CreateImage(gpu.Device, &info, null, out var image), "vkCreateImage");
         _vk.GetImageMemoryRequirements(gpu.Device, image, out var req);
@@ -120,6 +125,26 @@ public sealed unsafe class SceneDrawRunner(GpuDevice gpu)
         gpu.Submit(cmd => Barrier(cmd, made, ImageLayout.Undefined));
         return made;
     }
+
+    /// <summary>
+    /// Another 2D view of a mutable 8-bit RGBA image in a format of its class (sRGB as UNORM or back); the caller
+    /// destroys it before the image.
+    /// </summary>
+    public ImageView ViewAs(SceneImage image, Format format)
+    {
+        var viewInfo = new ImageViewCreateInfo
+        {
+            SType = StructureType.ImageViewCreateInfo,
+            Image = image.Image,
+            ViewType = ImageViewType.Type2D,
+            Format = format,
+            SubresourceRange = new ImageSubresourceRange(ImageAspectFlags.ColorBit, 0, image.Mips, 0, image.Layers),
+        };
+        GpuDevice.Check(_vk.CreateImageView(gpu.Device, &viewInfo, null, out var view), "vkCreateImageView");
+        return view;
+    }
+
+    public void DestroyView(ImageView view) => _vk.DestroyImageView(gpu.Device, view, null);
 
     private static ImageAspectFlags Aspects(Format f)
         => IsDepth(f) ? ImageAspectFlags.DepthBit | (HasStencil(f) ? ImageAspectFlags.StencilBit : 0) : ImageAspectFlags.ColorBit;
@@ -327,6 +352,12 @@ public sealed unsafe class SceneDrawRunner(GpuDevice gpu)
             StencilTestEnable = state.StencilTest, Front = state.StencilFront, Back = state.StencilBack, MinDepthBounds = 0, MaxDepthBounds = 1,
         };
         var blendAttachment = new PipelineColorBlendAttachmentState { ColorWriteMask = state.ColorWriteMask };
+        if (state.Blend is { } b)
+        {
+            blendAttachment.BlendEnable = true;
+            (blendAttachment.SrcColorBlendFactor, blendAttachment.DstColorBlendFactor, blendAttachment.ColorBlendOp) = (b.SrcColor, b.DstColor, b.ColorOp);
+            (blendAttachment.SrcAlphaBlendFactor, blendAttachment.DstAlphaBlendFactor, blendAttachment.AlphaBlendOp) = (b.SrcAlpha, b.DstAlpha, b.AlphaOp);
+        }
         var blend = new PipelineColorBlendStateCreateInfo { SType = StructureType.PipelineColorBlendStateCreateInfo, AttachmentCount = color != null ? 1u : 0u, PAttachments = &blendAttachment };
         var pipelineInfo = new GraphicsPipelineCreateInfo
         {

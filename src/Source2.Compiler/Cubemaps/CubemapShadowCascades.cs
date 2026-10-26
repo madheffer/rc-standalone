@@ -28,7 +28,10 @@ public static class CubemapShadowCascades
         /// <summary>
         /// The view attribute 0x61fac369, which replaces cascade 0's distance after the split: the render pipeline
         /// (client 1811d9d30, at 1811da3f4) sets it to 1808898d0's 75.0 (.rdata 181b14fe0) on every game view when
-        /// 180cb2100 finds a scripted camera, which it does during buildcubemaps (captured 10-22, ledger 121).
+        /// 180cb2100 finds a scripted camera (captured 10-22, ledger 121). 180cb2100 answers from the client's UI
+        /// state, not the map: Panorama's StartCamera camera while 1825c9e3b is set, else end_of_match_camera while
+        /// 1825c8832 is set, else team_select_camera while 1825c9e65 is set, else none. probe01's builds had one;
+        /// s2c_l5probe's 10-22 build had none, and its cascades are the plain split's (ledger 149).
         /// </summary>
         public const float Cascade0Distance = 75f;
 
@@ -60,19 +63,22 @@ public static class CubemapShadowCascades
 
     /// <summary>
     /// A cubemap face's split distances from the game's inputs: the practical split of the whole range, then cascade
-    /// 0 replaced by the 0x61fac369 attribute (1804976e5, after the split).
+    /// 0 replaced by the 0x61fac369 attribute (1804976e5, after the split) when the client has a
+    /// <paramref name="scriptedCamera"/> (<see cref="Inputs.Cascade0Distance"/>); without one the pipeline sets no
+    /// attribute and the split stands.
     /// </summary>
-    public static float[] GameDistances(float near, float viewFar)
+    public static float[] GameDistances(float near, float viewFar, bool scriptedCamera = true)
     {
         var d = SplitDistances([], Inputs.Count, near, MaxDistance(viewFar));
-        d[0] = Inputs.Cascade0Distance;
+        if (scriptedCamera)
+            d[0] = Inputs.Cascade0Distance;
         return d;
     }
 
     /// <summary>A cubemap face's sun cascades as the game renders them: the <see cref="Inputs.Count"/> view cascades, then the viewmodel cascade.</summary>
-    public static List<Cascade> GameCascades(CubemapFaceViews.View v, Vector3 sunDirection, float near, float viewFar)
+    public static List<Cascade> GameCascades(CubemapFaceViews.View v, Vector3 sunDirection, float near, float viewFar, bool scriptedCamera = true)
     {
-        var cascades = Fit(v, sunDirection, GameDistances(near, viewFar), near, Inputs.MaxVisible, Inputs.Pushback, Inputs.Resolution);
+        var cascades = Fit(v, sunDirection, GameDistances(near, viewFar, scriptedCamera), near, Inputs.MaxVisible, Inputs.Pushback, Inputs.Resolution);
         cascades.AddRange(Fit(v, sunDirection, [Inputs.ViewmodelDistance], Inputs.ViewmodelNear, Inputs.ViewmodelMaxVisible, Inputs.ViewmodelPushback, Inputs.Resolution));
         return cascades;
     }
@@ -262,8 +268,8 @@ public static class CubemapShadowCascades
         => Max(Slice(v, near, distances[^1]).Diameter * 1.42f, Max(Max(maxVisible, distances[^1]), pushback));
 
     /// <summary>The reaches of a face's two fits (the view cascades', the viewmodel cascade's), as <see cref="GameCascades"/> fits them.</summary>
-    public static (float View, float Viewmodel) GameReaches(CubemapFaceViews.View v, float near, float viewFar)
-        => (Reach(v, GameDistances(near, viewFar), near, Inputs.MaxVisible, Inputs.Pushback),
+    public static (float View, float Viewmodel) GameReaches(CubemapFaceViews.View v, float near, float viewFar, bool scriptedCamera = true)
+        => (Reach(v, GameDistances(near, viewFar, scriptedCamera), near, Inputs.MaxVisible, Inputs.Pushback),
             Reach(v, [Inputs.ViewmodelDistance], Inputs.ViewmodelNear, Inputs.ViewmodelMaxVisible, Inputs.ViewmodelPushback));
 
     /// <summary>

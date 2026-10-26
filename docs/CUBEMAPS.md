@@ -595,8 +595,13 @@ and draws the sky alone.
   (GROUND_TRUTH 147).
 - Still the capture's: the pipelines and draw arguments (our culling gives
   the same index ranges, ledger 139), the geometry, lightmap and material
-  contents (equal to the package's, ledger 120), generic's `_Globals_`
-  (ProgramGlobals.Fill gives it word for word, ledger 120).
+  contents (equal to the package's, ledger 120). Since 10-26 (ledger 149)
+  generic's `_Globals_` of every world colour draw is ours: the draw's vertex
+  stream is a world node model's buffer, its first index names the draw call
+  and so the material, the material's generic colour program is the draw's
+  SPIR-V module, and ProgramGlobals.Fill gives the block word for word on all
+  three cubes. Materials whose blocks are the same bytes share one captured
+  block.
 - The light binner's CullParams_t, the sky's g_matSkyWsToOs and pixel
   $Globals, and both depth downsamples' $Globals are ours too since 10-26
   (ledger 148), checked word for word against every face's capture: the
@@ -605,6 +610,43 @@ and draws the sky alone.
   HalfResDepth (r_csgo_mixed_resolution_particles_scale, 2) and
   QuarterResDepth (4) layers' g_nDownsampleRatio through the programs' own
   expressions.
+
+### A second map: s2c_l5probe (2026-10-26, ledger 149)
+
+s2c_l5probe's cube 0 (the 10-22 capture, faces 1 to 5 dumped 10-26) gives
+all six readbacks and the game's EXR byte for byte through the same test, with
+every block ours, and probe01's two cubes still do. What it took:
+
+- **No scripted camera.** Cascade 0's 75 comes only while 180cb2100 finds a
+  scripted camera (Panorama's StartCamera, end of match or team select), and
+  that is UI state, not the map. In that build the player had spawned, so the
+  cascades are the plain split's: `CUBEREPLAY_SCRIPTEDCAMERA=0`,
+  `CubemapShadowCascades.GameDistances(..., scriptedCamera: false)`.
+- **Pass clears.** `tools/cubehost/rdc_passes.py` writes each capture's
+  render passes (`passes.jsonl` beside the face dumps: attachments, load ops,
+  clear values, and each view's image and format). The chained replay clears
+  each CLEAR attachment over the pass's render area when the pass begins.
+  The AO target is cleared to white over 512 x 512.
+- **The AO target's UNORM view.** The pass renders the sRGB AO target through
+  an R8G8B8A8_UNORM view, and the colour pass samples it that way. The pawn's
+  AO box multiplies into it, which reproduces only through that view. The
+  replay now models colour blending (SceneDrawState.Blend) and mutable 8-bit
+  views (SceneDrawRunner.ViewAs).
+- **The viewmodel.** The spawned pawn's first-person viewmodel is drawn in the
+  prepass and colour pass with its own per-view block (depth range 0 .. 0.1),
+  scene blocks and light block (the viewmodel cascade alone). BlockRoles keeps
+  the blocks only those draws read from the capture. Its models, skinning and
+  blocks are not ported.
+- **Visible volumes' order** from the decompile
+  (`CubemapFaceConstants.VisibleVolumes`): priority (indoor_outdoor_level)
+  descending, then the local box's volume ascending.
+- The barn and omni lights are not binned in the cubemap view (the binner block
+  with no lights equals the capture on every face).
+
+Not done for this map: its cube 1 has no capture, so its whole array is not
+checked; that needs `run_probe.py --renderdoc 1` with CS2 and Steam closed.
+
+    RDC_IN=<capture.rdc> RDC_OUT=<capture dir>/passes.jsonl qrenderdoc.exe --python tools/cubehost/rdc_passes.py
 
 The 10-23 update (1.41.9.2) left the settled build unchanged. probe01's two
 EXRs from the 10-26 run equal the 10-21 run's bit for bit. The compiled array

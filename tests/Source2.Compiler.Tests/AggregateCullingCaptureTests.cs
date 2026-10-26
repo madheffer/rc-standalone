@@ -216,7 +216,9 @@ public sealed class AggregateCullingCaptureTests(ITestOutputHelper output)
     {
         var view = CubemapFaceViews.Face(origin, Vector3.Zero, 1f, 10000f, face);
         var (toSun, _, _) = CubemapShadowCascades.SunDirections(sunAngles);
-        var cascades = CubemapShadowCascades.GameCascades(view, toSun, 1f, 10000f);
+        // CUBEREPLAY_SCRIPTEDCAMERA=0: the build ran with no scripted camera (s2c_l5probe's 10-22 capture, ledger 149).
+        var scriptedCamera = Environment.GetEnvironmentVariable("CUBEREPLAY_SCRIPTEDCAMERA") != "0";
+        var cascades = CubemapShadowCascades.GameCascades(view, toSun, 1f, 10000f, scriptedCamera);
         // Each view's frustum and camera: -1 the face, 0 to 3 its cascades.
         var views = new Dictionary<int, AggregateCulling.Frustum> { [-1] = AggregateCulling.FaceFrustum(view) };
         // The view cascades come from one fit, the viewmodel cascade (the last) from its own: each view cascade after
@@ -224,7 +226,7 @@ public sealed class AggregateCullingCaptureTests(ITestOutputHelper output)
         var light = toSun;
         var worldToProjection = AggregateCulling.WorldToProjection(view);
         var inverse = AggregateCulling.Invert4(worldToProjection)!;
-        var (viewReach, viewmodelReach) = CubemapShadowCascades.GameReaches(view, 1f, 10000f);
+        var (viewReach, viewmodelReach) = CubemapShadowCascades.GameReaches(view, 1f, 10000f, scriptedCamera);
         var viewVolume = AggregateCulling.CullingVolume(AggregateCulling.CasterVolume(worldToProjection, inverse, light, viewReach));
         var viewmodelVolume = AggregateCulling.CullingVolume(AggregateCulling.CasterVolume(worldToProjection, inverse, light, viewmodelReach));
         for (var c = 0; c < cascades.Count; c++)

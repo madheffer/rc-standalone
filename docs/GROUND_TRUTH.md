@@ -3998,6 +3998,52 @@ game can answer is raised with the user first, and runs with -insecure.
       sets no tile-size attribute (0x5af50a7c) and bins no lights or environment maps on probe01.
     - Open: a map with an env_sky at other angles and tint, binned lights (s2c_l5probe's omni and barn) and env maps.
 
+149. **A second map's whole cube: the scripted camera, pass clears, the viewmodel, and the visible volumes' order**
+    (2026-10-26: s2c_l5probe's 10-22 capture, faces 1 to 5 dumped this day; decompile of client 20261015 180cb2100 and
+    scenesystem 20261015 1801af7b0, 18019f8b0, 1801a9b70, 1801cc400, 1801abf30, 1801aac90, with the installed 20261023
+    scenesystem's stores to +0xe520 / +0xe528 scanned at the same addresses; core lights FGD;
+    tools/cubehost/rdc_passes.py; CubemapFaceReplayTests.ChainedCubeMakesTheGamesExr).
+    - Settled by replay: s2c_l5probe's cube 0 chained from cleared targets with every block ours gives all six
+      readbacks and the game's EXR byte for byte, as probe01's two cubes still do with the changes below.
+    - Settled by decompile and capture: cascade 0's 75 (ledger 121) needs a scripted camera, and 180cb2100 answers
+      from the client's UI state, not the map: Panorama's StartCamera camera while 1825c9e3b is set, else
+      end_of_match_camera while 1825c8832 is set, else team_select_camera while 1825c9e65 is set, else none. Both
+      maps hold the same team_select and end_of_match prefabs; probe01's builds had a camera, s2c_l5probe's 10-22
+      build had none (its player had spawned: the frame draws the first-person viewmodel), and its four cascade
+      blocks equal the plain split's (35.206184, 113.89898, 560.1) word for word in every word a shader reads
+      (CubemapShadowCascades.GameDistances scriptedCamera = false). The state is an input of the build; which one
+      our compile renders at is roadmap 0e.
+    - Settled by the capture's own calls (rdc_passes.py: each vkCmdBeginRendering's attachments, load ops, clear
+      values and the views' images and formats): a pass's CLEAR attachments are cleared over its render area when it
+      begins. The face's colour and depth are cleared (colour 0, depth 1, stencil 0) in its first colour pass, the
+      AO target to white over its first 512 x 512 in its own pass, and the stencil alone again later in the face.
+      The AO target is an sRGB image the pass renders through an R8G8B8A8_UNORM view (format 37), and the colour
+      pass samples it through that view: s2c_l5probe's pawn draws its AO box into it with a multiplicative blend
+      (colour zero x src + src colour x dst; alpha zero x src + src alpha x dst), which only reproduces through
+      the UNORM view.
+    - Measured: the spawned pawn's viewmodel (four skinned draws, each in the prepass and the colour pass) has its
+      own per-view block (depth range 0 .. 0.1 where the world's is 0 .. 0.95), scene blocks and a light block with
+      the viewmodel cascade alone (count 1 at +31248); its prepass shares the world's light block. Not ported: the
+      replay keeps the blocks only its draws read from the capture.
+    - Settled by decompile: the visible light probe volumes (g_VisibleLPV). Each volume's scene object adds itself
+      for a view that keeps it (virtual 1801c1f70 -> 18019f8b0): it needs the view's +0xf3e8 +0x65 flag and a slot
+      in the view's map (1801c7690 on +0x48, keyed by the object's +0xf4), is added once per view (+0xe508 list),
+      must pass the view's layer masks (+0xe1f0 +0x490 / +0x498 against the object's +0x78) and 1801abf30, then
+      appends a 0x120-byte record: the object, its priority (+0xf8), its local box's volume
+      ((dy dx) dz over +0xd0 .. +0xe4) and the screen bounds. 1801abf30 / 1801aac90 reject a box only when its far
+      point along the view direction is behind the camera, or when it straddles the camera plane and its
+      silhouette (DAT_1805fe400) clips away against the near and +-1 planes; a box wholly in front always passes.
+      The binner setup (1801a9b70) caps the list at 128 and sorts it (std::sort, 1801cc400): priority descending,
+      box volume ascending, then the object's address. 1801af7b0 then writes each entry: the world-to-volume
+      rows (18049b3b0 of the object's +0x30), the box padded by 0.1, 1 / each edge fade (+0xe8, +0xec, +0xf0;
+      FLT_MAX for 0) and the int from the view's map. The priority is indoor_outdoor_level: core's FGD labels it
+      "Priority" ("the highest priority volume takes precedence"); the write of +0xf8 is not traced.
+      CubemapFaceConstants.VisibleVolumes ports the order; probe01's "volume 1 before volume 0" is the smaller box.
+    - Not read: the scene's generic object cull that decides which volumes reach 1801c1f70 (VisibleVolumes uses the
+      world box against the face frustum, which every face of both maps confirms; roadmap 2), the map's int.
+    - Open: s2c_l5probe's cube 1 (needs a capture, CS2 and Steam closed) for its whole array; the viewmodel's own
+      draws (models, skinning, per-view and light blocks); a map whose volumes have other priorities or equal boxes.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

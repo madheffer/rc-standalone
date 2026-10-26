@@ -19,6 +19,48 @@
    "note": "a chunk of 1801a9410: mask words per type (count + 31) / 32, 0 for none: lights +0xe3a8 -> +0xf390, environment maps -> +0xf394, light probe volumes +0xe520 -> +0xf398"
   },
   {
+   "addr": "1801c1f70",
+   "name": "CLightProbeVolumeSceneObject_AddToView",
+   "module": "s2c:baked/lighting",
+   "note": "virtual: the view (+0x3c68 of the second argument) gets 18019f8b0(this view, the object, the view record) unless it is the culling view's own"
+  },
+  {
+   "addr": "18019f8b0",
+   "name": "SceneView_AddVisibleLPV",
+   "module": "s2c:baked/lighting",
+   "note": "needs the view's +0xf3e8 +0x65 flag and a slot in the view's map (1801c7690 on +0x48 keyed by the object's +0xf4); once per view (+0xe508 / +0xe510 list); layer masks +0xe1f0 +0x490 / +0x498 against the object's +0x78; 1801ac1b0 + 1801abf30; then a 0x120-byte record at +0xe520 / +0xe528: object, view record +0x10 / +0x1c, box volume ((dy dx) dz over +0xd0 .. +0xe4) at +0x10, priority (object +0xf8) at +0x14, screen bounds; CubemapFaceConstants.VisibleVolumes"
+  },
+  {
+   "addr": "1801ac1b0",
+   "name": "LPV_BoxPlanesAndCorners",
+   "module": "s2c:baked/lighting",
+   "note": "a box's six face planes (normals through 180053800, d from the min or max corner) and its corners by the DAT_180673b20 sign table"
+  },
+  {
+   "addr": "1801abf30",
+   "name": "LPV_ScreenBounds",
+   "module": "s2c:baked/lighting",
+   "note": "the box in the object's frame (+0x30): camera and view direction moved into it, the projection 1804983c0(view +0x298) times the transform, then 1801aac90 with the view's size (+0xc7c / +0xc80) and the binner's tile size"
+  },
+  {
+   "addr": "1801aac90",
+   "name": "LightBinner_ItemScreenBounds",
+   "module": "s2c:baked/lighting",
+   "note": "eye-outside mask of the box planes (1801abcf0); 0 when the box's far point along the view direction is behind the camera; 2 (whole screen) when the eye is inside; a box wholly in front always passes (its silhouette from DAT_1805fe400 projected for the bounds); a box across the camera plane has its silhouette clipped against w 1e-4 and +-1 (1801c6050 .. 1801c7100) and is rejected when nothing is left or it lies past +-1"
+  },
+  {
+   "addr": "1801cc400",
+   "name": "LPV_SortRecords",
+   "module": "s2c:baked/lighting",
+   "note": "std::sort (introsort, insertion below 0x2520 bytes) of the 0x120-byte records: +0x14 descending, then the float +0x10 ascending, then the object pointer +0 ascending; 1801a9b70 calls it after capping the list at 128 (1801cbc20 nth_element first, logging 'Exceeded maximum number visible lpvs')"
+  },
+  {
+   "addr": "1801af7b0",
+   "name": "LightBinner_WriteLightBlock",
+   "module": "s2c:baked/lighting",
+   "note": "PerViewLightingConstantBufferGpu_t: g_VisibleLPV from +0xe528 (at most 128): world-to-volume rows 18049b3b0(object +0x30), box +0xd0 .. +0xe4 padded by 0.1, 1 / +0xe8, +0xec, +0xf0 (FLT_MAX for 0), then the int from the view's map; g_vShadowSampleRotations V_sincosf(i / 16 2pi + frame 1.618034); CubemapFaceConstants.LightBlock"
+  },
+  {
    "addr": "18000f900",
    "name": "Convar_lb_tile_pixels",
    "module": "s2c:baked/lighting",

@@ -394,8 +394,28 @@ public static class CubemapFaceConstants
     /// <summary>
     /// A light probe volume as the light block carries it (env_combined_light_probe_volume). The entry's last word
     /// is an int that follows the entity's array_index on probe01 (0 and 1; measured, GROUND_TRUTH 147).
+    /// <paramref name="Priority"/> is indoor_outdoor_level, which Hammer labels "Priority" (the scene object's +0xf8).
     /// </summary>
-    public sealed record LightProbeVolume(Vector3 Origin, Vector3 BoxMins, Vector3 BoxMaxs, Vector3 EdgeFadeDists, int ArrayIndex = 0);
+    public sealed record LightProbeVolume(Vector3 Origin, Vector3 BoxMins, Vector3 BoxMaxs, Vector3 EdgeFadeDists, int ArrayIndex = 0, int Priority = 0);
+
+    /// <summary>
+    /// A view's visible light probe volumes in the light block's order (g_VisibleLPV). Each volume that survives the
+    /// scene's object cull (here its world box against <paramref name="frustum"/>: the generic object cull is not
+    /// read, ledger 149) adds itself through its scene object (1801c1f70 -> 18019f8b0: deduplicated, layer masks,
+    /// then 1801abf30 / 1801aac90, which for a face view rejects only boxes wholly behind the camera, already outside
+    /// the near plane) as a 0x120-byte record with its box volume ((dy dx) dz over the local box). The binner setup
+    /// (1801a9b70) then sorts the records (std::sort, 1801cc400): priority descending, box volume ascending, then the
+    /// scene object's address, which <paramref name="volumes"/>' order stands in for (only equal boxes reach it).
+    /// At most 128 are written (1801af7b0).
+    /// </summary>
+    public static List<LightProbeVolume> VisibleVolumes(AggregateCulling.Frustum frustum, IReadOnlyList<LightProbeVolume> volumes)
+    {
+        static float Size(LightProbeVolume v) => ((v.BoxMaxs.Y - v.BoxMins.Y) * (v.BoxMaxs.X - v.BoxMins.X)) * (v.BoxMaxs.Z - v.BoxMins.Z);
+        return [.. volumes.Select((v, i) => (Volume: v, Index: i))
+            .Where(e => !AggregateCulling.Outside(frustum, e.Volume.Origin + e.Volume.BoxMins, e.Volume.Origin + e.Volume.BoxMaxs))
+            .OrderByDescending(e => e.Volume.Priority).ThenBy(e => Size(e.Volume)).ThenBy(e => e.Index)
+            .Select(e => e.Volume).Take(128)];
+    }
 
     /// <summary>The sun as the light block carries it.</summary>
     public sealed record Sun(Vector3 Direction, Vector3 Color, float CrossFade, float DistanceFade, Vector3 SkyColorLinear, float SkyIntensity);
