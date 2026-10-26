@@ -62,7 +62,7 @@ map loading ─┬─ mesh export ─┬─ trace scene ── visibility ─┬
 | visibility | [VISIBILITY.md](VISIBILITY.md) | 100% of the deterministic build: byte-identical VXVS from the .vmap on five maps incl. atixref-sized s2c_prefabprobe4 and split hints (2026-10-23); `-oldvis` is not reproducible in Valve's own tool |
 | physics | [PHYSICS.md](PHYSICS.md) | 98%: world_physics and entity models whole-file exact on every map with a compile, incl. cables and deformers placed through instances and prefabs (ledgers 128-133); ragdolls in the settle under way: both joint types' solver functions oracle-exact, every motor mode (ledgers 135, 136, 138), next the joint wrapper, islands and the aggregate build (PHYSICS.md roadmap); left besides: instances inside prefab maps for entity models, render meshes |
 | entity lump | [ENTITIES.md](ENTITIES.md), [SETTLE.md](SETTLE.md) | 99.9%: every lump of every pinned map and all 15 prefab, instance and deformer probes exact; the 14 prefab corpus maps against fresh Valve references (2026-10-23) differ only in Valve's run-to-run settle poses; left: two orders read from output only (GROUND_TRUTH 46) |
-| baked outputs | [BAKED.md](BAKED.md), [CUBEMAPS.md](CUBEMAPS.md) | 82%: lightmaps, probes, far field, fog, nav (markups and round shapes, ledgers 142-143, 146), bomb damage and .vmap_c done; cubemaps: probe01's whole env_cubemap_array.vtex_c from our render of the captured draws with every constant block ours (ledgers 147, 148), the draws themselves and other maps left |
+| baked outputs | [BAKED.md](BAKED.md), [CUBEMAPS.md](CUBEMAPS.md) | 82%: lightmaps, probes, far field, fog, nav (markups and round shapes, ledgers 142-143, 146), bomb damage and .vmap_c done; cubemaps: three cubes of two maps (probe01, s2c_l5probe) byte for byte with every block, buffer, texture, sampler, layout and pipeline state ours (ledgers 147-154); the draw list and its arguments still from the capture |
 | own lighting (vrad3 port) | [VRAD3.md](VRAD3.md), [LIGHTING_ROADMAP.md](LIGHTING_ROADMAP.md) | 94%: `compile-map -s2cbake` bakes with no vrad3; ze_hold_em_p 99.90% of bytes |
 
 The tracker artifact (https://claude.ai/artifact/4whctxfaTdHEiE4d3oAVHA)
@@ -90,25 +90,31 @@ carries the same state per item.
 
 ## Roadmap: what is left, in the order worth taking it
 
-1. **Cubemaps** ([CUBEMAPS.md](CUBEMAPS.md) "Whole cubes from our blocks" and "Roadmap", ledgers 117-121,
-   137-140, 144, 147, 148). Where it stands: probe01's whole env_cubemap_array.vtex_c is the game's byte for
-   byte from our render (`ChainedCubeMakesTheGamesExr`, both cubes): every constant block and buffer the faces
-   read is built from our data, but each draw's pipeline, arguments and geometry still come from the
-   RenderDoc dumps. Next, in order:
-   - generic's `_Globals_` per material in the replay (ProgramGlobals.Fill already equals it, ledger 120), and
-     the visible probe volume gather read from scenesystem 1801af7b0 (GROUND_TRUTH 147; ReVa has the 10-15
-     build, alias `ss`, same addresses in 10-23);
-   - the draws without the capture: our culling's lists (ledgers 139, 140) into pipelines built from
-     Valve's SPIR-V and our package's buffers, then probe01 rendered with no dump at all;
-   - a second map: s2c_l5probe (omni and barn lights through the binner, ledger 148's open items) needs
-     faces 1-5 dumped from its existing capture (%TEMP%/cubehost_run/s2c_l5probe), then the same test;
+1. **Cubemaps** ([CUBEMAPS.md](CUBEMAPS.md) "Whole cubes from our blocks", "A second map", "The pipelines",
+   "The textures", "The buffers", "The binner's items" and "Roadmap", ledgers 117-121, 137-140, 144, 147-154).
+   Where it stands: three cubes from two maps (probe01's two, s2c_l5probe's cube 0) give the game's EXRs byte
+   for byte, and probe01's whole env_cubemap_array.vtex_c is the game's (`ChainedCubeMakesTheGamesExr`). What
+   comes from our data in that render: every constant block (generic's per-material `_Globals_` included),
+   the binner's item records and edges, every texture, vertex and index buffer, sampler, vertex layout and
+   fixed-function state of the world, sky and downsample draws. Still from the RenderDoc dumps: the list
+   of draws and dispatches (which passes and draws, their order), the draw arguments (our culling gives the
+   same commands, ledgers 139, 140), viewport and scissor rectangles, dispatch sizes and push constants, and
+   the spawned pawn's viewmodel and AO box on s2c_l5probe. Next, in order:
+   - the draw list from our data: the passes and their order, the layer and primitive order within a pass
+     (CUBEMAPS.md roadmap 4; 16-bit sort key from scenesystem 180041a00's +0x20), our culling's commands as
+     the arguments, viewports from the views, then probe01 rendered with no dump at all;
+   - s2c_l5probe's cube 1 (needs a capture: `run_probe.py --renderdoc 1 --settle 20` for s2c_l5probe, CS2
+     and Steam closed, ask the user) for its whole array; decide which build state our compile renders at
+     (scripted camera or not, a spawned pawn and its viewmodel or not: roadmap 0e, ledger 149);
    - animated maps (CUBEMAPS.md roadmap 0a-0e, ledger 144): atixref differs run to run in Valve's own build,
      so pin its time in cubehost first; scope is 1:1 there too, never static-only;
-   - smaller: shadowed lights' own view setup (ledger 144), LOD cross-fades, the per-view PVS test,
+   - smaller: the binner's light and environment-map items (none binned in the captured views), the
+     viewmodel's draws, shadowed lights' own view setup (ledger 144), LOD cross-fades, the per-view PVS test,
      non-aggregate scene objects (42 atixref draws), atixref draw 2305's one-ulp pipeline-library issue,
      probe_classes' engine crash on load.
-   Recipes: CUBEMAPS.md (dump a face: rdc_replay.py with RDC_DUMP=1 per face range from rdc_summary.py;
-   capture a cube: `run_probe.py --renderdoc <n> --settle 20`, CS2 and Steam closed, ask the user).
+   Recipes: CUBEMAPS.md (dump a face: rdc_replay.py with RDC_DUMP=1 per face range from the readback eids;
+   the passes: rdc_passes.py into the capture dir; run all three cubes: see "A second map"; capture a cube:
+   `run_probe.py --renderdoc <n> --settle 20`, CS2 and Steam closed, ask the user).
 2. **Ragdolls in the settle** ([PHYSICS.md](PHYSICS.md) "Aggregates in the settle", ledgers 135, 136,
    138): props whose model has several physics parts or joints (the CT agents of s2c_ragdollprobe)
    settle through their joints and write boneTransforms; the settle refuses them today. Done: both
@@ -158,7 +164,25 @@ carries the same state per item.
     rebuilt) and server.dll's script API; first get a pre-update `.vjs_c` to see
     what changed, and Valve's fresh `cs_script_demo` compile as the reference.
 
-## Latest session (2026-10-26, whole cubemaps from our blocks)
+## Latest session (2026-10-26 later, a second map and the draws' inputs from our data)
+
+Commits 8c48703..b83223d (ledgers 149-154), every step checked on probe01's two cubes and s2c_l5probe's
+cube 0 (all six readbacks and the game's EXR byte for byte each time; probe01's whole array too).
+
+- s2c_l5probe faces 1-5 dumped; its cube matches with: no scripted camera in that build (cascade 0 is the plain
+  split's; 180cb2100 answers from UI state), render pass clears from the capture (tools/cubehost/rdc_passes.py
+  writes passes.jsonl), blending and the AO target's UNORM view in the replay, the viewmodel's own blocks kept.
+- Decompiled and ported: the visible light probe volumes' order (priority = indoor_outdoor_level descending,
+  box volume ascending), the binner's item records and edge lines (Cubemaps.LightBinnerItems, scenesystem
+  1801aac90 and helpers; 10-23's .rdata moved by 0x30, so read data tables through the 10-23 code).
+- From our data in the render: generic's `_Globals_` per material, every texture (lightmaps, materials, 1 x 1
+  defaults; cookie and env-map arrays unread), every vertex and index buffer (package models, scenesystem's sky
+  cube, the downsample quad), the samplers (CubemapFaceSamplers), the vertex layouts (CubemapFaceVertexLayout)
+  and the fixed-function state (CubemapFacePipelines).
+- Run all three cubes: CUBEFACES / CUBEREPLAY_SPIRV / CUBEREADBACK / CUBEREADBACK_EXR / CUBEREPLAY_CUBE per
+  capture, CUBEREPLAY_SCRIPTEDCAMERA=0 for s2c_l5probe; about 2 to 3 minutes per cube on the RTX 4070.
+
+## Earlier session (2026-10-26, whole cubemaps from our blocks)
 
 probe01's cubemap array from our render, byte for byte (commits 3df5182, 30915c7).
 
