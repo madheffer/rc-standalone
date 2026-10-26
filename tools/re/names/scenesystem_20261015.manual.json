@@ -70,7 +70,61 @@
    "addr": "1801aac90",
    "name": "LightBinner_ItemScreenBounds",
    "module": "s2c:baked/lighting",
-   "note": "eye-outside mask of the box planes (1801abcf0); 0 when the box's far point along the view direction is behind the camera; 2 (whole screen) when the eye is inside; a box wholly in front always passes (its silhouette from DAT_1805fe400 projected for the bounds); a box across the camera plane has its silhouette clipped against w 1e-4 and +-1 (1801c6050 .. 1801c7100) and is rejected when nothing is left or it lies past +-1"
+   "note": "LightBinnerItems.Bounds; eye-outside mask of the box planes (1801abcf0); 0 when the box's far point along the view direction is behind the camera; 2 (whole screen) when the eye is inside; a box wholly in front always passes (its silhouette from DAT_1805fe400 projected for the bounds); a box across the camera plane has its silhouette clipped against w 1e-4 and +-1 (1801c6050 .. 1801c7100) and is rejected when nothing is left or it lies past +-1"
+  },
+  {
+   "addr": "1801abcf0",
+   "name": "Box_EyeOutsideMask",
+   "module": "s2c:baked/lighting",
+   "note": "bit i where the point is more than 1e-4 behind plane i ((z nz + y ny) + x nx - d); LightBinnerItems.OutsideMask"
+  },
+  {
+   "addr": "180499860",
+   "name": "Mat4_ProjectPoint",
+   "module": "s2c:baked/lighting",
+   "note": "x = ((y m1 + x m0) + z m2) + m3, y = ((x m4 + y m5) + z m6) + m7, w = ((x m12 + y m13) + z m14) + m15, each times 1 / w when w is not 0"
+  },
+  {
+   "addr": "1804983c0",
+   "name": "Mat4_Mul",
+   "module": "s2c:baked/lighting",
+   "note": "a b for row-major 4 x 4s, each element a DPPS of a's row and b's column"
+  },
+  {
+   "addr": "1801c6050",
+   "name": "ClipPolygon_W",
+   "module": "s2c:baked/lighting",
+   "note": "Sutherland-Hodgman against w >= eps: t = -(eps - w_prev) / (w_prev - w_cur), p = (cur - prev) t + prev; the polygon replaced only when a crossing was found"
+  },
+  {
+   "addr": "1801c65c0",
+   "name": "ClipPolygon_Z",
+   "module": "s2c:baked/lighting",
+   "note": "against w >= k z: a = w - z k, t = a_prev / (a_prev - a_cur)"
+  },
+  {
+   "addr": "1801c6b60",
+   "name": "ClipPolygon_Y",
+   "module": "s2c:baked/lighting",
+   "note": "against w >= k y"
+  },
+  {
+   "addr": "1801c7100",
+   "name": "ClipPolygon_X",
+   "module": "s2c:baked/lighting",
+   "note": "against w >= k x"
+  },
+  {
+   "addr": "1801ad810",
+   "name": "LightBinner_FootprintEdges",
+   "module": "s2c:baked/lighting",
+   "note": "edges of the footprint hull (count +0x80, points +0x84) as (nx, ny, quarter diagonal - (ny y + nx x), 0): longer than two pixel diagonals, turning one way; rsqrtss with (3 - r len2 r) (r 0.5); the last folded into the first when they turn back; LightBinnerItems.Edges"
+  },
+  {
+   "addr": "1805fe430",
+   "name": "LightBinner_SilhouetteTable",
+   "module": "s2c:baked/lighting",
+   "note": "data (20261023; 1805fe400 in 20261015): per eye-outside plane mask, a count and up to 8 box corner indices of the outline"
   },
   {
    "addr": "1801cc400",

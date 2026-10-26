@@ -153,6 +153,12 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
         ours["skyview"] = Cubemaps.CubemapFaceConstants.SkyWsToOs(Cubemaps.CubemapFaceViews.AngleMatrix(System.Numerics.Vector3.Zero, new(512, 112, 48)));
         foreach (var (role, bytes) in ProgramBlocks.Value)
             ours[role] = bytes;
+        // The binner's item records and edge lines (LightBinnerItems), for the dispatches' set 0 binding 30 buffers.
+        var bin = new Cubemaps.LightBinnerItems.View(view.Origin, new System.Numerics.Vector3(view.CameraToWorld[0], view.CameraToWorld[4], view.CameraToWorld[8]),
+            Cubemaps.AggregateCulling.WorldToProjection(view), 1024, 1024, 8);
+        var footprints = volumes.Select(v => Cubemaps.LightBinnerItems.Bounds(bin, v.BoxMins, v.BoxMaxs, [1f, 0f, 0f, v.Origin.X, 0f, 1f, 0f, v.Origin.Y, 0f, 0f, 1f, v.Origin.Z])
+            ?? throw new InvalidOperationException("a visible volume rejected by the binner")).ToList();
+        (ours["binner_records"], ours["binner_edges"]) = Cubemaps.LightBinnerItems.Pack(bin, footprints);
         ours["lights"] = Cubemaps.CubemapFaceConstants.LightBlock(sunLight, volumes, cascades, tiles, Cubemaps.CubemapShadowCascades.Inputs.Resolution, Cubemaps.CubemapShadowCascades.Inputs.AtlasWidth, Cubemaps.CubemapShadowCascades.Inputs.AtlasHeight, origin, stretched);
         return ours;
     }
@@ -229,6 +235,20 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                 .Where(r => r["contents"] is not null && (r["stages"]?["vs"] is not null || r["stages"]?["cs"] is not null)).ToList();
             var ours = OurBlocks(f, cube, Environment.GetEnvironmentVariable("CUBEREPLAY_SCRIPTEDCAMERA") != "0");
             var roles = BlockRoles(actions, sha => File.ReadAllBytes(Path.Combine(dir, "blobs", sha + ".bin")));
+            // The binner's inputs: the records the depth-bin dispatch reads at set 0 binding 30, the edges the tile
+            // dispatch reads there; ours over the start, zeros past it (the capture keeps earlier uploads there).
+            var cull = actions.Where(r => r["stages"]?["cs"] is not null).TakeLast(2).ToList();
+            foreach (var (dispatch, role) in cull.Zip(new[] { "binner_records", "binner_edges" }))
+            {
+                var x = dispatch["stages"]!["cs"]!["readWrite"]!.AsArray().Concat(dispatch["stages"]!["cs"]!["readOnly"]!.AsArray())
+                    .First(x => (int)x!["bind"]!["set"]! == 0 && (int)x["bind"]!["binding"]! == 30)!;
+                var sha = (string)dispatch["contents"]!["before"]![(string)x["descriptor"]!["resource"]!]!["sha1"]!;
+                var length = File.ReadAllBytes(Path.Combine(dir, "blobs", sha + ".bin")).Length;
+                var data = new byte[length];
+                ours[role].CopyTo(data, 0);
+                replay.Overrides[sha] = data;
+                roles[sha] = role;
+            }
             foreach (var (sha, role) in roles)
             {
                 // The light block's visible volumes (g_VisibleLPV, g_nNumLPVs) word for word: no draw shows a
@@ -244,6 +264,8 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                         output.WriteLine("  " + failures[^1]);
                     }
                 }
+                if (role is "binner_records" or "binner_edges")
+                    continue;
                 // A range bound longer than the block keeps the capture's bytes past it (no shader reads them).
                 var captured = File.ReadAllBytes(Path.Combine(dir, "blobs", sha + ".bin"));
                 // The blocks built whole from the code: every word the capture's.
@@ -1624,7 +1646,8 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                 {
                     if (!(Chain && _liveBuffers.TryGetValue(name, out buffer)))
                     {
-                        buffer = gpu.Upload(Blob((string)before[name]!["sha1"]!), BufferUsageFlags.StorageBufferBit | BufferUsageFlags.UniformBufferBit | BufferUsageFlags.VertexBufferBit | BufferUsageFlags.IndexBufferBit);
+                        var start = (string)before[name]!["sha1"]!;
+                        buffer = gpu.Upload(Overrides.TryGetValue(start, out var ours) ? ours : Blob(start), BufferUsageFlags.StorageBufferBit | BufferUsageFlags.UniformBufferBit | BufferUsageFlags.VertexBufferBit | BufferUsageFlags.IndexBufferBit);
                         if (Chain)
                             _liveBuffers[name] = buffer;
                     }
@@ -1645,9 +1668,13 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
             {
                 var theirs = Blob((string)after[name]!["sha1"]!);
                 var beforeBytes = Blob((string)before[name]!["sha1"]!);
+                var changed = Enumerable.Range(0, theirs.Length).Count(i => beforeBytes[i] != theirs[i]);
+                // A buffer the dispatch leaves as it was (an input bound read-write) whose contents are ours: it must
+                // still hold our upload.
+                if (changed == 0 && Overrides.TryGetValue((string)before[name]!["sha1"]!, out var uploaded))
+                    theirs = uploaded;
                 var ours = SceneDrawRunner.Read(buffer, 0, (ulong)theirs.Length);
                 var diff = Enumerable.Range(0, theirs.Length).Count(i => ours[i] != theirs[i]);
-                var changed = Enumerable.Range(0, theirs.Length).Count(i => beforeBytes[i] != theirs[i]);
                 equal &= diff == 0;
                 report.Add($"{name}: {(diff == 0 ? "same" : $"{diff} bytes differ")} ({changed} bytes changed by the dispatch)");
                 if (!Chain)

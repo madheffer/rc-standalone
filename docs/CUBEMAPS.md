@@ -648,6 +648,16 @@ checked; that needs `run_probe.py --renderdoc 1` with CS2 and Steam closed.
 
     RDC_IN=<capture.rdc> RDC_OUT=<capture dir>/passes.jsonl qrenderdoc.exe --python tools/cubehost/rdc_passes.py
 
+### The binner's items (2026-10-26, ledger 151)
+
+The light binner's cull dispatches read two buffers the CPU uploads for each
+view: one 80-byte record per item, and the edge lines of each item's screen
+footprint. `Cubemaps.LightBinnerItems` builds both for light probe volumes
+from scenesystem's code: the box's eye-outside mask, its silhouette projected
+or clipped, the half-tile Minkowski sum, edges by rsqrtss. Every word equals
+the capture on all eighteen faces (`LightBinnerItemsTests`, `CUBEBIN=<dir>@<cube>;...`).
+The whole-cube test now uploads ours for both buffers, with zeros past them.
+
 ### The pipelines (2026-10-26, ledger 150)
 
 `CubemapFacePipelines.Apply` gives a draw's fixed-function state from its

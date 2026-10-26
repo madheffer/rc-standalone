@@ -4072,6 +4072,27 @@ game can answer is raised with the user first, and runs with -insecure.
       zeros. LightCookieTexture and EnvironmentMap are not read in the cubemap view (no light or environment map
       binned): zeros in their place leave every face equal, s2c_l5probe's stale contents included.
 
+151. **The light binner's items for light probe volumes** (2026-10-26: decompile of scenesystem 20261015 1801b2850,
+    1801abf30, 1801aac90, 1801abcf0, 1801ac1b0, 180499860, 1804983c0, 1801c6050, 1801c65c0, 1801c6b60, 1801c7100,
+    1801ad810, disassembly where the decompile's operand order matters; the silhouette table at 1805fe400 (20261015)
+    and 1805fe430 (20261023), the same bytes; Cubemaps.LightBinnerItems; LightBinnerItemsTests and the whole-cube test).
+    - Settled by decompile and capture: the cull dispatches' item inputs (set 0 binding 30 of each) are 80-byte
+      records (first edge, inside flag, edge count, 0, the footprint's bounds widened by a tile, the depth range
+      along the view direction, the rest 0; padded to a multiple of 32 items with bounds -100) and 16-byte edge
+      lines. A volume's footprint: its box (six inward planes, eight corners by the sign table) in its frame; the
+      eye-outside plane mask (more than 1e-4 behind); the depth range of the corners along the normalised view
+      direction (rejected when all are behind); inside the box: the flag and no edges; else the mask's silhouette,
+      projected when the box is wholly in front, clipped in clip space (w 1e-4, then +-1 in y and x) when it is
+      not; the polygon walked from its lowest vertex and summed with the half-tile rectangle; edges at least two
+      pixel diagonals long that keep turning one way, d offset by a quarter diagonal (rsqrtss with a Newton step,
+      (3 - r len2 r) (r 0.5), as 1801ad916 computes it).
+    - Every word we write equals the capture on all eighteen faces of the three cubes (records and edges); the
+      buffers past it hold earlier uploads, and zeros there leave every face equal.
+    - Not read: the view's +0xf353 (walk direction) and +0x28 == -1 (orthographic) flags are taken as false for the
+      cubemap views (both ported; false matches every face); 1801b52b0's depth offset as 0 (the attribute
+      0x6e59bbf1, never set here); the clip path (boxes across the camera plane) is ported but no captured face
+      takes it; lights and environment maps as items (none binned in these views).
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).
