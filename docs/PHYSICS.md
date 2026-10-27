@@ -94,8 +94,9 @@ Open:
 - **Aggregates in the settle (ragdolls):** a prop whose model has several
   physics parts or a joint (ledger 135). Valve's truth is captured
   (s2c_ragdollprobe); CRnConicalJoint's (every motor mode) and CRnRevoluteJoint's solves are
-  ported and oracle-exact. The settle still refuses such a map. Roadmap, in
-  order, each step checked against the capture before the next:
+  ported and oracle-exact, and the aggregate builds as Valve's but for the
+  model pose's last ulps (5a). The settle still refuses such a map. Roadmap,
+  in order, each step checked against the capture before the next:
   1. Done (2026-10-25, ledger 136): CRnRevoluteJoint (VPhysX type 3 with
      flags bit 1 clear, as ctm_sas's two knees): prepare (every motor mode,
      the plasticity, the limit, the two hinge rows, the point block, the
@@ -123,34 +124,37 @@ Open:
      capture's events.jsonl, a copy in %TEMP%/settle_capture/s2c_ragdollprobe) equals both step-0 islands
      slot for slot. Not checked yet: the split with joints (needs the stepped settle); refused: joints in a
      coloured island, broken joints, the TOI solve of a jointed body.
-  5. Nearly done (2026-10-27, ledger 161): Maps/SettleWorld.Aggregate.cs builds the bodies, shapes and joints;
-     AggregateBuildCaptureTests (RAGDOLL) equals the capture in every field but the model pose, whose positions
-     are 1 to 4 ulps off: resourcecompiler takes it from the model's animation graph default pose (1817dd320),
-     not ported. Then lift SettleWorld.Run's aggregate refusal. Original plan:
-     The aggregate build (CPhysAggregateInstance, vphysics2 180042ba0, from
-     rc's PhysPart_BuildFromModel 18105dbd0 when parts >= 2 or joints >= 1):
-     bodies per part at xf o bind pose (180045630), shapes, mass, inertia
-     scale, damping and drag (180044bc0), joints from VPhysXJoint_t
-     (180047600: type 3 -> 18005cb80 revolute, 4 and 10 -> 18005d370
-     conical, the degrees round trip x * 57.295776f * 0.017453292f), the
-     joint ctors' defaults and desc setters (friction torque 180204d70 with
-     the side from 180204ff0, elasticity 180204520, the anchors through
-     180205a20/180205aa0 divided by the body scale when desc +0x54), rc's
-     attribute pass and bone poses, then made dynamic body by body
-     (1800488d0 -> SetType 2). Lift SettleWorld.Run.cs:64's refusal of a
-     bind pose. Check: the capture's step-0 bodies, joints and islands byte
-     for byte.
-  6. Step in lockstep with the capture (SettleReplay with joints: bodies and
-     joints every recorded step), then sleep with joints; first divergence
-     wins, as for the single-body settle (SETTLE.md). Remember Valve's
-     settle varies run to run with heap order: capture --settle-only twice
-     before chasing a pose.
-  7. The write-back (18105b350 -> 18105a410): bone 0's transform through
-     bind pose 0 (translation times the aggregate scale) to the entity, the
-     other bones local, scaled 1 / aggScale, into boneTransforms (18105cac0,
-     node +0x438 180f934b0, lump key 181004390, serializer 18174aeb0); lift
-     SettleWriteBack.cs:64's scaled bind pose refusal if a corpus map needs
-     it. Check: s2c_ragdollprobe's lump 0 against Valve's, then the corpus
+  5. Nearly done (2026-10-27, ledger 161): the aggregate build. Maps/SettleWorld.Aggregate.cs builds a model with
+     two parts or a joint as vphysics2's CPhysAggregateInstance: vphysics2's placement, keyframed and woken bodies,
+     shapes with the layered collision attributes, SetMass, inertia scale, damping and drag, the joints (desc from
+     VPhysXJoint_t, ctor defaults, world add, setters in the creator's order, friction torque), then
+     resourcecompiler's entity attributes and pose. AggregateBuildCaptureTests (RAGDOLL) equals the capture in every
+     body field but the pose, every shape attribute and all 56 joints byte for byte. Left:
+     a. **The model pose** (the one open item). Resourcecompiler poses each body from the entity's model pose
+        (rc 181f0bb60 -> 181f02fa0 -> 181f03210, looked up by 181749d20 per part bone name, case ignored). With an
+        animation graph, as ctm_sas has, that pose is the graph's default pose (1817dd320, after vfn 0x90 of the
+        node's graph at node +0x2b0); stored bone overrides (181efec40, node +0x298) win over it, and the skeleton's
+        reference pose (18174dc50, our ModelPoses) is only the no-graph case. Today ModelPoses composes the
+        skeleton: every quaternion equals the logged pose, positions are 1 to 4 ulps off on 50 of 60 bodies and one
+        orientation one ulp off. Do: decompile 1817dd320 and what feeds it (which graph node, which clip and frame,
+        the decode and the local-to-model compose), port it, and check the logged pose (the capture's "xf" build
+        events, the test's "rc pose" line) bit for bit. Port the stored-override path too (a map whose ragdoll
+        keeps bone transforms from Hammer), and keep the reference-pose path for models with no graph.
+     b. Lift SettleWorld.Run's refusal of a map with an aggregate once (a) is exact.
+     c. Small refusals that stay until a corpus model needs them: hull or mesh shapes in an aggregate, a node scale
+        other than 1, a deformer, a mass-centre override (body vfn 0x108), joints to the world's static body
+        (VPhysXJoint_t flags bit 0), motors, linear limits, breakable and elastic joints (18022c480, 18021ade0),
+        CRnRevoluteBlockJoint (flags bit 1). ModelPhysicsProbe (MODELPHYS, MODELPHYS_JOINTS=1) lists a model's.
+  6. Step in lockstep with the capture: a SettleReplay with joints (the capture's "bodies" and "joints" events at
+     steps 0..90 and every 10th, "islands" at 0..3 and every 100th), first divergence wins, as for the single-body
+     settle (SETTLE.md). This also checks the island split with joints (by step 100 Valve's islands have 16
+     bodies, no holes, and ground contacts) and sleep with joints. Valve's settle varies run to run with heap
+     order: capture --settle-only twice before chasing a pose. The capture is the one in
+     %TEMP%/settle_capture/s2c_ragdollprobe (recipe in notes_joints.md); refresh it after a CS2 update.
+  7. The write-back (18105b350 -> 18105a410): bone 0's transform through bind pose 0 (translation times the
+     aggregate scale) to the entity, the other bones local, scaled 1 / aggScale, into boneTransforms (18105cac0,
+     node +0x438 180f934b0, lump key 181004390, serializer 18174aeb0); lift SettleWriteBack.cs:64's scaled bind
+     pose refusal if a corpus map needs it. Check: s2c_ragdollprobe's lump 0 against Valve's, then the corpus
      maps with ragdoll props.
   Not on the path: CRnRevoluteBlockJoint (flags bit 1; port if a corpus
   model turns out to use it, which ModelPhysicsProbe's joint listing shows),

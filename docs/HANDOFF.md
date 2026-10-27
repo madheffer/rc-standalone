@@ -210,6 +210,24 @@ the ragdoll session's files in the shared checkout did not build), cherry-picked
 - Later (ledger 163): the scene read from the package, programs by render mode (ValveProgram.LoadOrNone: no shader
   where the combo has none), and the atixref program check (72 / 189; what is missing is listed in CUBEMAPS.md).
 
+## Same day, ragdolls in the settle (2026-10-27)
+
+Ledgers 158, 160, 161; PHYSICS.md "Aggregates in the settle", steps 3 to 5 (done or nearly), 5a to 7 (left).
+Commits 93db97e, 98a2455, ae55aad, c1f9e28.
+
+- Joints solve in islands (Simulation/JointSolver.cs, oracle-exact), live in the island manager and SetType
+  (IslandManagerOps, RnWorld.AddJoint/SetType; step-0 islands slot for slot), and a model with two parts or a joint
+  builds as Valve's aggregate (Maps/SettleWorld.Aggregate.cs): every body field but the pose, every shape attribute
+  and all 56 joints of s2c_ragdollprobe byte for byte.
+- Next, in order (PHYSICS.md 5a to 7): port the model pose from the animation graph's default pose (rc 1817dd320;
+  the skeleton composition is 1 to 4 ulps off in position), lift SettleWorld.Run's ragdoll refusal, lockstep the
+  settle against the capture (also checks the island split with joints and sleep), then the boneTransforms
+  write-back.
+- Tests: RagdollIslandsCaptureTests and AggregateBuildCaptureTests run with RAGDOLL set to the capture's
+  events.jsonl (a copy in %TEMP%/settle_capture/s2c_ragdollprobe; the recipe is in
+  tools/re/out/settle_notes/notes_joints.md). AggregateBuildCaptureTests fails today, listing only the pose.
+  JointStreamOracleTests needs the vphysics2 0924 build (installed or staged from tools/re/binaries).
+
 ## Earlier session (2026-10-27 later, layer selection and the material store)
 
 Commits d5d67e9 .. a095d91 on research/map-authoring, pushed to box (ledgers 156, 157, 159; 158 and 160 are the
