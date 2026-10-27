@@ -471,6 +471,10 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
             }
             if (ourDraws != null)
                 output.WriteLine($"  our draw list: {run.Count} actions, {reordered} draws whose targets differ from the capture's after them (order)");
+            // CUBEREPLAY_INVENTORY=1: what this face still took from the capture, by kind.
+            if (Environment.GetEnvironmentVariable("CUBEREPLAY_INVENTORY") == "1")
+                foreach (var g in replay.Captured.GroupBy(c => c[(c.IndexOf(' ') + 1)..]).OrderBy(g => g.Key))
+                    output.WriteLine($"  captured: {g.Key} (eids {string.Join(",", g.Select(c => c[..c.IndexOf(' ')]).Distinct())})");
             output.WriteLine($"  pipelines: {keptPipelines} draws keep the capture's (programs not ported); samplers: {oursSamplers} bindings ours; vertex layouts: {oursLayouts} draws ours");
             var colorName = actions.Where(r => r["outputs"]!.AsArray().Count > 0).Select(r => (string)r["outputs"]![0]!).Last();
             var face = replay.ReadLive(colorName);
@@ -1371,6 +1375,14 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
 
         /// <summary>Buffer contents to use in place of the captured blob of that hash (constant blocks we build).</summary>
         public Dictionary<string, byte[]> Overrides { get; } = [];
+
+        /// <summary>
+        /// Every input taken from the capture rather than our data, as "kind what" (the current action's eid prefixed):
+        /// buffers and image subresources uploaded from the dump's blobs, push constants, samplers, and dispatch sizes.
+        /// </summary>
+        public HashSet<string> Captured { get; } = [];
+        private int _eid;
+        private void Note(string what) => Captured.Add($"{_eid} {what}");
         private readonly List<GpuDevice.GpuBuffer> _overridden = [];
 
         /// <summary>
@@ -1556,6 +1568,7 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                 _overridden.Add(fresh);
                 return fresh;
             }
+            Note($"buffer {sha1[..8]}");
             if (!_buffers.TryGetValue(sha1, out var b))
                 _buffers[sha1] = b = gpu.Upload(Blob(sha1), BufferUsageFlags.UniformBufferBit | BufferUsageFlags.StorageBufferBit | BufferUsageFlags.VertexBufferBit | BufferUsageFlags.IndexBufferBit);
             return b;
@@ -1720,6 +1733,8 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
             image = runner.CreateImage(format, (uint)(int)t["width"]!, (uint)(int)t["height"]!, (uint)Math.Max(1, (int)t["depth"]!), mips, layers, viewType, usage);
             foreach (var s in subs)
             {
+                if (!ImageOverrides.ContainsKey((string)s!["sha1"]!))
+                    Note($"image {name} mip {s["mip"]} slice {s["slice"]}");
                 var data = ImageOverrides.TryGetValue((string)s!["sha1"]!, out var ours) ? ours : Blob((string)s!["sha1"]!);
                 if (Blank.Contains(name))
                     data = new byte[data.Length];
@@ -1729,6 +1744,12 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
         }
 
         private static string Sha1(byte[] data) => Convert.ToHexStringLower(SHA1.HashData(data));
+
+        private Sampler NotedSampler(JsonNode smp)
+        {
+            Note($"sampler set {smp["bind"]!["set"]} binding {smp["bind"]!["binding"]}");
+            return SamplerFor(smp["sampler"]!);
+        }
 
         /// <summary>The declaration at set/binding that RenderDoc's res&lt;id&gt; names (our reflection names it _&lt;id&gt;), else the first there.</summary>
         private static SpirvReflection.Resource Declaration(IEnumerable<SpirvReflection.Resource> resources, int set, int binding, string? renderDocName)
@@ -1740,6 +1761,7 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
 
         public string Run(JsonNode rec)
         {
+            _eid = (int)rec["eid"]!;
             ApplyClears((int)rec["eid"]!);
             var before = rec["contents"]!["before"]!;
             var after = rec["contents"]!["after"]!;
@@ -1766,6 +1788,7 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                     // A block not backed by a buffer is the push constants (RenderDoc reads them from the command buffer).
                     if (block["bufferBacked"] is { } backed && !(bool)backed)
                     {
+                        Note("push constants");
                         bindings.PushConstants = Blob((string)bytes["sha1"]!);
                         continue;
                     }
@@ -1817,7 +1840,7 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                 }
                 foreach (var smp in stage["samplers"]!.AsArray())
                     bindings.Sampler((int)smp!["bind"]!["set"]!, (int)smp["bind"]!["binding"]!, (uint)(int)smp["access"]!["arrayElement"]!,
-                        SamplerHook?.Invoke(rec, smp) is { } ours ? OurSampler(ours) : SamplerFor(smp["sampler"]!));
+                        SamplerHook?.Invoke(rec, smp) is { } ours ? OurSampler(ours) : NotedSampler(smp));
             }
 
             var vi = rec["vertexInput"]!;
@@ -2000,6 +2023,7 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
         /// <summary>A dispatch from fresh copies of its read-write buffers; each must equal the capture's after it.</summary>
         public string RunCompute(JsonNode rec)
         {
+            _eid = (int)rec["eid"]!;
             ApplyClears((int)rec["eid"]!);
             var before = rec["contents"]!["before"]!;
             var after = rec["contents"]!["after"]!;
@@ -2048,7 +2072,8 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                 bindings.Buffer(set, binding, element, buffer ?? Buffer((string)before[name]!["sha1"]!), (ulong)d["byteOffset"]!, size >= (1UL << 40) ? Vk.WholeSize : size);
             }
             foreach (var smp in cs["samplers"]!.AsArray())
-                bindings.Sampler((int)smp!["bind"]!["set"]!, (int)smp["bind"]!["binding"]!, (uint)(int)smp["access"]!["arrayElement"]!, SamplerFor(smp["sampler"]!));
+                bindings.Sampler((int)smp!["bind"]!["set"]!, (int)smp["bind"]!["binding"]!, (uint)(int)smp["access"]!["arrayElement"]!, NotedSampler(smp));
+            Note("dispatch size");
             var dim = rec["dispatchDimension"]!.AsArray().Select(v => (uint)v!).ToArray();
             runner.Dispatch(code, bindings, dim[0], dim[1], dim[2]);
             var report = new List<string>();

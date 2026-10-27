@@ -776,6 +776,26 @@ quality 2 are measured (`CascadeTiles`); the atlas allocator is not read.
   ze_hold_em_p order the same draws differently and give all 8 EXRs byte for
   byte equal. Only coplanar surfaces of two materials depend on it.
 
+### What the chained cube still takes from the dump (2026-10-27)
+
+`CUBEREPLAY_INVENTORY=1` makes `ChainedCubeMakesTheGamesExr` list every input it binds from the dump's blobs
+instead of our data (buffers, image subresources, push constants, samplers, dispatch sizes). On probe01's cube 0
+(with `CUBEREPLAY_OURDRAWS=materials`, all six faces still the game's EXR) only two remain per face:
+
+- the colour pass's storage buffer at set 3 binding 31 (153,600 bytes; generic's programs declare one structured
+  buffer of their own, `g_CullBits`, attribute CullBits, so presumably this one, not confirmed by binding).
+  Uploaded as zeros the six faces are still the game's, so on probe01 no pixel reads it; what writes it in the
+  game (the light binner's dispatches write other buffers here) is not read;
+- the light binner's two dispatch sizes (256 x 1 x 1 and 16 x 32 x 1). The binner is scenesystem's
+  lightbinner_gpu.cpp (compute_depthbin_cullbits, compute_tile_cullbits; CullParams_t 1801b2850 is ported);
+  the dispatch call is not located yet.
+
+Beyond these inputs the replay still uses the dump as scaffolding: each action's record (which program, which
+resource name at each set and binding), `passes.jsonl` for the passes and their clears, and `resources.json` for
+the targets' formats and sizes. Rendering with no dump means building that frame from our data: the action list
+(CubemapFaceDrawList plus the binner, sky and downsample passes), each program's bindings from its SPIR-V
+reflection and the programs' variable tables (as the textures and samplers already are), and the targets.
+
 ## Roadmap to env_cubemap_array.vtex_c from the .vmap (2026-10-25)
 
 The goal is 1:1 with Valve in every aspect: every map, static or animated,
