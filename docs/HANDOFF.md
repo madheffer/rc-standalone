@@ -107,13 +107,14 @@ the addon).
    fixed-function state of the world, sky and downsample draws. Since 10-27 (ledger 156, CUBEMAPS.md "The
    draw list") the world draw list is ours too: `CubemapFaceDrawList` gives the passes, one list per aggregate
    and layer, the commands, instance blocks and viewports, equal to the capture as whole sets on probe01 and
-   s2c_l5probe, and all three cubes are the game's EXRs drawn from it (`CUBEREPLAY_OURDRAWS=1,0`). The order
-   within a layer is Valve's heap order of the materials and differs run to run in Valve's own build (two
-   atixref runs); on coplanar pixels of two materials it changes the face. Still from the RenderDoc dumps: the
+   s2c_l5probe, and all three cubes are the game's EXRs drawn from it in `MaterialOrder`'s order
+   (`CUBEREPLAY_OURDRAWS=materials`). The order within a layer is the materials' heap order, which follows
+   creation order: engine-created materials first (ported), the map's own as their loads complete (not data,
+   path order ours). It reaches the output only on coplanar pixels of two materials (ze_hold_em_p: two Valve
+   runs in different orders, 8 of 8 EXRs equal). Still from the RenderDoc dumps: the
    draws' bindings (descriptor sets), dispatch sizes and push constants, the sky and downsample draws' places,
    and the spawned pawn's viewmodel and AO box on s2c_l5probe. Next, in order:
-   - which order our compile draws a layer in (no order reproduces Valve where it is nondeterministic; decide
-     with the user), and the draw flags that pick a draw's layers (180041a00 against the layer's +0x480/+0x488/
+   - the draw flags that pick a draw's layers (180041a00 against the layer's +0x480/+0x488/
      +0x498; atixref's non-shadow-casting blends, alpha-tested prepass layer and no-prepass aggregates fail
      DrawListEqualsTheCapture today);
    - the remaining capture inputs: descriptor sets from the programs' reflection, dispatch sizes, then probe01

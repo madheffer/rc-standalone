@@ -83,6 +83,8 @@
   <ItemGroup>
     <!-- Zen 4's rcpss/rsqrtss results by top mantissa bits, for CpuEstimate. -->
     <EmbeddedResource Include="Resources\estimate_zen4_*.bin" LogicalName="%(Filename)%(Extension)" />
+    <!-- The materials the engine creates whatever the map, in creation order (CubemapFaceDrawList.MaterialOrder). -->
+    <EmbeddedResource Include="Resources\cubemap_engine_materials.txt" LogicalName="%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

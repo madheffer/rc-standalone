@@ -759,12 +759,22 @@ quality 2 are measured (`CascadeTiles`); the atlas allocator is not read.
   the same draws in different orders in most sorts: the order is not
   reproducible in Valve's own build, and on coplanar pixels of two materials
   neither is Valve's face. On the two small maps it holds: eight more runs
-  (`probe01_order1..5`, `l5probe_order1..3`) all draw reflectivity_30 first,
-  its material always at the lower address (twelve runs with the captures);
-  what gives it the lower address is not read. The tests pass the observed order
-  (`CUBEREPLAY_OURDRAWS=1,0` on all three cubes); which order our compile uses
-  is open. (A run with the agent on atixref takes over 600 s, so pass
-  `--timeout 1500`.)
+  (`probe01_order1..5`, `l5probe_order1..3`) all draw reflectivity_30 first.
+  The cause (GROUND_TRUTH 156): the address follows the CMaterial2's creation
+  order (95 to 96%), and reflectivity_30 is one of the 957 materials the engine
+  creates before any map's own (`Resources/cubemap_engine_materials.txt`, made
+  by `tools/cubehost/material_order.py` from the agent's "material" records),
+  which sort before all others. The map's own are created as their loads
+  complete, which is not data. `CubemapFaceDrawList.MaterialOrder` ports
+  that: engine materials first in creation order, then the map's own by path.
+  All three cubes are the game's with it (`CUBEREPLAY_OURDRAWS=materials`).
+  (A run with the agent on atixref takes over 600 s: pass `--timeout 1500`.)
+- **Does the order reach the output** (measured): `DrawOrderChangesTheFace`
+  (`CUBEREPLAY=<face dump>`, `CUBEREPLAY_ORDERTEST=1`) replays a face with
+  each run of indirect calls reversed. atixref face 0: no depth or shadow
+  texel changes, 346 of 4,194,304 colour words do. Two Valve builds of
+  ze_hold_em_p order the same draws differently and give all 8 EXRs byte for
+  byte equal. Only coplanar surfaces of two materials depend on it.
 
 ## Roadmap to env_cubemap_array.vtex_c from the .vmap (2026-10-25)
 

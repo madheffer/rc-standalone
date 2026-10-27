@@ -4183,10 +4183,30 @@ game can answer is raised with the user first, and runs with -insecure.
       first. With the four earlier captures that is twelve runs. Why its address is lower is not read: the
       world's RERL lists dev_measuregeneric01 first, so it is not plain load order with rising addresses.
       atixref's 294 materials are where the order breaks (above).
-    - Open: which order our compile renders in. Valve's own output on such pixels is not reproducible, so no
-      order is "the" answer for maps with coplanar materials; the tests pass the game's observed order
-      (CUBEREPLAY_OURDRAWS=1,0). Also open: the draw flags that choose a draw's layers (atixref's
-      non-shadow-casting blends, its alpha-tested prepass layer).
+    - Settled from the decompile (materialsystem2, installed 1.41.9.2, the 10-15 build's code): every CMaterial2
+      comes from one of four sites (180033de0, 1800356f0, 18003abf0, 18003ade0), each a 0x7e0-byte g_pMemAlloc
+      block with a creation serial (+0x3c, an atomic global); 18000cb40 and 18000dc00 name it.
+    - Measured (layer_sort.js "material" records, `--out probe01_alloc1/2`, `atixref_alloc1`): all creations run
+      on one thread. Where the sort decides on the material's address (+0x28, +0x48 and +0x62 equal), the earlier
+      created material sorts first in 95% (atixref, 7,597 engine/map pairs) to 96% (237,208 map/map pairs) and in
+      every probe01 pair; the rest is heap reuse. Materials the engine creates before any of a map's own (957,
+      Resources/cubemap_engine_materials.txt from tools/cubehost/material_order.py: in every run, creation index
+      below 1106, atixref's first own world material) sort before every other material in all 4,905 tied pairs
+      of atixref. The map's own materials are created in bursts as their loads complete, interleaved with the
+      game's precache (player models, weapons): their creation order matches neither the world node's aggregate
+      order (65% of pairs inverted) nor the models' references (58%), and the creation sequence differs between
+      runs. It is not data.
+    - Ported: CubemapFaceDrawList.MaterialOrder: engine materials first in creation order, then the map's own
+      in path order (ours). All three cubes are the game's EXRs with it (CUBEREPLAY_OURDRAWS=materials).
+    - Whether the order changes bytes, measured: replaying atixref face 0 with the captured blocks and every run
+      of indirect calls reversed (CubemapFaceReplayTests.DrawOrderChangesTheFace) changes no depth or shadow
+      texel and 346 of 4,194,304 colour words: coplanar surfaces of two materials, the later draw winning. Two
+      Valve builds of ze_hold_em_p (`--out holdem_order1/2`) order the same draws differently (colour layer 0x0:
+      0 of 12 sorts alike) and give all 8 EXRs byte for byte equal. So the order reaches the output only where
+      two materials are coplanar in a face, as on probe01 and s2c_l5probe; there Valve's own result follows its
+      heap and our rule gives the observed one.
+    - Open: the draw flags that choose a draw's layers (atixref's non-shadow-casting blends, its alpha-tested
+      prepass layer).
 
 ## Resolved
 

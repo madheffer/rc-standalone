@@ -207,6 +207,69 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// Diagnosis (GROUND_TRUTH 156): whether the order of the lists within a layer changes a face. <c>CUBEREPLAY</c>
+    /// (one face's dump) is replayed chained with the captured blocks twice, in the captured order and with each run
+    /// of indirect calls into the same targets and scissor reversed call by call (a call's sub-commands keep their
+    /// order); each target's texels that differ between the two runs are counted after the last action.
+    /// </summary>
+    [Fact]
+    public void DrawOrderChangesTheFace()
+    {
+        if (Environment.GetEnvironmentVariable("CUBEREPLAY") is not { Length: > 0 } dir
+            || Environment.GetEnvironmentVariable("CUBEREPLAY_SPIRV") is not { Length: > 0 } spirvDir
+            || Environment.GetEnvironmentVariable("CUBEREPLAY_ORDERTEST") != "1")
+            return;
+        var resources = JsonNode.Parse(File.ReadAllText(Path.Combine(dir, "resources.json")))!;
+        using var gpu = new GpuDevice(rayTracingShaderFeatures: Environment.GetEnvironmentVariable("CUBEREPLAY_BASIC_DEVICE") != "1");
+        var runner = new SceneDrawRunner(gpu);
+        using var replay = new Replay(dir, spirvDir, resources, gpu, runner) { Chain = true };
+        var actions = File.ReadLines(Path.Combine(dir, "actions.jsonl")).Select(l => JsonNode.Parse(l)!)
+            .Where(r => r["contents"] is not null && (r["stages"]?["vs"] is not null || r["stages"]?["cs"] is not null)).ToList();
+        // Runs of indirect calls into one set of targets and one scissor, split into calls.
+        string? Key(JsonNode r) => ((string)r["name"]!).Contains("Indirect", StringComparison.Ordinal) && r["viewportScissor"]?["viewportScissors"] is JsonArray { Count: > 0 } vs
+            ? $"{string.Join(",", r["outputs"]!.AsArray().Select(o => (string)o!))}|{r["depthOut"]}|{vs[0]!["scissor"]!.ToJsonString()}" : null;
+        var reversed = new List<JsonNode>();
+        var calls = 0;
+        for (var i = 0; i < actions.Count;)
+        {
+            if (Key(actions[i]) is not { } key)
+            {
+                reversed.Add(actions[i++]);
+                continue;
+            }
+            var group = new List<List<JsonNode>>();
+            for (; i < actions.Count && Key(actions[i]) == key; i++)
+            {
+                var name = (string)actions[i]["name"]!;
+                if (group.Count == 0 || !name.StartsWith("Indirect sub-command", StringComparison.Ordinal) || name.StartsWith("Indirect sub-command[0]", StringComparison.Ordinal))
+                    group.Add([]);
+                group[^1].Add(actions[i]);
+            }
+            calls += group.Count;
+            group.Reverse();
+            reversed.AddRange(group.SelectMany(c => c));
+        }
+        output.WriteLine($"{actions.Count} actions, {calls} indirect calls in runs that are reversed");
+        Dictionary<string, byte[]> Run(List<JsonNode> list)
+        {
+            foreach (var r in list)
+                _ = r["stages"]!["cs"] is not null ? replay.RunCompute(r) : replay.Run(r);
+            var targets = list.SelectMany(r => r["outputs"]!.AsArray().Select(o => (string)o!).Append((string?)r["depthOut"])).OfType<string>().Distinct().ToList();
+            var result = targets.ToDictionary(t => t, t => replay.ReadLive(t));
+            replay.ResetChain();
+            return result;
+        }
+        var captured = Run(actions);
+        var ours = Run(reversed);
+        foreach (var (name, bytes) in captured)
+        {
+            var other = ours[name];
+            var differ = Enumerable.Range(0, Math.Min(bytes.Length, other.Length) / 2).Count(k => BitConverter.ToUInt16(bytes, k * 2) != BitConverter.ToUInt16(other, k * 2));
+            output.WriteLine($"{name}: {differ} of {bytes.Length / 2} 16-bit words differ with the reversed order");
+        }
+    }
+
+    /// <summary>
     /// A whole cube of probe01 (<c>CUBEREPLAY_CUBE</c>, 0 by default): each face's dump (<c>CUBEFACES=&lt;dir&gt;</c> holding replay_face0 .. 5, each
     /// rdc_replay.py with RDC_DUMP=1 over that face's events) chained from cleared targets with our blocks for that
     /// face, found by role (<see cref="BlockRoles"/>). The colour target after the face's last draw must equal the
@@ -386,7 +449,8 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
             foreach (var role in (roles.ContainsValue("world") ? ours.Keys : (IEnumerable<string>)["sky"]).Except(roles.Values))
                 failures.Add($"face {f}: no captured block for {role}");
             // CUBEREPLAY_OURDRAWS=1: the world aggregates' draws from our draw list instead of the capture's, the
-            // aggregates in their order within each layer; =reverse in the reverse order, =<k,k,...> in that order.
+            // aggregates in their order within each layer; =materials in CubemapFaceDrawList.MaterialOrder's, =reverse
+            // in the reverse order, =<k,k,...> in that order.
             // Valve's order within a layer follows heap pointers (GROUND_TRUTH 156), so a draw's targets may differ
             // from the capture's after it while the face's readback must not.
             var ourDraws = Environment.GetEnvironmentVariable("CUBEREPLAY_OURDRAWS") is { Length: > 0 } mode ? mode : null;
@@ -435,7 +499,7 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
     /// <summary>
     /// The face's actions with its world aggregate draws replaced by <see cref="Cubemaps.CubemapFaceDrawList"/>'s: each
     /// group of a view's colour or depth-only aggregate draws becomes our lists of that view and layer, in our order
-    /// (<paramref name="order"/>: 1, reverse or the aggregates' indices), at the group's first captured draw. Each of our
+    /// (<paramref name="order"/>: 1, materials, reverse or the aggregates' indices), at the group's first captured draw. Each of our
     /// commands borrows the bindings of the captured draw it equals (aggregate by vertex buffer, index range and
     /// instance count) and takes our first instance, viewport and scissor; every captured aggregate draw must be one
     /// of ours and every command of ours a captured draw. Other draws (sky, downsamples, the viewmodel) stay in place.
@@ -451,6 +515,9 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
         IReadOnlyList<int>? materialOrder = order switch
         {
             "1" => null,
+            // Each aggregate's material (its model's first draw call's) through MaterialOrder.
+            "materials" => Cubemaps.CubemapFaceDrawList.MaterialOrder([.. aggregates.Select(a =>
+                models.FirstOrDefault(m => m.Name == Path.ChangeExtension(a.Name.Split(' ', 2)[1], ".vmdl_c"))?.Draws.FirstOrDefault().Material)]),
             "reverse" => [.. Enumerable.Range(0, aggregates.Count).Reverse()],
             _ => [.. order.Split(',').Select(k => int.Parse(k, System.Globalization.CultureInfo.InvariantCulture))],
         };

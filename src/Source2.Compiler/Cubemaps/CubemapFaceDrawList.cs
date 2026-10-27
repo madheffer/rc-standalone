@@ -17,8 +17,8 @@ namespace Source2.Compiler.Cubemaps;
 /// compare the object's class, two +0x62 bits, the draw's flag 6 and three heap pointers (the per-object
 /// material at +0x28, +0x48, the material at +0x20) before the draw's +100. In probe01's colour layer the two
 /// aggregates tie up to the material's address (GROUND_TRUTH 156), and the order changes the face where
-/// coplanar surfaces of two materials pass the colour pass's depth test. Ours is aggregate order unless the
-/// caller gives one (<see cref="Face"/>'s <c>materialOrder</c>).</item>
+/// coplanar surfaces of two materials pass the colour pass's depth test. <see cref="MaterialOrder"/> gives the
+/// order from the materials; <see cref="Face"/> takes it as <c>materialOrder</c> (aggregate order without).</item>
 /// <item>Instances: each (view, aggregate) gets a block of its visible count; a command's first instance is the
 /// block's base plus the entry's visible position. The game hands blocks out by an atomic counter in thread order
 /// (ledger 139); ours go face view first, then cascades 0 to 3, in aggregate order, from 1 (instance 0 is the
@@ -89,6 +89,45 @@ public static class CubemapFaceDrawList
         }
         return views;
     }
+
+    /// <summary>
+    /// The materials the engine creates before a map's own, in creation order (Resources/cubemap_engine_materials.txt,
+    /// tools/cubehost/material_order.py from cubehost runs of probe01 and atixref, CS2 1.41.9.2 with -tools).
+    /// </summary>
+    public static readonly IReadOnlyList<string> EngineMaterials = LoadEngineMaterials();
+
+    private static List<string> LoadEngineMaterials()
+    {
+        using var stream = typeof(CubemapFaceDrawList).Assembly.GetManifestResourceStream("cubemap_engine_materials.txt")
+            ?? throw new InvalidOperationException("cubemap_engine_materials.txt is not embedded");
+        using var reader = new StreamReader(stream);
+        var names = new List<string>();
+        while (reader.ReadLine() is { } line)
+            if (line.Length > 0 && line[0] != '#')
+                names.Add(line);
+        return names;
+    }
+
+    /// <summary>
+    /// The aggregates in the order the layer sort draws them, given each one's material path: the sort ends on
+    /// the CMaterial2's address (GROUND_TRUTH 156). A material created before the map loads
+    /// (<see cref="EngineMaterials"/>) always sorts before the map's own, and those among themselves follow their
+    /// creation order. The map's own follow creation order only to about 96%, and that order is the order their
+    /// loads complete, which is not data: they come after in ordinal path order (ours, not Valve's); aggregates
+    /// without a material last, then aggregate order.
+    /// </summary>
+    public static int[] MaterialOrder(IReadOnlyList<string?> materials)
+    {
+        var engine = EngineIndex.Value;
+        return [.. Enumerable.Range(0, materials.Count)
+            .OrderBy(a => materials[a] is { } m && engine.TryGetValue(m, out var i) ? i : int.MaxValue)
+            .ThenBy(a => materials[a] == null)
+            .ThenBy(a => materials[a] ?? "", StringComparer.Ordinal)
+            .ThenBy(a => a)];
+    }
+
+    private static readonly Lazy<Dictionary<string, int>> EngineIndex = new(() =>
+        EngineMaterials.Select((name, i) => (name, i)).ToDictionary(x => x.name, x => x.i, StringComparer.Ordinal));
 
     /// <summary>
     /// Every aggregate draw of the face, in pass order (cascades 0 to 3, prepass Large, prepass Small, colour), and the
