@@ -393,10 +393,13 @@ public sealed class AggregateCullingCaptureTests(ITestOutputHelper output)
         var calls = File.ReadLines(Path.Combine(dir, "indirect.jsonl")).Select(l => JsonNode.Parse(l)!).Where(r => r["commands"] is JsonArray).ToList();
         var failures = new List<string>();
         var others = 0;
+        // Each aggregate's layer-selection inputs from the package (CubemapLayerFlags, checked by CubemapLayerFlagsCaptureTests).
+        var memberships = CubemapLayerFlagsCaptureTests.Memberships(vpk);
         for (var face = 0; face < 6; face++)
         {
             var view = CubemapFaceViews.Face(origin, Vector3.Zero, 1f, 10000f, face);
-            var (ours, instances) = CubemapFaceDrawList.Face(view, toSun, [.. aggregates.Select(a => new CubemapFaceDrawList.Aggregate(a.Fragments, a.OwnTransforms, a.Lods))], scriptedCamera);
+            var (ours, instances) = CubemapFaceDrawList.Face(view, toSun,
+                [.. aggregates.Select(a => new CubemapFaceDrawList.Aggregate(a.Fragments, a.OwnTransforms, a.Lods, memberships[a.Name.Split(' ', 2)[1]]))], scriptedCamera);
             var matched = new bool[ours.Count];
             var offsets = new Dictionary<(int, int), int>();
             var lastPass = -1;
@@ -426,7 +429,16 @@ public sealed class AggregateCullingCaptureTests(ITestOutputHelper output)
                 {
                     // An aggregate's draw we lack fails; anything else (entity models, the viewmodel, a light's own view)
                     // is outside the draw list.
-                    if (viewKey is >= -1 and < 4 && aggregates.Any(a => a.VertexBytes == bytes && a.VertexStride == stride))
+                    // An aggregate's draw: its model's stream, and every command on its draw calls' index ranges
+                    // (FaceDrawsEqualTheCapture's test; scene objects sharing a stream size are not).
+                    bool Fits(Aggregate a) => a.VertexBytes == bytes && a.VertexStride == stride && captured.All(cmd =>
+                    {
+                        var covered = a.Fragments.Where(f => f.BaseVertex == cmd.VertexOffset && f.StartIndex >= cmd.FirstIndex
+                                                             && f.StartIndex + f.IndexCount <= cmd.FirstIndex + cmd.IndexCount).Select(f => f.DrawCall).ToHashSet();
+                        var bounds = a.Fragments.Where(f => covered.Contains(f.DrawCall)).Select(f => (f.StartIndex, f.IndexCount)).Distinct().ToList();
+                        return bounds.Count > 0 && bounds.Min(b => b.StartIndex) == cmd.FirstIndex && bounds.Sum(b => b.IndexCount) == cmd.IndexCount;
+                    });
+                    if (viewKey is >= -1 and < 4 && aggregates.Any(Fits))
                         failures.Add($"face {face} {eid}: the capture draws [{string.Join(" ", captured)}] in view {viewKey}{(colour ? " colour" : "")}, no list of ours");
                     else
                         others++;

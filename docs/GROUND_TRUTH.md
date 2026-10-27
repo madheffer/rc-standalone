@@ -4244,10 +4244,7 @@ game can answer is raised with the user first, and runs with -insecure.
     - Settled by computation: every captured variant of the cascades' DrawDepthOpaque gives the same tests for a
       world fragment, so which CSM instance is the cube's does not change membership. The visible entries' +0xc
       bit was 0 in every cube-view test (measured; its writer in the cull is not read).
-    - Open: (1) a stage before 180041f30: in the capture 180041f30 is never called for an opaque material on the
-      AlphaTested layers, nor for an alpha-tested one on Large / Small, though both tests would pass them; the
-      layer's object pre-filter is not read, so CubemapFaceDrawList keeps its four opaque layers (wiring the tests
-      without it adds AlphaTested lists the game does not draw); (2) CPVS's octree walk for worlds with vis data
+    - Open: (1) the stage before 180041f30 is settled in 159; (2) CPVS's octree walk for worlds with vis data
       (the 0x20 bit only); (3) the order of a cascade's two layers; (4) the cull's +0xc fade bit.
 
 158. **The joint stream in the island solve** (2026-10-27: decompile of vphysics2 0924's 18030f0b0, 180312650,
@@ -4271,6 +4268,41 @@ game can answer is raised with the user first, and runs with -insecure.
       (3%).
     - Open: joints in the island manager (step 4 of PHYSICS.md's roadmap), so WorldSolver still refuses a body
       with joints; records other than 5, 0x0b and 0x12 throw.
+
+159. **The layer's object pre-filter, and the draw list from the layer tests** (2026-10-27: hardware breakpoint on
+    180041f30 (tools/cubehost/caller_of.js), decompile of scenesystem 20261015 1800edb90, 1800f3b10, 1800d5aa0,
+    1800d5260, 18003aa10, meshsystem 20261001 180012150; layer_members.js runs of probe01 and atixref).
+    - Settled: 180041f30 is CAggregateSceneObjectDesc's slot 0x20, called from 1800edb90, which 1800f3b10 calls for
+      each visible object of a layer that passes (decompile lines 214 .. 223): the object's cull record flags
+      against the layer's +0x480 (all required) and +0x488 (none), the object's +0x78 against +0x490 / +0x498,
+      and the layer's +0x6dc against the object's +0xc4 unless the layer has flag bit 26 (a branch first taken
+      when +0x6dc is set is not ported; +0x6dc was 0 on every captured cube-view layer). Ported:
+      CubemapLayerFlags.ObjectPasses.
+    - Settled: the object's +0x78 and +0x80 are worldrenderer 18001e920's two words from the aggregate's
+      m_allFlags / m_anyFlags (schema: AggregateSceneObject_t +0x0 / +0x4) and the first draw call's material
+      flags, the +0x80 word by meshsystem 180012150 (the material system's vf 0xd0), passed to CSceneSystem's
+      create (1800d5aa0) whose init (1800d5260) ORs it into the constructor's 0x40000000 (18003aa10); then
+      worldrenderer sets bit 61 and clears bit 60. Captured: the create receives 0x60d100400001 and the object
+      ends with 0x200060d140400001 on probe01, both equal to ours (CubemapLayerFlags.ObjectWords,
+      CubemapLayerFlagsCaptureTests); the cull record's flags equal +0x80 (measured; the copy is not read).
+    - Checked against the game's own calls (layer_members.js "record" with each call's layer fields, since layer
+      objects are reused across views; layer_members_check.py): the flag test never rejects an object the game
+      went on to test on any cube-view layer (probe01 374 agree, atixref 135,392); the passes it lets through that
+      the game did not test are the loop's later conditions. The 12 exceptions are the player view's "Static
+      Opaque Forward Fade" layer (+0x488 all ones, so 1800f3b10 can pass nothing there): its objects come from
+      another caller of 180041f30, which the cube build does not use (its Fade layer is tested on nothing).
+    - The split this makes: alpha-tested draw calls (AlphaTestZPrepass, material flag 0x100) set +0x80 bit 29,
+      which "Depth Prepass AlphaTested" requires (+0x480 0x20400001) and Large / Small exclude (+0x488).
+    - Measured with RenderDoc: the cascades' views also hold a "Depth Prepass AlphaTested" layer that the cascade
+      passes do not draw (every alpha-tested caster's one cascade list is its DrawDepthOpaque one), as the
+      BuildCubemaps view's SkyOccluder*, ToolsUtil Opaque and OpaqueRefractDepth layers draw no aggregate.
+    - Result: CubemapFaceDrawList selects each list through ObjectPasses, DrawCallPasses and FragmentPasses with
+      the captured layer values (CubemapLayers), and DrawListEqualsTheCapture passes on all six faces of
+      probe01, s2c_l5probe and atixref (atixref: 560 lists, the alpha-tested prepass after Small).
+    - Open: the loop's later per-object conditions in 1800f3b10 (the culling box, an object-level size test
+      against the split, LOD fade) are not ported as such; the draw list matches without them on these maps. The
+      order of the alpha-tested prepass within its pass, and the remaining items of 157 (CPVS's octree walk for
+      the fragment's 0x20, the cull's +0xc fade bit).
 
 ## Resolved
 

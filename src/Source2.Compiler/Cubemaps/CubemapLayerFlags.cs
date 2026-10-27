@@ -3,7 +3,7 @@ using Source2.Compiler.Maps;
 namespace Source2.Compiler.Cubemaps;
 
 /// <summary>
-/// Which layers a world aggregate's fragments join (docs/CUBEMAPS.md "The draw list", GROUND_TRUTH 157), every
+/// Which layers a world aggregate's fragments join (docs/CUBEMAPS.md "The draw list", GROUND_TRUTH 157, 159), every
 /// input from the code that makes it:
 /// <list type="bullet">
 /// <item>The draw call's flags (+0x1c): meshsystem 180027160 from the material's attributes (vf 0x48 bool, 0x50
@@ -147,11 +147,90 @@ public static class CubemapLayerFlags
     public static uint ObjectFlags(IEnumerable<ushort> fragmentFlags) => fragmentFlags.Any(f => (f & 0x100) != 0) ? 0x40u : 0u;
 
     /// <summary>
-    /// A scene layer's fields the tests read: +0x48 (flags), +0x480, +0x488, +0x498, +0x4a0 .. +0x4ac, and the
+    /// The aggregate scene object's two flag words (worldrenderer 18001e920 at 164 .. 196 of the decompile, then
+    /// 499): +0x78 from m_allFlags, and the 64-bit layer word +0x80 by meshsystem 180012150 (the material system's
+    /// vf 0xd0) from the first draw call's material flags, +0x78 and a base from m_allFlags / m_anyFlags, ORed into
+    /// the constructor's 0x40000000 (captured: the create receives the word without it), bit 61 set and 60 cleared
+    /// after creation. The layer pre-filter (scenesystem 1800f3b10) reads +0x78 and the object's cull record,
+    /// whose flags equal +0x80 (captured, probe01).
+    /// </summary>
+    public static (uint Flags78, ulong Layer80) ObjectWords(uint allFlags, uint anyFlags, uint materialFlags)
+    {
+        var u19 = (ulong)(~allFlags & 0x20) << 0x21;
+        var u22 = (ulong)(allFlags & 0x80) << 0x1c;
+        var u23 = u22 | 0x4000000;
+        var u29 = u19 | (((anyFlags >> 10) & 1) != 0 ? 0x9100400001ul : 0x9100000001ul);
+        if ((allFlags & 8) == 0)
+            u23 = u22 | 0x4200000;
+        var flags = ((allFlags >> 0x10) & 1) != 0 ? u23 : u23 | 8;
+        if (((anyFlags >> 0x12) & 1) != 0)
+            u29 |= 0x2000000000;
+        if (((allFlags >> 0xd) & 1) != 0)
+            u29 = (u29 & 0xffffff3ffffffffe) | 8;
+        // The object's constructor (CAggregateSceneObjectDesc vf 0xb8, scenesystem 18003aa10) sets 0x40000000, the
+        // init (1800d5260) ORs the word in, then worldrenderer sets bit 61 and clears bit 60.
+        return ((uint)flags, ((LayerWord(materialFlags, flags, u29) | 0x40000000) | 0x2000000000000000) & 0xefffffffffffffff);
+    }
+
+    /// <summary>meshsystem 180012150: the object's layer word from the material flags, the object flags and a base.</summary>
+    private static ulong LayerWord(uint material, ulong objectFlags, ulong word)
+    {
+        if (((objectFlags >> 0x14) & 1) != 0)
+            return word;
+        var m = material;
+        if (((material >> 0xe) & 1) != 0)
+        {
+            m = material & 0xffffff78;
+            word &= 0xfffffffffffffffc;
+        }
+        if (((objectFlags >> 0xf) & 1) != 0)
+            return word;
+        var kind = m & 5;
+        var w = kind switch
+        {
+            4 => (word & 0xfffffffffffffffe) | 2,
+            1 => (word & 0xfffffffffffffffd) | 1,
+            5 => word | 3,
+            _ => word,
+        };
+        var v = w & 0xffffff7fffffffff;
+        if ((m & 0x20) != 0)
+        {
+            var x = kind != 4 ? w | 0x8000000000 : w & 0xffffff7fffffffff;
+            if (((x >> 0x24) & 1) != 0 && ((m >> 0xd) & 1) == 0)
+                x |= 0x200000000000;
+            v = (m & 0x40) != 0 ? x | 0x2000000000 : x;
+        }
+        w = ((m >> 7) & 1) == 0 ? v | 0x40000000000 : v & 0xfffffbffffffffff;
+        v = ((m >> 8) & 1) != 0 ? (w & 0xfffffbffffffffff) | 0x20000000 : w & 0xffffffffdfffffff;
+        w = ((m >> 7) & 1) != 0 ? (v & 0xffff7fffffffffff) | 0x400000000000 : (v & 0xffffbfffffffffff) | 0x800000000000;
+        v = (m & 0x10) != 0 ? w | 8 : w & 0xfffffffffffffff7;
+        return (m & 2) != 0 ? v | 4 : v & 0xfffffffffffffffb;
+    }
+
+    /// <summary>
+    /// scenesystem 1800f3b10's test (decompile lines 214 .. 223) of a visible object against the layer before it is
+    /// offered to 180041f30: the record's flags (+0x80) against +0x480 / +0x488, the object's +0x78 against +0x490
+    /// / +0x498, and the layer's +0x6dc against the object's +0xc4 unless the layer has flag bit 26. The branch
+    /// taken first when the layer's +0x6dc is set (the object's +0xa8 entry) is not reached: +0x6dc was 0 on every
+    /// captured cube-view layer.
+    /// </summary>
+    public static bool ObjectPasses(Layer l, uint flags78, ulong layer80, int objectC4 = 0)
+    {
+        if (l.F6dc != 0)
+            throw new NotSupportedException("a layer with +0x6dc set (the object's +0xa8 branch, not ported)");
+        return (l.F488 & layer80) == 0 && (l.F480 & layer80) == l.F480
+            && (((l.F48 >> 0x1a) & 1) != 0 || l.F6dc == objectC4)
+            && (l.F498 & flags78) == 0 && (l.F490 & flags78) == l.F490;
+    }
+
+    /// <summary>
+    /// A scene layer's fields the tests read: +0x48 (flags), +0x480, +0x488, +0x490, +0x498, +0x4a0 .. +0x4ac, +0x6dc and the
     /// prepass split +0x6d0 (<see cref="AggregateCulling.InLayer"/>). The values are the game's (captured per layer
     /// of the BuildCubemaps view and its cascades, <see cref="CubemapLayers"/>).
     /// </summary>
-    public sealed record Layer(string Name, ulong F48, ulong F480, ulong F488, ulong F498, uint F4a0, uint F4a4, uint F4a8, uint F4ac, float Split);
+    public sealed record Layer(string Name, ulong F48, ulong F480, ulong F488, ulong F498, uint F4a0, uint F4a4, uint F4a8, uint F4ac, float Split,
+        ulong F490 = 0, int F6dc = 0);
 
     /// <summary>
     /// scenesystem 180041f30 before its call to 180041a00: the draw call (its +0x1c and +0x14, the object's +0xe0)

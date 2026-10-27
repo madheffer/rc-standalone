@@ -92,6 +92,36 @@ def main():
                 else:
                     stats["fragment DIFFERS"] += 1
                     bad.append(("fragment", run, t["layer"]["name"], t["object"], f, o["fragments"][f][0], ours, f in kept))
+        # 1800f3b10's pre-filter (decompile lines 214 .. 223) for each (layer, visible object) it was handed: it
+        # passes exactly when the game went on to call 180041f30 for that object and layer.
+        # Layer objects are reused across views and frames: a layer is its address and its fields at the call.
+        def state(L):
+            return (L["at"], L["name"], L["f48"], L["f480"], L["f488"], L.get("f490"), L["f498"], L.get("f6dc"), L["viewName"])
+        tested = {(state(t["layer"]), t["object"]) for t in tests}
+        for line in open(os.path.join(run, "frida.jsonl"), encoding="utf-8"):
+            r = json.loads(line)
+            if r.get("kind") != "record" or not r.get("fields") or r["object"] not in objects:
+                continue
+            name, f48, f480, f488, f490, f498, f6dc, view = r["fields"]
+            L = {"at": r["layer"], "name": name, "f48": f48, "f480": f480, "f488": f488, "f490": f490, "f498": f498, "f6dc": f6dc, "viewName": view}
+            o = objects[r["object"]]
+            if "f78" not in o:
+                continue
+            if int(L["f6dc"]) != 0:
+                stats["pre-filter: layer +0x6dc set (not ported)"] += 1
+                continue
+            rec = U(r["flags"])
+            ours = (U(L["f488"]) & rec) == 0 and (U(L["f480"]) & rec) == U(L["f480"])                 and ((U(L["f48"]) >> 0x1a) & 1 or int(L["f6dc"]) == int(o["fc4"]))                 and (U(L["f498"]) & U(o["f78"])) == 0 and (U(L["f490"]) & U(o["f78"])) == U(L["f490"])
+            game = (state(L), r["object"]) in tested
+            # The loop's later conditions (the culling box +0xc18, the object size against the split, LOD fade)
+            # can still skip an object the flag test passes; the flag test must never reject one the game tested.
+            if ours == game:
+                stats["pre-filter agrees"] += 1
+            elif ours:
+                stats[f"pre-filter passes, not tested (later conditions) on {L['name']}"] += 1
+            else:
+                stats["pre-filter REJECTS AN OBJECT THE GAME TESTED"] += 1
+                bad.append(("pre-filter", run, L["name"], r["object"], ours, game))
     for k, v in sorted(stats.items()):
         print(f"{v:8d}  {k}")
     for b in bad[:30]:

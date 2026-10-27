@@ -114,10 +114,9 @@ the addon).
    runs in different orders, 8 of 8 EXRs equal). Still from the RenderDoc dumps: the
    draws' bindings (descriptor sets), dispatch sizes and push constants, the sky and downsample draws' places,
    and the spawned pawn's viewmodel and AO box on s2c_l5probe. Next, in order:
-   - the draw flags that pick a draw's layers (GROUND_TRUTH 157: the two tests and all their inputs are read and
-     ported, CubemapLayerFlags.cs and MaterialAttributes.OfModes, checked on 2.8 million logged decisions and the
-     game's material store; open is the layer's object pre-filter before 180041f30, which decides AlphaTested vs
-     Large / Small; then wire CubemapFaceDrawList to the tests) (180041a00 against the layer's +0x480/+0x488/
+   - layer selection is done (GROUND_TRUTH 157, 159): the object pre-filter, the draw-call and fragment tests and
+     all their inputs are read and ported, and DrawListEqualsTheCapture passes on probe01, s2c_l5probe and atixref;
+     left are 1800f3b10's later per-object conditions (culling box, object size, LOD fade), not needed so far (180041a00 against the layer's +0x480/+0x488/
      +0x498; atixref's non-shadow-casting blends, alpha-tested prepass layer and no-prepass aggregates fail
      DrawListEqualsTheCapture today);
    - the remaining capture inputs: descriptor sets from the programs' reflection, dispatch sizes, then probe01

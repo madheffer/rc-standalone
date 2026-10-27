@@ -30,7 +30,36 @@ namespace Source2.Compiler.Cubemaps;
 public static class CubemapFaceDrawList
 {
     /// <summary>A world node aggregate as the cull reads it.</summary>
-    public sealed record Aggregate(IReadOnlyList<AggregateCulling.Fragment> Fragments, bool OwnTransforms, IReadOnlyList<AggregateCulling.LodSetup> Lods);
+    public sealed record Aggregate(IReadOnlyList<AggregateCulling.Fragment> Fragments, bool OwnTransforms, IReadOnlyList<AggregateCulling.LodSetup> Lods,
+        Membership? Layers = null);
+
+    /// <summary>
+    /// What scenesystem's layer selection reads of an aggregate (<see cref="CubemapLayerFlags"/>, GROUND_TRUTH 159):
+    /// the object's +0x78 and layer word +0x80 (<see cref="CubemapLayerFlags.ObjectWords"/>), each fragment's record
+    /// flags, its draw call's +0x1c and +0x14 and the object's +0xe0. Without it every fragment joins the shadow,
+    /// prepass Large / Small and colour layers, as before the selection was read.
+    /// </summary>
+    public sealed record Membership(uint Flags78, ulong Layer80, IReadOnlyList<ushort> FragmentFlags, uint DrawCall1c, ushort DrawCall14, uint ObjectE0);
+
+    /// <summary>
+    /// The scene layers a cubemap face draws world aggregates through, with the game's fields (layer_members.js on
+    /// probe01 and atixref, 1.41.9.2: the BuildCubemaps view's layers and its cascades' "CSM" views'; every cascade
+    /// variant captured gives the same result for world aggregates, GROUND_TRUTH 159). The view's other layers
+    /// (SkyOccluder*, ToolsUtil Opaque, OpaqueRefractDepth, the cascades' Depth Prepass AlphaTested) draw no aggregate
+    /// in RenderDoc's passes of probe01, s2c_l5probe and atixref.
+    /// </summary>
+    public static class CubemapLayers
+    {
+        public static readonly CubemapLayerFlags.Layer ShadowOpaque = new("DrawDepthOpaque", 0x1401800, 0xc000400001, 0x40001000100, 0x1100, 0, 0, 0, 2048, 0f);
+        public static readonly CubemapLayerFlags.Layer PrepassLarge = new("Depth Prepass Large", 0x101400005, 0x400001, 0x46040020000000, 0x1100, 0, 0, 2097152, 1074595840, AggregateCulling.PrepassSplit);
+        public static readonly CubemapLayerFlags.Layer PrepassSmall = new("Depth Prepass Small", 0x101400004, 0x400001, 0x46040030000000, 0x1100, 0, 0, 2097152, 1074595840, -AggregateCulling.PrepassSplit);
+        public static readonly CubemapLayerFlags.Layer PrepassAlphaTested = new("Depth Prepass AlphaTested", 0x101400004, 0x20400001, 0x46040000000000, 0x1100, 0, 0, 2097152, 1074595840, 0f);
+        public static readonly CubemapLayerFlags.Layer Colour = new("Static Opaque Forward", 0x400104, 0x1000400001, 0x4000000040000, 0x1100, 0, 0, 0, 1074595840, 0f);
+
+        /// <summary>The layer pass context's +0x3c and +0x65 in every captured cube-view test.</summary>
+        public const float Context3c = 1f;
+        public const byte Context65 = 0;
+    }
 
     /// <summary>The layers an aggregate list is drawn in.</summary>
     public enum Layer
@@ -43,6 +72,10 @@ public static class CubemapFaceDrawList
 
         /// <summary>"Depth Prepass Small": the rest.</summary>
         PrepassSmall,
+
+        /// <summary>"Depth Prepass AlphaTested": alpha-tested draw calls, after Small (atixref's capture).</summary>
+        PrepassAlphaTested,
+
 
         /// <summary>The shaded opaque layer.</summary>
         Colour,
@@ -153,24 +186,36 @@ public static class CubemapFaceDrawList
                     next += visible[v][a].Count;
                 }
         var draws = new List<ListDraw>();
-        void Add(int v, Layer layer, float split)
+        void Add(int v, Layer layer, CubemapLayerFlags.Layer definition)
         {
+            var split = definition.Split;
             foreach (var a in order)
             {
                 var fragments = aggregates[a].Fragments;
+                // scenesystem 1800f3b10's object test, 180041f30's of the draw call, then 180041a00's of each fragment
+                // (the layer is its own view layer and no root; the visible entries' +0xc bit was 0 in every capture).
+                var m = aggregates[a].Layers;
+                if (m == null ? layer is Layer.PrepassAlphaTested
+                        : !CubemapLayerFlags.ObjectPasses(definition, m.Flags78, m.Layer80)
+                          || !CubemapLayerFlags.DrawCallPasses(definition, m.DrawCall1c, m.DrawCall14, m.ObjectE0, CubemapLayers.Context3c, CubemapLayers.Context65))
+                    continue;
                 var size = split == 0f ? 0f : AggregateCulling.AggregateSize(fragments, view.Origin, 1f);
                 var list = visible[v][a].Select((f, position) => (Fragment: f, Position: position))
+                    .Where(e => m == null || CubemapLayerFlags.FragmentPasses(definition, definition, m.FragmentFlags[e.Fragment], 0, viewIsRoot: false))
                     .Where(e => split == 0f || AggregateCulling.InLayer(split, AggregateCulling.ScreenSize(view.Origin, 1f, fragments[e.Fragment].Centre, fragments[e.Fragment].Radius), size))
                     .ToList();
                 if (list.Count > 0)
                     draws.Add(new ListDraw(v, layer, a, AggregateCulling.Commands(list, fragments, bases[(v, a)], aggregates[a].OwnTransforms)));
             }
         }
+        // The cascades' views also have a "Depth Prepass AlphaTested" layer, which the cascade passes do not draw
+        // (atixref's capture: every alpha-tested caster's one cascade list is its DrawDepthOpaque one).
         for (var c = 0; c < views.Count - 1; c++)
-            Add(c, Layer.Shadow, 0f);
-        Add(-1, Layer.PrepassLarge, AggregateCulling.PrepassSplit);
-        Add(-1, Layer.PrepassSmall, -AggregateCulling.PrepassSplit);
-        Add(-1, Layer.Colour, 0f);
+            Add(c, Layer.Shadow, CubemapLayers.ShadowOpaque);
+        Add(-1, Layer.PrepassLarge, CubemapLayers.PrepassLarge);
+        Add(-1, Layer.PrepassSmall, CubemapLayers.PrepassSmall);
+        Add(-1, Layer.PrepassAlphaTested, CubemapLayers.PrepassAlphaTested);
+        Add(-1, Layer.Colour, CubemapLayers.Colour);
         return (draws, next);
     }
 }

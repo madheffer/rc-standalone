@@ -67,6 +67,7 @@ function layerFields(l) {
     at: hex(l), name: name(l.add(0x4b8)), viewName: viewName(l), viewObject: hex(l.add(0x6f0).readPointer()), f48: u64(l.add(0x48)), f480: u64(l.add(0x480)), f488: u64(l.add(0x488)), f498: u64(l.add(0x498)),
     f4a0: l.add(0x4a0).readU32(), f4a4: l.add(0x4a4).readU32(), f4a8: l.add(0x4a8).readU32(), f4ac: l.add(0x4ac).readU32(),
     split: l.add(0x6d0).readFloat(), f780: hex(l.add(0x780).readPointer()), fc18: l.add(0xc18).readU8(),
+    f490: u64(l.add(0x490)), f6dc: l.add(0x6dc).readS32(),
   };
 }
 
@@ -129,7 +130,8 @@ function describeObject(o) {
         report('attributes', { object: hex(o), material: hex(material), chain: dumpMaterial(material) });
     }
   } catch (e) { matFlags = 'error ' + e; }
-  report('object', { object: hex(o), fragments: frags, material1c14: matFlags, objectE0: o.add(0xe0).readU32() });
+  report('object', { object: hex(o), fragments: frags, material1c14: matFlags, objectE0: o.add(0xe0).readU32(),
+    f78: u64(o.add(0x78)), f80: u64(o.add(0x80)), fc4: o.add(0xc4).readS32(), fa8: hex(o.add(0xa8).readPointer()) });
 }
 
 const state = {};
@@ -191,6 +193,31 @@ function hookScenesystem(ss) {
       s.kept = kept;
     }
   });
+  // 1800f3b10 (_, lists, layer): the visible objects' cull records it tests against the layer before 180041f30
+  // (*lists +0x260: 0x20-byte entries, count at +8 and array at +0x10 of 0x20-byte items whose first qword is the
+  // record; the record's +0x20 flags and +0x28 object).
+  const prefilter = expect(ss, '0x1800f3b10', '488bc44c894018');
+  if (prefilter)
+    Interceptor.attach(prefilter, {
+      onEnter(args) {
+        // The layer's fields at this call: layer objects are reused across views, so a record names its layer's state.
+        try { const L = layerFields(args[2]); this.fields = [L.name, L.f48, L.f480, L.f488, L.f490, L.f498, L.f6dc, L.viewName]; } catch (e) { this.fields = null; }
+        try {
+          const lists = args[1].readPointer();
+          const groups = lists.add(0x260).readPointer();
+          const n = lists.add(600).readS32();
+          for (let g = 0; g < n && g < 4096; g++) {
+            const e = groups.add(g * 0x20);
+            const count = e.add(8).readS32();
+            const items = e.add(0x10).readPointer();
+            for (let i = 0; i < count && i < 65536; i++) {
+              const rec = items.add(i * 0x20).readPointer();
+              report('record', { layer: hex(args[2]), fields: this.fields, object: hex(rec.add(0x28).readPointer()), flags: u64(rec.add(0x20)) });
+            }
+          }
+        } catch (e) { send({ kind: 'error', where: 'prefilter', message: '' + e }); }
+      }
+    });
   send({ kind: 'hooked', name: ss.name });
 }
 
@@ -256,7 +283,8 @@ function poll() {
         const m = Process.findModuleByAddress(fn);
         callbacks.push(m ? m.name + '!0x' + fn.sub(m.base).add(IMAGE).toString(16) : hex(fn));
       }
-      send({ kind: 'slot', what: 'worldrenderer 180231bf0 vf 0x120', ...s, vfd0: slot(wr, '0x180231bf0', 0xd0), callbacks });
+      send({ kind: 'slot', what: 'worldrenderer 180231bf0 vf 0x120', ...s, vfd0: slot(wr, '0x180231bf0', 0xd0), callbacks,
+        create: slot(wr, '0x180231c00', 0x58) });
     }
   }
   if (!done || !wrDone)

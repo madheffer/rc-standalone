@@ -20,11 +20,11 @@ namespace Source2.Compiler.Tests;
 /// </summary>
 public sealed class CubemapLayerFlagsCaptureTests(ITestOutputHelper output)
 {
-    internal sealed record Ours(string Name, List<ushort> Fragments, List<int> IndexCounts, uint DrawCall1c, ushort DrawCall14, uint ObjectE0, MaterialAttributes? Material, List<bool> VisQuery);
+    internal sealed record Ours(string Name, List<ushort> Fragments, List<int> IndexCounts, uint DrawCall1c, ushort DrawCall14, uint ObjectE0, MaterialAttributes? Material, List<bool> VisQuery, uint F78, ulong F80);
 
-    private static uint ObjectFlags(KVObject mesh)
+    private static uint ObjectFlags(KVObject mesh, string key = "m_objectFlags")
     {
-        var text = mesh.Children.First(c => c.Key == "m_objectFlags").Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var text = mesh.Children.First(c => c.Key == key).Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
         if (uint.TryParse(text, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var n))
             return n;
         return text.Split('|', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
@@ -83,11 +83,17 @@ public sealed class CubemapLayerFlagsCaptureTests(ITestOutputHelper output)
                     Flag(first, "m_bCanBatchWithDynamicShaderConstants"), Flag(first, "m_bDrawLast"), Flag(first, "m_bBakedTwoSided"),
                     Flag(first, "m_bOnlyShadow"), Flag(first, "m_bNoShadow"));
                 var material = first.GetStringProperty("m_material") is { Length: > 0 } fm ? Attributes(fm) : null;
-                result.Add(new Ours(name, fragments, counts, flags[0], CubemapLayerFlags.DrawCallFlags(bools, material), CubemapLayerFlags.ObjectFlags(fragments), material, query));
+                var (f78, f80) = CubemapLayerFlags.ObjectWords(ObjectFlags(o, "m_allFlags"), ObjectFlags(o, "m_anyFlags"), flags[0]);
+                result.Add(new Ours(name, fragments, counts, flags[0], CubemapLayerFlags.DrawCallFlags(bools, material), CubemapLayerFlags.ObjectFlags(fragments), material, query, f78, f80));
             }
         }
         return result;
     }
+
+    /// <summary>Each world node aggregate's layer-selection inputs by its model (m_renderableModel), from the package.</summary>
+    internal static Dictionary<string, CubemapFaceDrawList.Membership> Memberships(string vpk)
+        => Aggregates(vpk).GroupBy(o => o.Name).ToDictionary(g => g.Key,
+            g => new CubemapFaceDrawList.Membership(g.First().F78, g.First().F80, g.First().Fragments, g.First().DrawCall1c, g.First().DrawCall14, g.First().ObjectE0));
 
     [Fact]
     public void FlagsEqualTheCapture()
@@ -123,6 +129,10 @@ public sealed class CubemapLayerFlagsCaptureTests(ITestOutputHelper output)
                     d.Add($"draw call +0x1c 0x{(uint)mat[0]!:x} captured, 0x{o.DrawCall1c:x} ours");
                 if ((int)mat[1]! != o.DrawCall14)
                     d.Add($"draw call +0x14 0x{(int)mat[1]!:x} captured, 0x{o.DrawCall14:x} ours");
+                if (c["f78"] is { } f78 && Convert.ToUInt64((string)f78!, 16) != o.F78)
+                    d.Add($"object +0x78 {(string)f78!} captured, 0x{o.F78:x} ours");
+                if (c["f80"] is { } f80 && Convert.ToUInt64((string)f80!, 16) != o.F80)
+                    d.Add($"object +0x80 {(string)f80!} captured, 0x{o.F80:x} ours");
                 if ((uint)c["objectE0"]! != o.ObjectE0)
                     d.Add($"object +0xe0 0x{(uint)c["objectE0"]!:x} captured, 0x{o.ObjectE0:x} ours");
                 // Every key of the game's store, as int (vf 0x50 reads bools as 0 / 1).
