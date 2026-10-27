@@ -114,16 +114,11 @@ the addon).
      programs by its shader's render modes. probe01 still exact.
    - Done: `CubemapFaceProgramsTests` passes on all three captures (atixref 256 world draws; ledger 163).
    - Done: the instance records (`CubemapInstanceRecordsTests`: atixref's 401 instances bit for bit).
-   - **atixref's inputs (the next task).** The probe-lit programs' inputs (light probe atlas textures), the sky's
-     D_FOG_TYPE (sky object +0xf4 = C_EnvSky m_nFogType, client 180282390; find who sets atixref's 1 with no
-     fog_type key), non-aggregate objects (about 50 direct draws); then render atixref face 0 against its readback
-     (atixref's readback_0..5 are this capture's frames).
-   - Then render the cubes in our compile: `compile-map` writing env_cubemap_array.vtex_c from the renderer (one
-     record per env_cubemap / combined volume, client 1801ea0a0's gather order), whole-package against Valve's.
-   - The pawn's viewmodel or a build state without one (s2c_l5probe's -X; roadmap 0e, ledger 149), and s2c_l5probe's
-     cube 1 (needs a capture).
-   - atixref through the renderer: alpha-tested prepass draws (their pixel program), aggregates with fragment
-     transforms, non-aggregate scene objects (194 calls) throw today; texture streaming on a big map.
+   - **The full to-do list is CUBEMAPS.md "What is left (2026-10-27 evening)"**: A, atixref face 0 against its
+     readback (probe-lit inputs, the sky's D_FOG_TYPE writer, fog with a sky material, non-aggregate objects,
+     shadowed lights' tiles, the binner with lights, then the render and texture streaming); B, s2c_l5probe's -X
+     viewmodel and cube 1; C, moving the test helpers into the library and compile-map rendering the cubes; D,
+     animated maps; E, the measured rules that still want their decompile.
    - Remaining from ledgers 157 / 159 (not needed by the three maps so far): 1800f3b10's later per-object
      conditions (culling box +0xc18, object size against the split, LOD fade), CPVS's octree walk (engine2
      180238170 -> 180237ce0 / 1802378f0) for the fragment's 0x20 bit on worlds with vis data, the cull's +0xc fade

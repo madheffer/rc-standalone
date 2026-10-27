@@ -838,10 +838,110 @@ stream, S_SHADER_QUALITY 1 and the static rules). The renderer draws a mesh's st
 The instance records are ours too (`CubemapFaceRenderer.InstanceBuffers`: each slot's packed tint and 3 x 4;
 `CubemapInstanceRecordsTests`, `CUBEINST=<capture dir>`: atixref's 93 blocks and 401 instances bit for bit).
 
-Left for atixref, in order: the probe-lit colour programs' inputs (the probe atlas textures); the sky's D_FOG_TYPE
-(C_EnvSky's m_nFogType, whose writer for atixref's 1 is not found, ledger 163); non-aggregate scene objects (about 50 direct draws in face 0, among them error-shader draws in the
-atlas); the viewmodel (s2c_l5probe's -X). Diagnosis probes: `CubemapSceneKeysProbe` (`CUBEKEYS`),
-`CubemapModesProbe` (`CUBEMODES=1`), `CubemapDrawCallKeysProbe` (`CUBEDCKEYS`).
+What is left is in the next section.
+
+## What is left (2026-10-27 evening)
+
+Where it stands: `CubemapFaceRenderer` renders a face from our data alone. probe01's two cubes and its whole
+env_cubemap_array.vtex_c are the game's byte for byte (ledger 162). On atixref's face 0 every world draw's programs
+(256) and instance records (401) are the game's (ledger 163), but the face is not rendered against its readback
+yet. The work below is in order; each item names what is known, where to look and the check that closes it. Rules
+as everywhere: from decompile, Frida or RenderDoc only, a match is a check, not a source (GROUND_TRUTH.md).
+
+### A. atixref face 0 against its readback (the current target)
+
+atixref's capture (%TEMP%/cubehost_run/atixref) has face 0's dump, cube 0's six readbacks and the game's 42 EXRs of
+that run. The readbacks are this run's frames, so they are a valid reference for the face even though atixref's
+build varies run to run (ledger 144, item D).
+
+1. **The probe-lit colour programs' inputs.** Props and vertex-painted brush blends draw with
+   D_BAKED_LIGHTING_FROM_PROBE (ledger 163). Their pixel programs read texture and buffer attributes the renderer
+   does not bind yet: `CubemapFaceRenderer.Texture` throws "no input for attribute <name>", which lists them. Expected
+   among them: the light probe volume atlases (each env_combined_light_probe_volume's lightprobetexture,
+   lightprobetexture_dlshd, lightprobetexture_sh2_*), which the light block's g_VisibleLPV entries index. atixref
+   has 42 volumes, so check the light block's volume words against the capture first (the replay test's check of
+   18832 .. and 31960). Check: a test like the replay's TextureInputs comparing every colour draw's bound
+   subresources with the capture's.
+2. **The sky's D_FOG_TYPE.** The sky object's +0xf4 (scenesystem 180154fb0, token 0x83cb90d6; type 2 also tests
+   +0xf8 / +0xfc against -90) is copied from C_EnvSky's m_nFogType (+0x10b8) by client 180282390. Neither probe01's
+   nor atixref's env_sky has the fog_type key, yet probe01 draws 0 and atixref 1. Find the other writer: dispscan
+   client for `[reg + 0x10b8]` writes (180270020 is the constructor; check its FUN_18026faa0 at +0x10b4), the schema
+   default in 18026d020, and whether env_cubemap_fog's cubemapfogsource 2 (atixref's, a sky material) sets it.
+   Today the renderer draws 0. Check: the sky draw's pixel module equals the capture's (6856 on atixref).
+3. **env_cubemap_fog with a sky material.** atixref's fog has cubemapfogsource 2 (materials/skybox/sky_de_nuke.vmat)
+   and no height fog. `CubemapFaceConstants.Csgo` was only checked on probe01's (source 1, sky entity): check
+   PerViewConstantBufferCsgo_t's fog words (432 .. 548) and the fog cube texture binding against atixref's capture.
+   The fog's height vector needs the struct client 180206e50 receives, filled elsewhere (C_EnvCubemapFog's fields
+   are at +0x600 .. +0x628, schema 1801fd3c0, including its own m_flFogHeightWidth): a height range throws today.
+4. **Non-aggregate scene objects.** About 50 direct (non-indirect) draws in face 0: props drawn as their own scene
+   objects in the cascades and the colour pass, and error-shader draws (error_vulkan_50, modules 451 / 450) in the
+   atlas. Needed: which entities give scene objects in the cube view (the scene's object list, not the world
+   nodes), their culling (the CPU draw path DrawArray 180042330, ledger 139), layers (CubemapLayerFlags applies to
+   any object), transforms and instance records, and why some draw the error shader (a missing material or
+   program). Start from the dump: rdc_actions.py's annotations (aggregate.model_name, material_name) name each draw.
+5. **Shadowed lights' atlas tiles.** light_omni2-like lights render their own shadow views into atlas tiles that
+   are no sun cascade (ledger 144: culled with the captured per-view block's frustum, 96 of 96). Port their view
+   setup from the precomputed sub-frusta, their per-view blocks and their draws.
+6. **The light binner with lights.** The binner and light block bin no lights or environment maps in the cubemap
+   view on probe01 and s2c_l5probe. Check atixref's CullParams_t and light block counts (g_nNumLights and the
+   rest) against its capture before assuming the same.
+7. **Render face 0 and compare.** `CubeWithNoDumpMakesTheGamesExr` needs a per-face mode for a map whose other
+   faces have no dump. Compare the colour against readback_0 (and the intermediate targets: atlas, face depth).
+   Then faces 1 to 5 against readback_1..5 (no dumps needed), then cube 0's EXR (env_cubemap_245678519.exr).
+8. **Texture streaming.** Every capture so far binds whole mip chains (the renderer uploads every mip). A big map
+   may not: compare each bound texture's mip count with the capture's.
+
+### B. s2c_l5probe
+
+1. **The -X face.** 16,114 halves differ where the spawned pawn's first-person viewmodel draws (8 draws per face,
+   their own per-view block with depth range 0 .. 0.1, scene and light blocks). Decide the build state first
+   (roadmap 0e: a compile has no player; Hammer's build may): the user's call.
+2. **Cube 1** has no capture: `run_probe.py --renderdoc 1 --settle 20` with CS2 and Steam closed (ask the user).
+
+### C. Into the compile
+
+1. **Move the remaining inputs out of the tests.** The renderer's callers still use two test helpers:
+   `AggregateCullingCaptureTests.Aggregates` (fragments, LODs, OwnTransforms from the world nodes) and
+   `CubemapLayerFlagsCaptureTests.Memberships` (the layer and draw call flags, with the material attribute store).
+   Both read only the package and the game's content; move them into Source2.Compiler (Cubemaps).
+2. **compile-map renders the cubes.** For each `CubemapFaceBlocks.FromPackage` cube: six faces through the
+   renderer, `CubemapFaceExr`, then `CubemapArrayVtex.Build` and the package's .vtex / .vtex_c, as Hammer's
+   build cubemaps step. Check: probe01's whole package against Valve's (ParityReport), then the service's presets.
+3. **The parity matrix map** (memory parity-matrix-rule): every compile preset and switch, our everything-Hammer map.
+
+### D. Animated maps
+
+atixref's build differs run to run in Valve's own tool (ledger 144). Before atixref's EXRs can be a reference: the
+roadmap below, 0a to 0e (what the build's state depends on, pin it in cubehost, then port the time-dependent
+inputs and choose the time our compile renders at).
+
+### E. Measured, not read (GROUND_TRUTH 162, 163)
+
+Rules that hold on every capture but whose engine code is not read; each wants its decompile before calling the
+port done:
+
+- the binding numbers (constant buffer at the slot, texture 30 + slot, UAV 158 + slot, sampler 14 + slot): the
+  descriptor layout builder in rendersystemvulkan;
+- D_COMPRESSED_NORMALS_AND_TANGENTS by the bound streams' NORMAL, and the depth passes binding the
+  m_nDepthVertexBufferIndex stream (255: the first): meshsystem / scenesystem's draw setup;
+- S_SHADER_QUALITY 1 (the video config) and the static rules' reduction (VRF's ShaderDataProvider);
+- the passes, clears and target sizes of a face (RenderDoc), and the two vkCmdCopyImage per face (not modelled,
+  they do not reach the readback);
+- BakedLightingConstantBuffer_t's lightmap size (the irradiance texture's) and the instance and transform buffers'
+  own layout (ours is output-equivalent, not the allocator's).
+
+### Tests and switches
+
+    CUBENODUMP_VPK, CUBENODUMP_CUBE, CUBEREADBACK, CUBEREADBACK_EXR [CUBEREPLAY_SPIRV, CUBEREPLAY_EXR_OUT, CUBEREPLAY_SCRIPTEDCAMERA=0]
+        CubemapFaceRendererTests.CubeWithNoDumpMakesTheGamesExr   the dump-free cube against readbacks and the EXR
+    CUBEPROGS=<capture dir>      CubemapFaceProgramsTests           every world draw's programs against the capture's modules
+    CUBEINST=<capture dir>       CubemapInstanceRecordsTests        instance tints and transforms against the capture's
+    CUBECULL=<capture dir>       AggregateCullingCaptureTests       the draw list
+    CUBEFACES=<dir> ...          CubemapFaceReplayTests             the replay: each action and block against the dump
+    CUBEGAME=<intermediates>     GameCubemapTests                   the array from EXRs
+    CUBEKEYS, CUBEMODES=1, CUBEDCKEYS, CUBECOMBO, CUBEBINDINGS=1      diagnosis probes (entity keys, render modes, draw call keys, a combo, bindings)
+
+spvmatch needs a size limit above the largest .vcs (`200000000`), or big pixel programs read as "not found".
 
 ## Roadmap to env_cubemap_array.vtex_c from the .vmap (2026-10-25)
 
