@@ -4329,6 +4329,32 @@ game can answer is raised with the user first, and runs with -insecure.
       waits for the stepped settle (step 6); joints in coloured islands' colour jobs and the step's broken-joint
       pass throw; the TOI solve with joints is not read.
 
+161. **The aggregate build, bodies and shapes** (2026-10-27, open: the pose's last ulps, SetType's flags, the joints;
+    decompile and disassembly of vphysics2 0924's 180042ba0, 180045630, 180044bc0, 180046280, 180046220, 1801bbb60,
+    1801bb110, 1801bcf70, 180256c80, 180256d00, the body wrapper's vtable 0x1803f44e0 and resourcecompiler 0923's
+    18105dbd0 (disassembly 18105e18a..18105e247), 18105ce70, 181f03210, 181f02fa0; Maps/SettleWorld.Aggregate.cs,
+    AggregateBuildCaptureTests on s2c_ragdollprobe's four CT agents).
+    - Settled from the code: a model with two parts or a joint goes to world vfn 0x418 with the part's transform
+      (node position, scale, orientation). vphysics2 places body i at MatrixQuaternion and translation of the part's
+      matrix concatenated with bind pose i (translation times the aggregate scale), its scale the largest column;
+      keyframes it (mode 3), adds the part's shapes at the aggregate scale with their names and surfaces, gives each
+      shape its palette entry as base and current attributes (per shape, else the part's index), then SetMass
+      (mass clamped to (0, 1e6], 500 otherwise, +0x4a bit 8, the mass update), the inertia scale when above 1,
+      damping and drag (+0x249 bit 5). The masks at 18045b2a0..18045b2b0 are only written 0 at static init, so a
+      later assignment keeps its own fields, adds the base layers and takes the base group when it is below 4.
+    - Settled: resourcecompiler then sets every shape to one entity record (palette entry picked by vfn 0xe8, group
+      4, flags 7, owner -1; 0xc3001 interactions for a simulated class, collision_group, layer 0x400 dropped) and
+      poses each body (SetTransform) from the model's own pose: 181749d20 looks the part's bone up, by name with
+      case ignored, in the pose 181f03210 builds; the bind pose is the fallback. The disassembly shows the override
+      branch Ghidra's decompile drops. SetTransform changes nothing below 1.4210855e-14 squared.
+    - Exact against the capture: the part transform, vphysics2's placement (each body's orientation when the
+      aggregate returns), mass, inertia, damping, drag, the world inverse inertia and 59 of 60 orientations at step 0.
+    - Open: (1) the model pose: the skeleton's parent-relative transforms composed with CTransform_Compose give the
+      logged pose's quaternion exactly but the position one or two ulps off in x on 50 of 60 parts (rc builds it in
+      181f0bb60 through 18174dc50 on model +0x130, not read); (2) SetType and wake's flags (StaticFlag, ActiveIndex,
+      Flags249 bit 2) on the aggregate's bodies; (3) every shape keeps layer 0x400 that Valve drops; (4) the joints
+      (180047600 and the creators). SettleWorld.Run refuses a map with an aggregate until these are exact.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

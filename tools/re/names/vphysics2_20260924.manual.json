@@ -1111,6 +1111,48 @@
    "note": "bodies 180045630, constraints2 180046ea0, joints 180047600"
   },
   {
+   "addr": "180046280",
+   "name": "CPhysAggregateInstance_CollisionAttributes",
+   "module": "s2c:entities/settle",
+   "note": "vfn 0xe8: the palette entry with a group above 3 after entry 0, else entry 0"
+  },
+  {
+   "addr": "180046220",
+   "name": "CPhysAggregateInstance_SetCollisionAttributes",
+   "module": "s2c:entities/settle",
+   "note": "vfn 0xf0: 1801ba7e0 on every body"
+  },
+  {
+   "addr": "1801bbb60",
+   "name": "CRnBody_SetMass",
+   "module": "s2c:entities/settle",
+   "note": "clamped to 1e6, 500 when not positive, +0x4a bit 8, mass update 0x13"
+  },
+  {
+   "addr": "1801bb110",
+   "name": "CRnBody_SetInertiaScale",
+   "module": "s2c:entities/settle",
+   "note": "+0x90, mass update 2"
+  },
+  {
+   "addr": "1801bcf70",
+   "name": "CRnBody_SetTransform",
+   "module": "s2c:entities/settle",
+   "note": "nothing below 1.4210855e-14 squared; quat, world inverse inertia, mass centre, previous frame, wake"
+  },
+  {
+   "addr": "180256c80",
+   "name": "CRnShape_SetBaseCollisionAttributes",
+   "module": "s2c:entities/settle",
+   "note": "+0x78 base layers, +0xac base group (4 when 0), +0xad"
+  },
+  {
+   "addr": "180256d00",
+   "name": "CRnShape_SetCollisionAttributes",
+   "module": "s2c:entities/settle",
+   "note": "the record, base layers added, base group below 4 kept, entity id kept"
+  },
+  {
    "addr": "180045630",
    "name": "CPhysAggregateInstance_CreateBodies",
    "module": "s2c:entities/settle",

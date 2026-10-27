@@ -214,6 +214,19 @@ public class GameContent : SettleWorld.IModels, IDisposable
         return _models.GetValueOrDefault(model);
     }
 
+    /// <summary>The model's m_modelSkeleton, or null.</summary>
+    public SettleWorld.ModelBones? ModelSkeleton(string model)
+    {
+        if (LoadedModel(model)?.Data is not { } data || !data.ContainsKey("m_modelSkeleton"))
+            return null;
+        var skeleton = data.GetSubCollection("m_modelSkeleton");
+        var names = skeleton.GetArray<string>("m_boneName");
+        var parents = skeleton.GetIntegerArray("m_nParent").Select(p => (int)p).ToArray();
+        var positions = skeleton.GetArray("m_bonePosParent").Select(v => new System.Numerics.Vector3((float)v[0], (float)v[1], (float)v[2])).ToArray();
+        var rotations = skeleton.GetArray("m_boneRotParent").Select(v => new System.Numerics.Quaternion((float)v[0], (float)v[1], (float)v[2], (float)v[3])).ToArray();
+        return new SettleWorld.ModelBones(names, parents, positions, rotations);
+    }
+
     /// <summary>A smart prop definition's compiled data (.vsmart_c), from loose files or the paks.</summary>
     public ValveKeyValue.KVObject? SmartProp(string file)
     {

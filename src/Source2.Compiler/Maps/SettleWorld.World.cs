@@ -30,6 +30,12 @@ public static partial class SettleWorld
         var built = new List<RnBody>();
         foreach (var body in bodies)
         {
+            if (body.Aggregate is { } aggregate)
+            {
+                if (body.PartIndex == 0)
+                    built.AddRange(CreateAggregate(w, aggregate, bodies));
+                continue;
+            }
             var q = new Quat(body.Orientation.X, body.Orientation.Y, body.Orientation.Z, body.Orientation.W);
             var b = w.AddBody(NewBody(new Vec3(body.Position.X, body.Position.Y, body.Position.Z), body.Scale, q));
             if (body.Node?.Type is "CMapMesh" or "CMapCable")

@@ -25,7 +25,13 @@ public class ModelPhysicsProbe(ITestOutputHelper output)
         // Each joint's type and flags (flags bit 1 picks CRnRevoluteBlockJoint for a type 3).
         if (phys.Data.ContainsKey("m_joints"))
             foreach (var j in phys.Data.GetArray("m_joints"))
+            {
                 output.WriteLine($"joint type {j.GetIntegerProperty("m_nType")} flags {j.GetIntegerProperty("m_nFlags")} bodies {j.GetIntegerProperty("m_nBody1")},{j.GetIntegerProperty("m_nBody2")}");
+                // MODELPHYS_JOINTS=1: every key of the record.
+                if (Environment.GetEnvironmentVariable("MODELPHYS_JOINTS") == "1")
+                    foreach (var c in j.Children)
+                        output.WriteLine($"  {c.Key} = {(c.Value is ValveKeyValue.KVObject o ? string.Join(" ", o.Children.Select(x => $"{x.Key}:{x.Value}")) : c.Value)}");
+            }
         for (var i = 0; i < phys.Parts.Length; i++)
         {
             var s = phys.Parts[i].Shape;

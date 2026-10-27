@@ -42,6 +42,10 @@ public static partial class SettleWorld
             return result;
         if (bodies.FirstOrDefault(b => b.Unsupported != null) is { } refused)
             throw new NotSupportedException($"node {refused.NodeId}: {refused.Unsupported}");
+        // The aggregate build (SettleWorld.Aggregate.cs) has no joints yet and its
+        // pose is a few ulps from resourcecompiler's (GROUND_TRUTH 161).
+        if (bodies.FirstOrDefault(b => b.Aggregate != null) is { } aggregate)
+            throw new NotSupportedException($"node {aggregate.NodeId}: an aggregate (ragdoll), whose joints and pose are not exact yet");
         var eligible = Eligible(document, bodies, models, schema);
         var settled = Settled(document, bodies, models, schema);
         var world = CreateWorld(bodies, settled);

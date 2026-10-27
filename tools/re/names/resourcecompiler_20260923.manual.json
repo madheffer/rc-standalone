@@ -3931,6 +3931,24 @@
    "note": "the owner entity's physics rules"
   },
   {
+   "addr": "181f03210",
+   "name": "MapEntity_ModelPose",
+   "module": "s2c:entities/settle",
+   "note": "the node's model pose by bone name (181f02fa0's transforms, 0x20 each)"
+  },
+  {
+   "addr": "181f02fa0",
+   "name": "MapEntity_BoneTransforms",
+   "module": "s2c:entities/settle",
+   "note": "181f0bb60's cached model-space transforms at node +0x310 (count +0x308)"
+  },
+  {
+   "addr": "181749d20",
+   "name": "BonePose_Find",
+   "module": "s2c:entities/settle",
+   "note": "a bone's transform by name hash; the aggregate pose's override (rc 18105e18a)"
+  },
+  {
    "addr": "18105d760",
    "name": "PhysMesh_Build",
    "module": "s2c:entities/settle",

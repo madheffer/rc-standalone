@@ -58,6 +58,12 @@ public static partial class SettleWorld
         /// settling prop, but a map with nothing to settle needs no world.
         /// </summary>
         public string? Unsupported { get; init; }
+
+        /// <summary>The aggregate the body is a part of (a model with several parts or a joint), or null.</summary>
+        public AggregateBuild? Aggregate { get; init; }
+
+        /// <summary>The body's part in <see cref="Aggregate"/>.</summary>
+        public int PartIndex { get; init; }
     }
 
     /// <summary>The model resources the build reads: a model path's physics aggregate, or null.</summary>
@@ -79,7 +85,13 @@ public static partial class SettleWorld
 
         /// <summary>A model's key values (m_modelInfo's m_keyValueText), or null.</summary>
         ValveKeyValue.KVObject? ModelKeyValues(string model);
+
+        /// <summary>A model's skeleton (m_modelSkeleton): bone names, parents and parent-relative transforms, or null.</summary>
+        ModelBones? ModelSkeleton(string model) => null;
     }
+
+    /// <summary>A model's bones as m_modelSkeleton stores them.</summary>
+    public sealed record ModelBones(string[] Names, int[] Parents, Vector3[] Positions, Quaternion[] Rotations);
 
     /// <summary>What a compiled material (.vmat_c) carries for physics.</summary>
     public sealed record MaterialInfo(IReadOnlyDictionary<string, long> Ints, IReadOnlyDictionary<string, string> Strings)
@@ -689,9 +701,10 @@ public static partial class SettleWorld
         var parts = phys.Parts;
         if (parts.Length == 0)
             return;
-        if (parts.Length > 1)
+        // FUN_18105dbd0: two parts or any joint go to world vfn 0x418.
+        if (parts.Length > 1 || JointRecords(phys).Count > 0)
         {
-            bodies.Add(new BodyBuild(nodeId, default, 1f, Quaternion.Identity, []) { Node = node, Unsupported = "a model with several physics parts (an aggregate)" });
+            FromAggregate(node, local, nodeId, phys, context, deformer);
             return;
         }
         var scales = node.GetValue<Vector3>("scales") ?? Vector3.One;

@@ -22,6 +22,9 @@ public struct RnBodyState
     /// <summary>1 while the body is static (SetType writes type == 0).</summary>
     [FieldOffset(0x44)] public byte StaticFlag;
 
+    /// <summary>+0x48: an aggregate body's part index (wrapper vfn 0x480).</summary>
+    [FieldOffset(0x48)] public ushort PartIndex;
+
     /// <summary>Flags; bit 7 of the low byte asks the island to sleep.</summary>
     [FieldOffset(0x4a)] public ushort Flags4A;
 

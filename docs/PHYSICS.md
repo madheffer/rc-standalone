@@ -123,7 +123,10 @@ Open:
      capture's events.jsonl, a copy in %TEMP%/settle_capture/s2c_ragdollprobe) equals both step-0 islands
      slot for slot. Not checked yet: the split with joints (needs the stepped settle); refused: joints in a
      coloured island, broken joints, the TOI solve of a jointed body.
-  5. The aggregate build (CPhysAggregateInstance, vphysics2 180042ba0, from
+  5. In progress (2026-10-27, ledger 161): Maps/SettleWorld.Aggregate.cs builds the bodies and shapes;
+     AggregateBuildCaptureTests (RAGDOLL) lists what still differs: the model pose's last ulps (rc 181f0bb60),
+     SetType's flags, layer 0x400, then the joints below. Original plan:
+     The aggregate build (CPhysAggregateInstance, vphysics2 180042ba0, from
      rc's PhysPart_BuildFromModel 18105dbd0 when parts >= 2 or joints >= 1):
      bodies per part at xf o bind pose (180045630), shapes, mass, inertia
      scale, damping and drag (180044bc0), joints from VPhysXJoint_t
