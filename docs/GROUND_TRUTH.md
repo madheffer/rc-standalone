@@ -4329,7 +4329,7 @@ game can answer is raised with the user first, and runs with -insecure.
       waits for the stepped settle (step 6); joints in coloured islands' colour jobs and the step's broken-joint
       pass throw; the TOI solve with joints is not read.
 
-161. **A cubemap face rendered with no dump: its bindings, binner dispatches and frame** (2026-10-27: Valve's .vcs
+162. **A cubemap face rendered with no dump: its bindings, binner dispatches and frame** (2026-10-27: Valve's .vcs
     write sequences; decompile of scenesystem 20261015 1801b2850 and rendersystemvulkan 20261015 180072850; the
     passes of the probe01, s2c_l5probe and atixref captures; Gpu/CubemapFaceRenderer.cs, CubemapFaceRendererTests).
     - Settled from the programs' own tables: every descriptor binding of every face program is named by the combo's

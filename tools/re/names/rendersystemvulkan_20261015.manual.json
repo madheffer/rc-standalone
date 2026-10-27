@@ -10,7 +10,7 @@
    "addr": "180072850",
    "name": "RenderContext_DispatchThreads",
    "module": "s2c:baked/lighting",
-   "note": "a compute dispatch by thread counts: each count divided by the bound program's workgroup size (+0x140, +0x144, +0x148 of +0x1170) rounding up, then vkCmdDispatch through 18062b8c8; scenesystem 1801b2850's vf 0x320 calls (ledger 161, CubemapFaceRenderer)"
+   "note": "a compute dispatch by thread counts: each count divided by the bound program's workgroup size (+0x140, +0x144, +0x148 of +0x1170) rounding up, then vkCmdDispatch through 18062b8c8; scenesystem 1801b2850's vf 0x320 calls (ledger 162, CubemapFaceRenderer)"
   },
   {
    "addr": "180254550",

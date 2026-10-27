@@ -782,10 +782,10 @@ quality 2 are measured (`CascadeTiles`); the atlas allocator is not read.
 instead of our data (buffers, image subresources, push constants, samplers, dispatch sizes). On probe01's cube 0
 (with `CUBEREPLAY_OURDRAWS=materials`, all six faces still the game's EXR) only two remain per face:
 
-- the colour pass's storage buffer at set 3 binding 31 (153,600 bytes). Since 10-27 (ledger 161) generic's write
+- the colour pass's storage buffer at set 3 binding 31 (153,600 bytes). Since 10-27 (ledger 162) generic's write
   sequence names it: g_BarnLights (slot 1; g_CullBits is slot 0, binding 30). No barn light is binned in the
   cubemap view, so no pixel reads it;
-- the light binner's two dispatch sizes (256 x 1 x 1 and 16 x 32 x 1). Since 10-27 from the code (ledger 161):
+- the light binner's two dispatch sizes (256 x 1 x 1 and 16 x 32 x 1). Since 10-27 from the code (ledger 162):
   1801b2850 dispatches thread counts and rendersystemvulkan 180072850 divides them by the program's workgroup.
 
 Beyond these inputs the replay still uses the dump as scaffolding: each action's record (which program, which
@@ -794,7 +794,7 @@ the targets' formats and sizes. Rendering with no dump means building that frame
 (CubemapFaceDrawList plus the binner, sky and downsample passes), each program's bindings from its SPIR-V
 reflection and the programs' variable tables (as the textures and samplers already are), and the targets.
 
-## A face with no dump (2026-10-27, ledger 161)
+## A face with no dump (2026-10-27, ledger 162)
 
 `Source2.Compiler.Gpu/CubemapFaceRenderer.cs` renders a face from our data alone: the map's package (world nodes,
 models, lightmaps), the game's shader and content packages, the face's blocks (`Cubemaps/CubemapFaceBlocks.cs`, the

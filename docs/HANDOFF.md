@@ -62,7 +62,7 @@ map loading ─┬─ mesh export ─┬─ trace scene ── visibility ─┬
 | visibility | [VISIBILITY.md](VISIBILITY.md) | 100% of the deterministic build: byte-identical VXVS from the .vmap on five maps incl. atixref-sized s2c_prefabprobe4 and split hints (2026-10-23); `-oldvis` is not reproducible in Valve's own tool |
 | physics | [PHYSICS.md](PHYSICS.md) | 98%: world_physics and entity models whole-file exact on every map with a compile, incl. cables and deformers placed through instances and prefabs (ledgers 128-133); ragdolls in the settle under way: both joint types' solver functions oracle-exact, every motor mode (ledgers 135, 136, 138), next the joint wrapper, islands and the aggregate build (PHYSICS.md roadmap); left besides: instances inside prefab maps for entity models, render meshes |
 | entity lump | [ENTITIES.md](ENTITIES.md), [SETTLE.md](SETTLE.md) | 99.9%: every lump of every pinned map and all 15 prefab, instance and deformer probes exact; the 14 prefab corpus maps against fresh Valve references (2026-10-23) differ only in Valve's run-to-run settle poses; left: two orders read from output only (GROUND_TRUTH 46) |
-| baked outputs | [BAKED.md](BAKED.md), [CUBEMAPS.md](CUBEMAPS.md) | 85%: lightmaps, probes, far field, fog, nav (markups and round shapes, ledgers 142-143, 146), bomb damage and .vmap_c done; cubemaps: probe01's two cubes and whole array rendered with no RenderDoc dump, byte for byte (ledger 161); the world draw list and layer selection equal on probe01, s2c_l5probe and atixref; next the scene's inputs from the package |
+| baked outputs | [BAKED.md](BAKED.md), [CUBEMAPS.md](CUBEMAPS.md) | 85%: lightmaps, probes, far field, fog, nav (markups and round shapes, ledgers 142-143, 146), bomb damage and .vmap_c done; cubemaps: probe01's two cubes and whole array rendered with no RenderDoc dump, byte for byte (ledger 162); the world draw list and layer selection equal on probe01, s2c_l5probe and atixref; next the scene's inputs from the package |
 | own lighting (vrad3 port) | [VRAD3.md](VRAD3.md), [LIGHTING_ROADMAP.md](LIGHTING_ROADMAP.md) | 94%: `compile-map -s2cbake` bakes with no vrad3; ze_hold_em_p 99.90% of bytes |
 
 The tracker artifact (https://claude.ai/artifact/4whctxfaTdHEiE4d3oAVHA)
@@ -100,8 +100,8 @@ the addon).
 
 1. **Cubemaps** ([CUBEMAPS.md](CUBEMAPS.md) "Whole cubes from our blocks", "A second map", "The draw list",
    "What the chained cube still takes from the dump", "A face with no dump", "Roadmap"; ledgers 117-121, 137-140,
-   144, 147-157, 159, 161).
-   Where it stands (2026-10-27 evening, ledger 161): **a face renders with no dump.** `CubemapFaceRenderer`
+   144, 147-157, 159, 162).
+   Where it stands (2026-10-27 evening, ledger 162): **a face renders with no dump.** `CubemapFaceRenderer`
    (Source2.Compiler.Gpu) builds the whole frame from our data: the package, the shader and content packages, the
    blocks (`CubemapFaceBlocks`) and the draw list (`CubemapFaceDrawList` with memberships and `MaterialOrder`).
    Each binding is named by the program's own .vcs write sequence, the binner's dispatch sizes come from the code
@@ -192,7 +192,7 @@ the addon).
 
 ## Latest session (2026-10-27 evening, a cubemap face with no dump)
 
-Ledger 161; CUBEMAPS.md "A face with no dump". Branch feat/cube-nodump (worktree source2-compiler-wt-cube, made because
+Ledger 162; CUBEMAPS.md "A face with no dump". Branch feat/cube-nodump (worktree source2-compiler-wt-cube, made because
 the ragdoll session's files in the shared checkout did not build), cherry-picked onto research/map-authoring.
 
 - `Gpu/CubemapFaceRenderer.cs`: the frame, bindings from the .vcs write sequences (constant buffers at the slot,
