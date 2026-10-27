@@ -1,6 +1,12 @@
 {
  "functions": [
   {
+   "addr": "180282390",
+   "name": "C_EnvSky_UpdateSceneObject",
+   "module": "s2c:baked/lighting",
+   "note": "copies m_nFogType (+0x10b8) to the sky object's +0xf4 and the fog min / max start / end (+0x10bc..+0x10c8) to +0xf8..+0x104 (ledger 163)"
+  },
+  {
    "addr": "181747070",
    "name": "Matrix4_Invert",
    "module": "s2c:baked/lighting",

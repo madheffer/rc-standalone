@@ -81,8 +81,13 @@ public static class CubemapFaceDrawList
         Colour,
     }
 
-    /// <summary>One indirect draw call: <paramref name="View"/> -1 is the face, 0 to 3 its cascades.</summary>
-    public sealed record ListDraw(int View, Layer Layer, int Aggregate, IReadOnlyList<AggregateCulling.Command> Commands);
+    /// <summary>
+    /// One indirect draw call: <paramref name="View"/> -1 is the face, 0 to 3 its cascades. <paramref name="InstanceBase"/>
+    /// is the (view, aggregate) instance block's first record and <paramref name="Visible"/> the block's fragments
+    /// in visible order: record InstanceBase + i is fragment Visible[i]'s.
+    /// </summary>
+    public sealed record ListDraw(int View, Layer Layer, int Aggregate, IReadOnlyList<AggregateCulling.Command> Commands,
+        int InstanceBase = 0, IReadOnlyList<int>? Visible = null);
 
     /// <summary>A viewport and scissor rectangle in pixels.</summary>
     public readonly record struct Rect(int X, int Y, int Width, int Height);
@@ -205,7 +210,7 @@ public static class CubemapFaceDrawList
                     .Where(e => split == 0f || AggregateCulling.InLayer(split, AggregateCulling.ScreenSize(view.Origin, 1f, fragments[e.Fragment].Centre, fragments[e.Fragment].Radius), size))
                     .ToList();
                 if (list.Count > 0)
-                    draws.Add(new ListDraw(v, layer, a, AggregateCulling.Commands(list, fragments, bases[(v, a)], aggregates[a].OwnTransforms)));
+                    draws.Add(new ListDraw(v, layer, a, AggregateCulling.Commands(list, fragments, bases[(v, a)], aggregates[a].OwnTransforms), bases[(v, a)], visible[v][a]));
             }
         }
         // The cascades' views also have a "Depth Prepass AlphaTested" layer, which the cascade passes do not draw

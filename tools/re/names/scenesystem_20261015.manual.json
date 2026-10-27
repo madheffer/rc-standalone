@@ -1,6 +1,12 @@
 {
  "functions": [
   {
+   "addr": "180154fb0",
+   "name": "SkyObject_SetAttributes",
+   "module": "s2c:baked/lighting",
+   "note": "the sky object's attributes: g_matSkyWsToOs from its rotation, D_FOG_TYPE (token 0x83cb90d6) from +0xf4 and, at type 2, the angular test of +0xf8 / +0xfc against -90 (ledger 163)"
+  },
+  {
    "addr": "1801b2850",
    "name": "LightBinner_ComputeCullBitsGPU",
    "module": "s2c:baked/lighting",

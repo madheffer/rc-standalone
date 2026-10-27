@@ -100,7 +100,7 @@ public sealed class AggregateCullingCaptureTests(ITestOutputHelper output)
     private static Vector3 CubeZeroOrigin(string vpk) => CubeZero(vpk).Origin;
 
     /// <summary>Cube 0's origin and light_environment's angles as the lump holds them (the scene light's own angles: probe01's give the capture's sun bit for bit).</summary>
-    private static (Vector3 Origin, Vector3 SunAngles) CubeZero(string vpk)
+    internal static (Vector3 Origin, Vector3 SunAngles) CubeZero(string vpk)
     {
         using var package = new ValvePak.Package();
         package.Read(vpk);

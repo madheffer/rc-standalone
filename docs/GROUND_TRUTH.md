@@ -4401,6 +4401,17 @@ game can answer is raised with the user first, and runs with -insecure.
         ShaderDataProvider does (csgo_foliage's depth pixel combo, csgo_vertexlitgeneric's); the captured modules
         are the reduced combos. (tools/cubehost/spvmatch needs a size limit above the largest .vcs, 200000000,
         or the big pixel programs read as "not found".)
+    - Settled by the captures' buffers (CubemapInstanceRecordsTests): an instance record's first word is its
+      fragment's transform slot's packed tint (AddFragment's PackTint; atixref's mailbox 0xff88bb77 from
+      m_vTintColor 119 187 136) and its second the index of the slot's 3 x 4 (AggregateCulling.Fragments'
+      transform). Every (view, aggregate) block of atixref's face 0 (93 blocks, 401 instances) and probe01's (10)
+      reads the captured tints and transforms bit for bit. The buffers' own layout is the game's allocator's; ours
+      places each (aggregate, slot) once in first-use order (only the entry an index names is read).
+    - Read, open: the sky's D_FOG_TYPE is the sky scene object's +0xf4 (scenesystem 180154fb0 sets the token
+      0x83cb90d6 from it; type 2 adds the angular test of +0xf8 / +0xfc), which client 180282390 copies from
+      C_EnvSky's m_nFogType (+0x10b8, key fog_type, schema 18026d020). Neither probe01's nor atixref's env_sky
+      has the key, yet probe01 draws 0 and atixref 1: the value's other writer (C_EnvSky is client-side; no server
+      class has it) is not found. The renderer draws D_FOG_TYPE 0.
 
 ## Resolved
 

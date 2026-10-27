@@ -80,6 +80,7 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
     private readonly Package _csgoShaders;
     private readonly Package _coreShaders;
     private readonly IReadOnlyList<AggregateModel> _aggregates;
+    private readonly IReadOnlyList<IReadOnlyList<AggregateCulling.Fragment>>? _fragments;
     private readonly string _skyMaterial;
     private readonly Dictionary<string, (int R, int G, int B)> _shaderIdColors;
 
@@ -98,8 +99,10 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
     /// <param name="mapVpk">The compiled map's package: world nodes, models, lightmaps.</param>
     /// <param name="aggregates">The draw list's aggregates' models, in its order (<see cref="AggregateModels"/>).</param>
     /// <param name="skyMaterial">env_sky's material.</param>
-    public CubemapFaceRenderer(GpuDevice gpu, string game, string mapVpk, IReadOnlyList<AggregateModel> aggregates, string skyMaterial)
+    public CubemapFaceRenderer(GpuDevice gpu, string game, string mapVpk, IReadOnlyList<AggregateModel> aggregates, string skyMaterial,
+        IReadOnlyList<IReadOnlyList<AggregateCulling.Fragment>>? fragments = null)
     {
+        _fragments = fragments;
         _gpu = gpu;
         _runner = new SceneDrawRunner(gpu);
         _game = game;
@@ -172,10 +175,7 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
     {
         ResetTargets();
         var face = CubemapFaceDrawList.FaceSize;
-        // The instance records: every aggregate draw points at the world nodes' shared identity, transform 1 (the
-        // captures' records; aggregates with fragment transforms of their own are not ported).
-        var transforms = CubemapFaceConstants.Transforms([CubemapFaceConstants.Identity3x4, CubemapFaceConstants.Identity3x4]);
-        var instanceRecords = CubemapFaceConstants.Instances([.. Enumerable.Repeat(1, Math.Max(1, instances - 1))]);
+        var (transforms, instanceRecords) = InstanceBuffers(draws, instances, _fragments);
         var instanceIds = CubemapFaceMeshes.InstanceIds(instanceRecords.Length / 32 * 4);
 
         // 1. The shadow atlas, cleared whole to depth 1 (its own pass, before the binner).
@@ -260,6 +260,40 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
 
     /// <summary>Every program the faces rendered so far loaded (each one's SPIR-V is a module of Valve's shader packages).</summary>
     public IEnumerable<ValveProgram> LoadedPrograms => _programs.Values;
+
+    /// <summary>
+    /// g_transformBuffer and g_instanceBuffer for a face's draw list: each (view, aggregate) block's record i is the
+    /// fragment Visible[i]'s, with its slot's packed tint and an index to its slot's 3 x 4 (one entry per aggregate and
+    /// slot, ours in first-use order: the shader only reads the entry the index names). Instance 0 is the null record;
+    /// transforms 0 and 1 are identities. Without fragments, every record points at transform 1 (the world nodes'
+    /// shared identity, as the captures' brush records do).
+    /// </summary>
+    public static (byte[] Transforms, byte[] Instances) InstanceBuffers(IReadOnlyList<CubemapFaceDrawList.ListDraw> draws, int instances,
+        IReadOnlyList<IReadOnlyList<AggregateCulling.Fragment>>? fragments)
+    {
+        var records = Enumerable.Repeat((0xffffffffu, 1), Math.Max(1, instances - 1)).ToArray();
+        var matrices = new List<float[]> { CubemapFaceConstants.Identity3x4, CubemapFaceConstants.Identity3x4 };
+        if (fragments != null)
+        {
+            var slots = new Dictionary<(int, int), int>();
+            foreach (var d in draws)
+            {
+                if (d.Visible == null)
+                    continue;
+                for (var i = 0; i < d.Visible.Count; i++)
+                {
+                    var f = fragments[d.Aggregate][d.Visible[i]];
+                    if (!slots.TryGetValue((d.Aggregate, f.TransformSlot), out var index))
+                    {
+                        slots[(d.Aggregate, f.TransformSlot)] = index = matrices.Count;
+                        matrices.Add(f.SlotTransform ?? CubemapFaceConstants.Identity3x4);
+                    }
+                    records[d.InstanceBase + i - 1] = (f.SlotTint, index);
+                }
+            }
+        }
+        return (CubemapFaceConstants.Transforms(matrices), CubemapFaceConstants.Instances(records));
+    }
 
     /// <summary>The light binner's depth bins: lb_bin_slices clamped to 1 .. 8192 and rounded up to 32 (1801a8150).</summary>
     private static int BinnerBins() => (int)(((uint)Math.Clamp(CubemapFaceBlocks.BinnerBinSlices, 1, 0x2000) + 31) & ~31u);
