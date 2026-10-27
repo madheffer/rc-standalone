@@ -24,39 +24,29 @@ public static class TraceScene
         public int Face { get; init; } = -1;
     }
 
+    /// <summary>The material's trace flags: <see cref="StoreFlags"/> over its attribute store (0 for a material not loaded).</summary>
+    public static ushort MaterialFlags(SettleWorld.MaterialInfo? info) => StoreFlags(info?.Store?.Invoke());
+
     /// <summary>
-    /// The material's trace flags (Material_VisFlags), each an int attribute
-    /// of the loaded material asked for by its token hash:
-    /// 1 alphatest, translucent or bShaderBlended; 2 renderbackfaces;
-    /// 8 NeedsDynamicShadows; 0x10 mapbuilder.visblocker; 0x20 mapbuilder.nodraw;
-    /// 0x40 mapbuilder.blocklight; 0x100 tools.toolsmaterial;
-    /// 0x200 tools.reference_notrace; 0x800 mapbuilder.detail; 0x1000 mapbuilder.sky.
-    /// The loaded material answers its vmat_c int attributes and its shader's
-    /// own attributes (<see cref="Physics.ShaderAttributes"/>: alphatest and
-    /// translucent; bShaderBlended, renderbackfaces and NeedsDynamicShadows
-    /// are not declared by any pixel shader probed and come from elsewhere,
-    /// not read).
+    /// Material_VisFlags (resourcecompiler 18020d860) over the loaded material's attribute store: each flag is
+    /// the material's int attribute (vf 0x50) by token hash, non-zero. The store (materialsystem2 18000bb80:
+    /// chunks of 12 keys at +0x180, then the parent set at +0x60) holds the vmat_c's attributes and every render
+    /// mode's program attributes (<see cref="MaterialAttributes.OfModes"/>), so renderbackfaces is the shader's
+    /// own declaration (FEAT[n] ? 1 : 0 on most CS2 shaders, always 1 on csgo_panolayer_rt).
+    /// A material that does not load answers nothing.
     /// </summary>
-    public static ushort MaterialFlags(SettleWorld.MaterialInfo? info)
+    public static ushort StoreFlags(MeshEntryFlags.IAttributes? store)
     {
-        if (info is null)
+        if (store is null)
             return 0;
-        bool On(string key) => info.Ints.TryGetValue(key, out var v) && v != 0;
+        bool On(string key) => store.Int(MeshEntryFlags.Key(key)) is { } v && v != 0;
         ushort flags = 0;
-        if (On("alphatest") || On("translucent") || On("bShaderBlended")
-            || Physics.ShaderAttributes.AlphaTest(info.Shader, info.Params)
-            || Physics.ShaderAttributes.Translucent(info.Shader, info.Params))
+        if (On("alphatest") || On("translucent") || On("bShaderBlended"))
             flags |= 1;
-        // The material system answers F_RENDER_BACKFACES as renderbackfaces
-        // (atixref's hr_metal_grating_002: every triangle carries 0x2).
-        if (On("renderbackfaces") || (info.Params.TryGetValue("F_RENDER_BACKFACES", out var backfaces) && backfaces != 0))
+        if (On("renderbackfaces"))
             flags |= 2;
         if (On("NeedsDynamicShadows"))
             flags |= 8;
-        if (On("mapbuilder.detail"))
-            flags |= 0x800;
-        if (On("mapbuilder.sky"))
-            flags |= 0x1000;
         if (On("mapbuilder.visblocker"))
             flags |= 0x10;
         if (On("mapbuilder.nodraw"))
@@ -67,6 +57,10 @@ public static class TraceScene
             flags |= 0x100;
         if (On("tools.reference_notrace"))
             flags |= 0x200;
+        if (On("mapbuilder.detail"))
+            flags |= 0x800;
+        if (On("mapbuilder.sky"))
+            flags |= 0x1000;
         return flags;
     }
 

@@ -16,7 +16,8 @@ namespace Source2.Compiler.Maps;
 /// the record's +0x40 override list: atixref's 14 props with one are not
 /// baked. The clutter, +0x40, deformer, extra-stream and +0x17c triggers
 /// are not ported; a deformed prop is (CMesh_ApplyPropDeformer).</item>
-/// <item>Order: by model path, then the props of a model last to first in
+/// <item>Order: by model path (strcmp; a deformed prop under "path_N", N
+/// counting deformed props in export order), then the props of a model last to first in
 /// the walk, then each prop's draw calls in mesh, scene object and draw
 /// call order.</item>
 /// <item>An entry's id is the prop's node id; an instance copy's is the
@@ -34,22 +35,31 @@ internal static class NodePropEntries
     {
         var (_, entities) = MapMeshes.ReadWithEntities(doc);
         var copyIds = CopyIds(doc, content);
-        var baked = new List<(MapMeshes.EntityNode Node, int Id, string Model, int Walk)>();
+        var baked = new List<(MapMeshes.EntityNode Node, int Id, string Model, int Walk, string List)>();
+        // EntityLump_StaticModelRecord (180245770) files each record in the node's
+        // CUtlRBTree at +0x190 (strcmp, 180291a00) under its model path, or under
+        // "%s_%d" of a process-wide counter from 0 (183bb375c) when the record has
+        // a deformer (+0x80), material overrides (+0x40) or +0x1e8; AddStaticProps
+        // walks the tree in order (1800e00b0). Only the deformer trigger is ported.
+        var special = 0;
         for (var walk = 0; walk < entities.Count; walk++)
         {
             var ent = entities[walk];
             var keys = ent.Element.Get<DmxBinary.Element>("entity_properties");
             if (ent.Hidden || keys?.Get<string>("classname") != "prop_static")
                 continue;
+            var model = keys.Get<string>("model") ?? "";
+            var deformed = Physics.WorldCollision.PropOf(ent).Deformer != null;
+            var list = deformed ? $"{model}_{special++}" : model;
             // A deformed prop is baked too (AddStaticProps' +0x80 trigger, PropDeformer_IsSet).
-            if (!Baked(ent.Element, keys) && Physics.WorldCollision.PropOf(ent).Deformer == null)
+            if (!Baked(ent.Element, keys) && !deformed)
                 continue;
             var id = ent.Through.Count == 0 ? ent.Element.GetValue<int>("nodeID") ?? -1 : copyIds.GetValueOrDefault(Key(ent.Element, ent.Through), -1);
-            baked.Add((ent, id, keys.Get<string>("model") ?? "", walk));
+            baked.Add((ent, id, model, walk, list));
         }
         var entries = new List<NodeMeshEntries.Entry>();
-        foreach (var group in baked.GroupBy(b => b.Model, Tier0Strings.IgnoreCase).OrderBy(g => g.Key, Tier0Strings.IgnoreCase))
-            foreach (var (node, id, model, _) in group.OrderByDescending(b => b.Walk))
+        foreach (var group in baked.GroupBy(b => b.List, StringComparer.Ordinal).OrderBy(g => g.Key, StringComparer.Ordinal))
+            foreach (var (node, id, model, _, _) in group.OrderByDescending(b => b.Walk))
                 entries.AddRange(Entries(node, id, model, content, notes));
         return entries;
     }

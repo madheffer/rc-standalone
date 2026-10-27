@@ -171,6 +171,8 @@ RESOURCECOMPILER = [
     ("1812e2530", "CMesh_WeldCluster", W, ""),
     ("1812dd2f0", "CMesh_RemoveDegenerateAndRenumber", W, ""),
     ("1812d66f0", "CMesh_Copy", W, ""),
+    ("180291a00", "CUtlRBTree_FindString", WN, "byte strcmp on the 0x20-byte nodes' key (+0x10); left +0, right +4"),
+    ("1800e00b0", "CUtlRBTree_NextInorder", WN, ""),
     ("1812d6a90", "CMesh_Alloc", W, "(mesh, vertices +0x18, indices +0x24, floats per vertex +0x1c, ...): vertex data +0, index data +0x10"),
     ("181081be0", "CMapMesh_CopyFrom", G, "CMapMesh vf 0x3d8 (the collapse's node copy, 180f86650): a fixed property list without renderwithdynamic, fademindist, fademaxdist or keep_vertices (ledger 164)"),
     ("181086b70", "CMapMesh_Ctor", G, "fademindist -1 (+0x3b50), fademaxdist 0 (+0x3b54), renderwithdynamic 0 (+0x3b74), keep_vertices 0 (+0x3b76); CMapStaticOverlay's factory 18118fb60 runs it"),
@@ -1123,7 +1125,7 @@ RESOURCECOMPILER = [
     ("180f7b6a0", "CMapNode_RaytraceFlags", LIGHTS, "0x20 when node +0x278 is 0; 0x1000000, 0x2000000, 0x4000000 by parent and +0x2d0"),
     # Entities.
     ("180244d30", "EntityLump_ExportDriver", ENT, "per-entity export driver; writes vDirToSun"),
-    ("180245770", "EntityLump_StaticModelRecord", ENT, "prop record; +0x10 = Concat(AngleMatrix(angles), Matrix3x4_Scale(scales)) with the origin; +0x160/+0x164 fademindist/fademaxdist, +0x16c visoccluder, +0x16d baketoworld, +0x16f disableshadows, +0x170 disableinlowquality, +0x172 rendertocubemaps, +0x173 emissive, +0x174 emissive_lighting_boost, +0x178 emissive_mode, +0x17d bakelightdoublesided, +0x148 rendercolor / 255, +0x154 renderamt / 255, +0x1e4 lodlevel (-1), +0x210 lightmapstatic (default 1 for a prop_static; any other class without it makes no record), +0x173 emissive defaults to 1; +0x1f0 bit 2 donotcollapse or disablemerging; +0x17c lightmapped (bakelighting key, else model prop_data bakelighting and a SupportsLightmapping material; only when the builder bakes or flattenPropsWithBakedLighting), +0x214 = V_powf(2, lightmapscalebias)"),
+    ("180245770", "EntityLump_StaticModelRecord", ENT, "filed in builder +0x118's CUtlRBTree at +0x190 (strcmp 180291a00) under the model path, or \"%s_%d\" of the static counter 183bb375c (from 0) with a deformer, +0x40 overrides or +0x1e8 (ledger 165); prop record; +0x10 = Concat(AngleMatrix(angles), Matrix3x4_Scale(scales)) with the origin; +0x160/+0x164 fademindist/fademaxdist, +0x16c visoccluder, +0x16d baketoworld, +0x16f disableshadows, +0x170 disableinlowquality, +0x172 rendertocubemaps, +0x173 emissive, +0x174 emissive_lighting_boost, +0x178 emissive_mode, +0x17d bakelightdoublesided, +0x148 rendercolor / 255, +0x154 renderamt / 255, +0x1e4 lodlevel (-1), +0x210 lightmapstatic (default 1 for a prop_static; any other class without it makes no record), +0x173 emissive defaults to 1; +0x1f0 bit 2 donotcollapse or disablemerging; +0x17c lightmapped (bakelighting key, else model prop_data bakelighting and a SupportsLightmapping material; only when the builder bakes or flattenPropsWithBakedLighting), +0x214 = V_powf(2, lightmapscalebias)"),
     # Per-entity lump export: probe, cubemap and light keys (2026-09-28).
     ("1800fd550", "ResourceCompilerMap_CompileMap", LIGHTS, "sets ctx +0x605/+0x606 (bake now / baked lighting available): with gameinfo DefaultMapBuilders/bakedlighting, world off or entities only reads the lightmaps there, else bake = (not partial (+0x607) or bakelighting) and not nobakedlighting"),
     ("1801f7960", "CMapBuilderContext_Ctor", LUMP, "+0x10c = content-relative map path, no extension"),
@@ -3069,6 +3071,7 @@ RENDERSYSTEMVULKAN_1015 = [
 
 MATERIALSYSTEM_1015 = [
     # Read by hand (decompile of materialsystem2 20261015): VfxEval's functions.
+    ("18000bb80", "CMaterial2_GetIntAttribute", VIS, "vf 0x50: the key in chunks of 12 hashes at +0x180 (values 12 slots on), then the chunk list at +0x68, then the parent set at +0x60 (ledger 165)"),
     ("1800fa000", "VfxEval_FunctionTable", I, "24-byte entries {name, argument count, flag, function}: SrgbGammaToLinear, TextureAverageColor, MatrixMultiply, MatrixColorCorrect2, MatrixColorTint2 and the rest"),
     ("18009b580", "VfxEval_SrgbGammaToLinear", I, "the top three components through 180082e60"),
     ("180082e60", "SrgbGammaToLinear", I, "clamp 0..1; x / 12.92 up to 0.04045, else powf((x + 0.055) / 1.055, 2.4)"),

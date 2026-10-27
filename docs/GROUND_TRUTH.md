@@ -151,6 +151,9 @@ game can answer is raised with the user first, and runs with -insecure.
     The lists are a CUtlMap keyed by model at node +0x198 (walked in order
     by 1800e00b0), one vector of props each. atixref's standalone props
     (ledger 55) come out of the same lists in walk order.
+    Settled 2026-10-27 by decompile (ledger 165): strcmp keys, "%s_%d" of a
+    counter for deformed, overridden or +0x1e8 records; the deformer part is
+    ported, the capture check waits for CS2 closed.
 
 48. **The targetname of a cubemap or probe volume record** (EnvVolumes):
     the late export (180240a60) reads targetname from the exported keys;
@@ -4495,6 +4498,33 @@ game can answer is raised with the user first, and runs with -insecure.
      - Located, open: the builder mesh's renormalised normals (NodeMeshEntries). Ruled out: the world transform
        1810c4e50, CMapMesh_ConvertMeshForBuilder's direct callees and WRB_CollectMeshEntries' callees.
      - Ledger 15 (what picks Zstd or LZ4) is answered by ledger 3's decompile of binary_auto.
+
+165. **The trace flags from the material store, and the node's static prop lists** (2026-10-27, decompile of
+     resourcecompiler 0923 and materialsystem2 20261015 with CS2 open; checked offline against Valve's .rte).
+     - Settled, ported: Material_VisFlags (18020d860) asks the loaded material's int store (CMaterial2 vf 0x50,
+       18000bb80: chunks of 12 key hashes at +0x180, the chunk list at +0x68, then the parent set at +0x60) for
+       each key. The key names are not in materialsystem2, so the store is filled by hash from data: the
+       vmat_c's attributes and every render mode's program attributes (ledger 157, MaterialAttributes.OfModes).
+       renderbackfaces is a shader attribute in the pc programs (`FEAT[n] ? 1 : 0` on most csgo shaders, always
+       True on csgo_panolayer_rt, False on csgo_eyeball, csgo_weapon_sticker and grasstile); bShaderBlended and
+       NeedsDynamicShadows are declared by no pc vs or ps program. TraceScene.MaterialFlags now reads the store
+       (GameContent attaches it to each MaterialInfo, built from shaders_pc_dir.vpk on first use); the measured
+       table (ShaderAttributes.AlphaTest / Translucent and the F_RENDER_BACKFACES shortcut) no longer feeds it.
+       TraceSceneTests: every triangle's flags equal Valve's .rte on probe01, cardtest, ze_hold_em_p, atixref
+       and s2c_prefabprobe4 (Mako's fixture is not on disk).
+     - Settled, ported: the node's static prop lists (ledger 47). EntityLump_StaticModelRecord (180245770)
+       files each record in a CUtlRBTree at node +0x190 (builder +0x118), compared by byte strcmp (180291a00),
+       under its model path; a record with material overrides (+0x40, from the prop's +0x268), a deformer
+       (+0x80) or +0x1e8 (the prop's +0x230) goes under "%s_%d" of a process-wide counter that starts at 0
+       (183bb375c, in .bss). AddStaticProps walks the tree in order (1800e00b0) and each list last to first.
+       NodePropEntries now keys by ordinal model path and gives a deformed prop its own "path_N" list; the
+       +0x40 and +0x1e8 triggers are not ported (their sources are not read). Not verified: deformerprobe2's
+       capture (NODEENTRIES) is not on disk and needs CS2 closed; it also checks that our walk is the export
+       order the counter runs in.
+     - Read, open: the paint streams' material inputs (ledger 164). Material vf 0x98 is
+       CMaterial2::GetVertexShaderInputSignature (18000c450): the first valid layer's CVsInputSignatureVector,
+       whose elements' names (+0x40) 1810dca50 compares. Next: which layer and which dynamic combo's signature
+       (VfxStaticComboData.VsInputSignatureIndices) it returns, then port WithPaintStreams from it.
 
 
 ## Resolved

@@ -775,6 +775,18 @@
    "note": ""
   },
   {
+   "addr": "180291a00",
+   "name": "CUtlRBTree_FindString",
+   "module": "s2c:geometry/world-nodes",
+   "note": "byte strcmp on the 0x20-byte nodes' key (+0x10); left +0, right +4"
+  },
+  {
+   "addr": "1800e00b0",
+   "name": "CUtlRBTree_NextInorder",
+   "module": "s2c:geometry/world-nodes",
+   "note": ""
+  },
+  {
    "addr": "1812d6a90",
    "name": "CMesh_Alloc",
    "module": "s2c:physics/weld",
@@ -6340,7 +6352,7 @@
    "addr": "180245770",
    "name": "EntityLump_StaticModelRecord",
    "module": "s2c:entities",
-   "note": "prop record; +0x10 = Concat(AngleMatrix(angles), Matrix3x4_Scale(scales)) with the origin; +0x160/+0x164 fademindist/fademaxdist, +0x16c visoccluder, +0x16d baketoworld, +0x16f disableshadows, +0x170 disableinlowquality, +0x172 rendertocubemaps, +0x173 emissive, +0x174 emissive_lighting_boost, +0x178 emissive_mode, +0x17d bakelightdoublesided, +0x148 rendercolor / 255, +0x154 renderamt / 255, +0x1e4 lodlevel (-1), +0x210 lightmapstatic (default 1 for a prop_static; any other class without it makes no record), +0x173 emissive defaults to 1; +0x1f0 bit 2 donotcollapse or disablemerging; +0x17c lightmapped (bakelighting key, else model prop_data bakelighting and a SupportsLightmapping material; only when the builder bakes or flattenPropsWithBakedLighting), +0x214 = V_powf(2, lightmapscalebias)"
+   "note": "filed in builder +0x118's CUtlRBTree at +0x190 (strcmp 180291a00) under the model path, or \"%s_%d\" of the static counter 183bb375c (from 0) with a deformer, +0x40 overrides or +0x1e8 (ledger 165); prop record; +0x10 = Concat(AngleMatrix(angles), Matrix3x4_Scale(scales)) with the origin; +0x160/+0x164 fademindist/fademaxdist, +0x16c visoccluder, +0x16d baketoworld, +0x16f disableshadows, +0x170 disableinlowquality, +0x172 rendertocubemaps, +0x173 emissive, +0x174 emissive_lighting_boost, +0x178 emissive_mode, +0x17d bakelightdoublesided, +0x148 rendercolor / 255, +0x154 renderamt / 255, +0x1e4 lodlevel (-1), +0x210 lightmapstatic (default 1 for a prop_static; any other class without it makes no record), +0x173 emissive defaults to 1; +0x1f0 bit 2 donotcollapse or disablemerging; +0x17c lightmapped (bakelighting key, else model prop_data bakelighting and a SupportsLightmapping material; only when the builder bakes or flattenPropsWithBakedLighting), +0x214 = V_powf(2, lightmapscalebias)"
   },
   {
    "addr": "1800fd550",

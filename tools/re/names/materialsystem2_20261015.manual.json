@@ -1,6 +1,12 @@
 {
  "functions": [
   {
+   "addr": "18000bb80",
+   "name": "CMaterial2_GetIntAttribute",
+   "module": "s2c:visibility",
+   "note": "vf 0x50: the key in chunks of 12 hashes at +0x180 (values 12 slots on), then the chunk list at +0x68, then the parent set at +0x60 (ledger 165)"
+  },
+  {
    "addr": "1800fa000",
    "name": "VfxEval_FunctionTable",
    "module": "s2c:infra",

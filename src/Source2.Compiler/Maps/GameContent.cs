@@ -22,6 +22,7 @@ public class GameContent : SettleWorld.IModels, IDisposable
     private readonly Dictionary<string, Model?> _models = new(Tier0Strings.IgnoreCase);
     private readonly Dictionary<string, SettleWorld.MaterialInfo?> _materials = new(Tier0Strings.IgnoreCase);
     private readonly List<Resource> _keep = [];
+    private ShaderLibrary? _shaders;
     private Dictionary<string, SettleWorld.CollisionProperty>? _collision;
     private Dictionary<uint, Simulation.ContactSolver.Material>? _surfaces;
     private Dictionary<uint, string>? _surfaceNames;
@@ -68,7 +69,9 @@ public class GameContent : SettleWorld.IModels, IDisposable
         using var res = new Resource();
         res.Read(new MemoryStream(bytes));
         var mat = (Material)res.DataBlock!;
-        return _materials[path] = new SettleWorld.MaterialInfo(
+        MeshEntryFlags.IAttributes? store = null;
+        SettleWorld.MaterialInfo? info = null;
+        return _materials[path] = info = new SettleWorld.MaterialInfo(
             mat.IntAttributes.ToDictionary(x => x.Key, x => x.Value, Tier0Strings.IgnoreCase),
             mat.StringAttributes.ToDictionary(x => x.Key, x => x.Value, Tier0Strings.IgnoreCase))
         {
@@ -77,6 +80,7 @@ public class GameContent : SettleWorld.IModels, IDisposable
             Floats = mat.FloatParams.ToDictionary(x => x.Key, x => x.Value, Tier0Strings.IgnoreCase),
             Vectors = mat.VectorParams.ToDictionary(x => x.Key, x => x.Value, Tier0Strings.IgnoreCase),
             Textures = mat.TextureParams.ToDictionary(x => x.Key, x => x.Value, Tier0Strings.IgnoreCase),
+            Store = () => store ??= MaterialAttributes.OfModes(info!, Shaders),
         };
     }
 
@@ -238,8 +242,14 @@ public class GameContent : SettleWorld.IModels, IDisposable
         return (res.DataBlock as BinaryKV3)?.Data;
     }
 
+    /// <summary>The game's compiled shaders (csgo's then core's shaders_pc_dir.vpk beside the paks), opened on first use.</summary>
+    public ShaderLibrary Shaders => _shaders ??= new ShaderLibrary(
+        Path.Combine(Path.GetDirectoryName(PakPath)!, "shaders_pc_dir.vpk"),
+        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(PakPath)!, "..", "core", "shaders_pc_dir.vpk")));
+
     public void Dispose()
     {
+        _shaders?.Dispose();
         foreach (var r in _keep)
             r.Dispose();
         _pak.Dispose();
