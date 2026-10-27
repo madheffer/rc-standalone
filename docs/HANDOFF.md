@@ -114,7 +114,9 @@ the addon).
    runs in different orders, 8 of 8 EXRs equal). Still from the RenderDoc dumps: the
    draws' bindings (descriptor sets), dispatch sizes and push constants, the sky and downsample draws' places,
    and the spawned pawn's viewmodel and AO box on s2c_l5probe. Next, in order:
-   - the draw flags that pick a draw's layers (180041a00 against the layer's +0x480/+0x488/
+   - the draw flags that pick a draw's layers (GROUND_TRUTH 157: the tests and their inputs' code are read and
+     ported in Cubemaps/CubemapLayerFlags.cs, the tests checked on 2.8 million logged decisions; open are the
+     material's runtime attribute keys, the vis-system box query and the cascades' layer instances, then wiring) (180041a00 against the layer's +0x480/+0x488/
      +0x498; atixref's non-shadow-casting blends, alpha-tested prepass layer and no-prepass aggregates fail
      DrawListEqualsTheCapture today);
    - the remaining capture inputs: descriptor sets from the programs' reflection, dispatch sizes, then probe01

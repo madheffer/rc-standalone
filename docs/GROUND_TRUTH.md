@@ -4208,6 +4208,35 @@ game can answer is raised with the user first, and runs with -insecure.
     - Open: the draw flags that choose a draw's layers (atixref's non-shadow-casting blends, its alpha-tested
       prepass layer).
 
+157. **Which layers a world aggregate's fragments join** (2026-10-27, open: inputs; decompile of scenesystem 20261015
+    180041f30, 180041a00, 1800380a0, worldrenderer 20261023 18001e920 (disassembly 18001ed6d .. 18001f375),
+    meshsystem 20261001 180027140, 180027160, 180027830, 180049520 and its .rdata table 180175160 (same bytes in the
+    installed build), materialsystem2 CMaterial2 vf 0x48 18000ba80; layer_members.js runs of probe01 and atixref).
+    - Settled: the two tests, transcribed (tools/cubehost/layer_members_check.py, CubemapLayerFlags.DrawCallPasses
+      and FragmentPasses), reproduce every logged decision from the logged inputs: probe01 206 draw-call gates and
+      1,057 fragments, atixref 159,863 gates and 1,385,550 fragments; the rest are the size split AggregateCulling
+      already ports.
+    - Settled from the decompile: a fragment's flags come from its mesh's m_objectFlags (worldrenderer, field +0x10
+      of the 0x2c AggregateMeshInfo_t by worldrenderer's schema: OBJECT_TYPE_NO_SHADOWS -> 4, RENDER_TO_CUBEMAPS ->
+      1, NEEDS_DYNAMIC_SHADOWS -> 0x100 ...) and its draw call's material flags (vf 0x120 = meshsystem 180027140 =
+      180027160, & 0x180 == 0 -> 8); AddFragment adds 0x20 when the fragment has no 0x40 and a vis cluster member
+      list, and the object's +0xe0 gains 0x40 with a fragment's 0x100. The draw call's +0x1c is 180027160 over the
+      material's attributes (the meshsystem object's flag callbacks: none, captured); its +0x14 is m_nFlags or the
+      180175160 table of draw-call booleans (m_bUseCompressedNormalTangent 1, m_bHasBakedLightingFromLightMap
+      0x10, ...), then 180027830's set and clear. Ported: Cubemaps/CubemapLayerFlags.cs.
+    - Captured: the BuildCubemaps view's layers and their fields (Static Opaque Forward, Depth Prepass Large /
+      Small / AlphaTested, OpaqueRefractDepth, SkyOccluder*, ToolsUtil Opaque), the cascades' DrawDepthOpaque.
+    - Open, each a read still to do (CubemapLayerFlagsCaptureTests shows them on probe01):
+      - the material's runtime attribute store holds keys no file we read declares: BindlessResources (draw call
+        +0x1c 0x1000) and AllowBackfaceCulling (GROUND_TRUTH 40) are in CMaterial2's own store (+0x180, dumped by
+        layer_members.js), and DepthPassBatchID (0x2c5b5105, +0x14 bit 2) is an int expression in the csgo shaders
+        that MaterialAttributes does not evaluate; who writes them is not read;
+      - a fragment's vis cluster member list for meshes without OBJECT_TYPE_PRECOMPUTED_VISMEMBERS comes from
+        worldrenderer's vis-system box query (18001ef4x, the world's visibility vf 8), not ported (the port refuses);
+      - which CSM layer instances are the BuildCubemaps view's cascades: layer objects are reused across views, so
+        their addresses do not tie them to it; the agent has to log within the BuildCubemaps render;
+      - then CubemapFaceDrawList from these tests instead of its fixed four layers.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

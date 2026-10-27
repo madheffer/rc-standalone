@@ -45,7 +45,7 @@ public static class WorldNodeSceneTrees
     }
 
     // ObjectTypeFlags_t, from worldrenderer.dll's schema enumerators.
-    private static readonly (uint Value, string Name)[] ObjectTypes =
+    internal static readonly (uint Value, string Name)[] ObjectTypes =
     [
         (0, "OBJECT_TYPE_NONE"), (8, "OBJECT_TYPE_MODEL"), (16, "OBJECT_TYPE_BLOCK_LIGHT"), (32, "OBJECT_TYPE_NO_SHADOWS"),
         (64, "OBJECT_TYPE_WORLDSPACE_TEXURE_BLEND"), (128, "OBJECT_TYPE_DISABLED_IN_LOW_QUALITY"), (512, "OBJECT_TYPE_RENDER_WITH_DYNAMIC"),
