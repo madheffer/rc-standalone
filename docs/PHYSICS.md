@@ -95,8 +95,8 @@ Open:
   physics parts or a joint (ledger 135). Valve's truth is captured
   (s2c_ragdollprobe); CRnConicalJoint's (every motor mode) and CRnRevoluteJoint's solves are
   ported and oracle-exact, the aggregate builds as Valve's, pose included (ledger 166), and the
-  settle with joints replays Valve's step for step (step 6). The settle still refuses such a map, for the
-  write-back (step 7).
+  settle with joints replays Valve's step for step (step 6), and the write-back with boneTransforms is ported (step
+  7, ledger 168): s2c_ragdollprobe's whole lump equals Valve's.
   Roadmap, in order, each step checked against the capture before the next:
   1. Done (2026-10-25, ledger 136): CRnRevoluteJoint (VPhysX type 3 with
      flags bit 1 clear, as ctm_sas's two knees): prepare (every motor mode,
@@ -156,7 +156,8 @@ Open:
      bodies, no holes, and ground contacts) and sleep with joints. Valve's settle varies run to run with heap
      order: capture --settle-only twice before chasing a pose. The capture is the one in
      %TEMP%/settle_capture/s2c_ragdollprobe (recipe in notes_joints.md); refresh it after a CS2 update.
-  7. The write-back (18105b350 -> 18105a410): bone 0's transform through bind pose 0 (translation times the
+  7. Done (2026-10-28, ledger 168; SettleWorld.WriteBack.cs, SettleLumpTests on s2c_ragdollprobe). The plan was:
+     the write-back (18105b350 -> 18105a410): bone 0's transform through bind pose 0 (translation times the
      aggregate scale) to the entity, the other bones local, scaled 1 / aggScale, into boneTransforms (18105cac0,
      node +0x438 180f934b0, lump key 181004390, serializer 18174aeb0); lift SettleWriteBack.cs:64's scaled bind
      pose refusal if a corpus map needs it. Check: s2c_ragdollprobe's lump 0 against Valve's, then the corpus

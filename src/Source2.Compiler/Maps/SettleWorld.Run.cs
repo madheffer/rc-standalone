@@ -14,7 +14,9 @@ public static partial class SettleWorld
     /// <param name="Asleep">Whether every body of the node is asleep at the
     /// end, a body left static counting as asleep, which sets its "Start
     /// asleep" spawnflag.</param>
-    public sealed record Settlement(bool Moved, Vector3 Origin, Vector3 Angles, bool Asleep);
+    /// <param name="BoneTransforms">An aggregate's bones as the lump writes them
+    /// (<see cref="BoneTransformsText"/>), or null for none.</param>
+    public sealed record Settlement(bool Moved, Vector3 Origin, Vector3 Angles, bool Asleep, string? BoneTransforms = null);
 
     /// <summary>
     /// The compile's physics settle (FUN_180f1e490), end to end: the settle
@@ -42,11 +44,6 @@ public static partial class SettleWorld
             return result;
         if (bodies.FirstOrDefault(b => b.Unsupported != null) is { } refused)
             throw new NotSupportedException($"node {refused.NodeId}: {refused.Unsupported}");
-        // The aggregate build is Valve's (GROUND_TRUTH 161, 166), and the settle with joints
-        // replays Valve's captures of s2c_ragdollprobe step for step (RagdollLockstepTests,
-        // GROUND_TRUTH 167); the boneTransforms write-back is not ported (PHYSICS.md step 7).
-        if (bodies.FirstOrDefault(b => b.Aggregate != null) is { } aggregate)
-            throw new NotSupportedException($"node {aggregate.NodeId}: an aggregate (ragdoll), whose boneTransforms write-back is not ported");
         var eligible = Eligible(document, bodies, models, schema);
         var settled = Settled(document, bodies, models, schema);
         var world = CreateWorld(bodies, settled);
@@ -65,21 +62,56 @@ public static partial class SettleWorld
         {
             var node = bodies[i].Node!;
             var model = node.Get<DmxBinary.Element>("entity_properties")?.Get<string>("model") ?? "";
-            if (models.Physics(model) is { } phys && phys.BindPose.Length > 0)
-                throw new NotSupportedException($"settling {model}, whose physics has a bind pose");
-            ref var state = ref world.Bodies[i + 1].State;
-            var pose = SettleWriteBack.EntityPose(state);
-            // PhysObj_IsAsleep asks each body (vfn 0x408); the solver marks a
-            // body it puts to sleep in Flags249 bit 4 (IslandSolver.PutToSleep).
-            var asleep = (state.Flags249 & 4) != 0;
             var others = result.GetValueOrDefault(Key(bodies[i]))?.Asleep ?? true;
+            // PhysObj_IsAsleep asks each body (vfn 0x408, an aggregate's vfn 0x180 every
+            // body's); the solver marks a body it puts to sleep in Flags249 bit 4
+            // (IslandSolver.PutToSleep).
+            if (bodies[i].Aggregate is { } aggregate)
+            {
+                // An aggregate is written back once, from all its bodies (18105a410, 18105cac0).
+                if (aggregate.Bodies[0] != i)
+                    continue;
+                if (aggregate.Bodies.Any(k => !settled.Contains(k)))
+                    throw new NotSupportedException($"settling node {Key(bodies[i])} ({model}), an aggregate with parts left static");
+                if (aggregate.Skeleton is not { } skeleton)
+                    throw new NotSupportedException($"settling node {Key(bodies[i])} ({model}), an aggregate whose model has no skeleton");
+                var frames = aggregate.Bodies.Select(k => BodyTransform(world.Bodies[k + 1].State)).ToList();
+                var (entityTransform, bones) = AggregateWriteBack(aggregate, frames, skeleton);
+                var all = aggregate.Bodies.All(k => (world.Bodies[k + 1].State.Flags249 & 4) != 0);
+                var at = EntityPoseOf(entityTransform);
+                result[Key(bodies[i])] = new Settlement(true, at.Origin, at.Angles, all && others,
+                                                         bones.Count > 0 ? BoneTransformsText(bones) : null);
+                continue;
+            }
+            ref var state = ref world.Bodies[i + 1].State;
+            (Vector3 Origin, Vector3 Angles) pose;
+            if (models.Physics(model) is { } phys && (phys.BoneNames?.Length ?? 0) > 0)
+            {
+                // 18105a410's single-body branch with a bind pose (GROUND_TRUTH 168).
+                pose = EntityPoseOf(SingleBodyEntity(BodyTransform(state), phys));
+            }
+            else
+            {
+                var p = SettleWriteBack.EntityPose(state);
+                pose = (new Vector3(p.Origin.X, p.Origin.Y, p.Origin.Z), new Vector3(p.Angles.X, p.Angles.Y, p.Angles.Z));
+            }
+            var asleep = (state.Flags249 & 4) != 0;
             if (bodies.Count(b => Key(b) == Key(bodies[i])) > 1)
                 throw new NotSupportedException($"settling node {Key(bodies[i])} ({model}), which has several bodies");
-            result[Key(bodies[i])] = new Settlement(true,
-                new Vector3(pose.Origin.X, pose.Origin.Y, pose.Origin.Z),
-                new Vector3(pose.Angles.X, pose.Angles.Y, pose.Angles.Z), asleep && others);
+            result[Key(bodies[i])] = new Settlement(true, pose.Origin, pose.Angles, asleep && others);
         }
         return result;
+    }
+
+    /// <summary>
+    /// The node's origin and angles from an entity transform (18105b350): the
+    /// position, and the rotation's angles (181260200) through the angle
+    /// setter's cleanup.
+    /// </summary>
+    private static (Vector3 Origin, Vector3 Angles) EntityPoseOf(CTransform t)
+    {
+        var angles = SettleWriteBack.CleanAngles(SettleWriteBack.Angles(new Quat(t.Rotation.X, t.Rotation.Y, t.Rotation.Z, t.Rotation.W)));
+        return (t.Position, new Vector3(angles.X, angles.Y, angles.Z));
     }
 
     /// <summary>PhysDoc_Simulate(30 s, 1/90 s): (int)(30f / 0.0111111114f).</summary>

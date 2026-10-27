@@ -35,6 +35,9 @@ public static partial class SettleWorld
 
         /// <summary>Per part, the model's pose for the part's bone in model space, or null when the skeleton has no such bone.</summary>
         public List<CTransform?> Poses { get; } = [];
+
+        /// <summary>The model's skeleton (m_modelSkeleton), which the write-back orders and filters the bones by; null without one.</summary>
+        public ModelBones? Skeleton { get; set; }
     }
 
     public readonly record struct PartPhysics(int Flags, float Mass, float InertiaScale, float LinearDamping, float AngularDamping,
@@ -83,7 +86,8 @@ public static partial class SettleWorld
             NodeScale = 1f,
         };
         aggregate.Joints.AddRange(JointRecords(phys));
-        aggregate.Poses.AddRange(ModelPoses(phys, props.Get<string>("model") is { } path ? models.ModelSkeleton(path) : null));
+        aggregate.Skeleton = props.Get<string>("model") is { } path ? models.ModelSkeleton(path) : null;
+        aggregate.Poses.AddRange(ModelPoses(phys, aggregate.Skeleton));
         var table = phys.CollisionAttributes.Select(rules.Convert).ToArray();
         var entity = EntityAttributes(props, table, context.Schema!, rules);
         var surfaces = phys.SurfacePropertyHashes;

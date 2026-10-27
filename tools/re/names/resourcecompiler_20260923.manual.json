@@ -844,7 +844,7 @@
    "addr": "181253780",
    "name": "CTransform_Invert",
    "module": "s2c:math",
-   "note": "scale 1 path"
+   "note": "conjugate; scale 1: 0 - (position rotated by the unnormalised conjugate), then the conjugate over its dpps length; other scales: conjugate normalised first, rotated position times -1 / s, scale 1 / s (0 as 1.19e-7); SettleWorld.Invert (ledger 168)"
   },
   {
    "addr": "1802b1ff0",
@@ -3952,7 +3952,43 @@
    "addr": "18105a410",
    "name": "PhysPart_GetEntityTransform",
    "module": "s2c:entities/settle",
-   "note": ""
+   "note": "single body: GetTransform composed with the inverse of bind pose 0 (1801ae160) when the physics data has bone names; aggregate: body 0 composed with the inverse of bind pose 0 (translation times the instance scale), each body's bone = inverse entity composed with the body, position times 1 / s, under its bone name (vfn 0xd0); SettleWorld.AggregateWriteBack (ledger 168)"
+  },
+  {
+   "addr": "18105cac0",
+   "name": "PhysPart_StoreBoneTransforms",
+   "module": "s2c:entities/settle",
+   "note": "the bones found in the model's skeleton by name (181749980, case ignored), sorted by bone index (181053ee0), added to a new pose list (18174b4b0), then the node's previous pose entries found in the skeleton (not ported: no .vmap stores one, ledger 45), stored at node +0x438 (180f934b0)"
+  },
+  {
+   "addr": "1801ae160",
+   "name": "Matrix3x4_ToCTransform",
+   "module": "s2c:entities/settle",
+   "note": "18125b270: the unscaled matrix's translation, the largest column length, 18125de90's quaternion; SettleWorld.BindPoseTransform"
+  },
+  {
+   "addr": "181749980",
+   "name": "BonePose_IndexOfName",
+   "module": "s2c:entities/settle",
+   "note": "first entry whose name (+0x20, 0x30 each) equals, case ignored unless the flag"
+  },
+  {
+   "addr": "18174b4b0",
+   "name": "BonePose_Set",
+   "module": "s2c:entities/settle",
+   "note": "by murmur hash of the name (seed 0x31415926): replace the entry or append {transform, name}"
+  },
+  {
+   "addr": "181053ee0",
+   "name": "Sort_BoneIndexPairs",
+   "module": "s2c:entities/settle",
+   "note": "MSVC std::sort of (part, bone index) pairs on the bone index"
+  },
+  {
+   "addr": "180f934b0",
+   "name": "CMapEntity_SetBonePose",
+   "module": "s2c:entities/settle",
+   "note": "node +0x438"
   },
   {
    "addr": "18105b2d0",

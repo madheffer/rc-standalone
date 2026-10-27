@@ -1,6 +1,30 @@
 {
  "functions": [
   {
+   "addr": "1803f8740",
+   "name": "CPhysAggregateInstance::vftable",
+   "module": "s2c:entities/settle",
+   "note": "vfn 0x10 body count, 0x48 physics data, 0x90 scale (+0x28), 0xc0 body, 0xd0 bone name, 0x180 every body asleep"
+  },
+  {
+   "addr": "180048860",
+   "name": "CPhysAggregateInstance::IsAsleep",
+   "module": "s2c:entities/settle",
+   "note": "vfn 0x180: every body's vfn 0x408"
+  },
+  {
+   "addr": "180045af0",
+   "name": "CPhysAggregateInstance::BoneName",
+   "module": "s2c:entities/settle",
+   "note": "vfn 0xd0: physics data +0x10 names (count +0x18), else an empty string; the +0x18 count rc's single-body branches test (ledger 168)"
+  },
+  {
+   "addr": "180046a80",
+   "name": "CPhysAggregateInstance::Scale",
+   "module": "s2c:entities/settle",
+   "note": "vfn 0x90: +0x28"
+  },
+  {
    "addr": "18016c9b0",
    "name": "RnSphere_GetTriangles",
    "module": "s2c:baked/nav",

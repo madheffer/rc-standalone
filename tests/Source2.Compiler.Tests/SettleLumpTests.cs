@@ -22,6 +22,7 @@ public sealed partial class SettleLumpTests(ITestOutputHelper output)
     [InlineData("s2c_rc_probe", "atixref")]
     [InlineData("s2c_rc_probe", "c2m2_fairgrounds_csgo_environment_prefab")]
     [InlineData("s2c_big", "ze_ffvii_mako_reactor_v6_p")]
+    [InlineData("s2c_rc_probe", "s2c_ragdollprobe")]
     public void SettledPropsMatchValvesLumps(string addon, string map)
     {
         if (CS2Fixtures.StockPak() is not { } pak || MapFixtures.GameSchema() is not { } schema)
@@ -64,7 +65,7 @@ public sealed partial class SettleLumpTests(ITestOutputHelper output)
             }
         }
         output.WriteLine($"{map}: {total} lump difference(s), {wrong.Count} on settled props");
-        foreach (var line in wrong.Take(20))
+        foreach (var line in wrong.Take(40))
             output.WriteLine("  " + line);
         Assert.Empty(wrong);
     }
@@ -97,6 +98,6 @@ public sealed partial class SettleLumpTests(ITestOutputHelper output)
         return EditorTraceScene.ForMap(document, models);
     }
 
-    [GeneratedRegex(@"^\[prop_physics(_override|_multiplayer)?#\d+\] (origin|angles|spawnflags|phys_start_asleep)[: ]")]
+    [GeneratedRegex(@"^\[(prop_physics(_override|_multiplayer)?|prop_ragdoll)#\d+\] (origin|angles|spawnflags|phys_start_asleep|boneTransforms)[: ]")]
     private static partial Regex SettledKey();
 }

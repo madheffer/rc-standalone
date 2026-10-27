@@ -61,6 +61,13 @@ public static class MapEntities
         /// </summary>
         public IReadOnlyDictionary<string, string>? Defaults { get; init; }
 
+        /// <summary>
+        /// The bone pose the settle wrote back on the node (CMapEntity +0x438,
+        /// SettleWorld.Settlement.BoneTransforms), as ExportToLump prints it; null
+        /// for none.
+        /// </summary>
+        public string? BoneTransforms { get; init; }
+
         /// <summary>The <c>CMapPrefab</c> node ids the node was reached through, outermost first
         /// (<see cref="Maps.MapPrefabs"/>); empty for a node of the map's own.</summary>
         public int[] Prefabs { get; init; } = [];

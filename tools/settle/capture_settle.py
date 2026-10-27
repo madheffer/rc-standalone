@@ -141,6 +141,8 @@ def main():
     parser.add_argument("--out")
     parser.add_argument("--agent", action="append", default=[], help="extra JS appended to the agent, in order (repeatable)")
     parser.add_argument("--settle-only", action="store_true", help="stop when the settle returns; probes skip their later hooks")
+    parser.add_argument("--keep-package", action="store_true",
+                        help="copy the compiled .vpk into the output folder before the backup is restored (with a probe that holds the compile to its end, e.g. probes/hold_to_exit.js)")
     args = parser.parse_args()
     if cs2_running():
         sys.exit("cs2.exe is running; captures never run beside the game.")
@@ -222,6 +224,8 @@ def main():
         pass
     events.close()
     time.sleep(1)
+    if args.keep_package and os.path.exists(vpk):
+        shutil.copy2(vpk, os.path.join(out_dir, args.map + ".vpk"))
     if os.path.exists(backup):
         shutil.copy2(backup, vpk)
         os.remove(backup)

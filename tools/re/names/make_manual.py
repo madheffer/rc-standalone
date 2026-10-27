@@ -182,7 +182,7 @@ RESOURCECOMPILER = [
     ("181363320", "OverlayDesc_SetFace", MU, "copies a face's positions, texcoords and optional streams into the descriptor's 0x78-byte face record"),
     ("18125d940", "AngleQuaternion", X, "half angles times 0.00872664619"),
     ("181260150", "QuaternionMatrix", X, ""),
-    ("181253780", "CTransform_Invert", X, "scale 1 path"),
+    ("181253780", "CTransform_Invert", X, "conjugate; scale 1: 0 - (position rotated by the unnormalised conjugate), then the conjugate over its dpps length; other scales: conjugate normalised first, rotated position times -1 / s, scale 1 / s (0 as 1.19e-7); SettleWorld.Invert (ledger 168)"),
     ("1802b1ff0", "CMesh_TransformByMatrix", X, "flag 1: positions by the matrix, normals by its inverse transposed (181263c30), tangents by it, both renormalised; flag 2: texcoords (u about 0, 1 - v about 1) scaled by column lengths named by TexCoord(2)ScaleByModelU/V; PropTransform"),
     ("18125d1f0", "Matrix3x4_TransformPoint", X, "(t + y r1) + (x r0 + z r2)"),
     ("18125d1b0", "Matrix3x4_Rotate", X, "(x r0 + y r1) + z r2"),
@@ -708,7 +708,13 @@ RESOURCECOMPILER = [
     ("1810578b0", "PhysMesh_MaterialsEqual", ST, "compares the names"),
     ("1810593e0", "MapSettle_Candidates", ST, ""),
     ("181059770", "PhysMesh_Soups", ST, "a map mesh's triangle soups, 0x90-byte entries"),
-    ("18105a410", "PhysPart_GetEntityTransform", ST, ""),
+    ("18105a410", "PhysPart_GetEntityTransform", ST, "single body: GetTransform composed with the inverse of bind pose 0 (1801ae160) when the physics data has bone names; aggregate: body 0 composed with the inverse of bind pose 0 (translation times the instance scale), each body's bone = inverse entity composed with the body, position times 1 / s, under its bone name (vfn 0xd0); SettleWorld.AggregateWriteBack (ledger 168)"),
+    ("18105cac0", "PhysPart_StoreBoneTransforms", ST, "the bones found in the model's skeleton by name (181749980, case ignored), sorted by bone index (181053ee0), added to a new pose list (18174b4b0), then the node's previous pose entries found in the skeleton (not ported: no .vmap stores one, ledger 45), stored at node +0x438 (180f934b0)"),
+    ("1801ae160", "Matrix3x4_ToCTransform", ST, "18125b270: the unscaled matrix's translation, the largest column length, 18125de90's quaternion; SettleWorld.BindPoseTransform"),
+    ("181749980", "BonePose_IndexOfName", ST, "first entry whose name (+0x20, 0x30 each) equals, case ignored unless the flag"),
+    ("18174b4b0", "BonePose_Set", ST, "by murmur hash of the name (seed 0x31415926): replace the entry or append {transform, name}"),
+    ("181053ee0", "Sort_BoneIndexPairs", ST, "MSVC std::sort of (part, bone index) pairs on the bone index"),
+    ("180f934b0", "CMapEntity_SetBonePose", ST, "node +0x438"),
     ("18105b2d0", "PhysObj_IsAsleep", ST, ""),
     ("18105b350", "PhysObj_WriteBackTransform", ST, ""),
     ("18105c330", "PhysObj_Build", ST, ""),
@@ -1497,6 +1503,10 @@ MODTOOLS = [
 ]
 
 VPHYSICS2 = [
+    ("1803f8740", "CPhysAggregateInstance::vftable", ST, "vfn 0x10 body count, 0x48 physics data, 0x90 scale (+0x28), 0xc0 body, 0xd0 bone name, 0x180 every body asleep"),
+    ("180048860", "CPhysAggregateInstance::IsAsleep", ST, "vfn 0x180: every body's vfn 0x408"),
+    ("180045af0", "CPhysAggregateInstance::BoneName", ST, "vfn 0xd0: physics data +0x10 names (count +0x18), else an empty string; the +0x18 count rc's single-body branches test (ledger 168)"),
+    ("180046a80", "CPhysAggregateInstance::Scale", ST, "vfn 0x90: +0x28"),
     ('18016c9b0', 'RnSphere_GetTriangles', NAV, '18016c380 with 5 segments and 12 rings; indices offset by the vertices already there'),
     ('18016c380', 'RnSphere_Tessellate', NAV, 'poles (-r, 0, 0), (r, 0, 0); segment angle i -2pi / n, ring j pi / (m + 1) - pi / 2; V_sinf / V_cosf; centre added last'),
     ('18024bc00', 'CRnSphereShape::CastBox', NAV, 'vfn 0x40: ray trimmed (1802e6e60), GJK cast of the box (half extents negated) against the centre placed ((x + y) + z) + t, radius as margin'),
@@ -2966,7 +2976,7 @@ RESOURCECOMPILER_1006 = [
     ("18105b6c0", "MapPhysicsSim_Finish", ENT, "from CMapDoc::FrameUpdate (editor) or 180f4d6f0 (compile)"),
     ("180f1e800", "CompileMap_PreSettlePhysics", ENT, "BasePhysicsSimulated entities; keys skipPreSettle, spawn_motion_disabled"),
     ("181004390", "CMapEntity_ExportBoneTransforms", LUMP, "boneTransforms \"name: px py pz qx qy qz qw;\" when the class has PosableSkeleton"),
-    ("18174aeb0", "PosableSkeleton_Serialize", LUMP, ""),
+    ("18174aeb0", "PosableSkeleton_Serialize", LUMP, "\"%s: %f %f %f %f %f %f %f;\" per entry (position, quaternion); SettleWorld.BoneTransformsText; ExportToLump writes it as boneTransforms after the table keys for a PosableSkeleton class"),
 ]
 
 

@@ -726,11 +726,12 @@ public static partial class SettleWorld
             .Aggregate(0f, (a, b) => a <= b ? b : a);
         // The body is then set (vfn 0x1b8, rc 18105e299..18105e317) to the part's transform composed
         // (181253510) with bind pose 0 as 1801ae160 decomposes it (its translation, largest column
-        // scale and rotation), or with the identity when the physics data's +0x18 count is 0. Which
-        // list +0x18 counts is not read; it is taken as the bind pose's, which agrees on every model
-        // seen (the chicken: one part, one bone, one bind pose).
+        // scale and rotation), or with the identity when the physics data's +0x18 count is 0: the
+        // bone names' count (vphysics2's aggregate vfn 0xd0, 180045af0, reads the names at +0x10).
         var part = new CTransform(new Vector3(local[3], local[7], local[11]), longest, Orientation(Unscaled(local)));
-        var placed = phys.BindPose.Length > 0
+        if ((phys.BoneNames?.Length ?? 0) > 0 && phys.BindPose.Length == 0)
+            throw new NotSupportedException("a physics part with bone names and no bind pose (rc reads a null bind pose) is not ported");
+        var placed = (phys.BoneNames?.Length ?? 0) > 0
             ? CTransform.Compose(part, BindPoseTransform(Physics.StaticPropHulls.BindPose(phys, 0)))
             : part with { Rotation = WithIdentity(part.Rotation) };
         var body = new BodyBuild(nodeId, placed.Position, placed.Scale, placed.Rotation, []) { Node = node };

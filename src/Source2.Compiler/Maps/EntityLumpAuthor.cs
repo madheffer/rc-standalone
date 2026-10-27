@@ -271,6 +271,12 @@ public static partial class EntityLumpAuthor
                     : new KVObject(text));
         }
 
+        // The node's bone pose, after its own keys and before the class's
+        // (CMapEntity_ExportToLump 181004390: a class deriving from
+        // PosableSkeleton, 180dd2500, with a pose on the node).
+        if (entity.BoneTransforms is { } bones && schema is not null && schema.Inherits(entity.ClassName, "PosableSkeleton"))
+            values.Add("boneTransforms", new KVObject(bones));
+
         // Keys the CLASS ships rather than the entity. This is how a point prefab
         // works: counterterrorist_team_intro is an ordinary class whose FGD metadata
         // declares isPointPrefab and the targetMapName to load, so the compile reads

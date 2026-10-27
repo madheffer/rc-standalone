@@ -345,6 +345,7 @@ public static class EntityLumpSet
                 {
                     Origin = s.Moved ? s.Origin : e.Origin,
                     Angles = s.Moved ? s.Angles : e.Angles,
+                    BoneTransforms = s.BoneTransforms,
                 }, schema, s.Asleep)
                 : e;
 

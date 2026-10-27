@@ -4561,8 +4561,8 @@ game can answer is raised with the user first, and runs with -insecure.
        the unscaled rotation's quaternion. With the physics data's +0x18 count at 0 it composes with the identity
        (the WithIdentity the port already had). We placed such a body at the node: the chicken (prop_ragdoll, one
        part with a bind pose) sat 7.3 units low and unrotated. SettleWorld.FromModel and BindPoseTransform.
-     - Open: which list the +0x18 count is (the runtime layout is not the schema's); the port tests the bind pose
-       list, which agrees on the chicken (one part, one bone, one bind pose).
+     - Settled later the same day (ledger 168): the +0x18 count is the bone names' (vphysics2's aggregate vfn 0xd0,
+       180045af0, reads the names at +0x10 under it); the port tests the bone names.
      - Measured: the contact differences from step 33 and the step 99 drift came from the chicken and from the order
        bodies turn dynamic. That order is ledger 52's (the node hash table over heap pointers): three Valve runs gave
        three orders. With the chicken placed and each capture's own order, all 33 dynamic bodies equal Valve's before
@@ -4571,6 +4571,31 @@ game can answer is raised with the user first, and runs with -insecure.
      - Read for the probe: world +0xa10 count, +0xa14 capacity, +0xa18 the active contacts; contact +8 and +0x10
        shapes (shape +0x10 body), +0x18 and +0x1c children, +0x40 sort key (the shapes' +0x1c proxies), +0x80 the
        manifold block (count at +4, manifolds of 0xe0 bytes from +8). The key alone repeats across body pairs.
+
+168. **The ragdoll write-back and boneTransforms** (2026-10-28: decompile and disassembly of resourcecompiler 0923
+     18105b350, 18105a410 (18105a530..18105a6b5), 181253780, 18105cac0, 181749980, 181053ee0, 18174b4b0, 18174aeb0,
+     181004390, 180dd2500, 18105b2d0; vphysics2 0924's aggregate vtable 1803f8740 (180048860, 180045af0, 180046a80);
+     a full compile of s2c_ragdollprobe under capture, capture_settle.py --keep-package with hold_to_exit.js).
+     - Settled from the code, ported (Maps/SettleWorld.WriteBack.cs): PhysObj_WriteBackTransform passes the node's
+       transform to 18105a410 and sets the node's origin and angles from what it returns. For an aggregate the entity
+       transform is body 0's (GetTransform) composed with the inverse of bind pose 0, its translation times the
+       instance scale (+0x28), decomposed as 18125b270 / 18125de90 do; each body's bone is the inverse entity
+       transform composed with the body's, its position times 1 / s, under the part's bone name (vfn 0xd0). For a single
+       body with bone names (+0x18) it is the body composed with the inverse of bind pose 0 (1801ae160), else the body's
+       own (the existing EntityPose). CTransform_Invert's scaled branch is ported too.
+     - Settled, ported: 18105cac0 keeps the bones found in the model's skeleton by name, case ignored (181749980),
+       ordered by bone index (181053ee0 sorts on it), names as the physics data spells them, and stores the list on
+       the node; ExportToLump writes it as boneTransforms ("%s: %f %f %f %f %f %f %f;", 18174aeb0) after the table
+       keys and before class_game_keys, for a class deriving from PosableSkeleton (180dd2500). An aggregate is asleep
+       when every body is (vfn 0x180).
+     - Measured, not a rule: a single body (the chicken) writes no boneTransforms key; the port writes none for an
+       empty list. The node's earlier pose entries that 18105cac0 merges in are not ported (no .vmap stores one,
+       ledger 45).
+     - Exact: SettleLumpTests on s2c_ragdollprobe: the whole lump equals Valve's, 0 differences (both settled agents'
+       boneTransforms, the chickens' poses, spawnflags). The settle ran in our dynamic order, not the reference's;
+       this map's lump is the same from two Valve compiles (10-23 and 10-28), so here the order does not reach the
+       printed values. SettleWorld.Run no longer refuses an aggregate, and no longer refuses a single body with a bind
+       pose.
 
 ## Resolved
 
