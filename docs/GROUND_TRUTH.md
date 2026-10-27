@@ -4155,6 +4155,33 @@ game can answer is raised with the user first, and runs with -insecure.
       s2c_fixmid and the probes) were regenerated at 13:32. All five were recompiled from the current .vmaps
       (tools/pipeline/compile_fresh.py, the original switches).
 
+156. **The cubemap face's draw list and the order within a layer** (2026-10-27: decompile of scenesystem 20261015
+    180041a00, 180041f30, 1800369b0, 1800371e0, 1800ed4c0, 18010f4e0 and 1801112a0, the same code in 20261023 but
+    rip displacements; three cubehost runs with tools/cubehost/layer_sort.js; the chained replays of three cubes).
+    - Settled: one CMeshDrawPrimitive_t (0x70 bytes) per aggregate and layer, the views and passes as
+      Cubemaps/CubemapFaceDrawList.cs has them. Measured on all six faces of probe01 and s2c_l5probe: every
+      captured aggregate call is one of our lists and none of ours is missing (DrawListEqualsTheCapture), in our
+      pass order and with our viewports. The cascade tiles (0,0), (1280,0), (2560,0), (0,2048) are measured; the
+      atlas allocator is not read.
+    - Settled from the decompile: 1800ed4c0 sorts a layer's items with the full sort (layer +0x48 bit 0), none
+      (bit 1) or the batch sort. Both compare the object's +0x18, +0x62 bits 3 and 10, the draw's +0x14 bit 6,
+      the per-object material (+0x28), +0x62 & 0x1344, +0x48, the material (+0x20), +0x62 & 0xecbb, the draw's
+      +100 and +0x58; the full sort compares +0x58 first.
+    - Measured: in probe01's layers the two aggregates tie up to the material's address, and Valve draws the
+      lower address first. Across two atixref runs (atixref_sort1 and 2) every sort holds the same draws, but
+      their order differs in most of them (the colour-type layer 0x400104: 16 of 304 the same), and the 266
+      materials' address order inverts 33% of pairs. So the order within a layer is Valve's heap order and
+      differs run to run, as the settle's does (SETTLE.md).
+    - It changes bytes: in aggregate order four faces of each of probe01's two cubes and s2c_l5probe's cube 0
+      differ by 34 to 324 halves (coplanar surfaces of two materials both pass the colour depth test, the later
+      draw wins); in the game's order (reflectivity_30 first, the same in four runs from 10-21 to 10-27) all
+      eighteen faces and the three EXRs are the game's byte for byte with our lists, arguments and viewports.
+      Depth and shadow results do not depend on the order.
+    - Open: which order our compile renders in. Valve's own output on such pixels is not reproducible, so no
+      order is "the" answer for maps with coplanar materials; the tests pass the game's observed order
+      (CUBEREPLAY_OURDRAWS=1,0). Also open: the draw flags that choose a draw's layers (atixref's
+      non-shadow-casting blends, its alpha-tested prepass layer).
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

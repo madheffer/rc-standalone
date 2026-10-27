@@ -134,7 +134,7 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
             ["baked"] = Cubemaps.CubemapFaceConstants.BakedLighting(new System.Numerics.Vector2(1.1428397f, 1.1428397f), 4096, 4096, false),
             // Our own slots: two identity transforms, every instance pointing at the second.
             ["transforms"] = Cubemaps.CubemapFaceConstants.Transforms([Cubemaps.CubemapFaceConstants.Identity3x4, Cubemaps.CubemapFaceConstants.Identity3x4]),
-            ["instances"] = Cubemaps.CubemapFaceConstants.Instances([.. Enumerable.Repeat(1, 63)]),
+            ["instances"] = Cubemaps.CubemapFaceConstants.Instances([.. Enumerable.Repeat(1, 255)]),
         };
         // The sun cascades' per-view blocks (three cascades and the viewmodel one).
         var (sun, _, cameraDirection) = Cubemaps.CubemapShadowCascades.SunDirections(new System.Numerics.Vector3(74.99999f, 180.00002f, 0f));
@@ -385,15 +385,28 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
             // A face that sees no world (probe01's +Z) draws the sky alone; any other face uses every block.
             foreach (var role in (roles.ContainsValue("world") ? ours.Keys : (IEnumerable<string>)["sky"]).Except(roles.Values))
                 failures.Add($"face {f}: no captured block for {role}");
-            foreach (var r in actions)
+            // CUBEREPLAY_OURDRAWS=1: the world aggregates' draws from our draw list instead of the capture's, the
+            // aggregates in their order within each layer; =reverse in the reverse order, =<k,k,...> in that order.
+            // Valve's order within a layer follows heap pointers (GROUND_TRUTH 156), so a draw's targets may differ
+            // from the capture's after it while the face's readback must not.
+            var ourDraws = Environment.GetEnvironmentVariable("CUBEREPLAY_OURDRAWS") is { Length: > 0 } mode ? mode : null;
+            var run = ourDraws == null ? actions
+                : OurDrawOrder(actions, f, cube, Environment.GetEnvironmentVariable("CUBEREPLAY_SCRIPTEDCAMERA") != "0", facesDir, resources, ourDraws, failures);
+            var reordered = 0;
+            foreach (var r in run)
             {
                 var result = r["stages"]!["cs"] is not null ? replay.RunCompute(r) : replay.Run(r);
                 if (!result.StartsWith("equal", StringComparison.Ordinal))
                 {
                     output.WriteLine($"  {r["eid"]} {r["name"]}: {result}");
-                    failures.Add($"face {f} {r["eid"]}: {result}");
+                    if (ourDraws != null && r["stages"]!["cs"] is null)
+                        reordered++;
+                    else
+                        failures.Add($"face {f} {r["eid"]}: {result}");
                 }
             }
+            if (ourDraws != null)
+                output.WriteLine($"  our draw list: {run.Count} actions, {reordered} draws whose targets differ from the capture's after them (order)");
             output.WriteLine($"  pipelines: {keptPipelines} draws keep the capture's (programs not ported); samplers: {oursSamplers} bindings ours; vertex layouts: {oursLayouts} draws ours");
             var colorName = actions.Where(r => r["outputs"]!.AsArray().Count > 0).Select(r => (string)r["outputs"]![0]!).Last();
             var face = replay.ReadLive(colorName);
@@ -415,6 +428,101 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
         }
         Assert.Empty(failures);
         Assert.Equal(game, exr);
+    }
+
+    private static readonly Lazy<System.Collections.Concurrent.ConcurrentDictionary<string, List<AggregateCullingCaptureTests.Aggregate>>> DrawListAggregates = new(() => new());
+
+    /// <summary>
+    /// The face's actions with its world aggregate draws replaced by <see cref="Cubemaps.CubemapFaceDrawList"/>'s: each
+    /// group of a view's colour or depth-only aggregate draws becomes our lists of that view and layer, in our order
+    /// (<paramref name="order"/>: 1, reverse or the aggregates' indices), at the group's first captured draw. Each of our
+    /// commands borrows the bindings of the captured draw it equals (aggregate by vertex buffer, index range and
+    /// instance count) and takes our first instance, viewport and scissor; every captured aggregate draw must be one
+    /// of ours and every command of ours a captured draw. Other draws (sky, downsamples, the viewmodel) stay in place.
+    /// </summary>
+    private static List<JsonNode> OurDrawOrder(List<JsonNode> actions, int face, int cube, bool scriptedCamera, string facesDir, JsonNode resources,
+        string order, List<string> failures)
+    {
+        var vpk = Directory.GetFiles(facesDir, "*.vpk").Single();
+        var aggregates = DrawListAggregates.Value.GetOrAdd(vpk, AggregateCullingCaptureTests.Aggregates);
+        var models = PackageModels.Value.GetOrAdd(vpk, LoadModels);
+        var view = Cubemaps.CubemapFaceViews.Face(Probe01Volumes[cube].Origin, System.Numerics.Vector3.Zero, 1f, 10000f, face);
+        var (toSun, _, _) = Cubemaps.CubemapShadowCascades.SunDirections(new System.Numerics.Vector3(74.99999f, 180.00002f, 0f));
+        IReadOnlyList<int>? materialOrder = order switch
+        {
+            "1" => null,
+            "reverse" => [.. Enumerable.Range(0, aggregates.Count).Reverse()],
+            _ => [.. order.Split(',').Select(k => int.Parse(k, System.Globalization.CultureInfo.InvariantCulture))],
+        };
+        var (draws, _) = Cubemaps.CubemapFaceDrawList.Face(view, toSun,
+            [.. aggregates.Select(a => new Cubemaps.CubemapFaceDrawList.Aggregate(a.Fragments, a.OwnTransforms, a.Lods))], scriptedCamera, materialOrder: materialOrder);
+        var aggregateOf = new Dictionary<string, int>();
+        for (var k = 0; k < aggregates.Count; k++)
+            if (models.FirstOrDefault(m => m.Name == Path.ChangeExtension(aggregates[k].Name.Split(' ', 2)[1], ".vmdl_c")) is { } model)
+                aggregateOf[model.VertexSha] = k;
+        // Each captured aggregate draw's group (view: -1 the face, 0 to 3 a cascade by its tile; colour or not) and aggregate.
+        (int View, bool Colour, int Aggregate)? Group(JsonNode r)
+        {
+            if (!((string)r["name"]!).Contains("Indirect", StringComparison.Ordinal) || r["depthOut"] is null
+                || !aggregateOf.TryGetValue((string)r["contents"]!["before"]![(string)r["vertexInput"]!["vertexBuffers"]![0]!["resourceId"]!]!["sha1"]!, out var k))
+                return null;
+            var target = resources["textures"]![(string)r["depthOut"]!]!;
+            var sc = r["viewportScissor"]!["viewportScissors"]![0]!["scissor"]!;
+            var v = (int)target["width"]! == (int)target["height"]! ? -1 : Array.FindIndex(CascadeTiles, t => t[0] == (int)sc["x"]! && t[1] == (int)sc["y"]!);
+            return v < -1 ? null : (v, r["outputs"]!.AsArray().Count > 0, k);
+        }
+        // Our commands per group, in our order.
+        var groups = draws.Select((d, i) => (d, i)).GroupBy(x => (x.d.View, x.d.Layer == Cubemaps.CubemapFaceDrawList.Layer.Colour))
+            .ToDictionary(g => g.Key, g => g.SelectMany(x => x.d.Commands.Select(c => (x.d, c))).ToList());
+        var template = new Dictionary<(int View, bool Colour), JsonNode?[]>();
+        foreach (var r in actions)
+        {
+            if (Group(r) is not { } g)
+                continue;
+            var ours = groups.GetValueOrDefault((g.View, g.Colour)) ?? [];
+            var slots = template.TryGetValue((g.View, g.Colour), out var s) ? s : template[(g.View, g.Colour)] = new JsonNode?[ours.Count];
+            var i = Enumerable.Range(0, ours.Count).Where(i => slots[i] == null && ours[i].d.Aggregate == g.Aggregate
+                && ours[i].c.IndexCount == (int)r["numIndices"]! && ours[i].c.FirstIndex == (int)r["indexOffset"]!
+                && ours[i].c.VertexOffset == (int)r["baseVertex"]! && ours[i].c.InstanceCount == (int)r["numInstances"]!).DefaultIfEmpty(-1).First();
+            if (i < 0)
+                failures.Add($"face {face} {r["eid"]}: the captured draw ({r["numIndices"]} at {r["indexOffset"]}) of aggregate {g.Aggregate} in view {g.View} is no command of ours");
+            else
+                slots[i] = r;
+        }
+        var result = new List<JsonNode>();
+        var emitted = new HashSet<(int, bool)>();
+        foreach (var r in actions)
+        {
+            if (Group(r) is not { } g)
+            {
+                result.Add(r);
+                continue;
+            }
+            if (!emitted.Add((g.View, g.Colour)))
+                continue;
+            var ours = groups.GetValueOrDefault((g.View, g.Colour)) ?? [];
+            for (var i = 0; i < ours.Count; i++)
+            {
+                if (template[(g.View, g.Colour)][i] is not { } t)
+                {
+                    failures.Add($"face {face}: our command {ours[i].c} of aggregate {ours[i].d.Aggregate} in view {g.View} is not drawn by the capture");
+                    continue;
+                }
+                var clone = t.DeepClone();
+                // Numbers as parsed JSON, which the replay reads as any numeric type.
+                static JsonNode N(int v) => JsonNode.Parse(v.ToString(System.Globalization.CultureInfo.InvariantCulture))!;
+                clone["instanceOffset"] = N(ours[i].c.FirstInstance);
+                var rect = Cubemaps.CubemapFaceDrawList.Viewport(g.View);
+                var vs = clone["viewportScissor"]!["viewportScissors"]![0]!;
+                if ((int)vs["scissor"]!["x"]! != rect.X || (int)vs["scissor"]!["y"]! != rect.Y || (int)vs["scissor"]!["width"]! != rect.Width || (int)vs["scissor"]!["height"]! != rect.Height
+                    || (float)vs["vp"]!["x"]! != rect.X || (float)vs["vp"]!["y"]! != rect.Y || (float)vs["vp"]!["width"]! != rect.Width || (float)vs["vp"]!["height"]! != rect.Height)
+                    failures.Add($"face {face} {t["eid"]}: viewport or scissor not ours {rect}");
+                (vs["vp"]!["x"], vs["vp"]!["y"], vs["vp"]!["width"], vs["vp"]!["height"]) = (N(rect.X), N(rect.Y), N(rect.Width), N(rect.Height));
+                (vs["scissor"]!["x"], vs["scissor"]!["y"], vs["scissor"]!["width"], vs["scissor"]!["height"]) = (N(rect.X), N(rect.Y), N(rect.Width), N(rect.Height));
+                result.Add(clone);
+            }
+        }
+        return result;
     }
 
     /// <summary>

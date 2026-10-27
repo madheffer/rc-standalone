@@ -713,6 +713,56 @@ gives the new file byte for byte (`GameCubemapTests` on the 10-26
 intermediates). cubehost's RenderDoc convar moved to client 1823806d8 in that
 build; cubehost now picks the address by client.dll's PE time stamp.
 
+## The draw list (2026-10-27, ledger 156)
+
+`Cubemaps/CubemapFaceDrawList.cs` gives a face's world aggregate draws from our
+data: the views (the face and its four cascades, `Views`, moved out of the
+culling test), one list per aggregate and layer (Shadow per cascade, then the
+face's PrepassLarge, PrepassSmall and Colour), each list's commands from
+`AggregateCulling`, the instance blocks and each view's viewport and scissor
+(the face's 1024 square, the cascade's atlas tile). The cascade tiles at shadow
+quality 2 are measured (`CascadeTiles`); the atlas allocator is not read.
+
+- `AggregateCullingCaptureTests.DrawListEqualsTheCapture` (`CUBECULL=<capture
+  dir>`): every captured aggregate call is one of our lists and every list of
+  ours is a captured call, in our pass order with our viewports. All six faces
+  of probe01 and s2c_l5probe pass. atixref does not yet: its non-shadow-casting
+  materials (the grass blends, aggregates 7, 54, 81, 84) get Shadow lists the
+  game does not draw, the alpha-tested cypress (110) is drawn in its own prepass
+  layer after Small, and aggregates 89 and 91 have no prepass. Which layers a
+  draw joins is 180041a00's test of the draw's flags (+0x14 of the 0x50-byte
+  record at the object's +0x168) against the layer's (+0x480, +0x488, +0x498);
+  the draw flags come from the material and are not read yet.
+- `ChainedCubeMakesTheGamesExr` with `CUBEREPLAY_OURDRAWS=1|reverse|<k,...>`
+  replaces the capture's aggregate draws by ours: each pass's group of
+  aggregate draws becomes our lists in our order, each command with our first
+  instance, viewport and scissor; a captured draw of the same aggregate and
+  command only lends its bindings. Every captured draw must be a command of
+  ours and the reverse.
+- With the aggregates in reverse order (reflectivity_30 before
+  dev_measuregeneric01, as the game drew them) probe01's two cubes and
+  s2c_l5probe's cube 0 give all eighteen readbacks and the game's three EXRs
+  byte for byte. In aggregate order four faces of each cube differ (34 to 324
+  halves): coplanar surfaces of the two materials both pass the colour pass's
+  depth test and the later draw wins. The shadow and prepass depth converge
+  either way.
+- **The order within a layer** (GROUND_TRUTH 156): 1800ed4c0 sorts a layer's
+  CMeshDrawPrimitive_t (0x70 bytes): the full sort (18010f4e0, layer flag 1)
+  compares +0x58 first, the batch sort (1801112a0) does not; then both compare
+  the object's +0x18, two +0x62 bits, the draw's flag 6, the per-object
+  material (+0x28), +0x62 & 0x1344, +0x48, the material (+0x20), then
+  +0x62 & 0xecbb, the draw's +100 and +0x58. `tools/cubehost/layer_sort.js`
+  (run_probe.py --frida) logs every sorted layer's keys. In probe01's colour
+  layer the two aggregates tie on every key up to the material's address
+  (0x27e56302800 before 0x27f09fec000), so Valve's order is the materials'
+  heap order. Two atixref runs (`--out atixref_sort1`, `atixref_sort2`) sort
+  the same draws in different orders in most sorts: the order is not
+  reproducible in Valve's own build, and on coplanar pixels of two materials
+  neither is Valve's face. The tests pass the observed order
+  (`CUBEREPLAY_OURDRAWS=1,0` on all three cubes); which order our compile uses
+  is open. (A run with the agent on atixref takes over 600 s, so pass
+  `--timeout 1500`.)
+
 ## Roadmap to env_cubemap_array.vtex_c from the .vmap (2026-10-25)
 
 The goal is 1:1 with Valve in every aspect: every map, static or animated,

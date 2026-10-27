@@ -55,14 +55,14 @@ map loading ─┬─ mesh export ─┬─ trace scene ── visibility ─┬
              └─ static props ─┘                            └─ nav
 ```
 
-| module | doc | state (2026-10-26) |
+| module | doc | state (2026-10-27) |
 |---|---|---|
 | containers and packaging | [CONTAINERS.md](CONTAINERS.md), [RESOURCES.md](RESOURCES.md) | 98%: every container authored; KV3 v5, VPK and the map root (.vmap_c) byte for byte on all 40 Valve references; Hammer's Only Entities preset whole-package exact |
 | geometry | [GEOMETRY.md](GEOMETRY.md) | 99%: probe01's -world package equals Valve's but a per-compile stamp; ze_hold_em_p world 100% |
 | visibility | [VISIBILITY.md](VISIBILITY.md) | 100% of the deterministic build: byte-identical VXVS from the .vmap on five maps incl. atixref-sized s2c_prefabprobe4 and split hints (2026-10-23); `-oldvis` is not reproducible in Valve's own tool |
 | physics | [PHYSICS.md](PHYSICS.md) | 98%: world_physics and entity models whole-file exact on every map with a compile, incl. cables and deformers placed through instances and prefabs (ledgers 128-133); ragdolls in the settle under way: both joint types' solver functions oracle-exact, every motor mode (ledgers 135, 136, 138), next the joint wrapper, islands and the aggregate build (PHYSICS.md roadmap); left besides: instances inside prefab maps for entity models, render meshes |
 | entity lump | [ENTITIES.md](ENTITIES.md), [SETTLE.md](SETTLE.md) | 99.9%: every lump of every pinned map and all 15 prefab, instance and deformer probes exact; the 14 prefab corpus maps against fresh Valve references (2026-10-23) differ only in Valve's run-to-run settle poses; left: two orders read from output only (GROUND_TRUTH 46) |
-| baked outputs | [BAKED.md](BAKED.md), [CUBEMAPS.md](CUBEMAPS.md) | 82%: lightmaps, probes, far field, fog, nav (markups and round shapes, ledgers 142-143, 146), bomb damage and .vmap_c done; cubemaps: three cubes of two maps (probe01, s2c_l5probe) byte for byte with every block, buffer, texture, sampler, layout and pipeline state ours (ledgers 147-154); the draw list and its arguments still from the capture |
+| baked outputs | [BAKED.md](BAKED.md), [CUBEMAPS.md](CUBEMAPS.md) | 84%: lightmaps, probes, far field, fog, nav (markups and round shapes, ledgers 142-143, 146), bomb damage and .vmap_c done; cubemaps: three cubes of two maps (probe01, s2c_l5probe) byte for byte with every block, buffer, texture, sampler, layout, pipeline state and the world draw list ours (ledgers 147-156); the order within a layer is Valve's heap order (nondeterministic), the draws' bindings still from the capture |
 | own lighting (vrad3 port) | [VRAD3.md](VRAD3.md), [LIGHTING_ROADMAP.md](LIGHTING_ROADMAP.md) | 94%: `compile-map -s2cbake` bakes with no vrad3; ze_hold_em_p 99.90% of bytes |
 
 The tracker artifact (https://claude.ai/artifact/4whctxfaTdHEiE4d3oAVHA)
@@ -104,13 +104,20 @@ the addon).
    for byte, and probe01's whole env_cubemap_array.vtex_c is the game's (`ChainedCubeMakesTheGamesExr`). What
    comes from our data in that render: every constant block (generic's per-material `_Globals_` included),
    the binner's item records and edges, every texture, vertex and index buffer, sampler, vertex layout and
-   fixed-function state of the world, sky and downsample draws. Still from the RenderDoc dumps: the list
-   of draws and dispatches (which passes and draws, their order), the draw arguments (our culling gives the
-   same commands, ledgers 139, 140), viewport and scissor rectangles, dispatch sizes and push constants, and
-   the spawned pawn's viewmodel and AO box on s2c_l5probe. Next, in order:
-   - the draw list from our data: the passes and their order, the layer and primitive order within a pass
-     (CUBEMAPS.md roadmap 4; 16-bit sort key from scenesystem 180041a00's +0x20), our culling's commands as
-     the arguments, viewports from the views, then probe01 rendered with no dump at all;
+   fixed-function state of the world, sky and downsample draws. Since 10-27 (ledger 156, CUBEMAPS.md "The
+   draw list") the world draw list is ours too: `CubemapFaceDrawList` gives the passes, one list per aggregate
+   and layer, the commands, instance blocks and viewports, equal to the capture as whole sets on probe01 and
+   s2c_l5probe, and all three cubes are the game's EXRs drawn from it (`CUBEREPLAY_OURDRAWS=1,0`). The order
+   within a layer is Valve's heap order of the materials and differs run to run in Valve's own build (two
+   atixref runs); on coplanar pixels of two materials it changes the face. Still from the RenderDoc dumps: the
+   draws' bindings (descriptor sets), dispatch sizes and push constants, the sky and downsample draws' places,
+   and the spawned pawn's viewmodel and AO box on s2c_l5probe. Next, in order:
+   - which order our compile draws a layer in (no order reproduces Valve where it is nondeterministic; decide
+     with the user), and the draw flags that pick a draw's layers (180041a00 against the layer's +0x480/+0x488/
+     +0x498; atixref's non-shadow-casting blends, alpha-tested prepass layer and no-prepass aggregates fail
+     DrawListEqualsTheCapture today);
+   - the remaining capture inputs: descriptor sets from the programs' reflection, dispatch sizes, then probe01
+     rendered with no dump at all;
    - s2c_l5probe's cube 1 (needs a capture: `run_probe.py --renderdoc 1 --settle 20` for s2c_l5probe, CS2
      and Steam closed, ask the user) for its whole array; decide which build state our compile renders at
      (scripted camera or not, a spawned pawn and its viewmodel or not: roadmap 0e, ledger 149);
@@ -172,7 +179,19 @@ the addon).
     rebuilt) and server.dll's script API; first get a pre-update `.vjs_c` to see
     what changed, and Valve's fresh `cs_script_demo` compile as the reference.
 
-## Latest session (2026-10-26 later, a second map and the draws' inputs from our data)
+## Latest session (2026-10-27, the world draw list from our data)
+
+Ledger 156; CUBEMAPS.md "The draw list".
+
+- `Cubemaps/CubemapFaceDrawList.cs`: views (moved from the culling test), one list per aggregate and layer, commands,
+  instance blocks, viewports. `AggregateCullingCaptureTests.DrawListEqualsTheCapture` (CUBECULL) passes on probe01 and
+  s2c_l5probe; atixref fails on layer membership (material draw flags, not read).
+- `ChainedCubeMakesTheGamesExr` with `CUBEREPLAY_OURDRAWS=1,0`: probe01's two cubes and s2c_l5probe's cube 0 are the
+  game's EXRs with our lists, order, arguments and viewports. In aggregate order (`=1`) four faces per cube differ.
+- The layer sort (scenesystem 1800ed4c0 -> 18010f4e0 / 1801112a0) ends on heap pointers; `tools/cubehost/layer_sort.js`
+  logs its keys (run_probe.py --frida, `--timeout 1500` for atixref). Two atixref runs order the same draws differently.
+
+## Earlier session (2026-10-26 later, a second map and the draws' inputs from our data)
 
 Commits 8c48703..b83223d (ledgers 149-154), every step checked on probe01's two cubes and s2c_l5probe's
 cube 0 (all six readbacks and the game's EXR byte for byte each time; probe01's whole array too).

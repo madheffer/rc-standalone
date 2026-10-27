@@ -27,12 +27,12 @@ namespace Source2.Compiler.Tests;
 public sealed class AggregateCullingCaptureTests(ITestOutputHelper output)
 {
     /// <summary>One aggregate and its model's first vertex buffer (size in bytes, stride), which tells its draws apart in a capture.</summary>
-    private sealed record Aggregate(string Name, List<AggregateCulling.Fragment> Fragments, bool OwnTransforms, long VertexBytes, uint VertexStride, List<string> Flags, List<AggregateCulling.LodSetup> Lods);
+    internal sealed record Aggregate(string Name, List<AggregateCulling.Fragment> Fragments, bool OwnTransforms, long VertexBytes, uint VertexStride, List<string> Flags, List<AggregateCulling.LodSetup> Lods);
 
     private static string SceneInfoTestsText(KVObject o, string key)
         => o.Children.FirstOrDefault(c => c.Key == key) is { } c ? (c.Value.IsArray ? string.Join("|", c.Value.Values.Select(v => v.ToString(System.Globalization.CultureInfo.InvariantCulture))) : c.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)) : "";
 
-    private static List<Aggregate> Aggregates(string vpk)
+    internal static List<Aggregate> Aggregates(string vpk)
     {
         using var package = new ValvePak.Package();
         package.Read(vpk);
@@ -192,7 +192,7 @@ public sealed class AggregateCullingCaptureTests(ITestOutputHelper output)
     }
 
     /// <summary>The cascade tiles in the shadow atlas (shadow quality 2): cascades 0 to 2 in the top row, the viewmodel cascade below.</summary>
-    private static readonly (int X, int Y)[] CascadeTiles = [(0, 0), (1280, 0), (2560, 0), (0, 2048)];
+    private static readonly (int X, int Y)[] CascadeTiles = CubemapFaceDrawList.CascadeTiles;
 
     /// <summary>
     /// A view's frustum from a captured draw's per-view block (the first vertex-stage constant block on binding 1,
@@ -220,21 +220,7 @@ public sealed class AggregateCullingCaptureTests(ITestOutputHelper output)
         var scriptedCamera = Environment.GetEnvironmentVariable("CUBEREPLAY_SCRIPTEDCAMERA") != "0";
         var cascades = CubemapShadowCascades.GameCascades(view, toSun, 1f, 10000f, scriptedCamera);
         // Each view's frustum and camera: -1 the face, 0 to 3 its cascades.
-        var views = new Dictionary<int, AggregateCulling.Frustum> { [-1] = AggregateCulling.FaceFrustum(view) };
-        // The view cascades come from one fit, the viewmodel cascade (the last) from its own: each view cascade after
-        // the first excludes what its predecessor covers, and every cascade of a fit culls to that fit's caster volume.
-        var light = toSun;
-        var worldToProjection = AggregateCulling.WorldToProjection(view);
-        var inverse = AggregateCulling.Invert4(worldToProjection)!;
-        var (viewReach, viewmodelReach) = CubemapShadowCascades.GameReaches(view, 1f, 10000f, scriptedCamera);
-        var viewVolume = AggregateCulling.CullingVolume(AggregateCulling.CasterVolume(worldToProjection, inverse, light, viewReach));
-        var viewmodelVolume = AggregateCulling.CullingVolume(AggregateCulling.CasterVolume(worldToProjection, inverse, light, viewmodelReach));
-        for (var c = 0; c < cascades.Count; c++)
-        {
-            var viewmodel = c == cascades.Count - 1;
-            views[c] = AggregateCulling.CascadeFrustum(cascades[c], c > 0 && !viewmodel ? cascades[c - 1] : null,
-                viewmodel ? viewmodelVolume : viewVolume);
-        }
+        var views = CubemapFaceDrawList.Views(view, toSun, 1f, 10000f, scriptedCamera);
         var visibleOf = views.ToDictionary(kv => kv.Key, kv => aggregates.Select(a => AggregateCulling.Visible(kv.Value, a.Fragments, a.Lods, origin)).ToList());
         for (var k = 0; k < aggregates.Count; k++)
             output.WriteLine($"  visible in face {face}: {aggregates[k].Name}: [{string.Join(", ", visibleOf[-1][k])}]");
@@ -365,7 +351,7 @@ public sealed class AggregateCullingCaptureTests(ITestOutputHelper output)
             if (offsets.TryGetValue((viewKey, owner), out var known) && known != offset)
                 failures.Add($"face {face} {viewName} {eid}: instance offset {offset}, earlier lists of this aggregate {known}");
             offsets[(viewKey, owner)] = offset;
-            output.WriteLine($"face {face} {viewName} {eid} {rec["name"]}: {captured.Count} commands{layer}, {(same ? "equal" : "DIFFERENT")}"
+            output.WriteLine($"face {face} {viewName} {eid} {rec["name"]}: {captured.Count} commands{layer}, {(same ? "equal" : "DIFFERENT")} [aggregate {owner} {Path.GetFileNameWithoutExtension(aggregates[owner].Name)}]"
                              + (same ? "" : $": ours [{string.Join(" ", ours)}] captured [{string.Join(" ", captured)}]"));
             if (!same)
             {
@@ -377,5 +363,98 @@ public sealed class AggregateCullingCaptureTests(ITestOutputHelper output)
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// <see cref="CubemapFaceDrawList"/> against the capture (<c>CUBECULL</c> as for <see cref="FaceDrawsEqualTheCapture"/>):
+    /// for all six faces, every captured aggregate draw call is one of our lists (same view, colour or depth-only,
+    /// aggregate and commands, first instances up to one constant per view and aggregate) and every list of ours is
+    /// a captured call, so the face draws no list we leave out and we draw none it culls. The captured calls must
+    /// come in our pass order (cascades 0 to 3, prepass Large, prepass Small, colour) and use our viewports. The
+    /// order within a layer is not compared: it follows heap pointers (<see cref="CubemapFaceDrawList"/>).
+    /// </summary>
+    [Fact]
+    public void DrawListEqualsTheCapture()
+    {
+        if (Environment.GetEnvironmentVariable("CUBECULL") is not { Length: > 0 } dir)
+            return;
+        var vpk = Directory.GetFiles(dir, "*.vpk").Single();
+        var origin = Environment.GetEnvironmentVariable("CUBECULL_ORIGIN") is { Length: > 0 } given
+            ? given.Split(',').Select(float.Parse).ToArray() is var g ? new Vector3(g[0], g[1], g[2]) : default
+            : CubeZeroOrigin(vpk);
+        var aggregates = Aggregates(vpk);
+        var (toSun, _, _) = CubemapShadowCascades.SunDirections(CubeZero(vpk).SunAngles);
+        var scriptedCamera = Environment.GetEnvironmentVariable("CUBEREPLAY_SCRIPTEDCAMERA") != "0";
+        var resources = JsonNode.Parse(File.ReadAllText(Path.Combine(dir, "replay", "resources.json")))!;
+        var actions = File.ReadLines(Path.Combine(dir, "replay", "actions.jsonl")).Select(l => JsonNode.Parse(l)!).OrderBy(r => (int)r["eid"]!).ToList();
+        var readbacks = actions.Where(r => ((string)r["name"]!).StartsWith("vkCmdCopyImageToBuffer", StringComparison.Ordinal)).Select(r => (int)r["eid"]!).ToList();
+        // A multi-draw's state is on its sub-commands: each call's next action with a target.
+        JsonNode Drawn(int eid) => actions.First(r => (int)r["eid"]! >= eid && r["depthOut"] is not null);
+        var calls = File.ReadLines(Path.Combine(dir, "indirect.jsonl")).Select(l => JsonNode.Parse(l)!).Where(r => r["commands"] is JsonArray).ToList();
+        var failures = new List<string>();
+        var others = 0;
+        for (var face = 0; face < 6; face++)
+        {
+            var view = CubemapFaceViews.Face(origin, Vector3.Zero, 1f, 10000f, face);
+            var (ours, instances) = CubemapFaceDrawList.Face(view, toSun, [.. aggregates.Select(a => new CubemapFaceDrawList.Aggregate(a.Fragments, a.OwnTransforms, a.Lods))], scriptedCamera);
+            var matched = new bool[ours.Count];
+            var offsets = new Dictionary<(int, int), int>();
+            var lastPass = -1;
+            var (first, last) = (face == 0 ? 0 : readbacks[face - 1], readbacks[face]);
+            foreach (var rec in calls.Where(r => (int)r["eid"]! > first && (int)r["eid"]! <= last))
+            {
+                var eid = (int)rec["eid"]!;
+                var drawn = Drawn(eid);
+                var target = resources["textures"]![(string)drawn["depthOut"]!]!;
+                var vp = drawn["viewportScissor"]!["viewportScissors"]![0]!;
+                var rect = new CubemapFaceDrawList.Rect((int)vp["scissor"]!["x"]!, (int)vp["scissor"]!["y"]!, (int)vp["scissor"]!["width"]!, (int)vp["scissor"]!["height"]!);
+                // The face's own target is square; in the shadow atlas a tile that is no cascade's is a shadowed light's view.
+                var viewKey = (int)target["width"]! == (int)target["height"]! ? -1
+                    : Array.IndexOf(CascadeTiles, (rect.X, rect.Y)) is var c and >= 0 ? c : 100;
+                var colour = drawn["outputs"]!.AsArray().Count > 0;
+                var captured = rec["commands"]!.AsArray().Select(c => c!.AsArray().Select(v => (int)v!).ToArray())
+                    .Select(c => new AggregateCulling.Command(c[0], c[1], c[2], c[3], c[4])).ToList();
+                var (bytes, stride) = ((long)resources["buffers"]![(string)drawn["vbuffers"]![0]!["resourceId"]!]!, (uint)drawn["vbuffers"]![0]!["byteStride"]!);
+                // Ours that draw it: same view, colour or not, aggregate stream and commands up to the instance offset.
+                var k = Enumerable.Range(0, ours.Count).Where(i => !matched[i] && ours[i].View == viewKey
+                    && (ours[i].Layer == CubemapFaceDrawList.Layer.Colour) == colour
+                    && aggregates[ours[i].Aggregate].VertexBytes == bytes && aggregates[ours[i].Aggregate].VertexStride == stride
+                    && ours[i].Commands.Count == captured.Count
+                    && ours[i].Commands.Zip(captured).All(p => p.First with { FirstInstance = p.First.FirstInstance + captured[0].FirstInstance - ours[i].Commands[0].FirstInstance } == p.Second))
+                    .DefaultIfEmpty(-1).First();
+                if (k < 0)
+                {
+                    // An aggregate's draw we lack fails; anything else (entity models, the viewmodel, a light's own view)
+                    // is outside the draw list.
+                    if (viewKey is >= -1 and < 4 && aggregates.Any(a => a.VertexBytes == bytes && a.VertexStride == stride))
+                        failures.Add($"face {face} {eid}: the capture draws [{string.Join(" ", captured)}] in view {viewKey}{(colour ? " colour" : "")}, no list of ours");
+                    else
+                        others++;
+                    continue;
+                }
+                matched[k] = true;
+                var o = ours[k];
+                var offset = captured[0].FirstInstance - o.Commands[0].FirstInstance;
+                if (offsets.TryGetValue((o.View, o.Aggregate), out var known) && known != offset)
+                    failures.Add($"face {face} {eid}: instance offset {offset}, earlier lists of aggregate {o.Aggregate} in view {o.View} {known}");
+                offsets[(o.View, o.Aggregate)] = offset;
+                // Pass order: cascades 0 to 3, then the face's layers.
+                var pass = o.View >= 0 ? o.View : 4 + (int)o.Layer;
+                if (pass < lastPass)
+                    failures.Add($"face {face} {eid}: {o.Layer} of view {o.View} after a later pass");
+                lastPass = Math.Max(lastPass, pass);
+                var r = CubemapFaceDrawList.Viewport(o.View);
+                if (rect != r || (float)vp["vp"]!["x"]! != r.X || (float)vp["vp"]!["y"]! != r.Y || (float)vp["vp"]!["width"]! != r.Width || (float)vp["vp"]!["height"]! != r.Height)
+                    failures.Add($"face {face} {eid}: viewport {vp["vp"]!["x"]} {vp["vp"]!["y"]} {vp["vp"]!["width"]} {vp["vp"]!["height"]} scissor {rect}, ours {r}");
+            }
+            for (var i = 0; i < ours.Count; i++)
+                if (!matched[i])
+                    failures.Add($"face {face}: our {ours[i].Layer} list of aggregate {ours[i].Aggregate} in view {ours[i].View} [{string.Join(" ", ours[i].Commands)}] is not drawn");
+            output.WriteLine($"face {face}: {ours.Count} lists of ours ({matched.Count(m => m)} drawn), {instances} instance records");
+        }
+        output.WriteLine($"{others} captured calls are not aggregate draws");
+        foreach (var f in failures)
+            output.WriteLine("FAIL " + f);
+        Assert.Empty(failures);
     }
 }
