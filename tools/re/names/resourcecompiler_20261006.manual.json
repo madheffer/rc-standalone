@@ -58,7 +58,7 @@
    "addr": "18174aeb0",
    "name": "PosableSkeleton_Serialize",
    "module": "s2c:entities/lump",
-   "note": ""
+   "note": "\"%s: %f %f %f %f %f %f %f;\" per entry (position, quaternion); SettleWorld.BoneTransformsText; ExportToLump writes it as boneTransforms after the table keys for a PosableSkeleton class"
   }
  ]
 }
