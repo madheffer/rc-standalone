@@ -68,12 +68,13 @@ public sealed record NodeEntryHeader
             NodeId = nodeId,
             Origin = origin,
             Baked = baked,
-            FadeMin = Number("fademindist", -1f),
-            FadeMax = Number("fademaxdist", 0f),
+            // CMapMesh's copy (181081be0, the collapse's vf 0x3d8) sets a fixed
+            // list of properties that leaves out fademindist, fademaxdist,
+            // renderwithdynamic and keep_vertices, so an instance copy keeps
+            // the constructor's -1, 0 and 0 (181086b70; GROUND_TRUTH 41).
+            FadeMin = copy ? -1f : Number("fademindist", -1f),
+            FadeMax = copy ? 0f : Number("fademaxdist", 0f),
             EmissiveBoost = Number("emissiveLightingBoost", 1f),
-            // Open (GROUND_TRUTH 41): an instance copy never carries 0x200
-            // (atixref's 15 copies of renderwithdynamic meshes), though the
-            // property has a setter; measured, not read.
             ObjectFlags = (Flag("renderToCubemaps") ? 0x400u : 0u) | (Flag("renderwithdynamic") && !copy ? 0x200u : 0u),
             Byte1a1 = (byte)(Flag("visexclude") ? 0 : 1),
             Byte1a3 = (byte)(Flag("emissiveLightingEnabled") ? 1 : 0),

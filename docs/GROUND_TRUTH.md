@@ -155,11 +155,15 @@ game can answer is raised with the user first, and runs with -insecure.
 48. **The targetname of a cubemap or probe volume record** (EnvVolumes):
     the late export (180240a60) reads targetname from the exported keys;
     we take it from the entity's key table before any instance name fixup.
+    Settled 2026-10-27 by decompile (ledger 164): the exported keys carry the
+    lump's [PR#] fixup and the record keeps it; ported.
     It only matters to an entry with a lighting origin name, which no
     specimen has.
 
 ### Map resources
-15. What picks Zstd or LZ4 for map output.
+15. What picks Zstd or LZ4 for map output. Settled by ledger 3's decompile of binary_auto (tier0 1800c7220:
+    LZ4 under 0x80001 bytes of buffer and blobs, zstd from there, kept only if it saves a twentieth); what is
+    left is ledger 3's map of writers to encodings (ledger 164).
 
 ### Other modules
 16. **Settled 2026-10-03.** The slow normalise (lengths outside 1e-17 to
@@ -428,8 +432,9 @@ game can answer is raised with the user first, and runs with -insecure.
 41. **renderwithdynamic on instance copies** (object flag 0x200): the 15
     atixref copies of renderwithdynamic meshes carry no 0x200, though the
     property has a setter (1810e9960) and the originals carry it.
-    Measured (NodeEntryHeader.World's copy argument), not read; next: the
-    collapse's node copy (FUN_180f60740) and which properties it carries.
+    Settled 2026-10-27 by decompile (ledger 164): CMapMesh's copy (181081be0)
+    does not carry renderwithdynamic, nor fademindist, fademaxdist or
+    keep_vertices; a copy keeps the constructor's values.
 42. **cardtest's teleport02 entry at the merger**: 0x160100000 at
     BuildNode:out (aggregatable, and our flags agree), but the merger's
     base-list input carries +0x1b0 = 0. atixref's eight zero-flag base
@@ -4445,6 +4450,51 @@ game can answer is raised with the user first, and runs with -insecure.
       C_EnvSky's m_nFogType (+0x10b8, key fog_type, schema 18026d020). Neither probe01's nor atixref's env_sky
       has the key, yet probe01 draws 0 and atixref 1: the value's other writer (C_EnvSky is client-side; no server
       class has it) is not found. The renderer draws D_FOG_TYPE 0.
+
+164. **Batch A: single-function reads of rules taken from output** (2026-10-27, resourcecompiler 0923 through
+     ReVa, with CS2 open; no compile or capture).
+     - Settled, ported: CMapMesh's copy (181081be0, the instance collapse's vf 0x3d8 through 180f86650) sets
+       a fixed list of properties. It leaves out renderwithdynamic (setter 1810e9960, +0x3b74), fademindist
+       (1810e9820, +0x3b50), fademaxdist (1810e9800, +0x3b54) and keep_vertices (1810e9870, +0x3b76), so a
+       copy keeps the constructor's -1, 0, 0 and 0 (181086b70). CMapMesh_ConvertMeshForBuilder hands +0x3b50
+       and +0x3b54 to the record's +0x5c and +0x60. NodeEntryHeader.World and NodeMeshEntries.RecordOf now drop
+       the fades on copies as they already dropped 0x200 (ledger 41). No corpus copy is known to have a fade.
+       CMapStaticOverlay derives from CMapMesh (its factory 18118fb60 runs 181086b70), so its copies take the
+       same path.
+     - Settled, ported: the cubemap and probe record's targetname (ledger 48). 180240a60 reads every record key
+       from the builder node's exported keys (the node's vf 0x190 into the KV at local_1e68), and the record
+       keeps the name as it is there. The landmark and point_camera branches of the same function strip a
+       leading "[PR#]" (V_stristr_fast), so those keys carry the lump's fixup. EntityLumpAuthor.Lighting now
+       gives the record the targetname with the lump's fixup. Open: whether a world mesh's lightingorigin,
+       which the pick compares against it, carries the fixup too.
+     - Settled, ported: the prop aggregate threshold's sum (180272ce0, `0x35f < sum`) adds each entry's CMesh
+       +0x24. CMesh_Alloc (1812d6a90) stores the vertex count at +0x18, floats per vertex at +0x1c and the
+       index count at +0x24 (its buffer is count x 4 bytes); WRBMeshEntry_CanMerge caps the +0x18 sum at
+       0x200000. NodePropAggregates now sums the draw's index count (MinimumIndices).
+     - Read, open: the builder context's +0x605 (vf 0x100, 1801f9040) is "lighting is baked", set in
+       1800fd550 (MapCompileArgs.BakesLighting; a [reg+0x605] scan does not find that write, so the store goes
+       through another base). MapRootFile's argument table says CWorldRendererBuilder_Build reads norte when
+       vis is on or when it is set, then debugvisgeo and dumptris in CreateRayTracingEnvironment. The port
+       adds those only when vis runs, so a compile that bakes with vis off may read three arguments more than
+       ours lists. Read Build's branch before changing it; no Valve compile of that switch set is in the
+       corpus.
+     - Read, not ported: the extra vertex streams of a mesh (NodeMeshEntries.WithPaintStreams, measured on
+       LowPrecisionUv1). 1810dca50 (from CMapMesh_NameSlotsAfterOverride 1810dcca0) walks each material's input
+       list (181ef9b30: the material's vf 0x98, records of 0xc4 bytes, the name at +0x40) and adds
+       VertexPaintTintColor, VertexPaintBlendParams or VertexPaintBlendParams1 (AddExtraAttributeStream, slots
+       0 to 2; defaults in the table at 18237b480) when an input of that name is found. With its second
+       argument set it removes the ones no material wants. Porting it needs each material's input names (the
+       shader's vertex inputs). The second texcoord is not added here.
+     - Read, open: Material_VisFlags (18020d860) asks the loaded material for int attributes by token hash
+       through its vf 0x50; bShaderBlended, renderbackfaces and NeedsDynamicShadows are answered there, in
+       materialsystem2, which is the next read (TraceScene.MaterialFlags).
+     - Located, open: the overlay texcoord shift (NodeOverlays.Recentre). CMapStaticOverlay_GetOverlayDescs
+       (181194f40) copies each face's texcoords from the overlay's projection cache (+0x3cc0; records 0x4a0
+       apart, texcoords at +0x100) through 181363320. There is no float truncation in 18118f000 to 1811a0000 or
+       in WRBNode_GenerateOverlayMeshes, so the shift is where that cache is filled.
+     - Located, open: the builder mesh's renormalised normals (NodeMeshEntries). Ruled out: the world transform
+       1810c4e50, CMapMesh_ConvertMeshForBuilder's direct callees and WRB_CollectMeshEntries' callees.
+     - Ledger 15 (what picks Zstd or LZ4) is answered by ledger 3's decompile of binary_auto.
 
 
 ## Resolved

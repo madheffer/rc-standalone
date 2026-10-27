@@ -23,8 +23,8 @@ namespace Source2.Compiler.Maps;
 /// (<see cref="MeshLists.CanAggregate"/>). A model with several LODs gives
 /// each prop a LOD setup and each fragment its LOD's mask (atixref's
 /// power_outlet_campground: 9 props, 3 LODs, 27 fragments).</item>
-/// <item>Entries bucketed by material; when any joined and their vertex
-/// total passes <see cref="MinimumVertices"/>, each bucket is put in Morton
+/// <item>Entries bucketed by material; when any joined and their
+/// index total passes <see cref="MinimumIndices"/>, each bucket is put in Morton
 /// order of the entry's centre (<see cref="MortonKey"/>, std::sort on the
 /// key), then stably by (attribute bits 0x6000000000, mesh), and cut into
 /// runs of equal bits of at most 0x7ffb entries: one aggregate each.</item>
@@ -36,8 +36,11 @@ namespace Source2.Compiler.Maps;
 /// </summary>
 internal static class NodePropAggregates
 {
-    /// <summary>The summed size the joined entries must pass (0x35f; summed from CMesh +0x24, taken as its vertex count, not read).</summary>
-    public const int MinimumVertices = 0x35f;
+    /// <summary>
+    /// The summed index count the joined entries must pass (0x35f): 180272ce0 sums each entry's
+    /// CMesh +0x24, which CMesh_Alloc (1812d6a90) sets to the index count (+0x18 is the vertex count).
+    /// </summary>
+    public const int MinimumIndices = 0x35f;
 
     /// <summary>A draw: one prop mesh (model, draw call, material) built as an aggregate draw in model space.</summary>
     public sealed record Draw(string Model, int Call, string Material, NodeDraw.Result Geometry)
@@ -97,14 +100,14 @@ internal static class NodePropAggregates
     /// <summary>
     /// A static prop left in the node's prop lists: neither baked nor in an
     /// aggregate (not a candidate, a model that cannot aggregate, or every
-    /// prop when the joined entries stay under <see cref="MinimumVertices"/>).
+    /// prop when the joined entries stay under <see cref="MinimumIndices"/>).
     /// The node ships it as a scene object of its own model.
     /// </summary>
     /// <remarks>A prop whose model does not load still ships, with no bounds (Valve's handshakes are then 0).</remarks>
     public sealed record StandaloneProp(string Model, DmxBinary.Element Keys, float[] Matrix, int NodeId, string? Skin, (Vector3 Min, Vector3 Max)? Bounds);
 
     // An entry before bucketing: its mesh (index into the mesh list) and fields.
-    private sealed record Entry(int Mesh, string Material, float[] Matrix, Vector4 Tint, uint ObjectFlags, ulong Attributes, int NodeId, Vector3 Centre, int Vertices,
+    private sealed record Entry(int Mesh, string Material, float[] Matrix, Vector4 Tint, uint ObjectFlags, ulong Attributes, int NodeId, Vector3 Centre, int Indices,
                                 int Prop, int LodMask, bool Lods)
     {
         public IReadOnlyList<float> Switch { get; init; } = [];
@@ -205,7 +208,7 @@ internal static class NodePropAggregates
                         meshIndex[key] = mi = meshes.Count;
                         meshes.Add(new Mesh(modelName, call, material, c.Vertices, c.Indices, c.Color, flags.Flags, c.FloatTexcoords));
                     }
-                    entries.Add(new Entry(mi, material, matrix, header.Tint, header.ObjectFlags, flags.Flags, id, centre, c.Vertices.Length / NodePropEntries.Stride,
+                    entries.Add(new Entry(mi, material, matrix, header.Tint, header.ObjectFlags, flags.Flags, id, centre, c.Indices.Length,
                         propIndex, c.Lod, lods) { Switch = switchDistances, MaxScale = MaxScale(matrix), MeshBounds = Place(matrix, c.Lo, c.Hi, new Vector3(float.MaxValue), new Vector3(float.MinValue)) });
                 }
             }
@@ -216,7 +219,7 @@ internal static class NodePropAggregates
                     leftOver.Add((Standalone(p), Candidate(p.Keys) && all));
         }
         var result = new List<Aggregate>();
-        var aggregated = joined.Count > 0 && joined.Sum(e => e.Vertices) > MinimumVertices;
+        var aggregated = joined.Count > 0 && joined.Sum(e => e.Indices) > MinimumIndices;
         standalone?.AddRange(leftOver.Where(x => !x.Joined || !aggregated).Select(x => x.Prop));
         if (!aggregated)
             return result;

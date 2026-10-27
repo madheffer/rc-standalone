@@ -109,7 +109,7 @@ internal static class NodeMeshEntries
                     }
                 }
                 var name = piece.Material < names.Length ? names[piece.Material] : "";
-                entries.Add(new Entry(mesh.NodeId, name, s, piece.Streams, v, piece.Indices) { Stored = piece.Vertices, Turn = turn, Record = RecordOf(mesh.Element), Source = mesh.Element, Instances = mesh.Instances, PreciseTexcoords = precise, LightmapBias = piece.Bias });
+                entries.Add(new Entry(mesh.NodeId, name, s, piece.Streams, v, piece.Indices) { Stored = piece.Vertices, Turn = turn, Record = RecordOf(mesh.Element, mesh.Instances.Length > 0), Source = mesh.Element, Instances = mesh.Instances, PreciseTexcoords = precise, LightmapBias = piece.Bias });
             }
         }
         return entries;
@@ -120,13 +120,14 @@ internal static class NodeMeshEntries
     /// buffer: the lighting mode is disableShadows (+0x3b6c, the buffer's
     /// +0x35), attribute bit 2 is disablemerging (vf 0x7e8, +0x3b6b, the
     /// buffer's +0x37); bits 37 and 38 (the buffer's +0x44 of 1 or 2) are
-    /// not mapped to a key yet.
+    /// not mapped to a key yet. An instance copy has no fademaxdist: CMapMesh's
+    /// copy (181081be0) does not carry it (GROUND_TRUTH 41).
     /// </summary>
-    internal static MeshEntryFlags.Record RecordOf(DmxBinary.Element mesh)
+    internal static MeshEntryFlags.Record RecordOf(DmxBinary.Element mesh, bool copy = false)
     {
         var mode = mesh.Attributes.GetValueOrDefault("disableShadows") is { } d ? Convert.ToByte(d, System.Globalization.CultureInfo.InvariantCulture) : (byte)0;
         var merge = mesh.Attributes.GetValueOrDefault("disablemerging") is true;
-        var fade = mesh.Attributes.GetValueOrDefault("fademaxdist") is { } f ? Convert.ToSingle(f, System.Globalization.CultureInfo.InvariantCulture) : 0f;
+        var fade = !copy && mesh.Attributes.GetValueOrDefault("fademaxdist") is { } f ? Convert.ToSingle(f, System.Globalization.CultureInfo.InvariantCulture) : 0f;
         return new MeshEntryFlags.Record(mode, merge ? 2UL : 0UL, fade, false, null, false);
     }
 

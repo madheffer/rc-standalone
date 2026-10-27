@@ -778,7 +778,43 @@
    "addr": "1812d6a90",
    "name": "CMesh_Alloc",
    "module": "s2c:physics/weld",
-   "note": ""
+   "note": "(mesh, vertices +0x18, indices +0x24, floats per vertex +0x1c, ...): vertex data +0, index data +0x10"
+  },
+  {
+   "addr": "181081be0",
+   "name": "CMapMesh_CopyFrom",
+   "module": "s2c:geometry/mesh-export",
+   "note": "CMapMesh vf 0x3d8 (the collapse's node copy, 180f86650): a fixed property list without renderwithdynamic, fademindist, fademaxdist or keep_vertices (ledger 164)"
+  },
+  {
+   "addr": "181086b70",
+   "name": "CMapMesh_Ctor",
+   "module": "s2c:geometry/mesh-export",
+   "note": "fademindist -1 (+0x3b50), fademaxdist 0 (+0x3b54), renderwithdynamic 0 (+0x3b74), keep_vertices 0 (+0x3b76); CMapStaticOverlay's factory 18118fb60 runs it"
+  },
+  {
+   "addr": "1810e9960",
+   "name": "CMapMesh_SetRenderWithDynamic",
+   "module": "s2c:geometry/mesh-export",
+   "note": "+0x3b74; the property's getter is 1810e6fa0"
+  },
+  {
+   "addr": "1810dca50",
+   "name": "HammerMesh_UpdateExtraAttributeStreams",
+   "module": "s2c:geometry/mesh-export",
+   "note": "adds VertexPaintTintColor / VertexPaintBlendParams / VertexPaintBlendParams1 when a material input has that name (table 18237b480); arg 2 removes unwanted ones (ledger 164)"
+  },
+  {
+   "addr": "181ef9b30",
+   "name": "Material_GetInputList",
+   "module": "s2c:geometry/mesh-export",
+   "note": "the material's vf 0x98: records of 0xc4 bytes, the input name at +0x40"
+  },
+  {
+   "addr": "181363320",
+   "name": "OverlayDesc_SetFace",
+   "module": "s2c:geometry/overlays",
+   "note": "copies a face's positions, texcoords and optional streams into the descriptor's 0x78-byte face record"
   },
   {
    "addr": "18125d940",

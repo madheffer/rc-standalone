@@ -124,7 +124,7 @@ public static class EntityLumpSet
         {
             LightingKeys = EntityLumpAuthor.Lighting.For($"maps/{worldName}", bakedLighting,
                 placed.SelectMany(w => w.Select(e => e.Entity)).Where(e => !e.Hidden),
-                packAtlas: bakedLighting || entitiesOnly, schema, lightScene, visClusterBoxes),
+                packAtlas: bakedLighting || entitiesOnly, schema, lightScene, visClusterBoxes, fixupEntityNames),
         };
         lighting?.Invoke(context.LightingKeys!);
         var worlds = new List<(string Name, List<Item> Items)> { ("default_ents", []) };

@@ -106,7 +106,8 @@ public static partial class EntityLumpAuthor
         /// for the lights' precomputed_vis_clusters; without it they get none.</param>
         public static Lighting For(string mapPath, bool baked, IEnumerable<MapEntities.Entity> exportOrder,
                                    bool packAtlas = false, FgdSchema? schema = null, Maps.ILightTracer? scene = null,
-                                   List<(System.Numerics.Vector3 Min, System.Numerics.Vector3 Max)>[]? visClusterBoxes = null)
+                                   List<(System.Numerics.Vector3 Min, System.Numerics.Vector3 Max)>[]? visClusterBoxes = null,
+                                   bool fixupEntityNames = false)
         {
             var order = exportOrder as IReadOnlyList<MapEntities.Entity> ?? [.. exportOrder];
             var bytes = Encoding.UTF8.GetBytes(mapPath.Replace('/', '\\'));
@@ -136,8 +137,10 @@ public static partial class EntityLumpAuthor
                 for (var i = 0; i < volumes.Count; i++)
                     atlas[volumes[i]] = places[i];
             }
-            // The records, as the export reads them from the entity's keys (the
-            // targetname before any instance name fixup: GROUND_TRUTH 48).
+            // The records, as the export reads them from the builder node's keys
+            // (180240a60, the node's vf 0x190): the targetname as the lump writes
+            // it, [PR#] fixup included, which the record keeps (the landmark and
+            // point_camera paths of the same function strip it; GROUND_TRUTH 48).
             var cubemaps = new List<Maps.EnvVolumes.Volume>();
             var probes = new List<Maps.EnvVolumes.Volume>();
             var jobs = new List<Source2.Compiler.Lighting.Vrad3Job.Volume>();
@@ -167,8 +170,13 @@ public static partial class EntityLumpAuthor
                 if (!handshake.TryGetValue(e, out var h))
                     continue;
                 var table = KeyTable(e, schema);
-                if (Maps.EnvVolumes.Of(e.ClassName, e.Origin, e.Angles, h,
-                        name => table.FirstOrDefault(k => k.Key.EqualsAscii(name)).Value) is { } r)
+                var prefix = e.NamePrefix is { } own ? NameFixup + own : fixupEntityNames ? NameFixup : null;
+                string? Exported(string name)
+                {
+                    var value = table.FirstOrDefault(k => k.Key.EqualsAscii(name)).Value;
+                    return value is not null && name.EqualsAscii("targetname") ? FixedName(value, prefix, schema) : value;
+                }
+                if (Maps.EnvVolumes.Of(e.ClassName, e.Origin, e.Angles, h, Exported) is { } r)
                 {
                     if (r.Cubemap)
                         cubemaps.Add(r.Volume);
