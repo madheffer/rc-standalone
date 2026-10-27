@@ -189,12 +189,9 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
         observe?.Invoke(new Action("light binner", null, null, null));
 
         // 2. The sun cascades into their atlas tiles (the atlas is loaded, each pass's area its tile).
-        var depthOnly = new Dictionary<bool, ValveProgram>();
-        ValveProgram DepthOnly(bool compressed) => depthOnly.TryGetValue(compressed, out var p) ? p
-            : depthOnly[compressed] = Program(_csgoShaders, "csgo_depth_only", "vs", [], new() { ["D_COMPRESSED_NORMALS_AND_TANGENTS"] = compressed ? 1 : 0 });
         foreach (var d in draws.Where(d => d.Layer == CubemapFaceDrawList.Layer.Shadow))
             foreach (var c in d.Commands)
-                WorldDraw(d, c, CubemapFacePipelines.Pass.SunShadow, DepthOnly, null, blocks.CascadeViews[d.View], blocks, transforms, instanceRecords, instanceIds, null, ShadowAtlas, observe);
+                WorldDraw(d, c, CubemapFacePipelines.Pass.SunShadow, blocks.CascadeViews[d.View], blocks, transforms, instanceRecords, instanceIds, null, ShadowAtlas, observe);
 
         // 3. The face cleared, then the depth prepass.
         CreateTarget(FaceColour, Format.R16G16B16A16Sfloat, (uint)face, (uint)face);
@@ -203,10 +200,8 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
         Clear(FaceDepth, Format.D24UnormS8Uint, (uint)face, (uint)face, new(0, 0, face, face), 1f, 0, null);
         foreach (var d in draws.Where(d => d.Layer is CubemapFaceDrawList.Layer.PrepassLarge or CubemapFaceDrawList.Layer.PrepassSmall or CubemapFaceDrawList.Layer.PrepassAlphaTested))
         {
-            if (d.Layer == CubemapFaceDrawList.Layer.PrepassAlphaTested)
-                throw new NotSupportedException("alpha-tested prepass draws (their pixel program) are not ported");
             foreach (var c in d.Commands)
-                WorldDraw(d, c, CubemapFacePipelines.Pass.DepthPrepass, DepthOnly, null, blocks.WorldView, blocks, transforms, instanceRecords, instanceIds, null, FaceDepth, observe);
+                WorldDraw(d, c, CubemapFacePipelines.Pass.DepthPrepass, blocks.WorldView, blocks, transforms, instanceRecords, instanceIds, null, FaceDepth, observe);
         }
 
         // 4. The half resolution depth: cleared over the face's half, then the checkerboard min/max downsample.
@@ -222,7 +217,7 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
         // 6. The colour layer, then the sky.
         foreach (var d in draws.Where(d => d.Layer == CubemapFaceDrawList.Layer.Colour))
             foreach (var c in d.Commands)
-                WorldDraw(d, c, CubemapFacePipelines.Pass.Colour, null, ColourProgram, blocks.WorldView, blocks, transforms, instanceRecords, instanceIds, cullBits, FaceDepth, observe, FaceColour);
+                WorldDraw(d, c, CubemapFacePipelines.Pass.Colour, blocks.WorldView, blocks, transforms, instanceRecords, instanceIds, cullBits, FaceDepth, observe, FaceColour);
         Sky(blocks, instanceIds, observe);
 
         // 7. The face's stencil cleared, then the quarter resolution depth.
@@ -239,7 +234,7 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
     }
 
     /// <summary>Every program the faces rendered so far loaded (each one's SPIR-V is a module of Valve's shader packages).</summary>
-    public IEnumerable<ValveProgram> Programs => _programs.Values;
+    public IEnumerable<ValveProgram> LoadedPrograms => _programs.Values;
 
     /// <summary>The light binner's depth bins: lb_bin_slices clamped to 1 .. 8192 and rounded up to 32 (1801a8150).</summary>
     private static int BinnerBins() => (int)(((uint)Math.Clamp(CubemapFaceBlocks.BinnerBinSlices, 1, 0x2000) + 31) & ~31u);
@@ -269,11 +264,23 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
     }
 
     private ValveProgram Program(Package shaders, string shader, string stage, Dictionary<string, int> statics, Dictionary<string, int> dynamics, IReadOnlyDictionary<string, int>? features = null)
+        => ProgramOrNone(shaders, shader, stage, statics, dynamics, features) ?? throw new InvalidDataException($"{shader} {stage}: no shader for the combo");
+
+    private readonly HashSet<string> _none = [];
+
+    private ValveProgram? ProgramOrNone(Package shaders, string shader, string stage, Dictionary<string, int> statics, Dictionary<string, int> dynamics, IReadOnlyDictionary<string, int>? features = null)
     {
         var key = $"{shader} {stage} {string.Join(",", statics.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => $"{kv.Key}={kv.Value}"))} {string.Join(",", dynamics.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => $"{kv.Key}={kv.Value}"))} "
                   + string.Join(",", (features ?? new Dictionary<string, int>()).OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => $"{kv.Key}={kv.Value}"));
-        if (!_programs.TryGetValue(key, out var p))
-            _programs[key] = p = ValveProgram.Load(shaders, shader, "vulkan_50", stage, statics, dynamics, features);
+        if (_programs.TryGetValue(key, out var p))
+            return p;
+        if (_none.Contains(key))
+            return null;
+        p = ValveProgram.LoadOrNone(shaders, shader, "vulkan_50", stage, statics, dynamics, features);
+        if (p == null)
+            _none.Add(key);
+        else
+            _programs[key] = p;
         return p;
     }
 
@@ -295,19 +302,59 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
     private static Dictionary<string, int> Features(Material material) => material.IntParams.ToDictionary(kv => kv.Key, kv => (int)kv.Value);
 
     /// <summary>
-    /// generic's colour programs for a material in the cubemap view: S_MODE_TOOLS_VIS (the engine runs with -tools,
-    /// as Hammer's build does), lightmapped, the material's features (ledger 120).
+    /// A world draw's programs for a material in a face pass, by the shader's own render modes (its features file's
+    /// mode table): the depth passes draw the material's "Depth" mode, the colour pass its "ToolsVis" mode (the engine
+    /// runs with -tools, as Hammer's build does; ledger 120). A mode names another shader (generic's Depth is
+    /// csgo_depth_only) or a static combo of the shader's own (csgo_foliage's S_MODE_DEPTH=1); the material's features
+    /// pick the other static combos. Dynamic combos: D_COMPRESSED_NORMALS_AND_TANGENTS from the draw call, the
+    /// colour pass lightmapped (D_BAKED_LIGHTING_FROM_LIGHTMAP), the alpha-tested prepass layer D_ALPHA_TEST_PREPASS.
+    /// The pixel program is none where its combo has no shader (<see cref="ValveProgram.LoadOrNone"/>).
     /// </summary>
-    private (ValveProgram Vertex, ValveProgram Pixel) ColourProgram(ModelDrawCall call)
+    public (ValveProgram Vertex, ValveProgram? Pixel) Programs(string materialPath, bool compressedNormals, CubemapFacePipelines.Pass pass, bool alphaTestedPrepass)
     {
-        var material = Material(call.Material);
+        var material = Material(materialPath);
         var features = Features(material);
-        var shader = Path.GetFileNameWithoutExtension(material.ShaderName);
-        var shaders = _csgoShaders.FindEntry($"shaders/vfx/{shader}_vulkan_50_ps.vcs") != null ? _csgoShaders : _coreShaders;
-        var vs = Program(shaders, shader, "vs", new() { ["S_MODE_TOOLS_VIS"] = 1 },
-            new() { ["D_BAKED_LIGHTING_FROM_LIGHTMAP"] = 1, ["D_COMPRESSED_NORMALS_AND_TANGENTS"] = call.CompressedNormals ? 1 : 0 }, features);
-        var ps = Program(shaders, shader, "ps", new() { ["S_MODE_TOOLS_VIS"] = 1 }, new() { ["D_BAKED_LIGHTING_FROM_LIGHTMAP"] = 1 }, features);
+        var own = Path.GetFileNameWithoutExtension(material.ShaderName);
+        var modeName = pass == CubemapFacePipelines.Pass.Colour ? "ToolsVis" : "Depth";
+        var (_, fallback, staticName, staticValue) = ShaderModes(own).FirstOrDefault(m => m.Name == modeName);
+        if (fallback == null)
+            throw new InvalidDataException($"{own} has no {modeName} mode");
+        var shader = fallback.Length > 0 ? Path.GetFileNameWithoutExtension(fallback) : own;
+        var statics = staticName.Length > 0 && fallback.Length == 0 ? new Dictionary<string, int> { [staticName] = staticValue } : [];
+        var compressed = compressedNormals ? 1 : 0;
+        var vsDynamics = new Dictionary<string, int> { ["D_COMPRESSED_NORMALS_AND_TANGENTS"] = compressed };
+        var psDynamics = new Dictionary<string, int>();
+        if (pass == CubemapFacePipelines.Pass.Colour)
+            vsDynamics["D_BAKED_LIGHTING_FROM_LIGHTMAP"] = psDynamics["D_BAKED_LIGHTING_FROM_LIGHTMAP"] = 1;
+        if (alphaTestedPrepass)
+            psDynamics["D_ALPHA_TEST_PREPASS"] = 1;
+        var shaders = Shaders(shader);
+        var vs = ProgramOrNone(shaders, shader, "vs", statics, vsDynamics, features)
+            ?? throw new InvalidDataException($"{shader}: no vertex program for {materialPath} in {modeName}");
+        var ps = ProgramOrNone(shaders, shader, "ps", statics, psDynamics, features);
+        if (pass == CubemapFacePipelines.Pass.Colour && ps == null)
+            throw new InvalidDataException($"{shader}: no colour pixel program for {materialPath}");
         return (vs, ps);
+    }
+
+    /// <summary>A material's int parameter (a feature such as F_ALPHA_TEST), 0 when absent.</summary>
+    public long MaterialInt(string materialPath, string name) => Material(materialPath).IntParams.GetValueOrDefault(name);
+
+    private Package Shaders(string shader) => _csgoShaders.FindEntry($"shaders/vfx/{shader}_vulkan_50_features.vcs") != null ? _csgoShaders : _coreShaders;
+
+    private readonly Dictionary<string, List<(string Name, string ShaderFallback, string StaticComboName, int StaticComboValue)>> _modes = [];
+
+    /// <summary>A shader's render modes (its features file's header).</summary>
+    private List<(string Name, string ShaderFallback, string StaticComboName, int StaticComboValue)> ShaderModes(string shader)
+    {
+        if (_modes.TryGetValue(shader, out var modes))
+            return modes;
+        var pak = Shaders(shader);
+        var entry = pak.FindEntry($"shaders/vfx/{shader}_vulkan_50_features.vcs") ?? throw new FileNotFoundException($"{shader} features");
+        pak.ReadEntry(entry, out var bytes);
+        using var file = new VfxProgramData();
+        file.Read($"{shader}_vulkan_50_features.vcs", new MemoryStream(bytes));
+        return _modes[shader] = [.. file.FeaturesHeader!.Modes];
     }
 
     /// <summary>
@@ -318,7 +365,7 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
     {
         if (_globals.TryGetValue(key, out var made))
             return made;
-        var size = program.Reflection.Resources.First(r => r.Set == 1 && r.Binding == 0).BlockSize;
+        var size = program.Reflection.Resources.First(r => r.Binding == 0 && r.Kind == SpirvReflection.Kind.UniformBuffer).BlockSize;
         var block = new byte[(size + 15) & ~15];
         var tokens = new Dictionary<string, VfxExpression.Value>(attributes, StringComparer.OrdinalIgnoreCase);
         ProgramGlobals.Fill(program, block, new ProgramGlobals.MaterialScope(material, program, tokens, shaderIdColor), (_, _) => -1, _ => -1);
@@ -471,8 +518,7 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
     }
 
     /// <summary>One indirect command of an aggregate list.</summary>
-    private void WorldDraw(CubemapFaceDrawList.ListDraw list, AggregateCulling.Command command, CubemapFacePipelines.Pass pass,
-        Func<bool, ValveProgram>? depthOnly, Func<ModelDrawCall, (ValveProgram, ValveProgram)>? colour, byte[] perView, CubemapFaceBlocks.Face blocks,
+    private void WorldDraw(CubemapFaceDrawList.ListDraw list, AggregateCulling.Command command, CubemapFacePipelines.Pass pass, byte[] perView, CubemapFaceBlocks.Face blocks,
         byte[] transforms, byte[] instanceRecords, byte[] instanceIds, GpuDevice.GpuBuffer? cullBits, string depthTarget,
         Action<Action>? observe, string? colourTarget = null)
     {
@@ -482,7 +528,7 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
         if (calls.Count == 0 || calls.Any(c => c.Material != calls[0].Material || c.CompressedNormals != calls[0].CompressedNormals))
             throw new InvalidDataException($"{model.Model}: indices {command.FirstIndex} + {command.IndexCount} are not one material's draw calls");
         var call = calls[0];
-        var (vs, ps) = colour != null ? colour(call) : (depthOnly!(call.CompressedNormals), null);
+        var (vs, ps) = Programs(call.Material, call.CompressedNormals, pass, list.Layer == CubemapFaceDrawList.Layer.PrepassAlphaTested);
         var material = Material(call.Material);
         var bindings = new SceneDrawRunner.Bindings();
         foreach (var (program, stage) in new[] { (vs, 0), (ps, 1) })
@@ -493,7 +539,7 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
             {
                 if (r.Kind == SpirvReflection.Kind.UniformBuffer && r.Binding == 0 && r.Set == stage)
                 {
-                    bindings.Buffer(r.Set, 0, 0, Buffer(Globals(call.Material, program, material,
+                    bindings.Buffer(r.Set, 0, 0, Buffer(Globals(call.Material + " " + program.Name, program, material,
                         new() { ["g_bRenderingToCubemaps"] = VfxExpression.Value.Of(1f) }, ShaderIdColor(material))), 0, Vk.WholeSize);
                     continue;
                 }

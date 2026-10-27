@@ -1,4 +1,9 @@
+using System.Globalization;
 using System.Numerics;
+using System.Text.RegularExpressions;
+using ValveResourceFormat;
+using ValveResourceFormat.ResourceTypes;
+using ValveResourceFormat.Serialization.KeyValues;
 
 namespace Source2.Compiler.Cubemaps;
 
@@ -32,7 +37,8 @@ public static class CubemapFaceBlocks
         int LightmapHeight,
         Vector3 SkyAngles,
         Vector3 SkyOrigin,
-        bool ScriptedCamera);
+        bool ScriptedCamera,
+        float MinSpecLightmapSize = 4096f);
 
     /// <summary>One face's blocks.</summary>
     public sealed record Face(
@@ -58,10 +64,96 @@ public static class CubemapFaceBlocks
     /// </summary>
     public const int BinnerTilePixels = 8, BinnerBinSlices = 8192;
 
+    /// <summary>One cube of the map: its scene and the record's handshake (its EXR is env_cubemap_&lt;handshake&gt;.exr).</summary>
+    public sealed record Cube(Scene Scene, uint Handshake, string Class);
+
     /// <summary>
-    /// PerViewConstantBufferCsgo_t's minimum specular lightmap size (4096 in every capture; the writer is not read).
+    /// The map's cubes from its compiled package and gameinfo.gi, in client 1801ea0a0's gather order (env_cubemap,
+    /// then env_cubemap_box and env_combined_light_probe_volume, each class in lump order):
+    /// <list type="bullet">
+    /// <item>light probe volumes: every env_combined_light_probe_volume's origin, box_mins / box_maxs, edge_fade_dists,
+    /// array_index and indoor_outdoor_level (the priority);</item>
+    /// <item>env_cubemap_fog: cubemapfogstartdistance, cubemapfogenddistance, cubemapfoglodbiase,
+    /// cubemapfogfalloffexponent, cubemapfogheightstart / exponent and cubemapfogmaxopacity (C_EnvCubemapFog's schema,
+    /// client 1801fd3c0); the matrix is the entity's translation;</item>
+    /// <item>light_environment: angles, color x brightness (linear), cascadecrossfade, cascadedistancefade,
+    /// skycolor (linear) and skyintensity;</item>
+    /// <item>env_sky: angles, origin and skyname (the material);</item>
+    /// <item>world.vwrld_c's m_worldLightingInfo m_vLightmapUvScale, the lightmaps' size (lightmaps/irradiance), and
+    /// gameinfo's BakedLighting MinSpecLightmapSize (client 181206bfe).</item>
+    /// </list>
+    /// What is not read throws: rotated volumes or fog, fog with a height range (its struct fill is not read), a
+    /// tinted sky, func_ and plain env_light_probe_volume, more than one fog, sun or sky.
     /// </summary>
-    public const float MinSpecularLightmapSize = 4096f;
+    public static List<Cube> FromPackage(ValvePak.Package package, string gameinfo, bool scriptedCamera, out string skyMaterial)
+    {
+        var entities = new List<(string Class, Maps.LightPrecompute.KeyReader Key)>();
+        foreach (var entry in (package.Entries!.GetValueOrDefault("vents_c") ?? []).OrderBy(e => e.GetFullPath(), StringComparer.Ordinal))
+        {
+            package.ReadEntry(entry, out var bytes);
+            entities.AddRange(Lighting.Vrad3Job.LumpEntities(bytes, entry.GetFullPath()));
+        }
+        static float F(string? text) => float.Parse(text ?? throw new InvalidDataException("a key is missing"), CultureInfo.InvariantCulture);
+        static Vector3 V(string? text) => (text ?? throw new InvalidDataException("a key is missing")).Split(' ', StringSplitOptions.RemoveEmptyEntries) is [var x, var y, var z]
+            ? new Vector3(F(x), F(y), F(z)) : throw new InvalidDataException($"not a vector: {text}");
+        static Vector3 Colour(string? text) => V(text) is var c ? Lighting.SceneLights.SrgbToLinear((int)c.X, (int)c.Y, (int)c.Z) : default;
+        Maps.LightPrecompute.KeyReader? One(string cls)
+        {
+            var all = entities.Where(e => e.Class == cls).ToList();
+            return all.Count switch { 0 => null, 1 => all[0].Key, _ => throw new NotSupportedException($"{all.Count} {cls}: which one the view uses is not read") };
+        }
+        foreach (var unread in new[] { "func_combined_light_probe_volume", "env_light_probe_volume" })
+            if (entities.Any(e => e.Class == unread))
+                throw new NotSupportedException($"{unread} in the light block is not read");
+        var volumes = new List<CubemapFaceConstants.LightProbeVolume>();
+        foreach (var (_, key) in entities.Where(e => e.Class == "env_combined_light_probe_volume"))
+        {
+            if (V(key("angles")) != Vector3.Zero)
+                throw new NotSupportedException("a rotated light probe volume");
+            volumes.Add(new(V(key("origin")), V(key("box_mins")), V(key("box_maxs")), V(key("edge_fade_dists")),
+                int.Parse(key("array_index") ?? "0", CultureInfo.InvariantCulture), int.Parse(key("indoor_outdoor_level") ?? "0", CultureInfo.InvariantCulture)));
+        }
+        CubemapFaceConstants.CubeFog? fog = null;
+        if (One("env_cubemap_fog") is { } f)
+        {
+            if (V(f("angles")) != Vector3.Zero)
+                throw new NotSupportedException("a rotated env_cubemap_fog");
+            var range = f("cubemapheightfog") is "1" && F(f("cubemapfogheightstart")) != F(f("cubemapfogheightend"));
+            if (range || f("cubemapfogheightwidth") is { } w && F(w) != 0f)
+                throw new NotSupportedException("cube height fog with a height range: the fog struct's fill is not read");
+            fog = new CubemapFaceConstants.CubeFog(F(f("cubemapfogstartdistance")), F(f("cubemapfogenddistance")), F(f("cubemapfoglodbiase")),
+                F(f("cubemapfogfalloffexponent")), new Vector4(0f, F(f("cubemapfogheightstart")), F(f("cubemapfogheightexponent")), F(f("cubemapfogmaxopacity"))),
+                Matrix4x4.CreateTranslation(V(f("origin"))));
+        }
+        var sun = One("light_environment") ?? throw new NotSupportedException("no light_environment: the sunless light block is not read");
+        var sky = One("env_sky") ?? throw new NotSupportedException("no env_sky");
+        if (sky("tint_color") is { } tint && V(tint) != new Vector3(255, 255, 255) || sky("brightnessscale") is { } scale && F(scale) != 1f)
+            throw new NotSupportedException("a tinted env_sky: SkyTint from the entity is not read");
+        skyMaterial = sky("skyname") ?? throw new InvalidDataException("env_sky has no skyname");
+        using var worldResource = Read(package, package.Entries!.GetValueOrDefault("vwrld_c")!.Single());
+        var uvScale = ((World)worldResource.DataBlock!).Data.GetSubCollection("m_worldLightingInfo").GetSubCollection("m_vLightmapUvScale").ToVector2();
+        var irradiance = (package.Entries!.GetValueOrDefault("vtex_c") ?? []).Single(e => e.DirectoryName.EndsWith("lightmaps", StringComparison.Ordinal) && e.FileName == "irradiance");
+        using var lightmap = Read(package, irradiance);
+        var tex = (Texture)lightmap.DataBlock!;
+        var minSpec = Regex.Match(gameinfo, @"BakedLighting\s*\{[^}]*?MinSpecLightmapSize\s+(\d+)") is { Success: true } m
+            ? float.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture) : 0f;
+        var cubes = new List<Cube>();
+        foreach (var cls in new[] { "env_cubemap", "env_cubemap_box", "env_combined_light_probe_volume" })
+            foreach (var (_, key) in entities.Where(e => e.Class == cls))
+                cubes.Add(new Cube(new Scene(V(key("origin")), volumes, fog, V(sun("angles")), Colour(sun("color")) * F(sun("brightness")),
+                    F(sun("cascadecrossfade")), F(sun("cascadedistancefade")), Colour(sun("skycolor")), F(sun("skyintensity")),
+                    uvScale, tex.Width, tex.Height, V(sky("angles")), V(sky("origin")), scriptedCamera, minSpec),
+                    uint.Parse(key("handshake") ?? throw new InvalidDataException($"{cls} has no handshake"), CultureInfo.InvariantCulture), cls));
+        return cubes;
+    }
+
+    private static Resource Read(ValvePak.Package package, ValvePak.PackageEntry entry)
+    {
+        package.ReadEntry(entry, out var bytes);
+        var resource = new Resource { FileName = entry.GetFullPath() };
+        resource.Read(new MemoryStream(bytes));
+        return resource;
+    }
 
     /// <summary>Face <paramref name="face"/> (0 to 5: +X, -X, +Y, -Y, +Z, -Z) of the cube at the scene's origin.</summary>
     public static Face Build(Scene scene, int face)
@@ -87,7 +179,7 @@ public static class CubemapFaceBlocks
             view,
             CubemapFaceConstants.PerView(view, CubemapFaceDrawList.FaceSize, 0f, 0.95f),
             CubemapFaceConstants.PerView(view, CubemapFaceDrawList.FaceSize, 1f, 1f),
-            CubemapFaceConstants.Csgo(view, scene.Fog, MinSpecularLightmapSize),
+            CubemapFaceConstants.Csgo(view, scene.Fog, scene.MinSpecLightmapSize),
             CubemapFaceConstants.BakedLighting(scene.LightmapUvScale, scene.LightmapWidth, scene.LightmapHeight, false),
             cascadeViews,
             CubemapFaceConstants.LightBlock(sun, volumes, cascades, tiles, CubemapShadowCascades.Inputs.Resolution, CubemapShadowCascades.Inputs.AtlasWidth,

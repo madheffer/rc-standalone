@@ -110,11 +110,13 @@ the addon).
    and the whole env_cubemap_array.vtex_c are the game's byte for byte (7 s a cube); every program loaded is a module
    of the capture. s2c_l5probe: five faces exact, -X differs by the pawn's viewmodel (not ported). The replay
    (`ChainedCubeMakesTheGamesExr`) stays as the test that compares each action and block. **Next, in order:**
-   - **The scene's inputs from the package (the next task).** `CubemapFaceRendererTests.Probe01` types probe01's
-     light probe volumes, env_cubemap_fog, light_environment, env_sky and the lightmap uv scale; read them from the
-     package's entity lumps and world (AggregateCullingCaptureTests.CubeZero already reads the cube origin and sun
-     angles; the volumes' fields, fog keys and the light's colour / brightness conversion are in
-     CubemapFaceConstants' readers' docs), then check the three cubes again.
+   - Done later 10-27 (ledger 163): the scene from the package (`CubemapFaceBlocks.FromPackage`) and each draw's
+     programs by its shader's render modes. probe01 still exact.
+   - **atixref's world draws (the next task).** `CubemapFaceProgramsTests` with `CUBEPROGS=%TEMP%/cubehost_run/atixref`
+     gives 72 of 189 equal; port ledger 163's three rules (depth vertex stream + its compressed combo, probe lighting
+     for prop aggregates, foliage's alpha depth static combo) until it passes, then the prop aggregates' instance
+     records (transforms, tints, light probe volume), two-stream layouts, the sky's fog type 1, non-aggregate
+     objects; then render atixref face 0 against its readback (atixref's readback_0..5 are this capture's frames).
    - Then render the cubes in our compile: `compile-map` writing env_cubemap_array.vtex_c from the renderer (one
      record per env_cubemap / combined volume, client 1801ea0a0's gather order), whole-package against Valve's.
    - The pawn's viewmodel or a build state without one (s2c_l5probe's -X; roadmap 0e, ledger 149), and s2c_l5probe's
@@ -203,6 +205,8 @@ the ragdoll session's files in the shared checkout did not build), cherry-picked
   binner's dispatch sizes are thread counts over the workgroup (decompiled).
 - The suite was not run in full; the replay's ChainedCubeMakesTheGamesExr (probe01 cube 0) passes with the shared
   block builder.
+- Later (ledger 163): the scene read from the package, programs by render mode (ValveProgram.LoadOrNone: no shader
+  where the combo has none), and the atixref program check (72 / 189; what is missing is listed in CUBEMAPS.md).
 
 ## Earlier session (2026-10-27 later, layer selection and the material store)
 

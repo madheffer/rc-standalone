@@ -824,9 +824,22 @@ memberships and `MaterialOrder`). No file of a RenderDoc dump is read.
 
     CUBENODUMP_VPK=<package> CUBENODUMP_CUBE=<n> CUBEREADBACK=<readback dir> CUBEREADBACK_EXR=<game EXR> [CUBEREPLAY_SPIRV=<modules>] [CUBEREPLAY_EXR_OUT=<dir>] [CUBEREPLAY_SCRIPTEDCAMERA=0] dotnet test --filter CubeWithNoDumpMakesTheGamesExr
 
-The readbacks, EXRs and modules are only the comparison. Left: the scene's inputs come from the test
-(`CubemapFaceRendererTests.Probe01`), not yet from the package's lumps; aggregates with fragment transforms of their
-own, alpha-tested prepass draws, the viewmodel and non-aggregate objects throw; texture streaming on big maps.
+The readbacks, EXRs and modules are only the comparison.
+
+Later 10-27 (ledger 163): the scene comes from the package (`CubemapFaceBlocks.FromPackage`: the cube records in
+client 1801ea0a0's order with their handshakes, the volumes, fog, sun, sky, lightmap uv scale and gameinfo's
+MinSpecLightmapSize), and each world draw's programs from its shader's render modes (`CubemapFaceRenderer.Programs`:
+Depth for the cascades and prepass, ToolsVis for colour, no pixel program where the combo has no shader). probe01
+stays exact. `CubemapFaceProgramsTests` (`CUBEPROGS=<capture dir>`) checks the choice on every world draw of a
+capture: atixref face 0, 72 of 189 equal; what the rest need is ledger 163's three rules (the depth vertex stream
+and its compressed-normals combo, probe lighting for prop aggregates, foliage's alpha depth combo).
+
+Left for atixref, in order: those three; prop aggregates' per-mesh transforms, tints and light probe volume in the
+instance records (m_bHasTransform, m_vTintColor, m_nLightProbeVolumePrecomputedHandshake; the captured records give
+the layout); two-stream vertex layouts; the probe-lit colour programs' inputs (the probe atlas textures); the sky with
+D_FOG_TYPE 1; non-aggregate scene objects (about 50 direct draws in face 0, among them error-shader draws in the
+atlas); the viewmodel (s2c_l5probe's -X). Diagnosis probes: `CubemapSceneKeysProbe` (`CUBEKEYS`),
+`CubemapModesProbe` (`CUBEMODES=1`), `CubemapDrawCallKeysProbe` (`CUBEDCKEYS`).
 
 ## Roadmap to env_cubemap_array.vtex_c from the .vmap (2026-10-25)
 

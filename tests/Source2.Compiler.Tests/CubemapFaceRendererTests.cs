@@ -7,9 +7,9 @@ using Xunit.Abstractions;
 namespace Source2.Compiler.Tests;
 
 /// <summary>
-/// A whole cube of probe01 rendered by <see cref="CubemapFaceRenderer"/> from our data alone: the map's package, the
-/// game's shader and content packages, and the scene's inputs (<see cref="Probe01"/>). No file of a RenderDoc dump is
-/// read to render. The six faces' colour must equal the game's readbacks (<c>CUBEREADBACK</c>, rdc_readback.py) and
+/// A whole cube rendered by <see cref="CubemapFaceRenderer"/> from our data alone: the map's package (with the scene's
+/// inputs from its lumps and world, <see cref="CubemapFaceBlocks.FromPackage"/>), the game's shader and content
+/// packages and gameinfo. No file of a RenderDoc dump is read to render. The six faces' colour must equal the game's readbacks (<c>CUBEREADBACK</c>, rdc_readback.py) and
 /// through <see cref="CubemapFaceExr"/> the game's EXR (<c>CUBEREADBACK_EXR</c>) byte for byte. <c>CUBENODUMP_VPK</c>
 /// is the captured map's package, <c>CUBENODUMP_CUBE</c> the cube (0 by default), <c>CUBEREPLAY_SCRIPTEDCAMERA=0</c> a build without a scripted camera; <c>CUBEREPLAY_EXR_OUT</c> writes our
 /// EXR for GameCubemapTests to build the array from.
@@ -57,7 +57,25 @@ public sealed class CubemapFaceRendererTests(ITestOutputHelper output)
         var cube = int.Parse(Environment.GetEnvironmentVariable("CUBENODUMP_CUBE") ?? "0", System.Globalization.CultureInfo.InvariantCulture);
         var game = Path.Combine(Environment.GetEnvironmentVariable("CS2_DIR") ?? @"D:\Steam\steamapps\common\Counter-Strike Global Offensive", "game");
         // CUBEREPLAY_SCRIPTEDCAMERA=0: a build with no scripted camera (s2c_l5probe's, the same volumes and lights).
-        var scene = Probe01(cube) with { ScriptedCamera = Environment.GetEnvironmentVariable("CUBEREPLAY_SCRIPTEDCAMERA") != "0" };
+        var scripted = Environment.GetEnvironmentVariable("CUBEREPLAY_SCRIPTEDCAMERA") != "0";
+        // The scene from the package's lumps and world, and gameinfo (CubemapFaceBlocks.FromPackage).
+        List<CubemapFaceBlocks.Cube> cubes;
+        string skyMaterial;
+        using (var package = new ValvePak.Package())
+        {
+            package.Read(vpk);
+            cubes = CubemapFaceBlocks.FromPackage(package, File.ReadAllText(Path.Combine(game, "csgo", "gameinfo.gi")), scripted, out skyMaterial);
+        }
+        var scene = cubes[cube].Scene;
+        output.WriteLine($"cube {cube}: {cubes[cube].Class} at {scene.Origin}, handshake {cubes[cube].Handshake}; {cubes.Count} cubes, {scene.Volumes.Count} volumes, sky {skyMaterial}");
+        Assert.Equal($"env_cubemap_{cubes[cube].Handshake}.exr", Path.GetFileName(exrPath));
+        // The values typed from probe01's entities, which matched the captures word for word, are what the reader gives.
+        if (Path.GetFileName(vpk).Contains("probe01", StringComparison.Ordinal) || Path.GetFileName(vpk).Contains("l5probe", StringComparison.Ordinal))
+        {
+            var typed = Probe01(cube) with { ScriptedCamera = scripted };
+            Assert.Equal(typed with { Volumes = scene.Volumes }, scene);
+            Assert.Equal(typed.Volumes, scene.Volumes);
+        }
         var models = CubemapFaceRenderer.AggregateModels(vpk);
         // The draw list's aggregates (fragments, LODs) and their layer-selection inputs, in the same order.
         var aggregates = AggregateCullingCaptureTests.Aggregates(vpk);
@@ -69,7 +87,7 @@ public sealed class CubemapFaceRendererTests(ITestOutputHelper output)
         var (toSun, _, _) = CubemapShadowCascades.SunDirections(scene.SunAngles);
 
         using var gpu = new GpuDevice(rayTracingShaderFeatures: Environment.GetEnvironmentVariable("CUBEREPLAY_BASIC_DEVICE") != "1");
-        using var renderer = new CubemapFaceRenderer(gpu, game, vpk, models, "materials/editor/toolscene_lighting_sky_dust.vmat");
+        using var renderer = new CubemapFaceRenderer(gpu, game, vpk, models, skyMaterial);
         var faces = new List<Half[]>();
         var failures = new List<string>();
         for (var f = 0; f < 6; f++)
@@ -89,7 +107,7 @@ public sealed class CubemapFaceRendererTests(ITestOutputHelper output)
         if (Environment.GetEnvironmentVariable("CUBEREPLAY_SPIRV") is { Length: > 0 } spirvDir)
         {
             var captured = Directory.GetFiles(spirvDir, "*.spv").Select(p => Convert.ToHexStringLower(System.Security.Cryptography.SHA1.HashData(File.ReadAllBytes(p)))).ToHashSet();
-            foreach (var p in renderer.Programs)
+            foreach (var p in renderer.LoadedPrograms)
             {
                 var found = captured.Contains(Convert.ToHexStringLower(System.Security.Cryptography.SHA1.HashData(p.Spirv)));
                 output.WriteLine($"program {p.Name}: {(found ? "a module of the capture" : "NOT in the capture")}");

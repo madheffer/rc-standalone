@@ -4366,6 +4366,30 @@ game can answer is raised with the user first, and runs with -insecure.
       reach the readback) are not modelled; the texture streaming state of big maps (every capture so far holds
       whole mip chains).
 
+163. **A cubemap face's scene from the package, and its programs by the shaders' render modes** (2026-10-27:
+    the probe01 / s2c_l5probe / atixref lumps and captures; the .vcs features files' mode tables; client 20261015
+    1801fd3c0 (C_EnvCubemapFog's schema), 180206e50 (the fog attributes); CubemapFaceBlocks.FromPackage,
+    CubemapFaceRenderer.Programs, ValveProgram.LoadOrNone, CubemapFaceProgramsTests).
+    - Settled by the readers' result: probe01's and s2c_l5probe's scene read from the package (volumes, cube origins
+      and handshakes, env_cubemap_fog, light_environment, env_sky, the world's lightmap uv scale, gameinfo's
+      MinSpecLightmapSize) equals the values typed before, which matched the captures word for word; both probe01
+      cubes stay byte for byte. Read but not ported: the fog's height vector (the struct 180206e50 receives is
+      filled elsewhere; C_EnvCubemapFog has its own m_flFogHeightWidth), so a height range throws.
+    - Settled from Valve's data: a material draws a pass in its shader's mode (features header Modes): Depth for
+      the cascades and prepass, ToolsVis for colour; a mode names another shader (generic, csgo_complex,
+      csgo_vertexlitgeneric: csgo_depth_only) or a static combo of the shader's own (csgo_foliage,
+      csgo_environment, csgo_environment_blend: S_MODE_DEPTH=1). A pixel program is absent where its static combo
+      is not in the file (csgo_environment's depth mode) or its dynamic combo's render state names shader file -1
+      (csgo_depth_only's opaque combos): every depth draw of the three captures without a pixel shader is one of
+      these. D_ALPHA_TEST_PREPASS=1 in the alpha-tested prepass layer.
+    - Measured on atixref face 0 (189 world draws, CubemapFaceProgramsTests): 72 draw with our programs byte for
+      byte. The rest are three rules not ported: (1) the depth passes draw the draw call's depth vertex buffer
+      (m_nDepthVertexBufferIndex; props carry a position-only stream) and D_COMPRESSED_NORMALS_AND_TANGENTS follows
+      the bound stream (0 for csgo_depth_only and csgo_environment(_blend) depth, 1 for single-stream foliage);
+      (2) prop aggregates (m_allFlags 0x408, per-mesh transforms, tints and m_nLightProbeVolumePrecomputedHandshake)
+      are lit from probes (D_BAKED_LIGHTING_FROM_PROBE=1), brushes from the lightmap; (3) csgo_foliage's
+      alpha-tested depth pixel combo (static 10) is not found by our static pick.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).
