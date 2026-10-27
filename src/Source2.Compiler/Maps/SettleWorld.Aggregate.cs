@@ -220,23 +220,47 @@ public static partial class SettleWorld
     }
 
     /// <summary>
+    /// The skeleton's reference pose, parent-relative: each bone's position,
+    /// scale and rotation from m_modelSkeleton. This is the pose an animation
+    /// helper's skeleton set leaves (animationsystem 18006d560 -> 1804abdb0 ->
+    /// 1804acdd0: skeleton +0x98 positions, +0xc8 scales, +0xb0 rotations),
+    /// and the locals rc's 18174dc50 composes.
+    /// </summary>
+    public static CTransform[] ReferencePose(ModelBones skeleton)
+    {
+        var pose = new CTransform[skeleton.Names.Length];
+        for (var i = 0; i < pose.Length; i++)
+            pose[i] = new CTransform(skeleton.Positions[i], skeleton.Scales[i], skeleton.Rotations[i]);
+        return pose;
+    }
+
+    /// <summary>
+    /// A parent-relative pose in model space (rc 1817dd320 for a helper's
+    /// pose, 18174dc50 for the reference pose): bone order, a root bone
+    /// composed under <paramref name="root"/>, every other under its parent's
+    /// model-space transform (181253510).
+    /// </summary>
+    public static CTransform[] ModelSpace(IReadOnlyList<CTransform> locals, IReadOnlyList<int> parents, CTransform root)
+    {
+        var space = new CTransform[locals.Count];
+        for (var i = 0; i < space.Length; i++)
+            space[i] = CTransform.Compose(parents[i] < 0 ? root : space[parents[i]], locals[i]);
+        return space;
+    }
+
+    /// <summary>
     /// The model's pose in model space for each part's bone (the bone found
-    /// by its name, case ignored): the skeleton's parent-relative transforms
-    /// composed from the root down.
+    /// by its name, case ignored): the reference pose from an identity root,
+    /// node +0x310 as 181f0bb60 fills it, which the aggregate build reads
+    /// (181f03210 with flag 0 at rc 18105e100). The animation helper's pose
+    /// (+0x328, after its update) is not read here (GROUND_TRUTH 166). Not
+    /// ported: stored bone overrides (181efec40), which replace both.
     /// </summary>
     private static IEnumerable<CTransform?> ModelPoses(PhysAggregateData phys, ModelBones? skeleton)
     {
         CTransform[]? space = null;
         if (skeleton != null)
-        {
-            space = new CTransform[skeleton.Names.Length];
-            for (var i = 0; i < space.Length; i++)
-            {
-                var local = new CTransform(skeleton.Positions[i], 1f, skeleton.Rotations[i]);
-                var parent = skeleton.Parents[i] < 0 ? new CTransform(Vector3.Zero, 1f, Quaternion.Identity) : space[skeleton.Parents[i]];
-                space[i] = CTransform.Compose(parent, local);
-            }
-        }
+            space = ModelSpace(ReferencePose(skeleton), skeleton.Parents, new CTransform(Vector3.Zero, 1f, Quaternion.Identity));
         var names = phys.BoneNames ?? [];
         for (var p = 0; p < phys.Parts.Length; p++)
         {

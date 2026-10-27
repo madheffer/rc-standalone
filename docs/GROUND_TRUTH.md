@@ -4364,11 +4364,8 @@ game can answer is raised with the user first, and runs with -insecure.
     - Exact against the capture (s2c_ragdollprobe's four CT agents): every body field but the pose's (mass,
       inertia, damping, drag, flags, awake order, world inverse inertia), every shape's attributes, and all 56
       joints byte for byte (padding the constructors never write excluded).
-    - Open: the model pose. 181f0bb60 takes the entity's stored bone overrides (181efec40) or the model's animation
-      graph default pose (1817dd320) and the skeleton's reference pose (18174dc50, CTransform_Compose from an
-      identity root) only without a graph; ctm_sas has one. Composing the skeleton gives every quaternion of the
-      logged pose but positions 1 to 4 ulps off (50 of 60), one orientation one ulp off. Porting the graph's default
-      pose evaluation closes it. SettleWorld.Run refuses a map with an aggregate until then.
+    - Settled 2026-10-28 (ledger 166): the model pose is the skeleton's reference pose with each bone's scale; the
+      graph pose was never read. All 60 bodies equal the capture, pose included.
 
 162. **A cubemap face rendered with no dump: its bindings, binner dispatches and frame** (2026-10-27: Valve's .vcs
     write sequences; decompile of scenesystem 20261015 1801b2850 and rendersystemvulkan 20261015 180072850; the
@@ -4526,6 +4523,36 @@ game can answer is raised with the user first, and runs with -insecure.
        whose elements' names (+0x40) 1810dca50 compares. Next: which layer and which dynamic combo's signature
        (VfxStaticComboData.VsInputSignatureIndices) it returns, then port WithPaintStreams from it.
 
+
+166. **The model pose the aggregate build reads** (2026-10-28: decompile of resourcecompiler 0923 181f0bb60, 181f02fa0,
+     181f03210, 18174dc50 (disassembly 18174dca0..18174dd3b), 1817dd320, 181eff710, 18105dbd0 (disassembly at
+     18105e100), and of animationsystem 20261023 (new in the Ghidra project) 18006d560, 1804abdb0, 1804acdd0,
+     18006f450, 18006cd20; Frida captures of resourcecompiler's s2c_ragdollprobe settle with
+     tools/settle/probes/settle_pose.js, settle_posewriter.js and settle_poseupdate_calls.js; ModelPoseCaptureTests,
+     AggregateBuildCaptureTests).
+     - Settled from the code: 181f0bb60 keeps two model-space poses on the node. Without stored overrides it writes
+       the skeleton's reference pose into +0x310 (18174dc50: each bone's local is skeleton +0x98 position, +0xc8 scale
+       in the w lane, +0xb0 rotation, composed onto its parent by 181253510, the root onto the identity). With an
+       animation helper (node +0x2b0, a CAnimationHelper from animationsystem; vfn 0x90 returns helper +0x40) it also
+       composes the helper's pose (1817dd320, same compose) into +0x328. 181f02fa0 returns +0x310 for flag 0 and
+       +0x328 for flag 1, and the aggregate build asks 181f03210 with flag 0 (18105e100: xor edx, edx). So bodies are
+       posed from the reference pose. Our ModelPoses composed with scale 1: that was the 1 to 4 ulps of ledger 161.
+     - Settled from the capture: the helper's skeleton set (vfn 0, 18006d560 -> 1804abdb0 -> 1804acdd0) gives the
+       same reference locals, bit for bit, for both models of the probe (ctm_sas, 94 bones, 93 with a scale other
+       than 1, and the chicken, 117). rc 181eff710 then calls the helper's update (vfn 0x88, 18006f450, dt 0). For
+       ctm_sas the update changes the locals (no graph instance at +0x150, byte +0x249 0, no sequences; the decode
+       context path), and for the chicken it leaves them. 1817dd320 composes whatever the helper holds; its result
+       equals our ModelSpace of the captured locals on all 8 calls (ModelPoseCaptureTests).
+     - Ported: ModelBones carries m_boneScaleParent, SettleWorld.ReferencePose and ModelSpace.
+       AggregateBuildCaptureTests passes: every field of all 60 bodies, pose included, every shape attribute and
+       all 56 joints equal the capture.
+     - Measured, not a rule: with the pose exact, the stepped settle (RagdollLockstepTests over a capture with
+       every step to 130, settle_fine_steps.js) equals Valve's on the 30 ragdoll bodies Valve makes dynamic (two of
+       the four agents; the same two in ours) before every step through 99. Before step 100 the agent at (80, 360)
+       differs on all 15 bodies, by about 0.05 units/s. Valve's own runs agree with each other through step 110
+       (four runs, 10-27 and 10-28; they part by step 200), so the difference is the port's. Next: Valve's contacts at step 99.
+     - Not ported: the helper's update (only +0x328 reads it; nothing in the settle does), stored bone overrides
+       (181efec40, which fill +0x328 and copy it to +0x310), and models with no m_boneScaleParent (refused).
 
 ## Resolved
 

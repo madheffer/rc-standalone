@@ -90,8 +90,8 @@ public static partial class SettleWorld
         ModelBones? ModelSkeleton(string model) => null;
     }
 
-    /// <summary>A model's bones as m_modelSkeleton stores them.</summary>
-    public sealed record ModelBones(string[] Names, int[] Parents, Vector3[] Positions, Quaternion[] Rotations);
+    /// <summary>A model's bones as m_modelSkeleton stores them (m_bonePosParent, m_boneRotParent, m_boneScaleParent).</summary>
+    public sealed record ModelBones(string[] Names, int[] Parents, Vector3[] Positions, Quaternion[] Rotations, float[] Scales);
 
     /// <summary>What a compiled material (.vmat_c) carries for physics.</summary>
     public sealed record MaterialInfo(IReadOnlyDictionary<string, long> Ints, IReadOnlyDictionary<string, string> Strings)

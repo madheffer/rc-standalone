@@ -228,7 +228,11 @@ public class GameContent : SettleWorld.IModels, IDisposable
         var parents = skeleton.GetIntegerArray("m_nParent").Select(p => (int)p).ToArray();
         var positions = skeleton.GetArray("m_bonePosParent").Select(v => new System.Numerics.Vector3((float)v[0], (float)v[1], (float)v[2])).ToArray();
         var rotations = skeleton.GetArray("m_boneRotParent").Select(v => new System.Numerics.Quaternion((float)v[0], (float)v[1], (float)v[2], (float)v[3])).ToArray();
-        return new SettleWorld.ModelBones(names, parents, positions, rotations);
+        // The skeleton's per-bone scales (animationsystem 1804acdd0 and rc 18174dc50 read them at +0xc8).
+        if (!skeleton.ContainsKey("m_boneScaleParent"))
+            throw new NotSupportedException($"{model}: a skeleton without m_boneScaleParent is not read");
+        var scales = skeleton.GetFloatArray("m_boneScaleParent");
+        return new SettleWorld.ModelBones(names, parents, positions, rotations, scales);
     }
 
     /// <summary>A smart prop definition's compiled data (.vsmart_c), from loose files or the paks.</summary>

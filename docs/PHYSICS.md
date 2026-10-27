@@ -94,9 +94,9 @@ Open:
 - **Aggregates in the settle (ragdolls):** a prop whose model has several
   physics parts or a joint (ledger 135). Valve's truth is captured
   (s2c_ragdollprobe); CRnConicalJoint's (every motor mode) and CRnRevoluteJoint's solves are
-  ported and oracle-exact, and the aggregate builds as Valve's but for the
-  model pose's last ulps (5a). The settle still refuses such a map. Roadmap,
-  in order, each step checked against the capture before the next:
+  ported and oracle-exact, the aggregate builds as Valve's, pose included (ledger 166), and the
+  stepped settle equals Valve's through step 98 (step 6). The settle still refuses such a map.
+  Roadmap, in order, each step checked against the capture before the next:
   1. Done (2026-10-25, ledger 136): CRnRevoluteJoint (VPhysX type 3 with
      flags bit 1 clear, as ctm_sas's two knees): prepare (every motor mode,
      the plasticity, the limit, the two hinge rows, the point block, the
@@ -124,28 +124,32 @@ Open:
      capture's events.jsonl, a copy in %TEMP%/settle_capture/s2c_ragdollprobe) equals both step-0 islands
      slot for slot. Not checked yet: the split with joints (needs the stepped settle); refused: joints in a
      coloured island, broken joints, the TOI solve of a jointed body.
-  5. Nearly done (2026-10-27, ledger 161): the aggregate build. Maps/SettleWorld.Aggregate.cs builds a model with
-     two parts or a joint as vphysics2's CPhysAggregateInstance: vphysics2's placement, keyframed and woken bodies,
+  5. Done (2026-10-27 and 10-28, ledgers 161, 166): the aggregate build. Maps/SettleWorld.Aggregate.cs builds a model
+     with two parts or a joint as vphysics2's CPhysAggregateInstance: vphysics2's placement, keyframed and woken bodies,
      shapes with the layered collision attributes, SetMass, inertia scale, damping and drag, the joints (desc from
      VPhysXJoint_t, ctor defaults, world add, setters in the creator's order, friction torque), then
-     resourcecompiler's entity attributes and pose. AggregateBuildCaptureTests (RAGDOLL) equals the capture in every
-     body field but the pose, every shape attribute and all 56 joints byte for byte. Left:
-     a. **The model pose** (the one open item). Resourcecompiler poses each body from the entity's model pose
-        (rc 181f0bb60 -> 181f02fa0 -> 181f03210, looked up by 181749d20 per part bone name, case ignored). With an
-        animation graph, as ctm_sas has, that pose is the graph's default pose (1817dd320, after vfn 0x90 of the
-        node's graph at node +0x2b0); stored bone overrides (181efec40, node +0x298) win over it, and the skeleton's
-        reference pose (18174dc50, our ModelPoses) is only the no-graph case. Today ModelPoses composes the
-        skeleton: every quaternion equals the logged pose, positions are 1 to 4 ulps off on 50 of 60 bodies and one
-        orientation one ulp off. Do: decompile 1817dd320 and what feeds it (which graph node, which clip and frame,
-        the decode and the local-to-model compose), port it, and check the logged pose (the capture's "xf" build
-        events, the test's "rc pose" line) bit for bit. Port the stored-override path too (a map whose ragdoll
-        keeps bone transforms from Hammer), and keep the reference-pose path for models with no graph.
-     b. Lift SettleWorld.Run's refusal of a map with an aggregate once (a) is exact.
+     resourcecompiler's entity attributes and pose. AggregateBuildCaptureTests (RAGDOLL) passes: every body field,
+     every shape attribute and all 56 joints byte for byte.
+     a. Done (ledger 166): the model pose. The aggregate reads node +0x310 (181f03210 with flag 0), the skeleton's
+        reference pose that 18174dc50 composes, each local with its m_boneScaleParent scale; the animation helper's
+        pose at +0x328 (after CAnimationHelper's update) is never read here. ModelPoseCaptureTests checks both rc
+        compositions and the helper's skeleton set against the capture (RAGDOLL_POSE, a settle_pose.js +
+        settle_posewriter.js capture). Not ported: stored bone overrides (181efec40), which replace both poses.
+     b. SettleWorld.Run still refuses a map with an aggregate, now for steps 6 and 7.
      c. Small refusals that stay until a corpus model needs them: hull or mesh shapes in an aggregate, a node scale
         other than 1, a deformer, a mass-centre override (body vfn 0x108), joints to the world's static body
         (VPhysXJoint_t flags bit 0), motors, linear limits, breakable and elastic joints (18022c480, 18021ade0),
         CRnRevoluteBlockJoint (flags bit 1). ModelPhysicsProbe (MODELPHYS, MODELPHYS_JOINTS=1) lists a model's.
-  6. Step in lockstep with the capture: a SettleReplay with joints (the capture's "bodies" and "joints" events at
+  6. Under way (2026-10-28, ledger 166): RagdollLockstepTests builds our world from the .vmap and compares every
+     modelled body field before each captured step. The 30 ragdoll bodies Valve makes dynamic (the same two agents in
+     ours) are exact before every step through 99; before step 100 the agent at (80, 360) differs on all 15 bodies
+     (0.05 units/s). Valve's runs agree with each other through step 110, so this is ours. The capture with every
+     step to 130 is %TEMP%/settle_capture/s2c_ragdollprobe_fine (settle_fine_steps.js after settle_bundle.js and
+     settle_joints.js); RAGDOLL_CONTACTS=1 lists our contacts on ragdoll bodies at steps 90..100. Next: capture
+     Valve's contacts and island at step 99 and find the first differing contact or impulse (a probe is still to
+     write: SettleReplay's collide_in / collide_out events came from a capture script that is not in the repo).
+     The original plan follows.
+     Step in lockstep with the capture: a SettleReplay with joints (the capture's "bodies" and "joints" events at
      steps 0..90 and every 10th, "islands" at 0..3 and every 100th), first divergence wins, as for the single-body
      settle (SETTLE.md). This also checks the island split with joints (by step 100 Valve's islands have 16
      bodies, no holes, and ground contacts) and sleep with joints. Valve's settle varies run to run with heap

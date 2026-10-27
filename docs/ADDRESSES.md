@@ -17,6 +17,27 @@ slot, `CVoxelSampler3::MergeClusterSet` an assert string). The harvested
 names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 `tools/re/names/<dll>_<build>.json`, not here.
 
+## animationsystem.dll, build 20261023
+
+- file: `animationsystem_20261023.dll`, 9,329,816 bytes, PE time 2026-10-22 16:00 UTC
+- SHA-256 `8aa57d0c5b90cb49ad5fd9f141004710180a601b08159e50e93c4470142ea132`
+- installed: this build
+- 9 addresses
+
+### s2c:entities/settle
+
+| address | name | what | cited in |
+|---|---|---|---|
+| `18006cd20` | `CAnimationHelper::Pose` | vfn 0x90: helper +0x40 |  |
+| `18006ce40` | `CAnimationHelper::vf38` | vfn 0x130: the byte at +0x249 |  |
+| `18006d560` | `CAnimationHelper::vf0` | vfn 0: the model at +8 (refcounted), its pose (+0x40) set from the skeleton (1804abdb0), sequence slots, bone masks | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:225` |
+| `18006f450` | `CAnimationHelper::Update` | vfn 0x88: without +0x249 and with no graph instance (+0x150) the sequence decode (1804ab6f0 context, 18006e920 sequences, 1804ab9d0 desc, 1804ab850, the animation system's vfn 0x68); changes ctm_sas's pose, leaves the chicken's (capture); not ported (rc's aggregate pose does not read it) | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:255` |
+| `1804ab9d0` | `CAnimationDecodeContext::AddAnimationDecodeDesc` | 0x50-byte desc from the scratch pool |  |
+| `1804abdb0` | `AnimPose_SetSkeleton` | the pose's skeleton (refcounted at +0), its transform buffer (+8) and mask, count +0x1c; the locals from 1804acdd0 | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:225` |
+| `1804acdd0` | `Skeleton_ReferencePose` | per bone {position +0x98 (12 bytes), scale +0xc8, rotation +0xb0} into 0x20-byte transforms; SettleWorld.ReferencePose | `src/Source2.Compiler/Maps/GameContent.cs:231`, `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:226` |
+| `1804b5690` | `AnimObjectList_Vfn38` | each object at +0x368 (count +0x360) through its vfn 0x38, results ORed; called once in ctm_sas's update |  |
+| `180723108` | `CAnimationHelper::vftable` | the object at a map entity's node +0x2b0 in resourcecompiler |  |
+
 ## bc7e.dll, build 20261015
 
 - file: `bc7e_20261015.dll`, 1,529,856 bytes, PE time 2022-05-26 03:42 UTC
@@ -643,7 +664,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `resourcecompiler_20260923.dll`, 56,313,496 bytes, PE time 2026-09-22 19:17 UTC
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
-- 1143 addresses
+- 1144 addresses
 
 ### s2c:baked/light-keys
 
@@ -1181,14 +1202,15 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1810dcca0` | `CMapMesh_NameSlotsAfterOverride` |  | `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:196` |
 | `1812d87e0` | `CMesh_JoinVertices` |  | `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:349` |
 | `181749d20` | `BonePose_Find` | a bone's transform by name hash; the aggregate pose's override (rc 18105e18a) | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:201` |
-| `18174dc50` | `Skeleton_ModelSpacePose` | each bone CTransform_Compose onto its parent's, the root onto the identity |  |
-| `1817dd320` | `AnimGraph_DefaultPose` | the graph's default pose into model space (not ported) |  |
+| `18174dc50` | `Skeleton_ModelSpacePose` | locals (skeleton +0x98 position, +0xc8 scale in the w lane, +0xb0 rotation) composed onto the parent's (181253510), the root onto the given root; SettleWorld.ReferencePose / ModelSpace (ledger 166) | `src/Source2.Compiler/Maps/GameContent.cs:231`, `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:227`, `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:239` |
+| `1817dd320` | `AnimPose_ToModelSpace` | a pose's locals (pose +8, 0x20 each, count +0x1c, parents from its skeleton +0x180) composed onto the parent's (181253510), the root onto the given root, optional bone mask; SettleWorld.ModelSpace (ledger 166) | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:238` |
 | `1819c9db0` | `PhysMesh_ConnectedComponents` |  | `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:134`, `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:349` |
 | `1819d5190` | `PhysModel_HasJoints` | joint test on the model's physics; not ported | `src/Source2.Compiler/Maps/SettleWorld.Settle.cs:19` |
 | `181efec40` | `MapEntity_StoredBoneTransforms` | the entity's stored bone overrides |  |
-| `181f02fa0` | `MapEntity_BoneTransforms` | 181f0bb60's cached model-space transforms at node +0x310 (count +0x308) |  |
+| `181eff710` | `MapEntity_Animate` | the node's animation step: under its gates calls the helper's update (node +0x2b0 vfn 0x88), then 181f06cf0; reached from 181f09c60 | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:255` |
+| `181f02fa0` | `MapEntity_BoneTransforms` | 181f0bb60's model-space transforms: flag 0 the reference pose at node +0x310 (count +0x308), flag 1 the animation helper's at +0x328 (count +0x320); the aggregate pose (18105e100) passes 0 (ledger 166) |  |
 | `181f03210` | `MapEntity_ModelPose` | the node's model pose by bone name (181f02fa0's transforms, 0x20 each) | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:202` |
-| `181f0bb60` | `MapEntity_UpdateBoneTransforms` | stored overrides (181efec40), the animation graph's pose (1817dd320), or the reference pose (18174dc50) without a graph |  |
+| `181f0bb60` | `MapEntity_UpdateBoneTransforms` | stored overrides (181efec40) into +0x328 and copied to +0x310; else the reference pose (18174dc50) into +0x310, and with an animation helper (node +0x2b0, vfn 0x90 its pose at helper +0x40) that pose through 1817dd320 into +0x328 (ledger 166) | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:254` |
 
 ### s2c:geometry/mesh-export
 
@@ -1623,7 +1645,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1802b1ff0` | `CMesh_TransformByMatrix` | flag 1: positions by the matrix, normals by its inverse transposed (181263c30), tangents by it, both renormalised; flag 2: texcoords (u about 0, 1 - v about 1) scaled by column lengths named by TexCoord(2)ScaleByModelU/V; PropTransform | `src/Source2.Compiler/Maps/CTransform.cs:13`, `src/Source2.Compiler/Maps/PropTransform.cs:8` |
 | `181046990` | `Vector_Lerp` | (b - a) * t + a | `src/Source2.Compiler/Maps/MeshTessellation.cs:93`, `src/Source2.Compiler/Maps/MeshTessellation.cs:523` |
 | `1811145c0` | `AngleMatrixDouble` | sines and cosines in double | `src/Source2.Compiler/Maps/SettleWorld.cs:378`, `src/Source2.Compiler/Maps/SettleWorld.cs:674` |
-| `181253510` | `CTransform_Compose` | SIMD; a applied after b | `src/Source2.Compiler/Maps/CTransform.cs:65`, `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:204`, `src/Source2.Compiler/Maps/SettleWorld.cs:487` +2 |
+| `181253510` | `CTransform_Compose` | SIMD; a applied after b | `src/Source2.Compiler/Maps/CTransform.cs:65`, `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:204`, `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:241` +3 |
 | `181253780` | `CTransform_Invert` | scale 1 path | `src/Source2.Compiler/Maps/CTransform.cs:38`, `src/Source2.Compiler/Maps/PathDeformer.cs:18`, `src/Source2.Compiler/Simulation/SettleWriteBack.cs:57` |
 | `181255d60` | `AngleMatrix` | degrees times 0.017453292f | `src/Source2.Compiler/Maps/MapMeshes.cs:338` |
 | `181256960` | `PointSegmentClosest` |  | `src/Source2.Compiler/Maps/PolygonTriangulator.cs:220` |
@@ -2623,15 +2645,15 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1800123b0` | `CPhysicsBody::vf56` | GetTransform: the body's frame | `src/Source2.Compiler/Simulation/SettleWriteBack.cs:33` |
 | `180042ba0` | `CPhysAggregateInstance_ctor` | bodies 180045630, constraints2 180046ea0, joints 180047600 | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:14` |
 | `180044bc0` | `CPhysAggregateInstance_BuildPart` | type, shapes, materials, attributes, mass, damping, drag | `src/Source2.Compiler/Lighting/LightmapAhd.cs:216`, `src/Source2.Compiler/Lighting/LightmapAhd.cs:228`, `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:48` +2 |
-| `180045630` | `CPhysAggregateInstance_CreateBodies` | a body per part at xf o bind pose | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:179`, `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:249` |
+| `180045630` | `CPhysAggregateInstance_CreateBodies` | a body per part at xf o bind pose | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:179`, `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:273` |
 | `180046220` | `CPhysAggregateInstance_SetCollisionAttributes` | vfn 0xf0: 1801ba7e0 on every body |  |
 | `180046280` | `CPhysAggregateInstance_CollisionAttributes` | vfn 0xe8: the palette entry with a group above 3 after entry 0, else entry 0 | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:127` |
-| `180047600` | `CPhysAggregateInstance_CreateJoints` | VPhysXJoint_t by m_nType | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:367` |
+| `180047600` | `CPhysAggregateInstance_CreateJoints` | VPhysXJoint_t by m_nType | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:391` |
 | `1800488d0` | `CPhysAggregateInstance_SetMotion` | vt 0x30: SetType per body by the part flags |  |
 | `180058200` | `CPhysicsWorld_ctor` |  |  |
 | `180059f30` | `CPhysicsWorld_Simulate` |  |  |
-| `18005cb80` | `CPhysicsWorld_CreateRevoluteJoint` | desc type 3 | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:346`, `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:370`, `src/Source2.Compiler/Simulation/RevoluteJoint.cs:9` |
-| `18005d370` | `CPhysicsWorld_CreateConicalJoint` | desc type 10; degrees back to radians | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:346`, `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:370`, `src/Source2.Compiler/Simulation/ConicalJoint.cs:9` |
+| `18005cb80` | `CPhysicsWorld_CreateRevoluteJoint` | desc type 3 | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:370`, `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:394`, `src/Source2.Compiler/Simulation/RevoluteJoint.cs:9` |
+| `18005d370` | `CPhysicsWorld_CreateConicalJoint` | desc type 10; degrees back to radians | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:370`, `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:394`, `src/Source2.Compiler/Simulation/ConicalJoint.cs:9` |
 | `1800614f0` | `CPhysicsWorld_CreateAggregateInstance` | world vfn 0x418 |  |
 | `18006b980` | `RnPairSet_Displace` |  | `src/Source2.Compiler/Simulation/PairSet.cs:128` |
 | `18006dd90` | `CVPhysics2Interface_CreateWorld` |  |  |
@@ -2658,7 +2680,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1801b2c30` | `CRnBody_SumShapeMass` | shape mass properties summed about the body origin | `src/Source2.Compiler/Simulation/RnMassUpdate.cs:8`, `src/Source2.Compiler/Simulation/RnMassUpdate.cs:188` |
 | `1801b31a0` | `CRnBody_WorldInverseInertia` |  | `src/Source2.Compiler/Simulation/Continuous.cs:178` |
 | `1801b3420` | `CRnBody_ProjectedAreas` | projected area fractions of the shapes | `src/Source2.Compiler/Simulation/RnMassUpdate.cs:120` |
-| `1801b4d30` | `CRnBody_MassProperties` | inertia by cofactors of (1 / mass) local inverse inertia, local mass centre, mass | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:480` |
+| `1801b4d30` | `CRnBody_MassProperties` | inertia by cofactors of (1 / mass) local inverse inertia, local mass centre, mass | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:504` |
 | `1801b5390` | `CRnBody_Sweep` | start and end orientation of the step | `src/Source2.Compiler/Simulation/Continuous.cs:7`, `src/Source2.Compiler/Simulation/Continuous.cs:44` |
 | `1801b5430` | `CRnBody_SweepAt` | the sweep with its start moved on to a step fraction | `src/Source2.Compiler/Simulation/Continuous.cs:63` |
 | `1801b5620` | `RnSweep_Frame` | frame of an orientation, mass-centre offset and centre of mass | `src/Source2.Compiler/Simulation/Continuous.cs:108`, `src/Source2.Compiler/Simulation/Continuous.cs:133` |
@@ -2678,10 +2700,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1801ba3e0` | `CRnBody_GetDesc` |  |  |
 | `1801bb110` | `CRnBody_SetInertiaScale` | +0x90, mass update 2 |  |
 | `1801bb2b0` | `CRnBody_SetInertia` | inertia over mass, scaled below 1e11 | `src/Source2.Compiler/Simulation/RnMassUpdate.cs:375` |
-| `1801bbb60` | `CRnBody_SetMass` | clamped to 1e6, 500 when not positive, +0x4a bit 8, mass update 0x13 | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:251` |
+| `1801bbb60` | `CRnBody_SetMass` | clamped to 1e6, 500 when not positive, +0x4a bit 8, mass update 0x13 | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:275` |
 | `1801bc710` | `RnSolverBody_SetOrientation` |  | `src/Source2.Compiler/Simulation/Integrator.cs:277`, `src/Source2.Compiler/Simulation/RnMath.cs:49` |
 | `1801bca60` | `CRnBody_SetScale` | ignores a change under 0.001 | `src/Source2.Compiler/Maps/SettleWorld.World.cs:145` |
-| `1801bcf70` | `CRnBody_SetTransform` | nothing below 1.4210855e-14 squared; quat, world inverse inertia, mass centre, previous frame, wake | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:314` |
+| `1801bcf70` | `CRnBody_SetTransform` | nothing below 1.4210855e-14 squared; quat, world inverse inertia, mass centre, previous frame, wake | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:338` |
 | `1801bd3e0` | `CRnBody_SetType` |  | `src/Source2.Compiler/Maps/SettleWorld.World.cs:16`, `src/Source2.Compiler/Simulation/RnWorld.cs:532` |
 | `1801bd3e0` | `CRnBody_SetType` | SetType(2): dynamic and woken | `src/Source2.Compiler/Maps/SettleWorld.World.cs:16`, `src/Source2.Compiler/Simulation/RnWorld.cs:532` |
 | `1801bdea0` | `CRnBody_ShouldCollide` | shapes of one body never collide | `src/Source2.Compiler/Simulation/BroadphaseShape.cs:8`, `src/Source2.Compiler/Simulation/CollisionFilter.cs:60` |
@@ -2693,7 +2715,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1801c02a0` | `RnSolverBody_SleepTest` |  | `src/Source2.Compiler/Simulation/Integrator.cs:285` |
 | `1801c0360` | `CRnBody_ApplyDesc` |  |  |
 | `1801c0880` | `CRnBody_UpdateMass` | the body's mass update | `src/Source2.Compiler/Maps/SettleWorld.World.cs:66`, `src/Source2.Compiler/Simulation/RnBodyState.cs:53`, `src/Source2.Compiler/Simulation/RnMassUpdate.cs:7` +1 |
-| `1801c0ff0` | `CRnBody_Wake` | an asleep body wakes; walks its touching lists +0x80, +0x88 | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:271`, `src/Source2.Compiler/Maps/SettleWorld.World.cs:80`, `src/Source2.Compiler/Simulation/ContactLifecycle.cs:103` +1 |
+| `1801c0ff0` | `CRnBody_Wake` | an asleep body wakes; walks its touching lists +0x80, +0x88 | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:295`, `src/Source2.Compiler/Maps/SettleWorld.World.cs:80`, `src/Source2.Compiler/Simulation/ContactLifecycle.cs:103` +1 |
 | `1801c6540` | `RnPairSet_Hash` | Murmur2-style mix of the two handles | `src/Source2.Compiler/Simulation/PairSet.cs:43` |
 | `1801d1170` | `CRnContact_ctor` |  | `src/Source2.Compiler/Simulation/RnWorld.cs:672` |
 | `1801d1390` | `RnCreateContact` |  | `src/Source2.Compiler/Simulation/Broadphase.cs:671`, `src/Source2.Compiler/Simulation/RnWorld.cs:671` |
@@ -2733,9 +2755,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1801eefd0` | `CRnWorld_AddAwakeBody` | appended to world +0xa00 | `src/Source2.Compiler/Simulation/ContactLifecycle.cs:73` |
 | `1801ef0c0` | `CRnWorld_ReactivateContact` | puts a contact back in the active contacts | `src/Source2.Compiler/Simulation/ContactLifecycle.cs:63` |
 | `1801ef120` | `CRnWorld_CreateBody` |  |  |
-| `1801ef300` | `CRnWorld_CreateConicalJoint` | ctor 180228c70, then CRnWorld_AddJoint | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:371` |
+| `1801ef300` | `CRnWorld_CreateConicalJoint` | ctor 180228c70, then CRnWorld_AddJoint | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:395` |
 | `1801ef380` | `CRnWorld_PersistTouchEvents` | not ported | `src/Source2.Compiler/Simulation/ContactLifecycle.cs:339`, `src/Source2.Compiler/Simulation/ContinuousSolve.cs:432` |
-| `1801f0750` | `CRnWorld_CreateRevoluteJoint` | 0x130 bytes: 1802135a0 (vtable 0x1803e07e8) or 180213270 | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:371` |
+| `1801f0750` | `CRnWorld_CreateRevoluteJoint` | 0x130 bytes: 1802135a0 (vtable 0x1803e07e8) or 180213270 | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:395` |
 | `1801f17e0` | `CRnContact_ProxiesOverlap` |  | `src/Source2.Compiler/Simulation/ContactLifecycle.cs:347` |
 | `1801f1dc0` | `CRnWorld_BuildNewContactsFromOverlappingPairQuery` |  | `src/Source2.Compiler/Simulation/Broadphase.cs:600`, `src/Source2.Compiler/Simulation/RnWorld.cs:643` |
 | `1801f5b70` | `CRnWorld_AppliedForceTest` | one body in the applied-force list (+0xa58) | `src/Source2.Compiler/Simulation/StepGlue.cs:50` |
@@ -2762,9 +2784,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180203980` | `CRnWorld_RemovePair` | out of the broadphase's pair set | `src/Source2.Compiler/Simulation/ContactLifecycle.cs:140`, `src/Source2.Compiler/Simulation/ContactLifecycle.cs:219` |
 | `180203d70` | `CRnWorld_WakeBodiesFromAppliedForces` |  | `src/Source2.Compiler/Simulation/RnWorld.cs:458`, `src/Source2.Compiler/Simulation/StepGlue.cs:113` |
 | `180203fc0` | `CRnWorld_NotifyWake` |  | `src/Source2.Compiler/Simulation/ContactLifecycle.cs:117` |
-| `1802042b0` | `CRnJoint_ctor` | flags +0x28 from the desc bytes 0x10..0x13 | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:353`, `src/Source2.Compiler/Simulation/JointSolver.cs:8` |
-| `180204d70` | `CRnJoint_FrictionTorque` | r ((\|g\| m) friction) (disassembly order), r = max(inertia radius, scaled anchor to mass centre) | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:478` |
-| `180204ff0` | `CRnJoint_FrictionSide` | body 2 unless static, else body 1; false when both static | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:473` |
+| `1802042b0` | `CRnJoint_ctor` | flags +0x28 from the desc bytes 0x10..0x13 | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:377`, `src/Source2.Compiler/Simulation/JointSolver.cs:8` |
+| `180204d70` | `CRnJoint_FrictionTorque` | r ((\|g\| m) friction) (disassembly order), r = max(inertia radius, scaled anchor to mass centre) | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:502` |
+| `180204ff0` | `CRnJoint_FrictionSide` | body 2 unless static, else body 1; false when both static | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:497` |
 | `1802054f0` | `CRnJoint_DestroyBodiesContacts` | with both bodies: 1801fe0b0 |  |
 | `1802055f0` | `CRnJoint_SetBodies` | edges prepended to body +0x70; activates or deactivates in islands | `src/Source2.Compiler/Simulation/IslandManagerOps.cs:774`, `src/Source2.Compiler/Simulation/JointSolver.cs:79`, `src/Source2.Compiler/Simulation/RnWorld.cs:309` +1 |
 | `180205a20` | `CRnJoint_SetAnchor1` | +0x90, divided by body 1's scale when the desc asks |  |
@@ -2791,7 +2813,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18021ac80` | `CRnRevoluteJoint_ScaleImpulses` | vtable +0x18 | `src/Source2.Compiler/Simulation/JointSolver.cs:99`, `src/Source2.Compiler/Simulation/RevoluteJoint.cs:289` |
 | `18021acf0` | `CRnRevoluteJoint_EnableLimit` | +0x100; clears the limit impulses |  |
 | `18021ad30` | `CRnRevoluteJoint_SetLimit` | +0x104 / +0x108 in radians |  |
-| `18021ade0` | `CRnRevoluteJoint_SetElasticity` | mode 0; frequency and threshold from 180204520, plasticity +0xf8 | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:400` |
+| `18021ade0` | `CRnRevoluteJoint_SetElasticity` | mode 0; frequency and threshold from 180204520, plasticity +0xf8 | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:424` |
 | `18021af30` | `CRnRevoluteJoint_SetFriction` | mode 1, torque from 180204d70 |  |
 | `18021b090` | `CRnRevoluteJoint_SetMode` | +0xe0; clears the motor impulse |  |
 | `18021bcd0` | `CRnRevoluteJoint_SolveVelocity` | record 5; motor clamp comiss + minss, limits maxss + minss | `src/Source2.Compiler/Simulation/JointRows.cs:255`, `src/Source2.Compiler/Simulation/RevoluteJoint.cs:122`, `src/Source2.Compiler/Simulation/RevoluteJoint.cs:239` |

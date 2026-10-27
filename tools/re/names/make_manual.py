@@ -714,12 +714,13 @@ RESOURCECOMPILER = [
     ("18105c330", "PhysObj_Build", ST, ""),
     ("18105ce70", "PhysMesh_OwnerRules", ST, "the owner entity's physics rules"),
     ("181f03210", "MapEntity_ModelPose", ST, "the node's model pose by bone name (181f02fa0's transforms, 0x20 each)"),
-    ("181f02fa0", "MapEntity_BoneTransforms", ST, "181f0bb60's cached model-space transforms at node +0x310 (count +0x308)"),
-    ("181f0bb60", "MapEntity_UpdateBoneTransforms", ST, "stored overrides (181efec40), the animation graph's pose (1817dd320), or the reference pose (18174dc50) without a graph"),
-    ("18174dc50", "Skeleton_ModelSpacePose", ST, "each bone CTransform_Compose onto its parent's, the root onto the identity"),
+    ("181f02fa0", "MapEntity_BoneTransforms", ST, "181f0bb60's model-space transforms: flag 0 the reference pose at node +0x310 (count +0x308), flag 1 the animation helper's at +0x328 (count +0x320); the aggregate pose (18105e100) passes 0 (ledger 166)"),
+    ("181f0bb60", "MapEntity_UpdateBoneTransforms", ST, "stored overrides (181efec40) into +0x328 and copied to +0x310; else the reference pose (18174dc50) into +0x310, and with an animation helper (node +0x2b0, vfn 0x90 its pose at helper +0x40) that pose through 1817dd320 into +0x328 (ledger 166)"),
+    ("18174dc50", "Skeleton_ModelSpacePose", ST, "locals (skeleton +0x98 position, +0xc8 scale in the w lane, +0xb0 rotation) composed onto the parent's (181253510), the root onto the given root; SettleWorld.ReferencePose / ModelSpace (ledger 166)"),
     ("181efec40", "MapEntity_StoredBoneTransforms", ST, "the entity's stored bone overrides"),
-    ("1817dd320", "AnimGraph_DefaultPose", ST, "the graph's default pose into model space (not ported)"),
+    ("1817dd320", "AnimPose_ToModelSpace", ST, "a pose's locals (pose +8, 0x20 each, count +0x1c, parents from its skeleton +0x180) composed onto the parent's (181253510), the root onto the given root, optional bone mask; SettleWorld.ModelSpace (ledger 166)"),
     ("181749d20", "BonePose_Find", ST, "a bone's transform by name hash; the aggregate pose's override (rc 18105e18a)"),
+    ("181eff710", "MapEntity_Animate", ST, "the node's animation step: under its gates calls the helper's update (node +0x2b0 vfn 0x88), then 181f06cf0; reached from 181f09c60"),
     ("18105d760", "PhysMesh_Build", ST, "a map mesh's static body and shapes"),
     ("18105dbd0", "PhysPart_BuildFromModel", ST, ""),
     ("1810557d0", "PhysPart_AddSphere", ST, "centre through the part matrix (identity when the scale is uniform), radius times the largest scale, shape scale 1; a lattice makes a mesh"),
@@ -3247,6 +3248,19 @@ MODTOOLS_1023 = [
     ("18002e190", "CModTools_VDataStripRules", CT, "Source2ModTools001 (object 180ef5be0) vfn 0x80: a thread-safe static list of one rule, {\"scripts/weapons.vdata\", 1, \"weapon_m14\"} (built at 18002e1ef); its fingerprint is 2278732723"),
 ]
 
+# animationsystem.dll 20261023 (installed; tools/re/binaries/animationsystem_20261023.dll): the map entity's animation helper (ledger 166).
+ANIMATIONSYSTEM_1023 = [
+    ("180723108", "CAnimationHelper::vftable", ST, "the object at a map entity's node +0x2b0 in resourcecompiler"),
+    ("18006d560", "CAnimationHelper::vf0", ST, "vfn 0: the model at +8 (refcounted), its pose (+0x40) set from the skeleton (1804abdb0), sequence slots, bone masks"),
+    ("18006cd20", "CAnimationHelper::Pose", ST, "vfn 0x90: helper +0x40"),
+    ("18006ce40", "CAnimationHelper::vf38", ST, "vfn 0x130: the byte at +0x249"),
+    ("18006f450", "CAnimationHelper::Update", ST, "vfn 0x88: without +0x249 and with no graph instance (+0x150) the sequence decode (1804ab6f0 context, 18006e920 sequences, 1804ab9d0 desc, 1804ab850, the animation system's vfn 0x68); changes ctm_sas's pose, leaves the chicken's (capture); not ported (rc's aggregate pose does not read it)"),
+    ("1804abdb0", "AnimPose_SetSkeleton", ST, "the pose's skeleton (refcounted at +0), its transform buffer (+8) and mask, count +0x1c; the locals from 1804acdd0"),
+    ("1804acdd0", "Skeleton_ReferencePose", ST, "per bone {position +0x98 (12 bytes), scale +0xc8, rotation +0xb0} into 0x20-byte transforms; SettleWorld.ReferencePose"),
+    ("1804ab9d0", "CAnimationDecodeContext::AddAnimationDecodeDesc", ST, "0x50-byte desc from the scratch pool"),
+    ("1804b5690", "AnimObjectList_Vfn38", ST, "each object at +0x368 (count +0x360) through its vfn 0x38, results ORed; called once in ctm_sas's update"),
+]
+
 # bc7e.dll as installed (PE time 2026-01-01; unchanged by the 10-15 update), copied as bc7e_20261015.dll.
 BC7E = [
     ("180001000", "bc7e_DetectTarget", BAKE, "cpuid / xgetbv: 5 AVX-512 SKX, 4 AVX-512 KNL, 3 AVX2, 2 AVX, 1 SSE4, 0 SSE2"),
@@ -3279,6 +3293,7 @@ if __name__ == "__main__":
     write("resourcecompiler_20261023.manual.json", RESOURCECOMPILER_1023)
     write("modtools_20261023.manual.json", MODTOOLS_1023)
     write("bc7e_20261015.manual.json", BC7E)
+    write("animationsystem_20261023.manual.json", ANIMATIONSYSTEM_1023)
     write("client_20261015.manual.json", CLIENT_1015)
     write("client_20261021.manual.json", CLIENT_1021)
     write("client_20261023.manual.json", CLIENT_1023)

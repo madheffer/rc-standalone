@@ -55,12 +55,12 @@ map loading ─┬─ mesh export ─┬─ trace scene ── visibility ─┬
              └─ static props ─┘                            └─ nav
 ```
 
-| module | doc | state (2026-10-27) |
+| module | doc | state (2026-10-28) |
 |---|---|---|
 | containers and packaging | [CONTAINERS.md](CONTAINERS.md), [RESOURCES.md](RESOURCES.md) | 98%: every container authored; KV3 v5, VPK and the map root (.vmap_c) byte for byte on all 40 Valve references; Hammer's Only Entities preset whole-package exact |
 | geometry | [GEOMETRY.md](GEOMETRY.md) | 99%: probe01's -world package equals Valve's but a per-compile stamp; ze_hold_em_p world 100% |
 | visibility | [VISIBILITY.md](VISIBILITY.md) | 100% of the deterministic build: byte-identical VXVS from the .vmap on five maps incl. atixref-sized s2c_prefabprobe4 and split hints (2026-10-23); `-oldvis` is not reproducible in Valve's own tool |
-| physics | [PHYSICS.md](PHYSICS.md) | 98%: world_physics and entity models whole-file exact on every map with a compile, incl. cables and deformers placed through instances and prefabs (ledgers 128-133); ragdolls in the settle under way: both joint types' solver functions oracle-exact, every motor mode (ledgers 135, 136, 138), next the joint wrapper, islands and the aggregate build (PHYSICS.md roadmap); left besides: instances inside prefab maps for entity models, render meshes |
+| physics | [PHYSICS.md](PHYSICS.md) | 98%: world_physics and entity models whole-file exact on every map with a compile, incl. cables and deformers placed through instances and prefabs (ledgers 128-133); ragdolls in the settle: joints, islands and the aggregate build with its pose exact (ledgers 135-166), the stepped settle exact through step 98, next the step 99 difference and the write-back (PHYSICS.md roadmap); left besides: instances inside prefab maps for entity models, render meshes |
 | entity lump | [ENTITIES.md](ENTITIES.md), [SETTLE.md](SETTLE.md) | 99.9%: every lump of every pinned map and all 15 prefab, instance and deformer probes exact; the 14 prefab corpus maps against fresh Valve references (2026-10-23) differ only in Valve's run-to-run settle poses; left: two orders read from output only (GROUND_TRUTH 46) |
 | baked outputs | [BAKED.md](BAKED.md), [CUBEMAPS.md](CUBEMAPS.md) | 85%: lightmaps, probes, far field, fog, nav (markups and round shapes, ledgers 142-143, 146), bomb damage and .vmap_c done; cubemaps: probe01's two cubes and whole array rendered with no RenderDoc dump, byte for byte (ledger 162); the world draw list and layer selection equal on probe01, s2c_l5probe and atixref; next the scene's inputs from the package |
 | own lighting (vrad3 port) | [VRAD3.md](VRAD3.md), [LIGHTING_ROADMAP.md](LIGHTING_ROADMAP.md) | 94%: `compile-map -s2cbake` bakes with no vrad3; ze_hold_em_p 99.90% of bytes |
@@ -139,14 +139,15 @@ the addon).
    loading; atixref with an agent needs `--timeout 1500`. Layer objects are reused across views and frames, so
    pair logged records by address and fields.
 2. **Ragdolls in the settle** ([PHYSICS.md](PHYSICS.md) "Aggregates in the settle", ledgers 135, 136,
-   138): props whose model has several physics parts or joints (the CT agents of s2c_ragdollprobe)
-   settle through their joints and write boneTransforms; the settle refuses them today. Done: both
-   joint types' solver functions, and the joint stream in the island solve (wrapper, dispatches, break
-   test; ledger 158, JointStreamOracleTests), oracle-exact, and joints in the island manager and SetType
-   (ledger 160, the capture's step-0 islands slot for slot). Left, in order: the aggregate build from the model (ledger 161: bodies, shapes and all 56 joints
-   exact; open the model pose's last ulps, from the animation graph's default pose, 1817dd320), lockstep against
-   the capture, the boneTransforms write-back. Valve's truth capture recipe is in PHYSICS.md and
-   tools/re/out/settle_notes/notes_joints.md.
+   138, 158, 160, 161, 166): props whose model has several physics parts or joints (the CT agents of
+   s2c_ragdollprobe) settle through their joints and write boneTransforms; the settle refuses them today.
+   Done: both joint types, the joint stream, joints in the island manager, and the aggregate build with its
+   pose (ledger 166, 2026-10-28: the reference pose with each bone's m_boneScaleParent; resourcecompiler
+   never reads the animation graph's pose for it). AggregateBuildCaptureTests passes whole. RagdollLockstepTests:
+   the stepped settle equals Valve's before every step through 99; the agent at (80, 360) differs from step
+   99 on (Valve's own runs agree to step 110, so it is ours). Left, in order: Valve's contacts at step 99 (a new
+   probe), the fix, lockstep to the end, then the boneTransforms write-back (PHYSICS step 7). Recipe and
+   captures: PHYSICS.md step 6, tools/re/out/settle_notes/notes_joints.md.
 3. **.vmap_c**: done (ledger 119). Every Valve root byte for byte (25 lit,
    15 unlit), and Hammer's Only Entities preset whole-package exact. Left:
    the context's +0x605 flag, unread.
@@ -189,7 +190,21 @@ the addon).
     rebuilt) and server.dll's script API; first get a pre-update `.vjs_c` to see
     what changed, and Valve's fresh `cs_script_demo` compile as the reference.
 
-## Latest session (2026-10-27 evening, a cubemap face with no dump)
+## Latest session (2026-10-28, the ragdoll pose and the first lockstep)
+
+Ledger 166; PHYSICS.md steps 5a and 6. CS2 closed, Steam open (resourcecompiler captures only).
+
+- animationsystem.dll 20261023 is now in the Ghidra project (alias-free: `revaq.py dec animationsystem_20261023.dll`).
+- Probes (tools/settle/probes): settle_pose.js (rc's node pose build and 1817dd320's locals and output),
+  settle_posewriter.js (which CAnimationHelper call changes its pose), settle_poseupdate_calls.js (Stalker list of
+  the update's calls), settle_fine_steps.js (body dumps at every step 91..130).
+- The aggregate's pose is node +0x310, the skeleton's reference pose with per-bone scales; our missing scale was the
+  whole difference. AggregateBuildCaptureTests and the new ModelPoseCaptureTests pass.
+- RagdollLockstepTests (new): exact before every step through 99, then one agent differs. Next is Valve's contacts at
+  step 99.
+- The suite was not run in full.
+
+## Earlier session (2026-10-27 evening, a cubemap face with no dump)
 
 Ledger 162; CUBEMAPS.md "A face with no dump". Branch feat/cube-nodump (worktree source2-compiler-wt-cube, made because
 the ragdoll session's files in the shared checkout did not build), cherry-picked onto research/map-authoring.

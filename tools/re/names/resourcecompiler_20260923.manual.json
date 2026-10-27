@@ -3988,19 +3988,19 @@
    "addr": "181f02fa0",
    "name": "MapEntity_BoneTransforms",
    "module": "s2c:entities/settle",
-   "note": "181f0bb60's cached model-space transforms at node +0x310 (count +0x308)"
+   "note": "181f0bb60's model-space transforms: flag 0 the reference pose at node +0x310 (count +0x308), flag 1 the animation helper's at +0x328 (count +0x320); the aggregate pose (18105e100) passes 0 (ledger 166)"
   },
   {
    "addr": "181f0bb60",
    "name": "MapEntity_UpdateBoneTransforms",
    "module": "s2c:entities/settle",
-   "note": "stored overrides (181efec40), the animation graph's pose (1817dd320), or the reference pose (18174dc50) without a graph"
+   "note": "stored overrides (181efec40) into +0x328 and copied to +0x310; else the reference pose (18174dc50) into +0x310, and with an animation helper (node +0x2b0, vfn 0x90 its pose at helper +0x40) that pose through 1817dd320 into +0x328 (ledger 166)"
   },
   {
    "addr": "18174dc50",
    "name": "Skeleton_ModelSpacePose",
    "module": "s2c:entities/settle",
-   "note": "each bone CTransform_Compose onto its parent's, the root onto the identity"
+   "note": "locals (skeleton +0x98 position, +0xc8 scale in the w lane, +0xb0 rotation) composed onto the parent's (181253510), the root onto the given root; SettleWorld.ReferencePose / ModelSpace (ledger 166)"
   },
   {
    "addr": "181efec40",
@@ -4010,15 +4010,21 @@
   },
   {
    "addr": "1817dd320",
-   "name": "AnimGraph_DefaultPose",
+   "name": "AnimPose_ToModelSpace",
    "module": "s2c:entities/settle",
-   "note": "the graph's default pose into model space (not ported)"
+   "note": "a pose's locals (pose +8, 0x20 each, count +0x1c, parents from its skeleton +0x180) composed onto the parent's (181253510), the root onto the given root, optional bone mask; SettleWorld.ModelSpace (ledger 166)"
   },
   {
    "addr": "181749d20",
    "name": "BonePose_Find",
    "module": "s2c:entities/settle",
    "note": "a bone's transform by name hash; the aggregate pose's override (rc 18105e18a)"
+  },
+  {
+   "addr": "181eff710",
+   "name": "MapEntity_Animate",
+   "module": "s2c:entities/settle",
+   "note": "the node's animation step: under its gates calls the helper's update (node +0x2b0 vfn 0x88), then 181f06cf0; reached from 181f09c60"
   },
   {
    "addr": "18105d760",

@@ -1,0 +1,58 @@
+{
+ "functions": [
+  {
+   "addr": "180723108",
+   "name": "CAnimationHelper::vftable",
+   "module": "s2c:entities/settle",
+   "note": "the object at a map entity's node +0x2b0 in resourcecompiler"
+  },
+  {
+   "addr": "18006d560",
+   "name": "CAnimationHelper::vf0",
+   "module": "s2c:entities/settle",
+   "note": "vfn 0: the model at +8 (refcounted), its pose (+0x40) set from the skeleton (1804abdb0), sequence slots, bone masks"
+  },
+  {
+   "addr": "18006cd20",
+   "name": "CAnimationHelper::Pose",
+   "module": "s2c:entities/settle",
+   "note": "vfn 0x90: helper +0x40"
+  },
+  {
+   "addr": "18006ce40",
+   "name": "CAnimationHelper::vf38",
+   "module": "s2c:entities/settle",
+   "note": "vfn 0x130: the byte at +0x249"
+  },
+  {
+   "addr": "18006f450",
+   "name": "CAnimationHelper::Update",
+   "module": "s2c:entities/settle",
+   "note": "vfn 0x88: without +0x249 and with no graph instance (+0x150) the sequence decode (1804ab6f0 context, 18006e920 sequences, 1804ab9d0 desc, 1804ab850, the animation system's vfn 0x68); changes ctm_sas's pose, leaves the chicken's (capture); not ported (rc's aggregate pose does not read it)"
+  },
+  {
+   "addr": "1804abdb0",
+   "name": "AnimPose_SetSkeleton",
+   "module": "s2c:entities/settle",
+   "note": "the pose's skeleton (refcounted at +0), its transform buffer (+8) and mask, count +0x1c; the locals from 1804acdd0"
+  },
+  {
+   "addr": "1804acdd0",
+   "name": "Skeleton_ReferencePose",
+   "module": "s2c:entities/settle",
+   "note": "per bone {position +0x98 (12 bytes), scale +0xc8, rotation +0xb0} into 0x20-byte transforms; SettleWorld.ReferencePose"
+  },
+  {
+   "addr": "1804ab9d0",
+   "name": "CAnimationDecodeContext::AddAnimationDecodeDesc",
+   "module": "s2c:entities/settle",
+   "note": "0x50-byte desc from the scratch pool"
+  },
+  {
+   "addr": "1804b5690",
+   "name": "AnimObjectList_Vfn38",
+   "module": "s2c:entities/settle",
+   "note": "each object at +0x368 (count +0x360) through its vfn 0x38, results ORed; called once in ctm_sas's update"
+  }
+ ]
+}
