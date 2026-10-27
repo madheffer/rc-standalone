@@ -115,16 +115,14 @@ Open:
      iterated before them in every velocity and position iteration (RnSolver_SolveSerial). Exact against
      Valve's own functions on random mixed islands (JointStreamOracleTests). WorldSolver.SolveIsland gets
      joints with step 4, which puts them in the islands.
-  4. Joints in the island manager (notes_joints.md "Islands"; today
-     IslandManagerOps.cs, WorldSolver.cs:66 and ContinuousSolve.cs:354
-     throw on a body with joints): CRnWorld_AddJoint 1801fd720 and
-     CRnJoint_SetBodies 1802055f0 (body +0x70 edge list, tagged pointers),
-     activate 1802cb0a0, deactivate 1802cd5b0, append 1802ca9c0 with the
-     colouring's joint buckets, merge 1802cc790 and the split flood fill
-     1802ce7b0 (joints first in both), SetType 1801bd3e0's leave-and-return
-     (1802ccbb0, 1802ce270, impulses scaled by 0 through vtable +0x18), and
-     WorldSolver's JoinedToDynamic walk of body +0x70. Check: the capture's
-     islands at steps 0..3 (13 holes, joint order 12, 11, 2, 3, 0, ...).
+  4. Done (2026-10-27, ledger 160): joints in the island manager. RnWorld.AddJoint (world lists, body edges,
+     the pair filter's list, wake, island state), IslandManagerOps' ActivateJoint / DeactivateJoint /
+     AppendJoint / RemoveJoint, joints first in the merge, the split's flood fill and the colouring (ten joint
+     colours), and SetType (RnWorld.SetType: leave, type, impulses times 0, return). WorldSolver solves an
+     island's joints and walks body +0x70 for NoDynamicContact. RagdollIslandsCaptureTests (RAGDOLL = the
+     capture's events.jsonl, a copy in %TEMP%/settle_capture/s2c_ragdollprobe) equals both step-0 islands
+     slot for slot. Not checked yet: the split with joints (needs the stepped settle); refused: joints in a
+     coloured island, broken joints, the TOI solve of a jointed body.
   5. The aggregate build (CPhysAggregateInstance, vphysics2 180042ba0, from
      rc's PhysPart_BuildFromModel 18105dbd0 when parts >= 2 or joints >= 1):
      bodies per part at xf o bind pose (180045630), shapes, mass, inertia

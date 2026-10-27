@@ -4304,6 +4304,31 @@ game can answer is raised with the user first, and runs with -insecure.
       order of the alpha-tested prepass within its pass, and the remaining items of 157 (CPVS's octree walk for
       the fragment's 0x20, the cull's +0xc fade bit).
 
+160. **Joints in the island manager and SetType** (2026-10-27: decompile of vphysics2 0924's 1801fd720, 1802055f0,
+    1801fe0b0, 1802cb0a0, 1802ca9c0, 1802cb9e0, 1802ccef0, 1802cd5b0, 1802cc790, 1802ce050, 1802cc600, 1802ce7b0,
+    1802cc290, 1802ccbb0, 1802ce270, 1802cc370, 1801bd3e0, 1801b6000, 180333110, 180332cd0, 180332bb0, 180332b80,
+    18022c400; Simulation/IslandManagerOps.cs, RnWorld.cs, WorldSolver.cs; RagdollIslandsCaptureTests).
+    - Settled from the code: CRnWorld_AddJoint puts a joint in world +0x6a8 (type != 0) or +0x6b8 and on its
+      bodies (a body with +0x4a bit 2 is dropped, one body twice drops both; edges prepended to body +0x70; the
+      pair filter 1801bdea0 walks them). A joint is an island edge when it is in the world, of a type other than
+      0, not disabled, has both bodies, neither out of the manager (+0x45 == 3), and one dynamic. Activation and
+      deactivation are the contact ones (larger heap island, ties to body 2; holes; split pending), joints
+      appended before type-1 and contacts in a merge and walked first per body in the split's flood fill.
+      Colouring also starts at joints / 8 >= 25; joints take the lowest of ten colours (mask bits 0..9).
+    - SetType (1801bd3e0): the body leaves the manager unless +0x45 == 3 (its active joints deactivated in edge
+      order, then contacts, the node out, +0x45 = 3), the type and static flag set, to dynamic every joint's
+      impulses scaled by 0 (vtable +0x18), then back for an enabled body in the world (+0x45 = 0, node added,
+      each joint re-evaluated in edge order), then the wake. RnSolverBody_Build's NoDynamicContact walk: a
+      dynamic body with an active joint to another dynamic body.
+    - Exact against the capture: s2c_ragdollprobe's two dynamic aggregates replayed as recorded (bodies keyframed
+      at creation, joints in world order, SetType 2 in the captured order) give both step-0 islands slot for slot
+      (28 slots, 13 holes, the bodies' order), the joints' island order (12, 11, 2, 3, 0, 1, 7, ...), awake
+      counts, iteration maxima and every joint's active flag, colour, island index and solver indices; the two
+      undynamic aggregates' joints stay inactive.
+    - Open: the split's result (by step 100 Valve's islands have 16 bodies and no holes, with ground contacts)
+      waits for the stepped settle (step 6); joints in coloured islands' colour jobs and the step's broken-joint
+      pass throw; the TOI solve with joints is not read.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

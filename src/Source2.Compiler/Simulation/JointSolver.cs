@@ -10,9 +10,13 @@ namespace Source2.Compiler.Simulation;
 [StructLayout(LayoutKind.Explicit, Size = 0xb4)]
 public struct JointCommon
 {
+    /// <summary>+0x08: index in the world's joint list, -1 out of the world.</summary>
+    [FieldOffset(0x08)] public int WorldIndex;
+
     /// <summary>+0x0c: the joint type (3 revolute, 10 conical).</summary>
     [FieldOffset(0x0c)] public int Type;
 
+    /// <summary>+0x28: bit 0 disabled, bit 1 collision between the bodies, bit 2 no linear part, bit 3 no angular part.</summary>
     [FieldOffset(0x28)] public ushort Flags;
 
     /// <summary>+0x2a: added to the bodies' solve priority difference.</summary>
@@ -21,9 +25,20 @@ public struct JointCommon
     [FieldOffset(0x2b)] public byte IgnoreInfiniteMass;
     [FieldOffset(0x2c)] public byte IgnoreInfiniteInertia;
 
+    /// <summary>+0x38: index in its colour bucket; +0x3c: index in its island's joint list.</summary>
+    [FieldOffset(0x38)] public int BucketIndex;
+    [FieldOffset(0x3c)] public int IslandIndex;
+
+    /// <summary>+0x40: the colour (0..9, 16 overflow, 0xff none); +0x41: an island edge.</summary>
+    [FieldOffset(0x40)] public byte Colour;
+    [FieldOffset(0x41)] public byte Active;
+
     /// <summary>+0x68/+0x6c: the island's solver body indices of body 1 and body 2.</summary>
     [FieldOffset(0x68)] public int SolverA;
     [FieldOffset(0x6c)] public int SolverB;
+
+    /// <summary>+0xa8: the solver size estimate (the record with its header).</summary>
+    [FieldOffset(0xa8)] public int Size;
 
     /// <summary>+0xac: the joint breaks when its linear impulse (vtable +8) is above this, if positive.</summary>
     [FieldOffset(0xac)] public float BreakImpulse;
@@ -61,6 +76,12 @@ public sealed class RnJoint
 
     public ref JointCommon Common => ref MemoryMarshal.AsRef<JointCommon>(_memory.AsSpan());
 
+    /// <summary>+0x18 / +0x20: the two bodies (FUN_1802055f0 clears a disabled body, or both when they are one).</summary>
+    public RnBody? Body1, Body2;
+
+    /// <summary>+0x30: the island it is an edge of.</summary>
+    public RnIsland? Island;
+
     public int Type => Common.Type;
 
     public ref ConicalJointState Conical => ref MemoryMarshal.AsRef<ConicalJointState>(_memory.AsSpan());
@@ -74,6 +95,22 @@ public sealed class RnJoint
         RevoluteType => Marshal.SizeOf<RevoluteRecord>(),
         _ => throw new NotSupportedException($"joint type {Type} is not ported"),
     };
+
+    /// <summary>The accumulated impulses times a factor (vtable +0x18: FUN_18022c400 conical, FUN_18021ac80 revolute).</summary>
+    public void ScaleImpulses(float s)
+    {
+        if (Type == RevoluteType)
+        {
+            RevoluteJoint.ScaleImpulses(ref Revolute, s);
+            return;
+        }
+        ref var j = ref Conical;
+        j.MotorImpulse = new(s * j.MotorImpulse.X, s * j.MotorImpulse.Y, s * j.MotorImpulse.Z);
+        j.TwistLowImpulse = s * j.TwistLowImpulse;
+        j.TwistHighImpulse = j.TwistHighImpulse * s;
+        j.SwingImpulse = j.SwingImpulse * s;
+        j.LinearImpulse = new(j.LinearImpulse.X * s, j.LinearImpulse.Y * s, s * j.LinearImpulse.Z);
+    }
 
     /// <summary>|linear impulse| (vtable +8: FUN_180229630 conical, FUN_180206f10 revolute).</summary>
     internal float LinearImpulse()

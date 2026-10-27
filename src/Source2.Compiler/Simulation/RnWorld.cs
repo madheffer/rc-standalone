@@ -47,6 +47,12 @@ public sealed class RnIsland : IslandNode
     /// <summary>+0x10/+0x18: solver body index = position here.</summary>
     public List<RnBody?> Bodies = [];
 
+    /// <summary>+0x38: the island's joints; a joint's index is joint +0x3c.</summary>
+    public readonly List<RnJoint> Joints = [];
+
+    /// <summary>+0x90: the joints' solver size estimates (joint +0xa8).</summary>
+    public int JointSize;
+
     /// <summary>+0x58 (contact +0x7a == 0) and +0x68 (== 1).</summary>
     public readonly List<RnContact>[] Contacts = [[], []];
 
@@ -79,12 +85,18 @@ public sealed class RnIsland : IslandNode
 /// FUN_180333110): 17 buckets of 0x50, one per colour and the last (16) for
 /// constraints no colour was free for. A bucket keeps four lists (+0x00
 /// joints, +0x10 type-1, +0x20 contacts between two dynamic bodies, +0x30
-/// the other contacts) and their size estimates (+0x40..+0x4c). Joints and
-/// type-1 constraints are not ported, so only the contact lists are kept.
+/// the other contacts) and their size estimates (+0x40..+0x4c). Type-1
+/// constraints are not ported, so their list is not kept.
 /// </summary>
 public sealed class IslandColouring
 {
     public const int Overflow = 16;
+
+    /// <summary>Bucket +0x00: joints per bucket (colours 0..9 and the overflow); a joint's index is joint +0x38.</summary>
+    public readonly List<RnJoint>[] Joints = new List<RnJoint>[17];
+
+    /// <summary>Bucket +0x40: the sum of the joints' size estimates (joint +0xa8).</summary>
+    public readonly int[] JointSizes = new int[17];
 
     /// <summary>Contacts per bucket and group (contact +0x7a); a contact's index is contact +0x58.</summary>
     public readonly List<RnContact>[,] Contacts = new List<RnContact>[17, 2];
@@ -95,8 +107,11 @@ public sealed class IslandColouring
     public IslandColouring()
     {
         for (var b = 0; b < 17; b++)
+        {
+            Joints[b] = [];
             for (var g = 0; g < 2; g++)
                 Contacts[b, g] = [];
+        }
     }
 }
 
@@ -291,9 +306,16 @@ public sealed class RnBody
     public readonly BodyNode Node;
 
     /// <summary>
+    /// +0x70: the joints on the body, newest first (FUN_1802055f0 prepends),
+    /// with the half the body is (0 body 1, 1 body 2).
+    /// </summary>
+    public readonly List<(RnJoint Joint, int Half)> JointEdges = [];
+
+    /// <summary>
     /// The island map (FUN_1802ce2d0): state 0 empty, 1 one inline entry, 2 a
-    /// hash map (a static body in several islands). The hash map's order is
-    /// never walked by the step, so a dictionary stands in for it.
+    /// hash map (a static body in several islands), 3 out of the manager
+    /// while SetType runs (+0x45). The hash map's order is never walked by
+    /// the step, so a dictionary stands in for it.
     /// </summary>
     public byte MapState;
     public RnIsland? MapIsland;
@@ -359,6 +381,12 @@ public sealed class RnWorld
 
     /// <summary>+0x758: contacts destroyed and not yet freed (<see cref="FreeDestroyed"/>).</summary>
     public readonly List<RnContact> Destroyed = [];
+
+    /// <summary>+0x6a8 (joints of a type other than 0) and +0x6b8 (type 0); a joint's index is joint +8.</summary>
+    public readonly List<RnJoint>[] Joints = [[], []];
+
+    /// <summary>World +0x88 +0x30: joints that broke in a solve.</summary>
+    public readonly List<RnJoint> BrokenJoints = [];
 
     public readonly IslandManager Islands = new();
 
@@ -501,22 +529,75 @@ public sealed class RnWorld
     }
 
     /// <summary>
-    /// The part of SetType(2) (FUN_1801bd3e0) a body without contacts needs:
-    /// its node leaves the manager and joins again at the end (FUN_1802ccbb0,
-    /// FUN_1802ce270), and its proxies move to the dynamic tree
-    /// (FUN_1802d7560). The mass update it also runs is not ported: the
-    /// caller sets the body's mass properties.
+    /// SetType (FUN_1801bd3e0) as far as a body without contacts needs it:
+    /// out of the island manager (its active joints deactivated, FUN_1802ccbb0),
+    /// the type and static flag set, its proxies to the tree for the type
+    /// (FUN_1802d7560), to dynamic each joint's impulses scaled by 0
+    /// (vtable +0x18), then back (FUN_1802ce270: node added, joints
+    /// re-evaluated). The mass update it also runs is not ported: the caller
+    /// sets the body's mass properties. The wake at its end is the caller's.
     /// </summary>
-    public void MakeDynamic(RnBody body)
+    public void SetType(RnBody body, byte type)
     {
         if (body.Shapes.Any(s => s.Heads.Any(h => h != null)))
             throw new NotSupportedException("SetType on a body with contacts");
-        IslandManagerOps.RemoveNode(Islands, body.Node);
-        body.State.BodyType = 2;
-        body.Static = false;
+        if (body.MapState != 3)
+            IslandManagerOps.Leave(Islands, body);
+        body.State.BodyType = type;
+        body.Static = type == 0;
         foreach (var s in body.Shapes)
             Broadphase?.ReselectTree(s.Proxy);
-        IslandManagerOps.AddNode(Islands, body.Node);
+        if (type == 2)
+            foreach (var (j, _) in body.JointEdges)
+                j.ScaleImpulses(0f);
+        IslandManagerOps.Return(Islands, body);
+    }
+
+    /// <summary>SetType(2).</summary>
+    public void MakeDynamic(RnBody body) => SetType(body, 2);
+
+    /// <summary>
+    /// CRnWorld_AddJoint (FUN_1801fd720): the joint goes in its world list and
+    /// on its bodies (FUN_1802055f0: a disabled body (+0x4a bit 2) is dropped,
+    /// one body twice drops both; the edges are prepended, the pair filter
+    /// learns the pair, dynamic bodies wake when the joint is enabled, and the
+    /// joint becomes an island edge when <see cref="IslandManagerOps.ShouldBeActive"/>).
+    /// An enabled joint without collision then destroys the bodies' contacts
+    /// (FUN_1801fe0b0), which a body without contacts has none of.
+    /// </summary>
+    public void AddJoint(RnJoint j, RnBody? body1, RnBody? body2)
+    {
+        ref var c = ref j.Common;
+        var list = Joints[c.Type != 0 ? 0 : 1];
+        c.WorldIndex = list.Count;
+        list.Add(j);
+
+        if (body1 != null && (body1.State.Flags4A & 4) != 0)
+            body1 = null;
+        if (body2 != null && (body2.State.Flags4A & 4) != 0)
+            body2 = null;
+        if (body1 == body2)
+            body1 = body2 = null;
+        if (c.Active != 0)
+            IslandManagerOps.DeactivateJoint(Islands, j);
+        j.Body1 = body1;
+        j.Body2 = body2;
+        body1?.JointEdges.Insert(0, (j, 0));
+        body2?.JointEdges.Insert(0, (j, 1));
+        if (body1 != null && body2 != null)
+        {
+            body1.Proxy.Joints.Insert(0, (body2.Proxy, c.Flags));
+            body2.Proxy.Joints.Insert(0, (body1.Proxy, c.Flags));
+        }
+        if ((c.Flags & 1) == 0)
+            foreach (var b in new[] { body1, body2 })
+                if (b != null && b.State.BodyType == 2)
+                    ContactLifecycle.Wake(this, b, false);
+        IslandManagerOps.UpdateJoint(Islands, j);
+
+        if ((c.Flags & 1) == 0 && (c.Flags & 2) == 0 && body1 != null && body2 != null
+            && body1.Shapes.Concat(body2.Shapes).Any(s => s.Heads.Any(h => h != null)))
+            throw new NotSupportedException("a joint between bodies with contacts (FUN_1801fe0b0) is not ported");
     }
 
     /// <summary>
@@ -545,6 +626,8 @@ public sealed class RnWorld
         Observe?.Invoke(this, StepPhase.Collided);
         ContactLifecycle.Flush(this, collide);
         WorldSolver.Solve(this, dt, first, new SolveLists());
+        if (BrokenJoints.Count > 0)
+            throw new NotSupportedException("a joint broke (the step's broken-joint pass) and breaking is not ported");
         BuildNewContacts();
         WorldSolver.GatherContinuous(this);
         (SolveContinuous ?? ContinuousSolve.Run)(this, dt);

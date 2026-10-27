@@ -997,6 +997,42 @@
    "note": "vtable +0x10: length of the hinge impulses +0x118/+0x11c"
   },
   {
+   "addr": "1802054f0",
+   "name": "CRnJoint_DestroyBodiesContacts",
+   "module": "s2c:entities/settle",
+   "note": "with both bodies: 1801fe0b0"
+  },
+  {
+   "addr": "1801fe0b0",
+   "name": "CRnWorld_DestroyContactsBetween",
+   "module": "s2c:entities/settle",
+   "note": "every contact between two bodies destroyed (1801f7450), walking the body with fewer shapes"
+  },
+  {
+   "addr": "1802ccef0",
+   "name": "RnIslandManager_RemoveJoint",
+   "module": "s2c:entities/settle",
+   "note": "as a contact: swap-remove at joint +0x3c, holes for released bodies, colour bucket at +0x38"
+  },
+  {
+   "addr": "1802ca6c0",
+   "name": "RnIslandColouring_AssignJoint",
+   "module": "s2c:entities/settle",
+   "note": "lowest clear bit of the dynamic bodies' masks & 0x3ff, 10 -> overflow 16"
+  },
+  {
+   "addr": "18022c400",
+   "name": "CRnConicalJoint_ScaleImpulses",
+   "module": "s2c:entities/settle",
+   "note": "vtable +0x18: +0x128..+0x148 times s"
+  },
+  {
+   "addr": "1801b90f0",
+   "name": "CRnBody_IsDisabled",
+   "module": "s2c:entities/settle",
+   "note": "+0x4a bit 2"
+  },
+  {
    "addr": "1801fd720",
    "name": "CRnWorld_AddJoint",
    "module": "s2c:entities/settle",

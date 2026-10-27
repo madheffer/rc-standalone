@@ -347,11 +347,16 @@ public static class ContinuousSolve
         return 1;
     }
 
-    /// <summary>The joint walk of RnSolverBody_Build; with no joints ported, a body with one throws.</summary>
+    /// <summary>The joint walk of RnSolverBody_Build (FUN_1801b6000), as WorldSolver's.</summary>
     private static bool JoinedToDynamic(RnBody b)
     {
-        if (b.State.JointHead != 0)
-            throw new NotSupportedException("joints (the body +0x70 edge list) are not ported");
+        if (b.State.JointHead != 0 && b.JointEdges.Count == 0)
+            throw new NotSupportedException("the body has joints (+0x70) the world does not hold");
+        if (b.State.BodyType != 2)
+            return false;
+        foreach (var (j, half) in b.JointEdges)
+            if (j.Common.Active != 0 && (half == 0 ? j.Body2 : j.Body1) is { } other && other.State.BodyType == 2)
+                return true;
         return false;
     }
 

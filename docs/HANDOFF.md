@@ -137,7 +137,8 @@ the addon).
    138): props whose model has several physics parts or joints (the CT agents of s2c_ragdollprobe)
    settle through their joints and write boneTransforms; the settle refuses them today. Done: both
    joint types' solver functions, and the joint stream in the island solve (wrapper, dispatches, break
-   test; ledger 158, JointStreamOracleTests), oracle-exact. Left, in order: joints in the island manager, the aggregate build from the model, lockstep against
+   test; ledger 158, JointStreamOracleTests), oracle-exact, and joints in the island manager and SetType
+   (ledger 160, the capture's step-0 islands slot for slot). Left, in order: the aggregate build from the model, lockstep against
    the capture, the boneTransforms write-back. Valve's truth capture recipe is in PHYSICS.md and
    tools/re/out/settle_notes/notes_joints.md.
 3. **.vmap_c**: done (ledger 119). Every Valve root byte for byte (25 lit,

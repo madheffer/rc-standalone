@@ -23,8 +23,8 @@ public sealed class SolveLists
 /// <remarks>
 /// One thread's order. Every list the worker fills is sorted before use,
 /// except the two dynamic continuous lists, whose order Valve leaves to its
-/// threads. Joints and mesh shapes on moving bodies are not ported and
-/// throw. The broadphase side is FUN_1802d4ed0 before, the proxy moves of
+/// threads. Joints are solved in serial islands; a coloured island with
+/// joints and mesh shapes on moving bodies are not ported and throw. The broadphase side is FUN_1802d4ed0 before, the proxy moves of
 /// FUN_1801b9270 in each writeback and FUN_1802d6050 after.
 /// </remarks>
 public static class WorldSolver
@@ -40,6 +40,8 @@ public static class WorldSolver
         foreach (var node in w.Islands.Coloured)
         {
             var island = (RnIsland)node;
+            if (island.Joints.Count > 0)
+                throw new NotSupportedException("joints in a coloured island (the colour jobs' joint part) are not ported");
             SolveIsland(w, island, ColouredOrder(island.Colouring!, w.ReorderColour), first, settings, lists);
         }
         foreach (var node in w.Islands.Serial)
@@ -57,14 +59,18 @@ public static class WorldSolver
     }
 
     /// <summary>
-    /// NoDynamicContact's walk (FUN_1801b6000): a dynamic body joined by an
-    /// enabled joint to another dynamic body. Contacts do not count. With no
-    /// joints ported, a body with any joint throws.
+    /// NoDynamicContact's walk (FUN_1801b6000): a dynamic body with an active
+    /// joint whose other body is dynamic. Contacts do not count.
     /// </summary>
     private static bool JoinedToDynamic(RnBody b)
     {
-        if (b.State.JointHead != 0)
-            throw new NotSupportedException("joints (the body +0x70 edge list) are not ported");
+        if (b.State.JointHead != 0 && b.JointEdges.Count == 0)
+            throw new NotSupportedException("the body has joints (+0x70) the world does not hold");
+        if (b.State.BodyType != 2)
+            return false;
+        foreach (var (j, half) in b.JointEdges)
+            if (j.Common.Active != 0 && (half == 0 ? j.Body2 : j.Body1) is { } other && other.State.BodyType == 2)
+                return true;
         return false;
     }
 
@@ -126,6 +132,9 @@ public static class WorldSolver
                 Cache = [.. c.Manifolds],
                 Setup = new ContactSolver.ContactSetup(c.A.Material, c.B.Material, c.Slop, c.SoftCap),
             }));
+        // RnSolver_SolveSerial: the island's joints (island +0x38) first in the prepare and every iteration.
+        var joints = island.Joints;
+        var jointStream = joints.Count > 0 ? JointSolver.Prepare(joints, solver, dt) : [];
         var streams = new byte[contacts.Count][];
         for (var k = 0; k < contacts.Count; k++)
             streams[k] = IslandSolver.Prepare(contacts[k].Solve, solver, dt);
@@ -133,6 +142,8 @@ public static class WorldSolver
         for (var iteration = 0; iteration < velocityIterations; iteration++)
         {
             var last = iteration == velocityIterations - 1;
+            if (joints.Count > 0)
+                JointSolver.SolveVelocity(jointStream, joints, solver, last, w.BrokenJoints);
             for (var k = 0; k < contacts.Count; k++)
             {
                 if (streams[k].Length == 4)
@@ -156,6 +167,9 @@ public static class WorldSolver
         }
 
         for (var iteration = 0; iteration < positionIterations; iteration++)
+        {
+            if (joints.Count > 0)
+                JointSolver.SolvePosition(jointStream, joints, solver);
             for (var k = 0; k < contacts.Count; k++)
             {
                 if (streams[k].Length == 4)
@@ -163,6 +177,7 @@ public static class WorldSolver
                 var header = System.Runtime.InteropServices.MemoryMarshal.AsRef<ContactHeader>(streams[k]);
                 ContactSolver.SolvePosition(header, solver, contacts[k].Solve.Cache, contacts[k].Solve.Setup);
             }
+        }
 
         // The solve writes the impulses into the contact's manifold block.
         foreach (var (c, s) in contacts)
