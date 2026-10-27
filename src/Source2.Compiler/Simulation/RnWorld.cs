@@ -545,6 +545,7 @@ public sealed class RnWorld
             IslandManagerOps.Leave(Islands, body);
         body.State.BodyType = type;
         body.Static = type == 0;
+        body.State.StaticFlag = (byte)(type == 0 ? 1 : 0);
         foreach (var s in body.Shapes)
             Broadphase?.ReselectTree(s.Proxy);
         if (type == 2)

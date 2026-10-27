@@ -3943,6 +3943,30 @@
    "note": "181f0bb60's cached model-space transforms at node +0x310 (count +0x308)"
   },
   {
+   "addr": "181f0bb60",
+   "name": "MapEntity_UpdateBoneTransforms",
+   "module": "s2c:entities/settle",
+   "note": "stored overrides (181efec40), the animation graph's pose (1817dd320), or the reference pose (18174dc50) without a graph"
+  },
+  {
+   "addr": "18174dc50",
+   "name": "Skeleton_ModelSpacePose",
+   "module": "s2c:entities/settle",
+   "note": "each bone CTransform_Compose onto its parent's, the root onto the identity"
+  },
+  {
+   "addr": "181efec40",
+   "name": "MapEntity_StoredBoneTransforms",
+   "module": "s2c:entities/settle",
+   "note": "the entity's stored bone overrides"
+  },
+  {
+   "addr": "1817dd320",
+   "name": "AnimGraph_DefaultPose",
+   "module": "s2c:entities/settle",
+   "note": "the graph's default pose into model space (not ported)"
+  },
+  {
    "addr": "181749d20",
    "name": "BonePose_Find",
    "module": "s2c:entities/settle",

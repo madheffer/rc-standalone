@@ -4329,31 +4329,38 @@ game can answer is raised with the user first, and runs with -insecure.
       waits for the stepped settle (step 6); joints in coloured islands' colour jobs and the step's broken-joint
       pass throw; the TOI solve with joints is not read.
 
-161. **The aggregate build, bodies and shapes** (2026-10-27, open: the pose's last ulps, SetType's flags, the joints;
-    decompile and disassembly of vphysics2 0924's 180042ba0, 180045630, 180044bc0, 180046280, 180046220, 1801bbb60,
-    1801bb110, 1801bcf70, 180256c80, 180256d00, the body wrapper's vtable 0x1803f44e0 and resourcecompiler 0923's
-    18105dbd0 (disassembly 18105e18a..18105e247), 18105ce70, 181f03210, 181f02fa0; Maps/SettleWorld.Aggregate.cs,
-    AggregateBuildCaptureTests on s2c_ragdollprobe's four CT agents).
+161. **The aggregate build: bodies, shapes and joints** (2026-10-27, open: the model pose's last ulps; decompile and
+    disassembly of vphysics2 0924's 180042ba0, 180045630, 180044bc0, 180046280, 180046220, 1801bbb60, 1801bb110,
+    1801bcf70, 180256c80, 180256d00, 180047600, 18005d370, 18005cb80, 1801ef300, 1801f0750, 180228c70, 1802135a0,
+    180205a20, the conical and revolute setters, 180204ff0, 180204d70 (disassembly 180204e64..180204f6e), 1801b4d30,
+    the body wrapper's vtable 0x1803f44e0; resourcecompiler 0923's 18105dbd0 (disassembly 18105e18a..18105e247),
+    18105ce70, 181f03210, 181f02fa0, 181f0bb60, 18174dc50; Maps/SettleWorld.Aggregate.cs, AggregateBuildCaptureTests).
     - Settled from the code: a model with two parts or a joint goes to world vfn 0x418 with the part's transform
       (node position, scale, orientation). vphysics2 places body i at MatrixQuaternion and translation of the part's
       matrix concatenated with bind pose i (translation times the aggregate scale), its scale the largest column;
-      keyframes it (mode 3), adds the part's shapes at the aggregate scale with their names and surfaces, gives each
-      shape its palette entry as base and current attributes (per shape, else the part's index), then SetMass
-      (mass clamped to (0, 1e6], 500 otherwise, +0x4a bit 8, the mass update), the inertia scale when above 1,
-      damping and drag (+0x249 bit 5). The masks at 18045b2a0..18045b2b0 are only written 0 at static init, so a
-      later assignment keeps its own fields, adds the base layers and takes the base group when it is below 4.
-    - Settled: resourcecompiler then sets every shape to one entity record (palette entry picked by vfn 0xe8, group
-      4, flags 7, owner -1; 0xc3001 interactions for a simulated class, collision_group, layer 0x400 dropped) and
-      poses each body (SetTransform) from the model's own pose: 181749d20 looks the part's bone up, by name with
-      case ignored, in the pose 181f03210 builds; the bind pose is the fallback. The disassembly shows the override
-      branch Ghidra's decompile drops. SetTransform changes nothing below 1.4210855e-14 squared.
-    - Exact against the capture: the part transform, vphysics2's placement (each body's orientation when the
-      aggregate returns), mass, inertia, damping, drag, the world inverse inertia and 59 of 60 orientations at step 0.
-    - Open: (1) the model pose: the skeleton's parent-relative transforms composed with CTransform_Compose give the
-      logged pose's quaternion exactly but the position one or two ulps off in x on 50 of 60 parts (rc builds it in
-      181f0bb60 through 18174dc50 on model +0x130, not read); (2) SetType and wake's flags (StaticFlag, ActiveIndex,
-      Flags249 bit 2) on the aggregate's bodies; (3) every shape keeps layer 0x400 that Valve drops; (4) the joints
-      (180047600 and the creators). SettleWorld.Run refuses a map with an aggregate until these are exact.
+      keyframes it (mode 3, SetType 1 with its wake), adds the part's shapes at the aggregate scale with their names
+      and surfaces, gives each shape its palette entry as base and current attributes, then SetMass (clamped to
+      (0, 1e6], 500 otherwise, +0x4a bit 8, the mass update), the inertia scale when above 1, damping and drag
+      (+0x249 bit 5). Then the joints (180047600): the desc from each VPhysXJoint_t (frames, enable bits, friction,
+      elasticity, plasticity, elastic damping as the damping ratio, frequency 0, limits in degrees), frames
+      normalised, constructed (defaults: mode 3, frequency 10, damping 1, limits +-pi), added to the world, then the
+      setters in the creator's order; friction picks body 2 unless static (180204ff0) and sets mode 1 with torque
+      r ((|g| m) friction) (the disassembly's order; Ghidra prints r |g| m friction), r the larger of the inertia
+      radius and the scaled anchor's distance from the local mass centre.
+    - Settled: resourcecompiler then gives every shape one entity record (palette entry picked by vfn 0xe8, group 4,
+      flags 7, owner -1; 0xc3001 interactions for a simulated class, collision_group, layer 0x400 dropped); a palette
+      entry whose layers are the default mask (18045b2a0, set at runtime) leaves no base layers, as the capture's
+      +0x78 shows. It poses each body (SetTransform, nothing below 1.4210855e-14 squared) from the model's own pose:
+      181749d20 looks the part's bone up, by name with case ignored, in the pose 181f03210 builds; the bind pose is
+      the fallback. Ghidra's decompile drops that override branch; the disassembly shows it.
+    - Exact against the capture (s2c_ragdollprobe's four CT agents): every body field but the pose's (mass,
+      inertia, damping, drag, flags, awake order, world inverse inertia), every shape's attributes, and all 56
+      joints byte for byte (padding the constructors never write excluded).
+    - Open: the model pose. 181f0bb60 takes the entity's stored bone overrides (181efec40) or the model's animation
+      graph default pose (1817dd320) and the skeleton's reference pose (18174dc50, CTransform_Compose from an
+      identity root) only without a graph; ctm_sas has one. Composing the skeleton gives every quaternion of the
+      logged pose but positions 1 to 4 ulps off (50 of 60), one orientation one ulp off. Porting the graph's default
+      pose evaluation closes it. SettleWorld.Run refuses a map with an aggregate until then.
 
 162. **A cubemap face rendered with no dump: its bindings, binner dispatches and frame** (2026-10-27: Valve's .vcs
     write sequences; decompile of scenesystem 20261015 1801b2850 and rendersystemvulkan 20261015 180072850; the

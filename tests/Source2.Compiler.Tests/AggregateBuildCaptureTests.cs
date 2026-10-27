@@ -34,18 +34,25 @@ public sealed class AggregateBuildCaptureTests(ITestOutputHelper output)
         var aggregates = new List<Aggregate>();
         var xfs = new Dictionary<string, byte[]>();
         var states = new Dictionary<string, byte[]>();
+        List<byte[]>? joints = null;
         var shapes = new Dictionary<string, List<byte[]>>();
         foreach (var line in File.ReadLines(path))
         {
             using var doc = JsonDocument.Parse(line);
             var e = doc.RootElement;
             var ev = e.GetProperty("ev").GetString();
+            if (ev == "world" && joints == null)
+            {
+                // The world dump comes before the first step's joint list: keep reading for it.
+            }
             if (ev == "aggregate")
                 aggregates.Add(new Aggregate(Convert.FromHexString(e.GetProperty("xf").GetString()!),
                     [.. e.GetProperty("bodies").EnumerateArray().Select(b => (b.GetProperty("wrapper").GetString()!, b.GetProperty("rn").GetString()!,
                                                                              Convert.FromHexString(b.GetProperty("body").GetString()!)))]));
             else if (ev == "build" && e.GetProperty("kind").GetString() == "xf")
                 xfs[e.GetProperty("wrapper").GetString()!] = Convert.FromHexString(e.GetProperty("xf").GetString()!);
+            else if (ev == "joints" && joints == null)
+                joints = [.. e.GetProperty("joints").EnumerateArray().Select(j => Convert.FromHexString(j.GetProperty("raw").GetString()!))];
             else if (ev == "world")
             {
                 foreach (var b in e.GetProperty("bodies").EnumerateArray())
@@ -54,8 +61,9 @@ public sealed class AggregateBuildCaptureTests(ITestOutputHelper output)
                     states[ptr] = Convert.FromHexString(b.GetProperty("body").GetString()!);
                     shapes[ptr] = [.. b.GetProperty("shapes").EnumerateArray().Select(s => Convert.FromHexString(s.GetProperty("head").GetString()!))];
                 }
-                break;
             }
+            if (states.Count > 0 && joints != null)
+                break;
         }
 
         using var models = new SettleBuildTests.PakModels(pak, AddonGame);
@@ -66,6 +74,15 @@ public sealed class AggregateBuildCaptureTests(ITestOutputHelper output)
         var ours = bodies.Select(b => b.Aggregate).OfType<SettleWorld.AggregateBuild>().Distinct().ToList();
         Assert.Equal(aggregates.Count, ours.Count);
 
+        // RAGDOLL_SKELETON=<file>: the agent's skeleton as JSON (names, parents, positions, rotations), for offline checks.
+        if (Environment.GetEnvironmentVariable("RAGDOLL_SKELETON") is { Length: > 0 } dump
+            && models.ModelSkeleton("agents/models/ctm_sas/ctm_sas.vmdl") is { } bones)
+            File.WriteAllText(dump, JsonSerializer.Serialize(new
+            {
+                names = bones.Names, parents = bones.Parents,
+                pos = bones.Positions.Select(v => new[] { v.X, v.Y, v.Z }), rot = bones.Rotations.Select(q => new[] { q.X, q.Y, q.Z, q.W }),
+                physBones = ours[0].Phys.BoneNames,
+            }));
         var counts = new Dictionary<string, int>();
         var examples = new Dictionary<string, string>();
         void Miss(string what, string text)
@@ -122,6 +139,28 @@ public sealed class AggregateBuildCaptureTests(ITestOutputHelper output)
                 }
                 compared++;
             }
+        }
+        // The joints at step 0, world order, every byte but the pointers (vtable, world, bodies,
+        // island, edge links, the wrapper at +0xc8, the name at +0xd8).
+        Assert.NotNull(joints);
+        Assert.Equal(joints!.Count, world.Joints[0].Count);
+        // Pointers, and padding no constructor writes: after the +0x2c byte, +0x42..+0x47 (FUN_18006c020 returns
+        // its argument), +0xb4, after the bools at +0x100 / +0x114 / +0x120, past the conical joint's last field.
+        bool Pointer(int o) => o < 0x8 || (o >= 0x10 && o < 0x28) || (o >= 0x30 && o < 0x38) || (o >= 0x48 && o < 0x68)
+                              || (o >= 0xc8 && o < 0xe0) || (o >= 0x2d && o < 0x30) || (o >= 0x42 && o < 0x48) || (o >= 0xb4 && o < 0xb8)
+                              || (o >= 0x101 && o < 0x104) || (o >= 0x115 && o < 0x118) || (o >= 0x121 && o < 0x124) || o >= 0x14c;
+        for (var k = 0; k < joints.Count; k++)
+        {
+            var j = world.Joints[0][k];
+            var mine = j.Type == RnJoint.ConicalType ? MemoryMarshal.AsBytes(new ReadOnlySpan<ConicalJointState>(in j.Conical)).ToArray()
+                                                     : MemoryMarshal.AsBytes(new ReadOnlySpan<RevoluteJointState>(in j.Revolute)).ToArray();
+            for (var o = 0; o < mine.Length; o++)
+                if (!Pointer(o) && joints[k][o] != mine[o])
+                {
+                    var at = o & ~3;
+                    Miss($"joint type {j.Type} +0x{at:x}", $"joint {k}: {Convert.ToHexString(joints[k], at, 4)} ours {Convert.ToHexString(mine, at, 4)}");
+                    o = at + 3;
+                }
         }
         foreach (var (what, n) in counts.OrderBy(c => c.Key))
             output.WriteLine($"{what}: {n} ({examples[what]})");

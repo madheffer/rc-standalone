@@ -154,14 +154,16 @@ public static partial class SettleWorld
     /// <summary>
     /// A shape's attributes after 180044bc0 sets its palette entry as the base
     /// (180256c80: the base layers when not 0, the base group the entry's when
-    /// not 0, else 4) and the entity record goes on top (180256d00, whose
-    /// masks at 18045b2a0..18045b2b0 are 0): the record's fields, its layers
-    /// with the base's added, the base's group when it is below 4. The
-    /// entity id is the body's (-1, vfn 0x470).
+    /// not 0, else 4) and the entity record goes on top (180256d00): the
+    /// record's fields, its layers with the base's added, the base's group
+    /// when it is below 4. An entry whose layers are the default mask
+    /// (18045b2a0, set at runtime; the solid layers an empty InteractAs list
+    /// gets) leaves no base layers, as the capture's +0x78 shows. The entity
+    /// id is the body's (-1, vfn 0x470).
     /// </summary>
     private static CollisionAttributes Layered(CollisionAttributes entry, CollisionAttributes entity)
     {
-        var baseLayers = entry.InteractsAs;
+        var baseLayers = entry.InteractsAs == CollisionRules.ContentsSolid && entry.Group != 3 ? 0ul : entry.InteractsAs;
         var baseGroup = entry.Group != 0 ? entry.Group : (byte)4;
         var a = entity;
         a.InteractsAs |= baseLayers;
@@ -231,7 +233,8 @@ public static partial class SettleWorld
             for (var i = 0; i < space.Length; i++)
             {
                 var local = new CTransform(skeleton.Positions[i], 1f, skeleton.Rotations[i]);
-                space[i] = skeleton.Parents[i] < 0 ? local : CTransform.Compose(space[skeleton.Parents[i]], local);
+                var parent = skeleton.Parents[i] < 0 ? new CTransform(Vector3.Zero, 1f, Quaternion.Identity) : space[skeleton.Parents[i]];
+                space[i] = CTransform.Compose(parent, local);
             }
         }
         var names = phys.BoneNames ?? [];
@@ -265,6 +268,8 @@ public static partial class SettleWorld
             b.State.PartIndex = (ushort)i;
             RnMassUpdate.Run(ref b.State, [], origin, q);
             w.SetType(b, 1);
+            // SetType ends with the wake (FUN_1801c0ff0).
+            ContactLifecycle.Wake(w, b, false);
             var shapes = new List<RnMassUpdate.Shape>();
             foreach (var shape in build.Shapes)
             {
@@ -295,6 +300,7 @@ public static partial class SettleWorld
             b.State.Flags249 |= 0x20;
             made.Add(b);
         }
+        CreateJoints(w, a, made);
         for (var i = 0; i < made.Count; i++)
         {
             var xf = RcPlacement(a, i);
@@ -325,5 +331,188 @@ public static partial class SettleWorld
         s.PreviousPosition = s.Position;
         s.PreviousOrientation = s.Orientation;
         s.Cleared1E8 = 0f;
+    }
+
+    private static float Float(KVObject o, string key) => o.GetFloatProperty(key);
+
+    private static bool Flag(KVObject o, string key) => o.ContainsKey(key) && Convert.ToBoolean(o[key]);
+
+    private static (Vec3 Position, Quat Rotation) Frame(KVObject o, string key)
+    {
+        var v = o.GetArray<object>(key).Select(Convert.ToSingle).ToArray();
+        return (new Vec3(v[0], v[1], v[2]), new Quat(v[4], v[5], v[6], v[7]));
+    }
+
+    /// <summary>The joints' frame quaternions as 18005d370 and 18005cb80 normalise them: a dpps length, the identity when zero.</summary>
+    private static Quat NormalizeFrame(Quat q)
+    {
+        var length = MathF.Sqrt(((q.X * q.X) + (q.Y * q.Y)) + ((q.Z * q.Z) + (q.W * q.W)));
+        return length == 0f ? Quat.Identity : new Quat(q.X / length, q.Y / length, q.Z / length, q.W / length);
+    }
+
+    /// <summary>The CRnJoint base ctor's state (FUN_1802042b0) and the flag bits from the world desc.</summary>
+    private static void BaseJoint(ref JointCommon c, int type, bool collision, bool linearDisabled, bool angularDisabled)
+    {
+        c.WorldIndex = -1;
+        c.Type = type;
+        c.Flags = (ushort)((collision ? 2 : 0) | (linearDisabled ? 4 : 0) | (angularDisabled ? 8 : 0));
+        c.BucketIndex = -1;
+        c.IslandIndex = -1;
+        c.Colour = 0xff;
+        c.SolverA = -1;
+        c.SolverB = -1;
+    }
+
+    /// <summary>
+    /// The joints (FUN_180047600): per VPhysXJoint_t the desc (frames, the
+    /// enable bits, friction, elasticity, plasticity, limits converted to
+    /// degrees), then the type's creator: types 4 and 10 CRnConicalJoint
+    /// (FUN_18005d370), 3 CRnRevoluteJoint (FUN_18005cb80), each constructed,
+    /// added to the world (1801ef300, 1801f0750), then set in the creator's
+    /// order. Limits make the degree round trip x * 57.295776 * 0.017453292.
+    /// </summary>
+    private static void CreateJoints(RnWorld w, AggregateBuild a, List<RnBody> made)
+    {
+        const float ToDegrees = 57.295776f, ToRadians = 0.017453292f;
+        foreach (var rec in a.Joints)
+        {
+            var type = (int)rec.GetIntegerProperty("m_nType");
+            var flags = (int)rec.GetIntegerProperty("m_nFlags");
+            if ((flags & 1) != 0)
+                throw new NotSupportedException("a joint to the world's static body (VPhysXJoint_t flags bit 0) is not ported");
+            var i1 = (int)rec.GetIntegerProperty("m_nBody1");
+            var i2 = (int)rec.GetIntegerProperty("m_nBody2");
+            if (i1 >= made.Count || i2 >= made.Count)
+                continue;
+            RnBody b1 = made[i1], b2 = made[i2];
+            var (p1, q1) = Frame(rec, "m_Frame1");
+            var (p2, q2) = Frame(rec, "m_Frame2");
+            q1 = NormalizeFrame(q1);
+            q2 = NormalizeFrame(q2);
+            var collision = Flag(rec, "m_bEnableCollision");
+            var linearDisabled = Flag(rec, "m_bIsLinearConstraintDisabled");
+            var angularDisabled = Flag(rec, "m_bIsAngularConstraintDisabled");
+            var friction = Float(rec, "m_flFriction");
+            var elasticity = Float(rec, "m_flElasticity");
+            if (Flag(rec, "m_bEnableAngularMotor") || Flag(rec, "m_bEnableLinearMotor") || Flag(rec, "m_bEnableLinearLimit"))
+                throw new NotSupportedException("a joint with a motor or a linear limit is not ported");
+            if (friction <= 0f && elasticity > 0f)
+                throw new NotSupportedException("an elastic joint (18022c480, 18021ade0) is not ported");
+            RnJoint joint;
+            switch (type)
+            {
+                case 4 or 10:
+                {
+                    var s = new ConicalJointState
+                    {
+                        Frame1 = q1, Frame2 = q2, Anchor1 = p1, Anchor2 = p2, Size = 0x1e8, Mode = 3, Target = Quat.Identity,
+                        Frequency = 10f, DampingRatio = 1f, TwistMin = -MathF.PI, TwistMax = MathF.PI, SwingMax = MathF.PI,
+                    };
+                    joint = RnJoint.Of(s);
+                    BaseJoint(ref joint.Common, 10, collision, linearDisabled, angularDisabled);
+                    w.AddJoint(joint, b1, b2);
+                    ref var j = ref joint.Conical;
+                    // The setters, from the desc: frequency 0 (desc +0xa4), damping the elastic damping (+0xa8).
+                    j.Frequency = 0f;
+                    j.DampingRatio = Float(rec, "m_flElasticDamping");
+                    if (friction > 0f && FrictionSide(joint) is { } side)
+                    {
+                        j.Mode = 1;
+                        j.MotorImpulse = default;
+                        j.MaxTorque = FrictionTorque(w, joint, side, friction);
+                    }
+                    if (Flag(rec, "m_bEnableSwingLimit"))
+                    {
+                        j.SwingLimited = 1;
+                        j.SwingMax = (rec.GetSubCollection("m_SwingLimit").GetFloatProperty("m_flMax") * ToDegrees) * ToRadians;
+                    }
+                    if (Flag(rec, "m_bEnableTwistLimit"))
+                    {
+                        var t = rec.GetSubCollection("m_TwistLimit");
+                        j.TwistLimited = 1;
+                        j.TwistMin = (t.GetFloatProperty("m_flMin") * ToDegrees) * ToRadians;
+                        j.TwistMax = (t.GetFloatProperty("m_flMax") * ToDegrees) * ToRadians;
+                    }
+                    break;
+                }
+                case 3 when (flags & 2) == 0:
+                {
+                    var s = new RevoluteJointState
+                    {
+                        Frame1 = q1, Frame2 = q2, Anchor1 = p1, Anchor2 = p2, Size = 0x1ac, Mode = 3, Frequency = 10f, DampingRatio = 1f,
+                        Min = -MathF.PI, Max = MathF.PI,
+                    };
+                    joint = RnJoint.Of(s);
+                    BaseJoint(ref joint.Common, 3, collision, linearDisabled, angularDisabled);
+                    w.AddJoint(joint, b1, b2);
+                    ref var j = ref joint.Revolute;
+                    j.Frequency = 0f;
+                    j.DampingRatio = Float(rec, "m_flElasticDamping");
+                    if (friction > 0f && FrictionSide(joint) is { } side)
+                    {
+                        j.Mode = 1;
+                        j.MotorImpulse = 0f;
+                        j.TargetSpeed = 0f;
+                        j.MaxTorque = FrictionTorque(w, joint, side, friction);
+                    }
+                    if (Flag(rec, "m_bEnableTwistLimit"))
+                    {
+                        var t = rec.GetSubCollection("m_TwistLimit");
+                        j.Limited = 1;
+                        j.Min = (t.GetFloatProperty("m_flMin") * ToDegrees) * ToRadians;
+                        j.Max = (t.GetFloatProperty("m_flMax") * ToDegrees) * ToRadians;
+                    }
+                    break;
+                }
+                default:
+                    throw new NotSupportedException($"a joint of type {type} (flags {flags}) is not ported");
+            }
+        }
+    }
+
+    /// <summary>FUN_180204ff0: body 2 when it is not static, else body 1 when that is not; none when both are static.</summary>
+    private static int? FrictionSide(RnJoint j)
+        => j.Body2!.State.BodyType != 0 ? 1 : j.Body1!.State.BodyType != 0 ? 0 : null;
+
+    /// <summary>
+    /// FUN_180204d70: the friction torque on a side, r ((|g| m) friction), r the
+    /// larger of the inertia radius sqrt((Ixx + Iyy + Izz) / (m 3)) (the
+    /// inertia from FUN_1801b4d30's cofactor inverse of the scaled local
+    /// inverse inertia) and the anchor's (times the body scale) distance
+    /// from the local mass centre.
+    /// </summary>
+    private static float FrictionTorque(RnWorld w, RnJoint j, int side, float friction)
+    {
+        var b = side == 0 ? j.Body1! : j.Body2!;
+        ref readonly var s = ref b.State;
+        var anchor = j.Type == RnJoint.ConicalType
+            ? (side == 0 ? j.Conical.Anchor1 : j.Conical.Anchor2)
+            : (side == 0 ? j.Revolute.Anchor1 : j.Revolute.Anchor2);
+        var k = s.Scale;
+        float ax = k * anchor.X, ay = anchor.Y * k, az = anchor.Z * k;
+        var mass = s.InertiaDivisor;
+        var inv = 1f / mass;
+        ref readonly var m = ref s.LocalInvInertia;
+        float m0 = inv * m.M0, m1 = inv * m.M1, m2 = inv * m.M2, m3 = inv * m.M3, m4 = inv * m.M4, m5 = inv * m.M5,
+              m6 = inv * m.M6, m7 = inv * m.M7, m8 = inv * m.M8;
+        var c00 = m4 * m8 - m7 * m5;
+        var c10 = m5 * m6 - m3 * m8;
+        var c20 = m7 * m3 - m6 * m4;
+        var det = m0 * c00 + m1 * c10 + m2 * c20;
+        if (!(1.17549435e-35f <= MathF.Abs(det)))
+            throw new NotSupportedException("a friction torque on a body with a singular inertia (18055e880) is not ported");
+        var r = 1f / det;
+        var ixx = c00 * r;
+        var iyy = (m0 * m8 - m2 * m6) * r;
+        var izz = (m0 * m4 - m3 * m1) * r;
+        var radius = MathF.Sqrt((ixx + iyy + izz) / (mass * 3f));
+        var c = s.LocalMassCenter;
+        var d = MathF.Sqrt((c.Z - az) * (c.Z - az) + (c.Y - ay) * (c.Y - ay) + (c.X - ax) * (c.X - ax));
+        if (radius <= d)
+            radius = d;
+        var g = w.Gravity;
+        var gravity = MathF.Sqrt(g.Y * g.Y + g.Z * g.Z + g.X * g.X);
+        // The disassembly's order (180204f30..180204f6e): radius times ((|g| m) friction).
+        return radius * ((gravity * mass) * friction);
     }
 }

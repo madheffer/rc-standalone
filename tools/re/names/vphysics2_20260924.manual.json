@@ -1111,6 +1111,78 @@
    "note": "bodies 180045630, constraints2 180046ea0, joints 180047600"
   },
   {
+   "addr": "1801ef300",
+   "name": "CRnWorld_CreateConicalJoint",
+   "module": "s2c:entities/settle",
+   "note": "ctor 180228c70, then CRnWorld_AddJoint"
+  },
+  {
+   "addr": "180204ff0",
+   "name": "CRnJoint_FrictionSide",
+   "module": "s2c:entities/settle",
+   "note": "body 2 unless static, else body 1; false when both static"
+  },
+  {
+   "addr": "180204d70",
+   "name": "CRnJoint_FrictionTorque",
+   "module": "s2c:entities/settle",
+   "note": "r ((|g| m) friction) (disassembly order), r = max(inertia radius, scaled anchor to mass centre)"
+  },
+  {
+   "addr": "1801b4d30",
+   "name": "CRnBody_MassProperties",
+   "module": "s2c:entities/settle",
+   "note": "inertia by cofactors of (1 / mass) local inverse inertia, local mass centre, mass"
+  },
+  {
+   "addr": "18022c5a0",
+   "name": "CRnConicalJoint_SetFriction",
+   "module": "s2c:entities/settle",
+   "note": "mode 1, motor impulse and target velocity 0, max torque 180204d70"
+  },
+  {
+   "addr": "18022c6f0",
+   "name": "CRnConicalJoint_SetMode",
+   "module": "s2c:entities/settle",
+   "note": "+0xf0; clears the motor impulse"
+  },
+  {
+   "addr": "180208c40",
+   "name": "CRnConicalJoint_SetFrequency",
+   "module": "s2c:entities/settle",
+   "note": "+0xf4"
+  },
+  {
+   "addr": "180208ad0",
+   "name": "CRnConicalJoint_SetDampingRatio",
+   "module": "s2c:entities/settle",
+   "note": "+0xf8"
+  },
+  {
+   "addr": "18022c780",
+   "name": "CRnConicalJoint_EnableSwingLimit",
+   "module": "s2c:entities/settle",
+   "note": "+0x120; clears the swing impulse"
+  },
+  {
+   "addr": "18022c7c0",
+   "name": "CRnConicalJoint_EnableTwistLimit",
+   "module": "s2c:entities/settle",
+   "note": "+0x114; clears the twist impulses"
+  },
+  {
+   "addr": "18022c800",
+   "name": "CRnConicalJoint_SetTwistLimit",
+   "module": "s2c:entities/settle",
+   "note": "+0x118 / +0x11c"
+  },
+  {
+   "addr": "180205a20",
+   "name": "CRnJoint_SetAnchor1",
+   "module": "s2c:entities/settle",
+   "note": "+0x90, divided by body 1's scale when the desc asks"
+  },
+  {
    "addr": "180046280",
    "name": "CPhysAggregateInstance_CollisionAttributes",
    "module": "s2c:entities/settle",
