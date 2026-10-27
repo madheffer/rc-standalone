@@ -782,19 +782,51 @@ quality 2 are measured (`CascadeTiles`); the atlas allocator is not read.
 instead of our data (buffers, image subresources, push constants, samplers, dispatch sizes). On probe01's cube 0
 (with `CUBEREPLAY_OURDRAWS=materials`, all six faces still the game's EXR) only two remain per face:
 
-- the colour pass's storage buffer at set 3 binding 31 (153,600 bytes; generic's programs declare one structured
-  buffer of their own, `g_CullBits`, attribute CullBits, so presumably this one, not confirmed by binding).
-  Uploaded as zeros the six faces are still the game's, so on probe01 no pixel reads it; what writes it in the
-  game (the light binner's dispatches write other buffers here) is not read;
-- the light binner's two dispatch sizes (256 x 1 x 1 and 16 x 32 x 1). The binner is scenesystem's
-  lightbinner_gpu.cpp (compute_depthbin_cullbits, compute_tile_cullbits; CullParams_t 1801b2850 is ported);
-  the dispatch call is not located yet.
+- the colour pass's storage buffer at set 3 binding 31 (153,600 bytes). Since 10-27 (ledger 161) generic's write
+  sequence names it: g_BarnLights (slot 1; g_CullBits is slot 0, binding 30). No barn light is binned in the
+  cubemap view, so no pixel reads it;
+- the light binner's two dispatch sizes (256 x 1 x 1 and 16 x 32 x 1). Since 10-27 from the code (ledger 161):
+  1801b2850 dispatches thread counts and rendersystemvulkan 180072850 divides them by the program's workgroup.
 
 Beyond these inputs the replay still uses the dump as scaffolding: each action's record (which program, which
 resource name at each set and binding), `passes.jsonl` for the passes and their clears, and `resources.json` for
 the targets' formats and sizes. Rendering with no dump means building that frame from our data: the action list
 (CubemapFaceDrawList plus the binner, sky and downsample passes), each program's bindings from its SPIR-V
 reflection and the programs' variable tables (as the textures and samplers already are), and the targets.
+
+## A face with no dump (2026-10-27, ledger 161)
+
+`Source2.Compiler.Gpu/CubemapFaceRenderer.cs` renders a face from our data alone: the map's package (world nodes,
+models, lightmaps), the game's shader and content packages, the face's blocks (`Cubemaps/CubemapFaceBlocks.cs`, the
+roles the replay found, moved out of the test) and the draw list (`CubemapFaceDrawList.Face` with the layer
+memberships and `MaterialOrder`). No file of a RenderDoc dump is read.
+
+- **The frame.** As every face of the three captures runs it: the atlas cleared to depth 1, the binner's two
+  dispatches, the four cascades' lists into their tiles, the face cleared (colour 0, depth 1, stencil 0), the
+  prepass, the half depth (cleared over 512 x 512, then downsample_depth's checkerboard min/max), the AO target
+  cleared to white over 512 x 512, the colour lists, the sky, the face's stencil cleared, the quarter depth. The
+  two image copies after the sky do not reach the readback and are not modelled.
+- **Bindings from Valve's tables.** Each program's SPIR-V bindings are named by its combo's write sequence: a
+  constant buffer at its slot, a texture or structured buffer at 30 + slot, a UAV at 158 + slot, a sampler at
+  14 + slot, $Globals at binding 0 of the stage's set. Each name then picks one of our inputs
+  (PerViewConstantBuffer_t, the per-pass view block; TransformBuffer, InstanceBuffer, CullBits, BarnLights,
+  CullItems, CullPlanes, OutputCullBits; the texture attributes as in "The textures"). An unnamed binding throws.
+  `CubemapFaceBindingsProbe` (`CUBEBINDINGS=1`) lists each program's bindings beside its sequence.
+- **The binner's dispatches** from the code: thread counts (bins, mask words, 1) and (tiles x, tiles y, mask
+  words), divided by the program's workgroup (32 x 1 x 1, 8 x 4 x 1).
+- **Programs.** generic's colour combo per material (S_MODE_TOOLS_VIS, lightmapped, the material's features),
+  csgo_depth_only, sky, downsample_depth and the two binner programs; D_COMPRESSED_NORMALS_AND_TANGENTS by the draw
+  call's m_bUseCompressedNormalTangent. With `CUBEREPLAY_SPIRV` the test checks every program is a module of the
+  capture.
+- **Result.** probe01's two cubes: twelve faces equal the readbacks, both EXRs and the whole
+  env_cubemap_array.vtex_c are the game's byte for byte, about 7 s a cube on the RTX 4070. s2c_l5probe's cube 0:
+  five faces exact, -X differs where the pawn's viewmodel draws (not ported).
+
+    CUBENODUMP_VPK=<package> CUBENODUMP_CUBE=<n> CUBEREADBACK=<readback dir> CUBEREADBACK_EXR=<game EXR> [CUBEREPLAY_SPIRV=<modules>] [CUBEREPLAY_EXR_OUT=<dir>] [CUBEREPLAY_SCRIPTEDCAMERA=0] dotnet test --filter CubeWithNoDumpMakesTheGamesExr
+
+The readbacks, EXRs and modules are only the comparison. Left: the scene's inputs come from the test
+(`CubemapFaceRendererTests.Probe01`), not yet from the package's lumps; aggregates with fragment transforms of their
+own, alpha-tested prepass draws, the viewmodel and non-aggregate objects throw; texture streaming on big maps.
 
 ## Roadmap to env_cubemap_array.vtex_c from the .vmap (2026-10-25)
 

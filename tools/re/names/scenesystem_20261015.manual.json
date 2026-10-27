@@ -4,7 +4,7 @@
    "addr": "1801b2850",
    "name": "LightBinner_ComputeCullBitsGPU",
    "module": "s2c:baked/lighting",
-   "note": "lightbinner_gpu.cpp: the cull items, then CullParams_t (160 bytes from the stack at local_1b08) for both cull dispatches: tiles +0xf38c/+0xf378/+0xf37c, scale 2t/w, -2t/h, offset t/w - 1, 1 - t/h, bins +0xf380, bin width view +0x34 / bins, 0.001, near 0, first masks (0, wl, wl + we, 0), tile and bin batches per type; items padded to 32 per type; CubemapFaceConstants.LightBinnerCullParams"
+   "note": "lightbinner_gpu.cpp: the cull items, then CullParams_t (160 bytes from the stack at local_1b08) for both cull dispatches: tiles +0xf38c/+0xf378/+0xf37c, scale 2t/w, -2t/h, offset t/w - 1, 1 - t/h, bins +0xf380, bin width view +0x34 / bins, 0.001, near 0, first masks (0, wl, wl + we, 0), tile and bin batches per type; items padded to 32 per type; CubemapFaceConstants.LightBinnerCullParams. Then the dispatches through the context's vf 0x320 (thread counts): depth bins (+0xf380, mask words +0xf390 + 0xf394 + 0xf398, 1) when +0xf380 > 1, tiles (+0xf378, +0xf37c, mask words); with one bin or the GPU cull off, a fill of +0xf3d0 with 0xffffffff instead (ledger 161)"
   },
   {
    "addr": "1801a8150",

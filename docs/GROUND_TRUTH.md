@@ -4329,6 +4329,43 @@ game can answer is raised with the user first, and runs with -insecure.
       waits for the stepped settle (step 6); joints in coloured islands' colour jobs and the step's broken-joint
       pass throw; the TOI solve with joints is not read.
 
+161. **A cubemap face rendered with no dump: its bindings, binner dispatches and frame** (2026-10-27: Valve's .vcs
+    write sequences; decompile of scenesystem 20261015 1801b2850 and rendersystemvulkan 20261015 180072850; the
+    passes of the probe01, s2c_l5probe and atixref captures; Gpu/CubemapFaceRenderer.cs, CubemapFaceRendererTests).
+    - Settled from the programs' own tables: every descriptor binding of every face program is named by the combo's
+      write sequence (VfxVariableIndexData: layout set, slot). Measured on every binding of every action of the
+      captures (CubemapFaceBindingsProbe lists them): a ConstantBuffer at its slot, a Texture register (textures and
+      structured buffers) at 30 + slot, a Uav at 158 + slot, a SamplerState at 14 + slot, the stage's $Globals at
+      binding 0 of its set (vertex 0, pixel 1). The descriptor layout builder in rendersystemvulkan is not read.
+    - Settled: the colour pass's set 3 binding 31 is generic's g_BarnLights (attribute BarnLights, slot 1), not
+      g_CullBits (slot 0, binding 30, the binner's output). No barn light is binned in the cubemap view.
+    - Settled from the code: 1801b2850 dispatches through the render context's vf 0x320 with thread counts: the
+      depth bins (+0xf380 = lb_bin_slices rounded, the mask words, 1), when there is more than one bin, then the
+      tiles (+0xf378, +0xf37c, the mask words); the mask words are the light, environment map and volume words
+      (+0xf390 + 0xf394 + 0xf398). rendersystemvulkan 180072850 divides each count by the bound program's workgroup
+      size (+0x140..0x148) rounding up: (8192, 1, 1) / (32, 1, 1) and (128, 128, 1) / (8, 4, 1) give the
+      captures' 256 x 1 x 1 and 16 x 32 x 1. Both programs store each output word from one thread (one OpStore, no
+      atomics), so the cull bits need no clear.
+    - Measured (RenderDoc, every face of the three captures): the passes and clears in a face (the atlas cleared to
+      1 whole, the face to colour 0 / depth 1 / stencil 0, the half depth to depth 1 / stencil 0 and the AO target
+      to white over 512 x 512, the face's stencil to 0 before the quarter downsample), the targets' sizes (half
+      depth and AO at the 1280 x 720 window, quarter depth 256 x 256), the image views' formats (a texture's view is
+      sRGB exactly where its variable reads sRGB, VfxVariableDescription.SrgbRead), and the whole mip chain of
+      every material and lightmap texture bound.
+    - Measured, not read: the renderer picks generic's and csgo_depth_only's D_COMPRESSED_NORMALS_AND_TANGENTS by
+      the draw call's m_bUseCompressedNormalTangent (true on probe01's world nodes), and every program it loads is
+      byte for byte a module of the capture. The engine's path from the flag to the combo is not read (meshsystem
+      names MESH_DRAW_FLAGS_USE_COMPRESSED_NORMAL_TANGENT, scenesystem a COMPRESSED_TANGENT_SPACE batch flag).
+    - Result: probe01's two cubes from the package, the shader and content packages and the scene's inputs alone:
+      all twelve faces equal the game's readbacks, both EXRs and the whole env_cubemap_array.vtex_c (945,838
+      bytes) are the game's byte for byte, no file of a dump read. s2c_l5probe: five faces exact, -X differs where
+      the spawned pawn's viewmodel draws (not ported; roadmap 0e).
+    - Open: the scene's inputs are typed in the test (probe01's volumes, fog, sun, sky, lightmap scale), not read
+      from the package's lumps yet; aggregates with fragment transforms of their own, alpha-tested prepass
+      draws, the viewmodel and non-aggregate scene objects throw; the two vkCmdCopyImage of each face (they do not
+      reach the readback) are not modelled; the texture streaming state of big maps (every capture so far holds
+      whole mip chains).
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).
