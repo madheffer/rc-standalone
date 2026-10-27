@@ -2979,6 +2979,7 @@ TIER0_1015 = [
 
 
 SCENESYSTEM = [
+    ("180154fb0", "SkyObject_SetAttributes", BAKE, "the sky object's attributes: g_matSkyWsToOs from its rotation, D_FOG_TYPE (token 0x83cb90d6) from +0xf4 and, at type 2, the angular test of +0xf8 / +0xfc against -90 (ledger 163)"),
     # The cubemap face render's light binner and sky (decompile of 20261015; the same addresses and code in 20261023).
     ("1801b2850", "LightBinner_ComputeCullBitsGPU", BAKE, "lightbinner_gpu.cpp: the cull items, then CullParams_t (160 bytes from the stack at local_1b08) for both cull dispatches: tiles +0xf38c/+0xf378/+0xf37c, scale 2t/w, -2t/h, offset t/w - 1, 1 - t/h, bins +0xf380, bin width view +0x34 / bins, 0.001, near 0, first masks (0, wl, wl + we, 0), tile and bin batches per type; items padded to 32 per type; CubemapFaceConstants.LightBinnerCullParams. Then the dispatches through the context's vf 0x320 (thread counts): depth bins (+0xf380, mask words +0xf390 + 0xf394 + 0xf398, 1) when +0xf380 > 1, tiles (+0xf378, +0xf37c, mask words); with one bin or the GPU cull off, a fill of +0xf3d0 with 0xffffffff instead (ledger 162)"),
     ("1801a8150", "LightBinner_SetupView", BAKE, "bins = lb_bin_slices clamped 1..8192 rounded up to 32 (+0xf380); tile = view attribute 0x5af50a7c or lb_tile_pixels, at least 4, rounded up to a power of two (+0xf370, log2 +0xf374); tiles (size - 1 + t) >> log2 (+0xf378, +0xf37c), their product +0xf38c"),
@@ -3140,6 +3141,7 @@ def write(name, rows):
 
 # client.dll 20261015 (tools/re/binaries/client_20261015.dll): the game half of buildcubemaps (docs/CUBEMAPS.md).
 CLIENT_1015 = [
+    ("180282390", "C_EnvSky_UpdateSceneObject", BAKE, "copies m_nFogType (+0x10b8) to the sky object's +0xf4 and the fog min / max start / end (+0x10bc..+0x10c8) to +0xf8..+0x104 (ledger 163)"),
     ("181747070", "Matrix4_Invert", BAKE, "4 x 4 inverse by Gauss-Jordan on [M | I]: per column the permuted row with the largest magnitude above 1e-6 (strictly), scaled by 1 / pivot, others r = (-r_k) pivot + r; the view's +0x2c8 from +0x288; AggregateCulling.Invert4"),
     ("1817465f0", "Frustum_PlanesFromMatrix", BAKE, "six planes from a row-major world-to-projection: r3 - r0, r3 + r0, r3 - r1, r3 + r1, r3 + r2 (r2 with the flag), r3 - r2 (the near plane when degenerate); (n, -w) normalised by 1 / sqrt((x x + y y) + z z) when >= 1e-20; AggregateCulling.ExtractPlanes"),
     ("1817435e0", "Frustum_PackPlanes", BAKE, "six planes as two SoA blocks of four (normals, d, sign masks, absolute normals) at view +0x30; AggregateCulling.Pack"),

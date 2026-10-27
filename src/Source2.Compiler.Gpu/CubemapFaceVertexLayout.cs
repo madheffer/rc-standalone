@@ -16,11 +16,27 @@ public static class CubemapFaceVertexLayout
 
     /// <summary>The vertex bindings: the mesh's stream, the instance ids, the zero stream.</summary>
     public static (uint Stride, bool PerInstance)[] Bindings(uint meshStride, bool instanced)
-        => instanced ? [(meshStride, false), (4u, true), (0u, true)] : [(meshStride, false), (0u, true)];
+        => Bindings([meshStride], instanced);
+
+    /// <summary>
+    /// The vertex bindings of a mesh drawn from several streams (props carry a position stream and the rest): the
+    /// streams in order, then the instance ids and the zero stream (atixref's captures bind them so).
+    /// </summary>
+    public static (uint Stride, bool PerInstance)[] Bindings(IReadOnlyList<uint> streamStrides, bool instanced)
+        => [.. streamStrides.Select(s => (s, false)), .. instanced ? new[] { (4u, true), (0u, true) } : [(0u, true)]];
 
     /// <summary>The attributes of <paramref name="vertex"/>'s inputs over a mesh's fields.</summary>
     public static ProgramRunner.Attribute[] Attributes(ValveProgram vertex, IReadOnlyList<Field> mesh, bool instanced)
+        => Attributes(vertex, [mesh], instanced);
+
+    /// <summary>
+    /// The attributes over a mesh's streams: an input's semantic from the first stream that has it (binding = the
+    /// stream's index), the instance id and the inputs no stream has after the streams' bindings.
+    /// </summary>
+    public static ProgramRunner.Attribute[] Attributes(ValveProgram vertex, IReadOnlyList<IReadOnlyList<Field>> streams, bool instanced)
     {
+        var ids = (uint)streams.Count;
+        var zero = ids + (instanced ? 1u : 0u);
         var file = vertex.ShaderFile as VfxShaderFileVulkan ?? throw new InvalidDataException($"{vertex.Name} has no Vulkan attribute map");
         var attributes = new List<ProgramRunner.Attribute>();
         foreach (var input in vertex.Reflection.Inputs.OrderBy(i => i.Location))
@@ -28,12 +44,13 @@ public static class CubemapFaceVertexLayout
             if (!file.TryGetInputSemantic((uint)input.Location, out var semantic, out var index))
                 throw new InvalidDataException($"{vertex.Name}: no semantic for location {input.Location}");
             var location = (uint)input.Location;
+            var stream = Enumerable.Range(0, streams.Count).FirstOrDefault(s => streams[s].Any(f => f.Semantic == semantic && f.Index == index), -1);
             if (instanced && semantic == "TEXCOORD" && index == 13)
-                attributes.Add(new ProgramRunner.Attribute(location, 1, Format.R32Uint, 0));
-            else if (mesh.FirstOrDefault(f => f.Semantic == semantic && f.Index == index) is { Semantic: not null } field)
-                attributes.Add(new ProgramRunner.Attribute(location, 0, field.Format, field.Offset));
+                attributes.Add(new ProgramRunner.Attribute(location, ids, Format.R32Uint, 0));
+            else if (stream >= 0 && streams[stream].First(f => f.Semantic == semantic && f.Index == index) is var field)
+                attributes.Add(new ProgramRunner.Attribute(location, (uint)stream, field.Format, field.Offset));
             else if (instanced)
-                attributes.Add(new ProgramRunner.Attribute(location, 2, ZeroFormat(input.Type, input.Components), 0));
+                attributes.Add(new ProgramRunner.Attribute(location, zero, ZeroFormat(input.Type, input.Components), 0));
             else
                 throw new InvalidDataException($"{vertex.Name}: the mesh has no {semantic}{index}");
         }

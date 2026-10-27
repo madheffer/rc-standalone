@@ -409,8 +409,10 @@ public static class AggregateCulling
     /// <param name="Max">Its bounds (+0x10).</param>
     /// <param name="LodSetup">Its LOD setup (fragment +0x22, AggregateMeshInfo_t's m_nLODSetupIndex), -1 for none.</param>
     /// <param name="LodMask">The LODs it belongs to (fragment +0x24, m_nLODGroupMask).</param>
+    /// <param name="SlotTransform">Its transform slot's 3 x 4 (the first fragment's of the slot), which the instance's record points at.</param>
+    /// <param name="SlotTint">Its slot's packed tint (<see cref="PackTint"/>), the instance record's first word.</param>
     public sealed record Fragment(int DrawCall, int StartIndex, int IndexCount, int BaseVertex, int TransformSlot, Vector3 Min, Vector3 Max,
-        int LodSetup = -1, int LodMask = 0)
+        int LodSetup = -1, int LodMask = 0, float[]? SlotTransform = null, uint SlotTint = 0xffffffff)
     {
         /// <summary>Fragment bounds +0x1c (AddFragment): sqrt((dz dz + dy dy) + dx dx) 0.5 over the box's diagonal.</summary>
         public float Radius => Half(Min, Max, zFirst: true);
@@ -476,7 +478,7 @@ public static class AggregateCulling
                 (slotTransform, slotTint, slotBaseVertex) = (transform, tint, draw.BaseVertex);
             }
             var (min, max) = TransformBox(transform, draw.BoundsMin, draw.BoundsMax);
-            result.Add(new Fragment(mesh.DrawCall, draw.StartIndex, draw.IndexCount, draw.BaseVertex, slot, min, max, mesh.LodSetup, mesh.LodMask));
+            result.Add(new Fragment(mesh.DrawCall, draw.StartIndex, draw.IndexCount, draw.BaseVertex, slot, min, max, mesh.LodSetup, mesh.LodMask, slotTransform, slotTint));
         }
         return result;
     }

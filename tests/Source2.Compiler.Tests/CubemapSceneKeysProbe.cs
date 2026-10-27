@@ -14,7 +14,7 @@ public sealed class CubemapSceneKeysProbe(ITestOutputHelper output)
             return;
         using var package = new ValvePak.Package();
         package.Read(vpk);
-        string[] classes = ["env_combined_light_probe_volume", "func_combined_light_probe_volume", "env_cubemap", "env_cubemap_box", "env_cubemap_fog", "light_environment", "env_sky", "env_light_probe_volume", "worldspawn"];
+        string[] classes = ["env_combined_light_probe_volume", "func_combined_light_probe_volume", "env_cubemap", "env_cubemap_box", "env_cubemap_fog", "light_environment", "env_sky", "env_light_probe_volume", "worldspawn", "env_gradient_fog", "env_volumetric_fog_controller", "env_fog_controller"];
         foreach (var entry in package.Entries!.GetValueOrDefault("vents_c") ?? [])
         {
             package.ReadEntry(entry, out var bytes);

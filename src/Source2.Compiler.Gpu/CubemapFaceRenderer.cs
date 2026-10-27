@@ -28,12 +28,32 @@ namespace Source2.Compiler.Gpu;
 /// </summary>
 public sealed unsafe class CubemapFaceRenderer : IDisposable
 {
-    /// <summary>A world node aggregate's model: its render buffers and, per draw call, the material and vertex format.</summary>
-    public sealed record AggregateModel(string Model, byte[] Vertices, uint Stride, CubemapFaceVertexLayout.Field[] Fields, byte[] Indices, IndexType IndexType,
-        IReadOnlyList<ModelDrawCall> DrawCalls);
+    /// <summary>One vertex buffer of a mesh: its bytes, stride and fields.</summary>
+    public sealed record VertexStream(byte[] Data, uint Stride, CubemapFaceVertexLayout.Field[] Fields);
 
-    /// <summary>A draw call: its index range, base vertex, material, and m_bUseCompressedNormalTangent.</summary>
-    public sealed record ModelDrawCall(int StartIndex, int IndexCount, int BaseVertex, string Material, bool CompressedNormals);
+    /// <summary>
+    /// A world node aggregate's model: its vertex streams and index buffer, per draw call the material and vertex
+    /// format, and whether the aggregate is a model's (m_allFlags has OBJECT_TYPE_MODEL, worldrenderer's
+    /// ObjectTypeFlags_t 8: props merged into the world nodes) rather than the world's brushes.
+    /// </summary>
+    public sealed record AggregateModel(string Model, IReadOnlyList<VertexStream> Streams, byte[] Indices, IndexType IndexType,
+        IReadOnlyList<ModelDrawCall> DrawCalls, bool IsModel)
+    {
+        /// <summary>
+        /// The draw call's +0x14 flags (<see cref="CubemapLayerFlags.DrawCallFlags"/>, meshsystem 180049520 / 180027830
+        /// over the material's attributes); bit 2 is m_bUseShadowFastPath. The caller sets it from the layer membership.
+        /// </summary>
+        public ushort DrawCallFlags { get; init; }
+
+        /// <summary>The first stream's bytes (the only one of a brush mesh).</summary>
+        public byte[] Vertices => Streams[0].Data;
+    }
+
+    /// <summary>
+    /// A draw call: its index range, base vertex, material, m_bUseCompressedNormalTangent and m_nDepthVertexBufferIndex
+    /// (the stream the depth passes draw).
+    /// </summary>
+    public sealed record ModelDrawCall(int StartIndex, int IndexCount, int BaseVertex, string Material, bool CompressedNormals, int DepthStream = 0);
 
     /// <summary>One action of the face, as run (<see cref="RenderFace"/>'s <c>observe</c> sees each).</summary>
     public sealed record Action(string Label, CubemapFacePipelines.Pass? Pass, string? Colour, string? Depth);
@@ -60,6 +80,7 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
     private readonly Package _csgoShaders;
     private readonly Package _coreShaders;
     private readonly IReadOnlyList<AggregateModel> _aggregates;
+    private readonly IReadOnlyList<IReadOnlyList<AggregateCulling.Fragment>>? _fragments;
     private readonly string _skyMaterial;
     private readonly Dictionary<string, (int R, int G, int B)> _shaderIdColors;
 
@@ -78,8 +99,10 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
     /// <param name="mapVpk">The compiled map's package: world nodes, models, lightmaps.</param>
     /// <param name="aggregates">The draw list's aggregates' models, in its order (<see cref="AggregateModels"/>).</param>
     /// <param name="skyMaterial">env_sky's material.</param>
-    public CubemapFaceRenderer(GpuDevice gpu, string game, string mapVpk, IReadOnlyList<AggregateModel> aggregates, string skyMaterial)
+    public CubemapFaceRenderer(GpuDevice gpu, string game, string mapVpk, IReadOnlyList<AggregateModel> aggregates, string skyMaterial,
+        IReadOnlyList<IReadOnlyList<AggregateCulling.Fragment>>? fragments = null)
     {
+        _fragments = fragments;
         _gpu = gpu;
         _runner = new SceneDrawRunner(gpu);
         _game = game;
@@ -121,14 +144,19 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
                 using var resource = new Resource();
                 resource.Read(new MemoryStream(bytes));
                 var (mesh, _, _, _) = ((Model)resource.DataBlock!).GetEmbeddedMeshesAndLoD().First();
-                var vb = mesh.VBIB.VertexBuffers[0];
                 var ib = mesh.VBIB.IndexBuffers[0];
                 var calls = mesh.Data.GetArray("m_sceneObjects").SelectMany(so => so.GetArray("m_drawCalls"))
                     .Select(dc => new ModelDrawCall(dc.GetInt32Property("m_nStartIndex"), dc.GetInt32Property("m_nIndexCount"), dc.GetInt32Property("m_nBaseVertex"),
-                        dc.GetStringProperty("m_material"), dc.ContainsKey("m_bUseCompressedNormalTangent") && dc.GetBooleanProperty("m_bUseCompressedNormalTangent"))).ToList();
-                result.Add(new AggregateModel(name, vb.Data, vb.ElementSizeInBytes,
-                    [.. vb.InputLayoutFields.Select(x => new CubemapFaceVertexLayout.Field(x.SemanticName, x.SemanticIndex, CubemapFaceVertexLayout.FromDxgi(x.Format.ToString()), x.Offset))],
-                    ib.Data, ib.ElementSizeInBytes == 4 ? IndexType.Uint32 : IndexType.Uint16, calls));
+                        dc.GetStringProperty("m_material"), dc.ContainsKey("m_bUseCompressedNormalTangent") && dc.GetBooleanProperty("m_bUseCompressedNormalTangent"),
+                        dc.ContainsKey("m_nDepthVertexBufferIndex") ? dc.GetInt32Property("m_nDepthVertexBufferIndex") : 0)).ToList();
+                var streams = mesh.VBIB.VertexBuffers.Select(vb => new VertexStream(vb.Data, vb.ElementSizeInBytes,
+                    [.. vb.InputLayoutFields.Select(x => new CubemapFaceVertexLayout.Field(x.SemanticName, x.SemanticIndex, CubemapFaceVertexLayout.FromDxgi(x.Format.ToString()), x.Offset))])).ToList();
+                // m_allFlags reads as the flag names where the writer kept them, else as the number.
+                var flags = o.Children.FirstOrDefault(c => c.Key == "m_allFlags").Value?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "";
+                var isModel = long.TryParse(flags, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var number)
+                    ? (number & 8) != 0
+                    : flags.Split(['|', ' '], StringSplitOptions.RemoveEmptyEntries).Contains("OBJECT_TYPE_MODEL");
+                result.Add(new AggregateModel(name, streams, ib.Data, ib.ElementSizeInBytes == 4 ? IndexType.Uint32 : IndexType.Uint16, calls, isModel));
             }
         }
         return result;
@@ -147,10 +175,7 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
     {
         ResetTargets();
         var face = CubemapFaceDrawList.FaceSize;
-        // The instance records: every aggregate draw points at the world nodes' shared identity, transform 1 (the
-        // captures' records; aggregates with fragment transforms of their own are not ported).
-        var transforms = CubemapFaceConstants.Transforms([CubemapFaceConstants.Identity3x4, CubemapFaceConstants.Identity3x4]);
-        var instanceRecords = CubemapFaceConstants.Instances([.. Enumerable.Repeat(1, Math.Max(1, instances - 1))]);
+        var (transforms, instanceRecords) = InstanceBuffers(draws, instances, _fragments);
         var instanceIds = CubemapFaceMeshes.InstanceIds(instanceRecords.Length / 32 * 4);
 
         // 1. The shadow atlas, cleared whole to depth 1 (its own pass, before the binner).
@@ -236,6 +261,40 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
     /// <summary>Every program the faces rendered so far loaded (each one's SPIR-V is a module of Valve's shader packages).</summary>
     public IEnumerable<ValveProgram> LoadedPrograms => _programs.Values;
 
+    /// <summary>
+    /// g_transformBuffer and g_instanceBuffer for a face's draw list: each (view, aggregate) block's record i is the
+    /// fragment Visible[i]'s, with its slot's packed tint and an index to its slot's 3 x 4 (one entry per aggregate and
+    /// slot, ours in first-use order: the shader only reads the entry the index names). Instance 0 is the null record;
+    /// transforms 0 and 1 are identities. Without fragments, every record points at transform 1 (the world nodes'
+    /// shared identity, as the captures' brush records do).
+    /// </summary>
+    public static (byte[] Transforms, byte[] Instances) InstanceBuffers(IReadOnlyList<CubemapFaceDrawList.ListDraw> draws, int instances,
+        IReadOnlyList<IReadOnlyList<AggregateCulling.Fragment>>? fragments)
+    {
+        var records = Enumerable.Repeat((0xffffffffu, 1), Math.Max(1, instances - 1)).ToArray();
+        var matrices = new List<float[]> { CubemapFaceConstants.Identity3x4, CubemapFaceConstants.Identity3x4 };
+        if (fragments != null)
+        {
+            var slots = new Dictionary<(int, int), int>();
+            foreach (var d in draws)
+            {
+                if (d.Visible == null)
+                    continue;
+                for (var i = 0; i < d.Visible.Count; i++)
+                {
+                    var f = fragments[d.Aggregate][d.Visible[i]];
+                    if (!slots.TryGetValue((d.Aggregate, f.TransformSlot), out var index))
+                    {
+                        slots[(d.Aggregate, f.TransformSlot)] = index = matrices.Count;
+                        matrices.Add(f.SlotTransform ?? CubemapFaceConstants.Identity3x4);
+                    }
+                    records[d.InstanceBase + i - 1] = (f.SlotTint, index);
+                }
+            }
+        }
+        return (CubemapFaceConstants.Transforms(matrices), CubemapFaceConstants.Instances(records));
+    }
+
     /// <summary>The light binner's depth bins: lb_bin_slices clamped to 1 .. 8192 and rounded up to 32 (1801a8150).</summary>
     private static int BinnerBins() => (int)(((uint)Math.Clamp(CubemapFaceBlocks.BinnerBinSlices, 1, 0x2000) + 31) & ~31u);
 
@@ -310,7 +369,46 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
     /// colour pass lightmapped (D_BAKED_LIGHTING_FROM_LIGHTMAP), the alpha-tested prepass layer D_ALPHA_TEST_PREPASS.
     /// The pixel program is none where its combo has no shader (<see cref="ValveProgram.LoadOrNone"/>).
     /// </summary>
-    public (ValveProgram Vertex, ValveProgram? Pixel) Programs(string materialPath, bool compressedNormals, CubemapFacePipelines.Pass pass, bool alphaTestedPrepass)
+    public (ValveProgram Vertex, ValveProgram? Pixel) Programs(AggregateModel model, ModelDrawCall call, CubemapFacePipelines.Pass pass, bool alphaTestedPrepass)
+        => pass == CubemapFacePipelines.Pass.SunShadow && (model.DrawCallFlags & 2) != 0
+            ? Programs(ShadowFastPathMaterial, CompressedNormals(model, call, pass), pass, false, Lighting(model))
+            : Programs(call.Material, CompressedNormals(model, call, pass), pass, alphaTestedPrepass, Lighting(model));
+
+    /// <summary>
+    /// A colour draw's baked lighting combo from the draw call's +0x14 (meshsystem 180049520's table, ledger 157):
+    /// m_bHasBakedLightingFromLightMap (0x10) the lightmap, m_bHasBakedLightingFromVertexStream (0x8) the vertex
+    /// stream, neither the light probe volumes.
+    /// </summary>
+    public static string Lighting(AggregateModel model)
+        => (model.DrawCallFlags & 0x10) != 0 ? "D_BAKED_LIGHTING_FROM_LIGHTMAP"
+            : (model.DrawCallFlags & 0x8) != 0 ? "D_BAKED_LIGHTING_FROM_VERTEX_STREAM" : "D_BAKED_LIGHTING_FROM_PROBE";
+
+    /// <summary>
+    /// The material a shadow fast path caster draws the cascades with (m_bUseShadowFastPath): every such batch of the
+    /// captures names materials/dev/reflectivity_90.vmat (generic: its Depth mode is csgo_depth_only's plain combo).
+    /// </summary>
+    public const string ShadowFastPathMaterial = "materials/dev/reflectivity_90.vmat";
+
+    /// <summary>
+    /// The streams a world draw binds: the depth passes the draw call's depth stream alone, the colour pass every
+    /// stream (atixref's captures: a prop's position stream in the depth passes, both in colour).
+    /// </summary>
+    public static IReadOnlyList<VertexStream> BoundStreams(AggregateModel model, ModelDrawCall call, CubemapFacePipelines.Pass pass)
+        => pass == CubemapFacePipelines.Pass.Colour ? model.Streams
+            : call.DepthStream >= 0 && call.DepthStream < model.Streams.Count ? [model.Streams[call.DepthStream]]
+            // 255: no depth stream of its own (single-stream meshes); the draw binds its first stream (the captures).
+            : call.DepthStream == 255 ? [model.Streams[0]]
+            : throw new InvalidDataException($"{model.Model}: depth stream {call.DepthStream} of {model.Streams.Count}");
+
+    /// <summary>
+    /// D_COMPRESSED_NORMALS_AND_TANGENTS: the draw call's m_bUseCompressedNormalTangent where a bound stream holds the
+    /// normal (measured on every world draw of atixref's face 0: the depth passes of two-stream props and brushes
+    /// draw 0, single-stream foliage 1, every colour draw 1).
+    /// </summary>
+    public static bool CompressedNormals(AggregateModel model, ModelDrawCall call, CubemapFacePipelines.Pass pass)
+        => call.CompressedNormals && BoundStreams(model, call, pass).Any(s => s.Fields.Any(f => f.Semantic == "NORMAL"));
+
+    private (ValveProgram Vertex, ValveProgram? Pixel) Programs(string materialPath, bool compressedNormals, CubemapFacePipelines.Pass pass, bool alphaTestedPrepass, string lighting)
     {
         var material = Material(materialPath);
         var features = Features(material);
@@ -320,12 +418,21 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
         if (fallback == null)
             throw new InvalidDataException($"{own} has no {modeName} mode");
         var shader = fallback.Length > 0 ? Path.GetFileNameWithoutExtension(fallback) : own;
-        var statics = staticName.Length > 0 && fallback.Length == 0 ? new Dictionary<string, int> { [staticName] = staticValue } : [];
+        // S_SHADER_QUALITY is set by the system, not the material (its combo source type): 1 in the captures' video
+        // config (as GpuMaterialSampler's). The file's static rules drop it where a mode excludes it.
+        var statics = new Dictionary<string, int> { ["S_SHADER_QUALITY"] = ShaderQuality };
+        if (staticName.Length > 0 && fallback.Length == 0)
+            statics[staticName] = staticValue;
         var compressed = compressedNormals ? 1 : 0;
         var vsDynamics = new Dictionary<string, int> { ["D_COMPRESSED_NORMALS_AND_TANGENTS"] = compressed };
         var psDynamics = new Dictionary<string, int>();
+        // The colour pass's baked lighting (the vertex programs have no probe combo).
         if (pass == CubemapFacePipelines.Pass.Colour)
-            vsDynamics["D_BAKED_LIGHTING_FROM_LIGHTMAP"] = psDynamics["D_BAKED_LIGHTING_FROM_LIGHTMAP"] = 1;
+        {
+            psDynamics[lighting] = 1;
+            if (lighting != "D_BAKED_LIGHTING_FROM_PROBE")
+                vsDynamics[lighting] = 1;
+        }
         if (alphaTestedPrepass)
             psDynamics["D_ALPHA_TEST_PREPASS"] = 1;
         var shaders = Shaders(shader);
@@ -336,6 +443,9 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
             throw new InvalidDataException($"{shader}: no colour pixel program for {materialPath}");
         return (vs, ps);
     }
+
+    /// <summary>The system's shader quality combo (S_SHADER_QUALITY): 1, the captures' video config ("High").</summary>
+    public const int ShaderQuality = 1;
 
     /// <summary>A material's int parameter (a feature such as F_ALPHA_TEST), 0 when absent.</summary>
     public long MaterialInt(string materialPath, string name) => Material(materialPath).IntParams.GetValueOrDefault(name);
@@ -525,10 +635,11 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
         var model = _aggregates[list.Aggregate];
         // A command covers consecutive fragments, which may be several draw calls of the list's one material.
         var calls = model.DrawCalls.Where(c => c.StartIndex < command.FirstIndex + command.IndexCount && command.FirstIndex < c.StartIndex + c.IndexCount).ToList();
-        if (calls.Count == 0 || calls.Any(c => c.Material != calls[0].Material || c.CompressedNormals != calls[0].CompressedNormals))
+        if (calls.Count == 0 || calls.Any(c => c.Material != calls[0].Material || c.CompressedNormals != calls[0].CompressedNormals || c.DepthStream != calls[0].DepthStream))
             throw new InvalidDataException($"{model.Model}: indices {command.FirstIndex} + {command.IndexCount} are not one material's draw calls");
         var call = calls[0];
-        var (vs, ps) = Programs(call.Material, call.CompressedNormals, pass, list.Layer == CubemapFaceDrawList.Layer.PrepassAlphaTested);
+        var (vs, ps) = Programs(model, call, pass, list.Layer == CubemapFaceDrawList.Layer.PrepassAlphaTested);
+        var streams = BoundStreams(model, call, pass);
         var material = Material(call.Material);
         var bindings = new SceneDrawRunner.Bindings();
         foreach (var (program, stage) in new[] { (vs, 0), (ps, 1) })
@@ -584,15 +695,15 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
         {
             VertexSpirv = vs.Spirv,
             PixelSpirv = ps?.Spirv,
-            Bindings = CubemapFaceVertexLayout.Bindings(model.Stride, true),
-            Attributes = CubemapFaceVertexLayout.Attributes(vs, model.Fields, true),
+            Bindings = CubemapFaceVertexLayout.Bindings([.. streams.Select(s => s.Stride)], true),
+            Attributes = CubemapFaceVertexLayout.Attributes(vs, [.. streams.Select(s => (IReadOnlyList<CubemapFaceVertexLayout.Field>)s.Fields)], true),
             Viewport = new Viewport(rect.X, rect.Y, rect.Width, rect.Height, 0f, 1f),
             Scissor = new Rect2D(new Offset2D(rect.X, rect.Y), new Extent2D((uint)rect.Width, (uint)rect.Height)),
             ColorFormat = colourFormat,
             DepthFormat = _live[depthTarget].Format,
         };
         var state = CubemapFacePipelines.Apply(template, pass, ps != null ? (VfxRenderStateInfoPixelShader)ps.RenderState : null);
-        var vertexBuffers = new[] { (Buffer(model.Vertices), 0ul), (Buffer(instanceIds), 0ul), (Buffer(Zero16), 0ul) };
+        (GpuDevice.GpuBuffer, ulong)[] vertexBuffers = [.. streams.Select(s => (Buffer(s.Data), 0ul)), (Buffer(instanceIds), 0ul), (Buffer(Zero16), 0ul)];
         _runner.Draw(state, bindings, vertexBuffers, (Buffer(model.Indices), 0ul, model.IndexType),
             new SceneDrawArgs(true, (uint)command.IndexCount, (uint)command.InstanceCount, (uint)command.FirstIndex, command.VertexOffset, (uint)command.FirstInstance),
             colourTarget != null ? _live[colourTarget] : null, _live[depthTarget]);

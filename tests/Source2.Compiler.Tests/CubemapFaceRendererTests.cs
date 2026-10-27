@@ -76,18 +76,18 @@ public sealed class CubemapFaceRendererTests(ITestOutputHelper output)
             Assert.Equal(typed with { Volumes = scene.Volumes }, scene);
             Assert.Equal(typed.Volumes, scene.Volumes);
         }
+        var memberships = CubemapLayerFlagsCaptureTests.Memberships(vpk);
         var models = CubemapFaceRenderer.AggregateModels(vpk);
         // The draw list's aggregates (fragments, LODs) and their layer-selection inputs, in the same order.
         var aggregates = AggregateCullingCaptureTests.Aggregates(vpk);
         Assert.Equal(aggregates.Select(a => Path.ChangeExtension(a.Name.Split(' ', 2)[1], ".vmdl_c")), models.Select(m => m.Model));
-        Assert.DoesNotContain(aggregates, a => a.OwnTransforms && a.Fragments.Count > 1);
-        var memberships = CubemapLayerFlagsCaptureTests.Memberships(vpk);
+        models = [.. models.Select((m, i) => m with { DrawCallFlags = memberships[aggregates[i].Name.Split(' ', 2)[1]].DrawCall14 })];
         var listAggregates = aggregates.Select(a => new CubemapFaceDrawList.Aggregate(a.Fragments, a.OwnTransforms, a.Lods, memberships[a.Name.Split(' ', 2)[1]])).ToList();
         var order = CubemapFaceDrawList.MaterialOrder(CubemapFaceRenderer.AggregateMaterials(models));
         var (toSun, _, _) = CubemapShadowCascades.SunDirections(scene.SunAngles);
 
         using var gpu = new GpuDevice(rayTracingShaderFeatures: Environment.GetEnvironmentVariable("CUBEREPLAY_BASIC_DEVICE") != "1");
-        using var renderer = new CubemapFaceRenderer(gpu, game, vpk, models, skyMaterial);
+        using var renderer = new CubemapFaceRenderer(gpu, game, vpk, models, skyMaterial, [.. aggregates.Select(a => (IReadOnlyList<AggregateCulling.Fragment>)a.Fragments)]);
         var faces = new List<Half[]>();
         var failures = new List<string>();
         for (var f = 0; f < 6; f++)

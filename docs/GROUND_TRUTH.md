@@ -4415,13 +4415,36 @@ game can answer is raised with the user first, and runs with -insecure.
       is not in the file (csgo_environment's depth mode) or its dynamic combo's render state names shader file -1
       (csgo_depth_only's opaque combos): every depth draw of the three captures without a pixel shader is one of
       these. D_ALPHA_TEST_PREPASS=1 in the alpha-tested prepass layer.
-    - Measured on atixref face 0 (189 world draws, CubemapFaceProgramsTests): 72 draw with our programs byte for
-      byte. The rest are three rules not ported: (1) the depth passes draw the draw call's depth vertex buffer
-      (m_nDepthVertexBufferIndex; props carry a position-only stream) and D_COMPRESSED_NORMALS_AND_TANGENTS follows
-      the bound stream (0 for csgo_depth_only and csgo_environment(_blend) depth, 1 for single-stream foliage);
-      (2) prop aggregates (m_allFlags 0x408, per-mesh transforms, tints and m_nLightProbeVolumePrecomputedHandshake)
-      are lit from probes (D_BAKED_LIGHTING_FROM_PROBE=1), brushes from the lightmap; (3) csgo_foliage's
-      alpha-tested depth pixel combo (static 10) is not found by our static pick.
+    - Result: every world draw of face 0 of all three captures draws with our programs byte for byte
+      (CubemapFaceProgramsTests: atixref 256 draws, 121 cascade, 68 prepass, 67 colour; probe01 24; s2c_l5probe 22),
+      with these rules:
+      - Settled by decompile (ledger 157's table): the shadow fast path. A draw call whose +0x14 has bit 2
+        (m_bUseShadowFastPath, meshsystem 180027830 over the material's attributes, CubemapLayerFlags.DrawCallFlags)
+        draws the cascades with materials/dev/reflectivity_90.vmat (the material every such batch names), generic's
+        Depth mode, csgo_depth_only's plain combo; the prepass keeps the material's own Depth mode.
+      - Settled by decompile: the colour pass's baked lighting from the same word: 0x10
+        (m_bHasBakedLightingFromLightMap) the lightmap, 0x8 the vertex stream, neither D_BAKED_LIGHTING_FROM_PROBE
+        (a pixel-only combo). atixref's props and its vertex-painted brush blends are probe-lit.
+      - Measured: the depth passes bind the draw call's m_nDepthVertexBufferIndex stream alone (255: the mesh's
+        one stream), the colour pass every stream, each in its own binding before the instance ids and the zero
+        stream; D_COMPRESSED_NORMALS_AND_TANGENTS is the draw call's m_bUseCompressedNormalTangent where a bound
+        stream holds the NORMAL.
+      - Measured: S_SHADER_QUALITY (a system-set combo, VfxStaticComboSourceType S_SHADER_QUALITY) is 1, the
+        captures' video config. A configuration the file's static rules exclude is reduced as VRF's
+        ShaderDataProvider does (csgo_foliage's depth pixel combo, csgo_vertexlitgeneric's); the captured modules
+        are the reduced combos. (tools/cubehost/spvmatch needs a size limit above the largest .vcs, 200000000,
+        or the big pixel programs read as "not found".)
+    - Settled by the captures' buffers (CubemapInstanceRecordsTests): an instance record's first word is its
+      fragment's transform slot's packed tint (AddFragment's PackTint; atixref's mailbox 0xff88bb77 from
+      m_vTintColor 119 187 136) and its second the index of the slot's 3 x 4 (AggregateCulling.Fragments'
+      transform). Every (view, aggregate) block of atixref's face 0 (93 blocks, 401 instances) and probe01's (10)
+      reads the captured tints and transforms bit for bit. The buffers' own layout is the game's allocator's; ours
+      places each (aggregate, slot) once in first-use order (only the entry an index names is read).
+    - Read, open: the sky's D_FOG_TYPE is the sky scene object's +0xf4 (scenesystem 180154fb0 sets the token
+      0x83cb90d6 from it; type 2 adds the angular test of +0xf8 / +0xfc), which client 180282390 copies from
+      C_EnvSky's m_nFogType (+0x10b8, key fog_type, schema 18026d020). Neither probe01's nor atixref's env_sky
+      has the key, yet probe01 draws 0 and atixref 1: the value's other writer (C_EnvSky is client-side; no server
+      class has it) is not found. The renderer draws D_FOG_TYPE 0.
 
 
 ## Resolved

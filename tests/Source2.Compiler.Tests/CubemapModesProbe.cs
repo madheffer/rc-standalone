@@ -30,6 +30,8 @@ public sealed class CubemapModesProbe(ITestOutputHelper output)
                     try
                     {
                         var p = ValveProgram.Load(csgo, shader, "vulkan_50", stage, statics, new Dictionary<string, int>());
+                        if (stage == "vs" || stage == "ps")
+                            output.WriteLine($"   attrs {stage} {label}: {string.Join(" ", p.Attributes.Select(at => $"{at.Name}={(at.ConstValue ?? at.DynExpression?.Length.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "?")}"))}");
                         output.WriteLine($"   {stage} {label}: {p.Name} {p.Spirv.Length} bytes; file ids {string.Join(",", p.Program.GetStaticCombo(long.Parse(p.Name.Split(" static ")[1].Split(" ")[0], System.Globalization.CultureInfo.InvariantCulture)).DynamicComboRenderStates.Take(8).Select(r => r.ShaderFileId))}; files {p.Program.GetStaticCombo(long.Parse(p.Name.Split(" static ")[1].Split(" ")[0], System.Globalization.CultureInfo.InvariantCulture)).ShaderFiles.Length}");
                     }
                     catch (Exception e) { output.WriteLine($"   {stage} {label}: {e.GetType().Name} {e.Message}"); }

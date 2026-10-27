@@ -297,14 +297,22 @@ public static class CubemapFaceConstants
     /// is the capture's null record (the sky's, which its shaders do not read).
     /// </summary>
     public static byte[] Instances(IReadOnlyList<int> transformIndices)
+        => Instances([.. transformIndices.Select(t => (0xffffffffu, t))]);
+
+    /// <summary>
+    /// g_instanceBuffer with each record's tint and transform index (atixref's capture: a prop's record carries its
+    /// slot's packed tint, a brush's 0xffffffff).
+    /// </summary>
+    public static byte[] Instances(IReadOnlyList<(uint Tint, int Transform)> records)
     {
+        var transformIndices = records.Select(r => r.Transform).ToList();
         var b = new byte[(transformIndices.Count + 1) * 32];
         uint[] none = [0xffffffff, 0, 0xffffffff, 0xffffffff, 0xffffffff, 0, 0, 0x3f800000];
         for (var i = 0; i < 8; i++)
             BinaryPrimitives.WriteUInt32LittleEndian(b.AsSpan(i * 4), none[i]);
         for (var n = 0; n < transformIndices.Count; n++)
         {
-            uint[] r = [0xffffffff, (uint)transformIndices[n], 0xffffffff, 0, 0, 0x00100000, 0, 0x3f800000];
+            uint[] r = [records[n].Tint, (uint)transformIndices[n], 0xffffffff, 0, 0, 0x00100000, 0, 0x3f800000];
             for (var i = 0; i < 8; i++)
                 BinaryPrimitives.WriteUInt32LittleEndian(b.AsSpan((n + 1) * 32 + i * 4), r[i]);
         }

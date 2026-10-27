@@ -831,13 +831,15 @@ client 1801ea0a0's order with their handshakes, the volumes, fog, sun, sky, ligh
 MinSpecLightmapSize), and each world draw's programs from its shader's render modes (`CubemapFaceRenderer.Programs`:
 Depth for the cascades and prepass, ToolsVis for colour, no pixel program where the combo has no shader). probe01
 stays exact. `CubemapFaceProgramsTests` (`CUBEPROGS=<capture dir>`) checks the choice on every world draw of a
-capture: atixref face 0, 72 of 189 equal; what the rest need is ledger 163's three rules (the depth vertex stream
-and its compressed-normals combo, probe lighting for prop aggregates, foliage's alpha depth combo).
+capture: every world draw of face 0 of probe01, s2c_l5probe and atixref (256 on atixref) now draws with Valve's
+programs byte for byte (ledger 163: the shadow fast path, the baked lighting bits of the draw call, the depth
+stream, S_SHADER_QUALITY 1 and the static rules). The renderer draws a mesh's streams as the captures bind them.
 
-Left for atixref, in order: those three; prop aggregates' per-mesh transforms, tints and light probe volume in the
-instance records (m_bHasTransform, m_vTintColor, m_nLightProbeVolumePrecomputedHandshake; the captured records give
-the layout); two-stream vertex layouts; the probe-lit colour programs' inputs (the probe atlas textures); the sky with
-D_FOG_TYPE 1; non-aggregate scene objects (about 50 direct draws in face 0, among them error-shader draws in the
+The instance records are ours too (`CubemapFaceRenderer.InstanceBuffers`: each slot's packed tint and 3 x 4;
+`CubemapInstanceRecordsTests`, `CUBEINST=<capture dir>`: atixref's 93 blocks and 401 instances bit for bit).
+
+Left for atixref, in order: the probe-lit colour programs' inputs (the probe atlas textures); the sky's D_FOG_TYPE
+(C_EnvSky's m_nFogType, whose writer for atixref's 1 is not found, ledger 163); non-aggregate scene objects (about 50 direct draws in face 0, among them error-shader draws in the
 atlas); the viewmodel (s2c_l5probe's -X). Diagnosis probes: `CubemapSceneKeysProbe` (`CUBEKEYS`),
 `CubemapModesProbe` (`CUBEMODES=1`), `CubemapDrawCallKeysProbe` (`CUBEDCKEYS`).
 
