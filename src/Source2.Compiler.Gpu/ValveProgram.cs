@@ -77,6 +77,7 @@ public sealed class ValveProgram
         using var featureFile = Read(package, $"{shader}_{platform}_features");
         string[] featureNames = [.. featureFile.StaticComboArray.Select(f => f.Name)];
         long staticId = 0;
+        var config = new int[program.StaticComboArray.Length];
         foreach (var c in program.StaticComboArray)
         {
             var value = 0;
@@ -92,8 +93,14 @@ public sealed class ValveProgram
                     _ => f,
                 };
             }
+            config[c.Index] = value;
             staticId += (value - c.RangeMin) * c.ComboIndexValue;
         }
+        // A configuration the file's static rules exclude (csgo_vertexlitgeneric's S_SPECULAR_DIRECT in ToolsVis) is
+        // reduced as the rules say (VRF's ShaderDataProvider, as MaterialAttributes does); the captures' modules are
+        // the reduced combos.
+        if (!program.StaticComboEntries.ContainsKey(staticId) && ValveResourceFormat.IO.ShaderDataProvider.TryReduceStaticConfiguration(program, config, out var reduced))
+            staticId = program.StaticComboArray.Sum(c => (long)(reduced[c.Index] - c.RangeMin) * c.ComboIndexValue);
         if (!program.StaticComboEntries.ContainsKey(staticId) && orNone)
             return null;
         if (!program.StaticComboEntries.ContainsKey(staticId))

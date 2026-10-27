@@ -23,7 +23,10 @@ public sealed class CubemapFaceProgramsTests(ITestOutputHelper output)
             return;
         var game = Path.Combine(Environment.GetEnvironmentVariable("CS2_DIR") ?? @"D:\Steam\steamapps\common\Counter-Strike Global Offensive", "game");
         var vpk = Directory.GetFiles(dir, "*.vpk").Single();
-        var models = CubemapFaceRenderer.AggregateModels(vpk);
+        // Each aggregate's draw call flags (the shadow fast path bit) from its layer membership, in the same order.
+        var memberships = CubemapLayerFlagsCaptureTests.Memberships(vpk);
+        var names = AggregateCullingCaptureTests.Aggregates(vpk).Select(a => a.Name.Split(' ', 2)[1]).ToList();
+        var models = CubemapFaceRenderer.AggregateModels(vpk).Select((m, i) => m with { DrawCallFlags = memberships[names[i]].DrawCall14 }).ToList();
         var bySha = models.GroupBy(m => Sha(m.Vertices)).ToDictionary(g => g.Key, g => g.First());
         using var gpu = new GpuDevice(rayTracingShaderFeatures: false);
         using var renderer = new CubemapFaceRenderer(gpu, game, vpk, models, "materials/editor/toolscene_lighting_sky_dust.vmat");
@@ -56,7 +59,7 @@ public sealed class CubemapFaceProgramsTests(ITestOutputHelper output)
             ValveProgram? ps;
             try
             {
-                (vs, ps) = renderer.Programs(call.Material, call.CompressedNormals, pass, alpha);
+                (vs, ps) = renderer.Programs(model, call, pass, alpha);
             }
             catch (InvalidDataException e)
             {

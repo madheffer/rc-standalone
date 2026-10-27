@@ -112,11 +112,11 @@ the addon).
    (`ChainedCubeMakesTheGamesExr`) stays as the test that compares each action and block. **Next, in order:**
    - Done later 10-27 (ledger 163): the scene from the package (`CubemapFaceBlocks.FromPackage`) and each draw's
      programs by its shader's render modes. probe01 still exact.
-   - **atixref's world draws (the next task).** `CubemapFaceProgramsTests` with `CUBEPROGS=%TEMP%/cubehost_run/atixref`
-     gives 72 of 189 equal; port ledger 163's three rules (depth vertex stream + its compressed combo, probe lighting
-     for prop aggregates, foliage's alpha depth static combo) until it passes, then the prop aggregates' instance
-     records (transforms, tints, light probe volume), two-stream layouts, the sky's fog type 1, non-aggregate
-     objects; then render atixref face 0 against its readback (atixref's readback_0..5 are this capture's frames).
+   - Done: `CubemapFaceProgramsTests` passes on all three captures (atixref 256 world draws; ledger 163).
+   - **atixref's inputs (the next task).** The prop aggregates' instance records (per-mesh transforms, tints, light
+     probe volume: check against the capture's g_instanceBuffer / g_transformBuffer), the probe-lit programs'
+     inputs, the sky's D_FOG_TYPE 1 (what selects it is not read), non-aggregate objects; then render atixref face 0
+     against its readback (atixref's readback_0..5 are this capture's frames).
    - Then render the cubes in our compile: `compile-map` writing env_cubemap_array.vtex_c from the renderer (one
      record per env_cubemap / combined volume, client 1801ea0a0's gather order), whole-package against Valve's.
    - The pawn's viewmodel or a build state without one (s2c_l5probe's -X; roadmap 0e, ledger 149), and s2c_l5probe's

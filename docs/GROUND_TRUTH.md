@@ -4382,13 +4382,25 @@ game can answer is raised with the user first, and runs with -insecure.
       is not in the file (csgo_environment's depth mode) or its dynamic combo's render state names shader file -1
       (csgo_depth_only's opaque combos): every depth draw of the three captures without a pixel shader is one of
       these. D_ALPHA_TEST_PREPASS=1 in the alpha-tested prepass layer.
-    - Measured on atixref face 0 (189 world draws, CubemapFaceProgramsTests): 72 draw with our programs byte for
-      byte. The rest are three rules not ported: (1) the depth passes draw the draw call's depth vertex buffer
-      (m_nDepthVertexBufferIndex; props carry a position-only stream) and D_COMPRESSED_NORMALS_AND_TANGENTS follows
-      the bound stream (0 for csgo_depth_only and csgo_environment(_blend) depth, 1 for single-stream foliage);
-      (2) prop aggregates (m_allFlags 0x408, per-mesh transforms, tints and m_nLightProbeVolumePrecomputedHandshake)
-      are lit from probes (D_BAKED_LIGHTING_FROM_PROBE=1), brushes from the lightmap; (3) csgo_foliage's
-      alpha-tested depth pixel combo (static 10) is not found by our static pick.
+    - Result: every world draw of face 0 of all three captures draws with our programs byte for byte
+      (CubemapFaceProgramsTests: atixref 256 draws, 121 cascade, 68 prepass, 67 colour; probe01 24; s2c_l5probe 22),
+      with these rules:
+      - Settled by decompile (ledger 157's table): the shadow fast path. A draw call whose +0x14 has bit 2
+        (m_bUseShadowFastPath, meshsystem 180027830 over the material's attributes, CubemapLayerFlags.DrawCallFlags)
+        draws the cascades with materials/dev/reflectivity_90.vmat (the material every such batch names), generic's
+        Depth mode, csgo_depth_only's plain combo; the prepass keeps the material's own Depth mode.
+      - Settled by decompile: the colour pass's baked lighting from the same word: 0x10
+        (m_bHasBakedLightingFromLightMap) the lightmap, 0x8 the vertex stream, neither D_BAKED_LIGHTING_FROM_PROBE
+        (a pixel-only combo). atixref's props and its vertex-painted brush blends are probe-lit.
+      - Measured: the depth passes bind the draw call's m_nDepthVertexBufferIndex stream alone (255: the mesh's
+        one stream), the colour pass every stream, each in its own binding before the instance ids and the zero
+        stream; D_COMPRESSED_NORMALS_AND_TANGENTS is the draw call's m_bUseCompressedNormalTangent where a bound
+        stream holds the NORMAL.
+      - Measured: S_SHADER_QUALITY (a system-set combo, VfxStaticComboSourceType S_SHADER_QUALITY) is 1, the
+        captures' video config. A configuration the file's static rules exclude is reduced as VRF's
+        ShaderDataProvider does (csgo_foliage's depth pixel combo, csgo_vertexlitgeneric's); the captured modules
+        are the reduced combos. (tools/cubehost/spvmatch needs a size limit above the largest .vcs, 200000000,
+        or the big pixel programs read as "not found".)
 
 ## Resolved
 
