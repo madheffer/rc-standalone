@@ -46,10 +46,13 @@ public static class IslandSolver
     /// <param name="dynamicPairs">Contacts between two dynamic bodies ("contacts A").</param>
     /// <param name="otherPairs">The rest ("contacts B").</param>
     /// <param name="settings">World settings.</param>
+    /// <param name="joints">The island's joints in island order (island +0x38), their solver indices set.</param>
+    /// <param name="broken">Where joints that break on the last velocity iteration go.</param>
     public static bool Solve(Span<RnBodyState> bodies, ReadOnlySpan<bool> touchesDynamic,
                              IReadOnlyList<Contact> dynamicPairs, IReadOnlyList<Contact> otherPairs,
-                             in Settings settings)
+                             in Settings settings, IReadOnlyList<RnJoint>? joints = null, List<RnJoint>? broken = null)
     {
+        joints ??= [];
         var dt = settings.Dt;
         var velocityIterations = settings.VelocityIterations;
         var positionIterations = settings.PositionIterations;
@@ -63,6 +66,9 @@ public static class IslandSolver
         for (var i = 0; i < bodies.Length; i++)
             BuildAndIntegrate(ref bodies[i], ref solver[i], touchesDynamic[i], false, settings);
 
+        // RnSolver_SolveSerial: the joints first in the prepare and in every iteration.
+        var jointStream = joints.Count > 0 ? JointSolver.Prepare(joints, solver, dt) : [];
+
         var contacts = new List<Contact>(dynamicPairs.Count + otherPairs.Count);
         contacts.AddRange(dynamicPairs);
         contacts.AddRange(otherPairs);
@@ -73,6 +79,8 @@ public static class IslandSolver
         for (var iteration = 0; iteration < velocityIterations; iteration++)
         {
             var last = iteration == velocityIterations - 1;
+            if (joints.Count > 0)
+                JointSolver.SolveVelocity(jointStream, joints, solver, last, broken);
             for (var c = 0; c < contacts.Count; c++)
             {
                 if (streams[c].Length == 4)
@@ -96,6 +104,9 @@ public static class IslandSolver
         }
 
         for (var iteration = 0; iteration < positionIterations; iteration++)
+        {
+            if (joints.Count > 0)
+                JointSolver.SolvePosition(jointStream, joints, solver);
             for (var c = 0; c < contacts.Count; c++)
             {
                 if (streams[c].Length == 4)
@@ -103,6 +114,7 @@ public static class IslandSolver
                 var header = MemoryMarshal.AsRef<ContactHeader>(streams[c]);
                 ContactSolver.SolvePosition(header, solver, contacts[c].Cache, contacts[c].Setup);
             }
+        }
 
         var sleeps = settings.Sleeping && asleep;
         for (var i = 0; i < bodies.Length; i++)

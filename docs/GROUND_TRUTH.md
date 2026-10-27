@@ -4250,6 +4250,28 @@ game can answer is raised with the user first, and runs with -insecure.
       without it adds AlphaTested lists the game does not draw); (2) CPVS's octree walk for worlds with vis data
       (the 0x20 bit only); (3) the order of a cascade's two layers; (4) the cull's +0xc fade bit.
 
+158. **The joint stream in the island solve** (2026-10-27: decompile of vphysics2 0924's 18030f0b0, 180312650,
+    18030f860, 1803120f0, 180310dc0, 18030fd50, 180205b40 and the two joint vtables' +8 / +0x10 / +0x28 / +0x38;
+    Simulation/JointSolver.cs, IslandSolver.cs).
+    - Settled from the code: RnSolver_SolveSerial prepares the island's joints (context +0x30: array, count,
+      solver bodies, stream, size) before the type-1 constraints and both contact lists, and each velocity and
+      position iteration walks them first in the same order. The stream is one buffer: per joint, record 0x12 (4
+      bytes) when both bodies are infinite in mass (unless joint +0x2b) or in inertia (unless +0x2c), else the
+      0x14 header (type, solver +0x68 / +0x6c, mass scales 1) and the type's vtable +0x28 prepare with warm 1,
+      whose return is the record type. Priority d = joint +0x2a (signed) - B + A: d < 0 zeroes scale B when A is
+      not infinite in a tested axis, d > 0 zeroes scale A likewise. The last velocity iteration stores each
+      record's impulses and runs every joint's break test, skipped records too (vtable +0x38 = 180205b40 for both
+      ported types: |linear impulse| above +0xac, a NaN breaking too, or the angular impulse (conical 0, revolute
+      the hinge pair's length) above +0xb0, each only when positive); a broken joint goes in world +0x88 +0x30.
+      The base ctor (1802042b0) and both aggregate joint builders leave +0x2a..+0x2c and both thresholds 0.
+    - Exact against vphysics2 (JointStreamOracleTests): 2,908 random islands of 2 to 6 bodies and 1 to 6 mixed
+      conical and revolute joints through Valve's own wrapper and dispatches (each joint behind its real
+      vtable), every stream, body and joint byte after the prepare, 1 to 3 velocity iterations and 2 position
+      iterations; the break test on 20,000 random thresholds. Trials with a NaN in Valve's output are skipped
+      (3%).
+    - Open: joints in the island manager (step 4 of PHYSICS.md's roadmap), so WorldSolver still refuses a body
+      with joints; records other than 5, 0x0b and 0x12 throw.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

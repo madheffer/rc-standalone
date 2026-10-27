@@ -107,20 +107,14 @@ Open:
      corpus model is known to use.
   2. Done (2026-10-25, ledger 138): the conical joint's spring and velocity
      motor (modes 0 and 2 of 180229870) and its plasticity (180205bd0).
-  3. The joint wrapper and joints in the island solver. Port 18030f0b0
-     (the stream header: solver indices from joint +0x68/+0x6c, the mass
-     scales from priority +0x2a and the infinite-mass/inertia flags
-     +0x2b/+0x2c, record 0x12 when both sides are infinite in the tested
-     axes, as ContactSolver's wrapper does for contacts), the per-joint
-     dispatch by vtable (prepare +0x28, the dof mask +0x30, the break test
-     +0x38 into world +0x88 +0x30) and the record dispatches 180312650
-     (velocity), 18030f860 (last velocity iteration: solve, then store),
-     1803120f0 (position). Wire them into Simulation/IslandSolver.cs:
-     joints prepared before contacts, iterated before them in each
-     velocity and position iteration, impulses stored on the last velocity
-     iteration. Check: an oracle test of the wrapper on random joint/body
-     pairs, then a two-body pendulum island stepped beside vphysics2's
-     island solve (the IslandSolver oracle tests' pattern) byte for byte.
+  3. Done (2026-10-27, ledger 158): the joint stream. Simulation/JointSolver.cs ports the wrapper
+     18030f0b0 (record 0x12, solver indices, priority mass scales, warm prepare by vtable), the velocity
+     dispatch 180312650, the last iteration 18030f860 (store, then every joint's break test 180205b40 into
+     the world's broken list) and the position dispatch 1803120f0; RnJoint holds a joint's bytes as
+     vphysics2 lays them out. IslandSolver.Solve takes the island's joints: prepared before the contacts,
+     iterated before them in every velocity and position iteration (RnSolver_SolveSerial). Exact against
+     Valve's own functions on random mixed islands (JointStreamOracleTests). WorldSolver.SolveIsland gets
+     joints with step 4, which puts them in the islands.
   4. Joints in the island manager (notes_joints.md "Islands"; today
      IslandManagerOps.cs, WorldSolver.cs:66 and ContinuousSolve.cs:354
      throw on a body with joints): CRnWorld_AddJoint 1801fd720 and

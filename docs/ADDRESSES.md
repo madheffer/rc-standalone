@@ -1973,12 +1973,12 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180006e00` | `Convar_sc_shadow_depth_bias_clamp` | registration, default 0 | `src/Source2.Compiler.Gpu/CubemapFacePipelines.cs:40` |
 | `18000f900` | `Convar_lb_tile_pixels` | registration, default 8 (data 1809239a8) |  |
 | `18000f9b0` | `Convar_lb_bin_slices` | registration, default 8192 (data 1809239b8) |  |
-| `1800380a0` | `CAggregateSceneObject_AddFragment` | vfunc 0x28 (worldrenderer 18001e920 per AggregateMeshInfo_t): a transform slot (0x38 each at +0x150) unless the last slot has the same base vertex (draw +0x54), packed tint (18049ca70 then 18049c8d0) and transform within 1e-5 (18049ad90); the 0x50-byte fragment record (+0x14 flags, +0x16 meshlets, +0x18 draw call, +0x1c index count, +0x20 slot, +0x22 LOD setup, +0x24 LOD mask, +0x28 tint); bounds (+0x180, 0x20 each) the draw's bounds through 18049bfb0 when it has meshlets, radius 0.5 sqrt((dz dz + dy dy) + dx dx); AggregateCulling.Fragments | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:15` |
+| `1800380a0` | `CAggregateSceneObject_AddFragment` | vfunc 0x28 (worldrenderer 18001e920 per AggregateMeshInfo_t): a transform slot (0x38 each at +0x150) unless the last slot has the same base vertex (draw +0x54), packed tint (18049ca70 then 18049c8d0) and transform within 1e-5 (18049ad90); the 0x50-byte fragment record (+0x14 flags, +0x16 meshlets, +0x18 draw call, +0x1c index count, +0x20 slot, +0x22 LOD setup, +0x24 LOD mask, +0x28 tint); bounds (+0x180, 0x20 each) the draw's bounds through 18049bfb0 when it has meshlets, radius 0.5 sqrt((dz dz + dy dy) + dx dx); AggregateCulling.Fragments | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:15`, `src/Source2.Compiler/Cubemaps/CubemapLayerFlags.cs:16`, `src/Source2.Compiler/Cubemaps/CubemapLayerFlags.cs:99` +2 |
 | `180038650` | `CAggregateSceneObject_Setup` | vfunc 0x30: above sc_aggregate_bvh_threshold (18089cfa8) builds tinybvh (1804c9ad0, c_trav 16, c_int 1) over the fragment bounds and reorders fragments and bounds into left-first leaf order; AggregateCulling.CullOrder | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:588` |
 | `18003c2a0` | `AggregateDesc_UploadDraws` | vfunc 0x50: uploads the frame's indirect commands (desc +0x68, count +0x60, 20 bytes each) to the buffer at +0x80 |  |
 | `18003c5a0` | `Aggregate_CullView` | CAggregateSceneObjectDesc vfunc 0x38: a world aggregate in one view (CPU). Fragments in order (desc +0x194), or with sc_aggregate_bvh (18089cf98) and a BVH (+0x1c8, built above sc_aggregate_bvh_threshold 128) its nodes against the view's 8 planes (+0x460, camera +0x430), each surviving fragment through 18003d380 into the visible list (per-view data +0x30); then one 0x20-byte instance record per visible fragment at the view's instance block (an atomic counter, so block order follows thread timing). The +0x34/+0x38 draw slots it assigns serve the GPU-driven path, not DrawArray; Cubemaps/AggregateCulling.cs | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:19`, `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:604` |
 | `18003d380` | `Aggregate_CullFragment` | one fragment: the frustum p-vertex test ((px nx + py ny) + pz nz < d on the camera-relative box), the culling boxes (view +0xf34), the LOD test (+0x22 setup, +0x24 mask, 1800450f0), the per-view PVS (FUN_180036840), the small-object fade; the size metric (18004c390) into the per-view record +0; appends the fragment when visible; AggregateCulling.Outside / Visible | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:19`, `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:304`, `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:338` +2 |
-| `180041a00` | `AggregateDesc_LayerFragmentList` | one layer's (fragment, position) list from the visible list in order: layer flag masks on fragment +0x14, the layer's plane test (+0xc08..+0xc14), then the size split on layer +0x6d0 (positive: keep size >= it; negative: keep min(size, aggregate size) < -it); +0x20 the largest size times +0x44 (the primitive's 16-bit sort key); AggregateCulling.InLayer | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:532`, `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:554` |
+| `180041a00` | `AggregateDesc_LayerFragmentList` | one layer's (fragment, position) list from the visible list in order: layer flag masks on fragment +0x14, the layer's plane test (+0xc08..+0xc14), then the size split on layer +0x6d0 (positive: keep size >= it; negative: keep min(size, aggregate size) < -it); +0x20 the largest size times +0x44 (the primitive's 16-bit sort key); AggregateCulling.InLayer | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:532`, `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:554`, `src/Source2.Compiler/Cubemaps/CubemapFaceDrawList.cs:13` +3 |
 | `180042330` | `AggregateDesc_DrawArray` | vfunc 0x8: per draw primitive (0x70) its (fragment, visible position) list; fragment count = transform count: consecutive positions on one draw call become one instanced command; else a command per entry extended while the transform slot (+0x20) is the first's and the next first index continues the range (sc_aggregate_fragment_merging 18089cf28); first instance = view block + position; commands appended to desc +0x68 (20 bytes each); AggregateCulling.Commands | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:22` |
 | `1800450f0` | `Aggregate_SelectLods` | per LOD setup (0x34 bytes): size as 18004c390 with the setup's scale, f = 50 / (size x view height), the highest LOD whose switch distance is below f; cross-fade bytes under the LOD fade convars; AggregateCulling.SelectLod | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:27`, `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:440` |
 | `180047530` | `AggregateDesc_OnBeginRenderingFrame` | per aggregate: fragment draw slots +0x34/+0x38 to -1, +0x210/+0x214 from +0x1fc/+0x200, the transform block +500 to -1 |  |
@@ -2497,7 +2497,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `vphysics2_20260924.dll`, 4,829,848 bytes, PE time 2026-09-23 21:58 UTC
 - SHA-256 `0f896375fa9233196e3de769f23ce3c21907c1adab81a786418822da75518228`
 - installed: a different build
-- 558 addresses
+- 566 addresses
 
 ### s2c:baked/bomb
 
@@ -2655,7 +2655,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1801bd3e0` | `CRnBody_SetType` | SetType(2): dynamic and woken | `src/Source2.Compiler/Maps/SettleWorld.World.cs:16`, `src/Source2.Compiler/Simulation/RnWorld.cs:504` |
 | `1801bdea0` | `CRnBody_ShouldCollide` | shapes of one body never collide | `src/Source2.Compiler/Simulation/BroadphaseShape.cs:8`, `src/Source2.Compiler/Simulation/CollisionFilter.cs:60` |
 | `1801be010` | `CRnBody_Sleep` | sleeping forces kept, velocities zeroed unless static, timers cleared, +0x1f8 FLT_MAX, off the awake list, fast flag cleared with its proxies reselected; StepGlue.SleepBody | `src/Source2.Compiler/Simulation/StepGlue.cs:257` |
-| `1801be270` | `CRnBody_PutToSleep` |  | `src/Source2.Compiler/Simulation/IslandSolver.cs:240` |
+| `1801be270` | `CRnBody_PutToSleep` |  | `src/Source2.Compiler/Simulation/IslandSolver.cs:252` |
 | `1801be330` | `CRnBody_SolveToi` | the search, then the advance; sensor contacts not ported | `src/Source2.Compiler/Simulation/ContinuousSolve.cs:95`, `src/Source2.Compiler/Simulation/ContinuousSolve.cs:110` |
 | `1801beac0` | `CRnBody_ToiSearch` | the earliest time of impact of one body | `src/Source2.Compiler/Simulation/ContinuousSolve.cs:140` |
 | `1801c0040` | `RnSolverBody_IntegratePosition` |  | `src/Source2.Compiler/Simulation/Integrator.cs:240` |
@@ -2729,18 +2729,21 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180203980` | `CRnWorld_RemovePair` | out of the broadphase's pair set | `src/Source2.Compiler/Simulation/ContactLifecycle.cs:140`, `src/Source2.Compiler/Simulation/ContactLifecycle.cs:219` |
 | `180203d70` | `CRnWorld_WakeBodiesFromAppliedForces` |  | `src/Source2.Compiler/Simulation/RnWorld.cs:430`, `src/Source2.Compiler/Simulation/StepGlue.cs:113` |
 | `180203fc0` | `CRnWorld_NotifyWake` |  | `src/Source2.Compiler/Simulation/ContactLifecycle.cs:117` |
-| `1802042b0` | `CRnJoint_ctor` | flags +0x28 from the desc bytes 0x10..0x13 |  |
+| `1802042b0` | `CRnJoint_ctor` | flags +0x28 from the desc bytes 0x10..0x13 | `src/Source2.Compiler/Simulation/JointSolver.cs:8` |
 | `1802055f0` | `CRnJoint_SetBodies` | edges prepended to body +0x70; activates or deactivates in islands |  |
+| `180205b40` | `CRnJoint_ShouldBreak` | vtable +0x38: \|linear impulse\| (vt +8) > +0xac when +0xac > 0, angular (vt +0x10) > +0xb0 when +0xb0 > 0 | `src/Source2.Compiler/Simulation/JointSolver.cs:7`, `src/Source2.Compiler/Simulation/JointSolver.cs:245` |
 | `180205bd0` | `RnConicalJoint_Plasticity` | target moved towards the joint: copysign(2, w) xyz past the threshold, rate dt of it, exp (sincosf or the series below 0.0186), renormalised | `src/Source2.Compiler/Simulation/ConicalJoint.cs:52`, `src/Source2.Compiler/Simulation/ConicalJoint.cs:261` |
 | `180205e70` | `RnJoint_Plasticity` | target += sign(d) min(max(\|d\| - threshold, 0) rate dt, that) | `src/Source2.Compiler/Simulation/RevoluteJoint.cs:57`, `src/Source2.Compiler/Simulation/RevoluteJoint.cs:435` |
 | `180206120` | `RnJoint_AngularBlock` | three angular axes as one block: inverse of (IB + IA) + softness | `src/Source2.Compiler/Simulation/JointRows.cs:39`, `src/Source2.Compiler/Simulation/JointRows.cs:121` |
 | `1802064a0` | `RnJoint_PointBlock` | point-to-point 3x3 block and its inverse | `src/Source2.Compiler/Simulation/JointRows.cs:57`, `src/Source2.Compiler/Simulation/JointRows.cs:160` |
+| `180206f10` | `CRnRevoluteJoint_LinearImpulse` | vtable +8: length of +0x120 | `src/Source2.Compiler/Simulation/JointSolver.cs:78` |
 | `180209820` | `RnSolverBody_WorldPoint` | a body-local point in the world: centre less the rotated mass centre, plus p + 2 (q x (q x p + w p)) | `src/Source2.Compiler/Simulation/JointRows.cs:83` |
 | `180213270` | `CRnRevoluteBlockJoint_ctor` | VPhysXJoint_t flags bit 1; vtable 0x1803e0850, record 6 (not ported) | `src/Source2.Compiler/Simulation/RevoluteJoint.cs:10` |
 | `1802135a0` | `CRnRevoluteJoint_ctor` | type 3, vtable 0x1803e07e8; mode 3, frequency 10, damping 1, limit [-pi, pi] | `src/Source2.Compiler/Simulation/RevoluteJoint.cs:11` |
 | `180213870` | `RnJoint_HingeRow` | unbounded angular row: axis, mass, impulse, IA a, IB a | `src/Source2.Compiler/Simulation/RevoluteJoint.cs:93`, `src/Source2.Compiler/Simulation/RevoluteJoint.cs:489` |
 | `180213aa0` | `RnJoint_RevoluteLimitRow` | as 180229380 but zero mass when k squared is tiny | `src/Source2.Compiler/Simulation/RevoluteJoint.cs:475` |
 | `180213d10` | `RnJoint_MotorRow` | 1 / (a . (IA + IB) a + softness), zero when its square is tiny; IA a, IB a | `src/Source2.Compiler/Simulation/RevoluteJoint.cs:75`, `src/Source2.Compiler/Simulation/RevoluteJoint.cs:461` |
+| `180214250` | `CRnRevoluteJoint_AngularImpulse` | vtable +0x10: length of the hinge impulses +0x118/+0x11c | `src/Source2.Compiler/Simulation/JointSolver.cs:85` |
 | `1802142d0` | `RnSolverBody_ScaledInvInertia` | world inverse inertia times the header scale |  |
 | `1802143a0` | `CRnRevoluteBlockJoint_Prepare` | vtable +0x28; record 6 |  |
 | `180216240` | `CRnRevoluteJoint_Prepare` | vtable +0x28; record 5, 0x198 bytes | `src/Source2.Compiler/Simulation/RevoluteJoint.cs:128` |
@@ -2756,6 +2759,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180228c70` | `CRnConicalJoint_ctor` | type 10, 0x150 bytes, vtable 0x1803e0a70 |  |
 | `1802292e0` | `RnConicalJoint_SwingAngle` | 2 atan2(\|xy\|, \|zw\|) of the relative rotation | `src/Source2.Compiler/Simulation/ConicalJoint.cs:462` |
 | `180229380` | `RnJoint_AngularLimitRow` | one limited angular axis: 1 / (a . (IA + IB) a), IA a, IB a | `src/Source2.Compiler/Simulation/JointRows.cs:21`, `src/Source2.Compiler/Simulation/JointRows.cs:136` |
+| `180229630` | `CRnConicalJoint_LinearImpulse` | vtable +8: length of +0x140 | `src/Source2.Compiler/Simulation/JointSolver.cs:78` |
 | `180229870` | `CRnConicalJoint_Prepare` | vtable +0x28; record 0x0b, 0x1d4 bytes | `src/Source2.Compiler/Simulation/ConicalJoint.cs:88`, `src/Source2.Compiler/Simulation/ConicalJoint.cs:214` |
 | `18022ab10` | `CRnConicalJoint_SolvePosition` | twist/swing 0.7 of the error capped at 0.1396 rad; anchors capped at 8 | `src/Source2.Compiler/Simulation/ConicalJoint.cs:84`, `src/Source2.Compiler/Simulation/ConicalJoint.cs:366` |
 | `18022c390` | `CRnConicalJoint_StoreImpulses` | after the last velocity iteration | `src/Source2.Compiler/Simulation/ConicalJoint.cs:355` |
@@ -2912,15 +2916,17 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1803074d0` | `CRnConvexContact::vf3` | time of impact of any convex pair, through the shapes' proxies (vfn 0xb0) | `src/Source2.Compiler/Simulation/ContinuousSolve.cs:591`, `src/Source2.Compiler/Simulation/ContinuousSolve.cs:601` |
 | `180307750` | `CRnConvexContact_Update` |  | `src/Source2.Compiler/Simulation/ContactLifecycle.cs:375`, `src/Source2.Compiler/Simulation/ContactLifecycle.cs:416` |
 | `18030cc80` | `RnSolver_BuildBodiesAndIntegrateJob` |  |  |
-| `18030d070` | `RnSolver_BuildAndIntegrateBatch` | per-body start of a batch solve | `src/Source2.Compiler/Simulation/IslandSolver.cs:115`, `src/Source2.Compiler/Simulation/WorldSolver.cs:183` |
-| `18030d370` | `RnSolver_BuildBodiesAndIntegrate` |  | `src/Source2.Compiler/Simulation/IslandSolver.cs:115`, `src/Source2.Compiler/Simulation/RnBodyState.cs:120` |
+| `18030d070` | `RnSolver_BuildAndIntegrateBatch` | per-body start of a batch solve | `src/Source2.Compiler/Simulation/IslandSolver.cs:127`, `src/Source2.Compiler/Simulation/WorldSolver.cs:183` |
+| `18030d370` | `RnSolver_BuildBodiesAndIntegrate` |  | `src/Source2.Compiler/Simulation/IslandSolver.cs:127`, `src/Source2.Compiler/Simulation/RnBodyState.cs:120` |
 | `18030d680` | `RnSolverJobs_AddPrepareContacts` |  |  |
 | `18030d860` | `RnSolverJobs_AddVelocityContacts` |  |  |
 | `18030dac0` | `RnSolverJobs_AddPositionContacts` |  |  |
 | `18030e8b0` | `RnSolver_PrepareContactsChunks` |  |  |
+| `18030f0b0` | `RnSolver_PrepareJoints` | joint stream: record 0x12 when both bodies infinite (mass unless joint +0x2b, inertia unless +0x2c); header solver +0x68/+0x6c, scales by priority (joint +0x2a + A - B); vtable +0x28 warm (Simulation/JointSolver.cs) | `src/Source2.Compiler/Simulation/JointRows.cs:6`, `src/Source2.Compiler/Simulation/JointSolver.cs:7`, `src/Source2.Compiler/Simulation/JointSolver.cs:108` |
+| `18030f860` | `RnSolver_LastVelocityIterationJoints` | solve then store per record; every joint's break test (vtable +0x38) -> world +0x88 +0x30 list | `src/Source2.Compiler/Simulation/JointSolver.cs:170` |
 | `18030fd50` | `RnSolver_VelocityIteration` |  |  |
 | `18030ffb0` | `RnSolver_PrepareContactsJob` |  |  |
-| `1803100d0` | `RnSolver_PrepareContacts` |  | `src/Source2.Compiler/Simulation/IslandSolver.cs:158` |
+| `1803100d0` | `RnSolver_PrepareContacts` |  | `src/Source2.Compiler/Simulation/IslandSolver.cs:170` |
 | `1803104c0` | `RnSolver_MoveBatch` |  | `src/Source2.Compiler/Simulation/WorldSolver.cs:183` |
 | `1803105a0` | `RnSolver_IntegratePositionsSleepJob` |  |  |
 | `1803106f0` | `RnSolver_MoveBatchSleep` | with the sleep test | `src/Source2.Compiler/Simulation/WorldSolver.cs:183` |
@@ -2932,11 +2938,13 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180311610` | `RnSolve_Worker` |  | `src/Source2.Compiler/Simulation/WorldSolver.cs:17` |
 | `180311ce0` | `RnSolver_PositionIterationContactsJob` |  |  |
 | `180312010` | `RnSolver_PositionIterationContacts` |  |  |
+| `1803120f0` | `RnSolver_PositionIterationJoints` | by record type; record 9 skips 0x8c bytes | `src/Source2.Compiler/Simulation/JointSolver.cs:218` |
+| `180312650` | `RnSolver_VelocityIterationJoints` | by record type; 0x12 and unknown skip 4 bytes | `src/Source2.Compiler/Simulation/JointSolver.cs:169` |
 | `180312c00` | `RnSolver_LastVelocityIterationContacts` |  |  |
 | `180312df0` | `RnSolveContext_Create` |  |  |
-| `180313090` | `RnSolver_WriteBackBody` |  | `src/Source2.Compiler/Simulation/IslandSolver.cs:198`, `src/Source2.Compiler/Simulation/WorldSolver.cs:211` |
+| `180313090` | `RnSolver_WriteBackBody` |  | `src/Source2.Compiler/Simulation/IslandSolver.cs:210`, `src/Source2.Compiler/Simulation/WorldSolver.cs:211` |
 | `180313510` | `RnSolver_WriteBackBatch` |  | `src/Source2.Compiler/Simulation/WorldSolver.cs:185`, `src/Source2.Compiler/Simulation/WorldSolver.cs:211` |
-| `180313990` | `RnSolver_CopyBodyBack` |  | `src/Source2.Compiler/Simulation/IslandSolver.cs:196`, `src/Source2.Compiler/Simulation/SolverBody.cs:9`, `src/Source2.Compiler/Simulation/WorldSolver.cs:268` |
+| `180313990` | `RnSolver_CopyBodyBack` |  | `src/Source2.Compiler/Simulation/IslandSolver.cs:208`, `src/Source2.Compiler/Simulation/SolverBody.cs:9`, `src/Source2.Compiler/Simulation/WorldSolver.cs:268` |
 | `180315ab0` | `RnSimplex_Add` |  | `src/Source2.Compiler/Simulation/Gjk.cs:216` |
 | `180315bb0` | `RnSimplex_TetrahedronWeights` |  | `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:490`, `src/Source2.Compiler/Physics/MeshGjk.cs:15`, `src/Source2.Compiler/Simulation/Gjk.cs:375` |
 | `180315fa0` | `RnSimplex_TriangleWeights` |  | `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:462`, `src/Source2.Compiler/Simulation/Gjk.cs:316` |
@@ -3530,6 +3538,6 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `18001e920` | `WorldRenderer_CreateAggregates` | per AggregateSceneObject_t: the scene object, then per AggregateMeshInfo_t (0x2c bytes) the aggregate transform times the fragment's (1800b9a60), the model's draw bounds through it (1800ba270) and CAggregateSceneObject::AddFragment (vfunc 0x28) | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:16` |
+| `18001e920` | `WorldRenderer_CreateAggregates` | per AggregateSceneObject_t: the scene object, then per AggregateMeshInfo_t (0x2c bytes) the aggregate transform times the fragment's (1800b9a60), the model's draw bounds through it (1800ba270) and CAggregateSceneObject::AddFragment (vfunc 0x28) | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:16`, `src/Source2.Compiler/Cubemaps/CubemapLayerFlags.cs:14`, `src/Source2.Compiler/Cubemaps/CubemapLayerFlags.cs:98` +2 |
 | `1800b9a60` | `Matrix3x4_Concat` | a b, each element (a2 b2j + a1 b1j) + a0 b0j + (0 or a's translation); AggregateCulling.Concat | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:389` |
 | `1800ba270` | `Matrix3x4_TransformAABB` | the same code as scenesystem 18049bfb0 | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:17`, `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:376`, `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:533` |

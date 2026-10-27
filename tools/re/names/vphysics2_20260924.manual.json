@@ -949,6 +949,54 @@
    "note": "+0x104 / +0x108 in radians"
   },
   {
+   "addr": "18030f0b0",
+   "name": "RnSolver_PrepareJoints",
+   "module": "s2c:entities/settle",
+   "note": "joint stream: record 0x12 when both bodies infinite (mass unless joint +0x2b, inertia unless +0x2c); header solver +0x68/+0x6c, scales by priority (joint +0x2a + A - B); vtable +0x28 warm (Simulation/JointSolver.cs)"
+  },
+  {
+   "addr": "180312650",
+   "name": "RnSolver_VelocityIterationJoints",
+   "module": "s2c:entities/settle",
+   "note": "by record type; 0x12 and unknown skip 4 bytes"
+  },
+  {
+   "addr": "18030f860",
+   "name": "RnSolver_LastVelocityIterationJoints",
+   "module": "s2c:entities/settle",
+   "note": "solve then store per record; every joint's break test (vtable +0x38) -> world +0x88 +0x30 list"
+  },
+  {
+   "addr": "1803120f0",
+   "name": "RnSolver_PositionIterationJoints",
+   "module": "s2c:entities/settle",
+   "note": "by record type; record 9 skips 0x8c bytes"
+  },
+  {
+   "addr": "180205b40",
+   "name": "CRnJoint_ShouldBreak",
+   "module": "s2c:entities/settle",
+   "note": "vtable +0x38: |linear impulse| (vt +8) > +0xac when +0xac > 0, angular (vt +0x10) > +0xb0 when +0xb0 > 0"
+  },
+  {
+   "addr": "180229630",
+   "name": "CRnConicalJoint_LinearImpulse",
+   "module": "s2c:entities/settle",
+   "note": "vtable +8: length of +0x140"
+  },
+  {
+   "addr": "180206f10",
+   "name": "CRnRevoluteJoint_LinearImpulse",
+   "module": "s2c:entities/settle",
+   "note": "vtable +8: length of +0x120"
+  },
+  {
+   "addr": "180214250",
+   "name": "CRnRevoluteJoint_AngularImpulse",
+   "module": "s2c:entities/settle",
+   "note": "vtable +0x10: length of the hinge impulses +0x118/+0x11c"
+  },
+  {
    "addr": "1801fd720",
    "name": "CRnWorld_AddJoint",
    "module": "s2c:entities/settle",
