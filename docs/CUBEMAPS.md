@@ -758,7 +758,10 @@ quality 2 are measured (`CascadeTiles`); the atlas allocator is not read.
   heap order. Two atixref runs (`--out atixref_sort1`, `atixref_sort2`) sort
   the same draws in different orders in most sorts: the order is not
   reproducible in Valve's own build, and on coplanar pixels of two materials
-  neither is Valve's face. The tests pass the observed order
+  neither is Valve's face. On the two small maps it holds: eight more runs
+  (`probe01_order1..5`, `l5probe_order1..3`) all draw reflectivity_30 first,
+  its material always at the lower address (twelve runs with the captures);
+  what gives it the lower address is not read. The tests pass the observed order
   (`CUBEREPLAY_OURDRAWS=1,0` on all three cubes); which order our compile uses
   is open. (A run with the agent on atixref takes over 600 s, so pass
   `--timeout 1500`.)

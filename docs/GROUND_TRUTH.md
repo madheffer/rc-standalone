@@ -4177,6 +4177,12 @@ game can answer is raised with the user first, and runs with -insecure.
       draw wins); in the game's order (reflectivity_30 first, the same in four runs from 10-21 to 10-27) all
       eighteen faces and the three EXRs are the game's byte for byte with our lists, arguments and viewports.
       Depth and shadow results do not depend on the order.
+    - Measured (2026-10-27 later, layer_sort.js, `--out probe01_order1..5` and `l5probe_order1..3`): on the two
+      small maps the order holds. In all eight runs, in every batch-sorted sort where the two aggregates carry
+      different materials (35 to 43 per run), reflectivity_30's material has the lower address and is drawn
+      first. With the four earlier captures that is twelve runs. Why its address is lower is not read: the
+      world's RERL lists dev_measuregeneric01 first, so it is not plain load order with rising addresses.
+      atixref's 294 materials are where the order breaks (above).
     - Open: which order our compile renders in. Valve's own output on such pixels is not reproducible, so no
       order is "the" answer for maps with coplanar materials; the tests pass the game's observed order
       (CUBEREPLAY_OURDRAWS=1,0). Also open: the draw flags that choose a draw's layers (atixref's
