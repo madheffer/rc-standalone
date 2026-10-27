@@ -96,7 +96,8 @@ Open:
   (s2c_ragdollprobe); CRnConicalJoint's (every motor mode) and CRnRevoluteJoint's solves are
   ported and oracle-exact, the aggregate builds as Valve's, pose included (ledger 166), and the
   settle with joints replays Valve's step for step (step 6), and the write-back with boneTransforms is ported (step
-  7, ledger 168): s2c_ragdollprobe's whole lump equals Valve's.
+  7, ledger 168): s2c_ragdollprobe's whole lump equals Valve's, and s2c_ragdollprobe2's (ar_pool_day's mattress and
+  pineapple models: hulls in an aggregate, the body part's defaults, ledger 169).
   Roadmap, in order, each step checked against the capture before the next:
   1. Done (2026-10-25, ledger 136): CRnRevoluteJoint (VPhysX type 3 with
      flags bit 1 clear, as ctm_sas's two knees): prepare (every motor mode,

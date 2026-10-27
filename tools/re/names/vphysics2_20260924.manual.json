@@ -1,6 +1,12 @@
 {
  "functions": [
   {
+   "addr": "180091a10",
+   "name": "VPhysXBodyPart_t::SchemaFactory",
+   "module": "s2c:entities/settle",
+   "note": "schema class factory (class entry 18044a198, fields 180449fb0): case 2 constructs: all 0 but m_flLinearDrag and m_flAngularDrag 1 and the mass centre override from constants (ledger 169)"
+  },
+  {
    "addr": "1803f8740",
    "name": "CPhysAggregateInstance::vftable",
    "module": "s2c:entities/settle",

@@ -1,9 +1,13 @@
-"""ragdoll_probe_map.py <base.vmap> <out.vmap>: a probe map for the ragdoll pre-settle pose (GROUND_TRUTH 56).
+"""ragdoll_probe_map.py <base.vmap> <out.vmap> [--set agents|pool]: a probe map for the ragdoll pre-settle pose (GROUND_TRUTH 56).
 Copies of the base map's first prop_static become prop_ragdoll entities of stock models with joints
 (the chicken, a CT agent), dropped from above the floor, turned, one onto another, plus the variants the
 pre-settle reads: skipPreSettle, Motion Disabled (spawnflag 16384) and Start asleep (65536). The lump's
 boneTransforms Valve's compile writes for each are the ground truth; s2c_rounds is the base, as for
-s2c_settleround (settle_round_map.py)."""
+s2c_settleround (settle_round_map.py).
+
+--set pool (s2c_ragdollprobe2) drops ar_pool_day's ragdoll models instead: the lounge chair mattress
+(flat, tilted, two stacked, with ar_pool_day's spawnflags 65540) and the pineapple buoy. Their models
+ship only inside ar_pool_day.vpk; copy them into the probe addon's game folder first."""
 import copy, os, sys, tempfile
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "coverage"))
@@ -21,8 +25,19 @@ DROPS = [(CHICKEN, 0, 0, 40, "0 0 0", {}),
          (CHICKEN, -80, 60, 60, "0 0 0", {"spawnflags": ("string", "16384")}),
          (AGENT, -160, 0, 60, "0 0 0", {"spawnflags": ("string", "65536")})]
 
+MATTRESS = "models/pool_day/lounge_chair_mattress.vmdl"
+PINEAPPLE = "models/pool_day/buoy_pineapple_mattress_ragdoll.vmdl"
+POOL = [(MATTRESS, 0, 0, 20, "0 0 0", {}),
+        (MATTRESS, 0, 120, 60, "20 35 10", {}),
+        (MATTRESS, 140, 0, 30, "0 90 0", {}),
+        (MATTRESS, 140, 0, 60, "0 100 5", {}),
+        (MATTRESS, -140, 0, 20, "0 270 0", {"spawnflags": ("string", "65540")}),
+        (PINEAPPLE, 0, -140, 50, "0 0 0", {}),
+        (PINEAPPLE, 140, -140, 80, "45 0 30", {})]
+SETS = {"agents": DROPS, "pool": POOL}
 
-def main(base, out):
+
+def main(base, out, drops=DROPS):
     work = tempfile.mkdtemp(prefix="ragdoll_probe_")
     text_path = os.path.join(work, "base_text.vmap")
     pm.convert(base, text_path, "keyvalues2")
@@ -40,7 +55,7 @@ def main(base, out):
                     and props(e).get("classname") == "prop_static")
     node = max(int(e.get("nodeID")) for e in everything if e.get("nodeID") is not None) + 1
     serial = 0
-    for model, dx, dy, dz, angles, extra in DROPS:
+    for model, dx, dy, dz, angles, extra in drops:
         c = copy.deepcopy(template)
         for x in pm.walk(c):
             if x.get("id") is not None:
@@ -64,8 +79,9 @@ def main(base, out):
     text_out = os.path.join(work, "out_text.vmap")
     open(text_out, "w", encoding="utf-8").write(pm.emit(tops, header))
     pm.convert(text_out, out, "binary")
-    print("wrote", out, len(DROPS), "prop_ragdoll")
+    print("wrote", out, len(drops), "prop_ragdoll")
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], sys.argv[2])
+    which = sys.argv[sys.argv.index("--set") + 1] if "--set" in sys.argv else "agents"
+    main(sys.argv[1], sys.argv[2], SETS[which])

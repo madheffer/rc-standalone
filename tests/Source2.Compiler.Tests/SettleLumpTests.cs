@@ -23,6 +23,7 @@ public sealed partial class SettleLumpTests(ITestOutputHelper output)
     [InlineData("s2c_rc_probe", "c2m2_fairgrounds_csgo_environment_prefab")]
     [InlineData("s2c_big", "ze_ffvii_mako_reactor_v6_p")]
     [InlineData("s2c_rc_probe", "s2c_ragdollprobe")]
+    [InlineData("s2c_rc_probe", "s2c_ragdollprobe2")]
     public void SettledPropsMatchValvesLumps(string addon, string map)
     {
         if (CS2Fixtures.StockPak() is not { } pak || MapFixtures.GameSchema() is not { } schema)

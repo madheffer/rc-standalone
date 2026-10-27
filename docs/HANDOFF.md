@@ -146,8 +146,9 @@ the addon).
    never reads the animation graph's pose for it). AggregateBuildCaptureTests passes whole. RagdollLockstepTests
    (ledger 167): the whole settle, contacts included, equals Valve's on three captures in each capture's dynamic
    order (ledger 52). The write-back with boneTransforms is ported (ledger 168): s2c_ragdollprobe's whole lump
-   equals Valve's. Left: the corpus maps with ragdolls (ar_pool_day's mattresses) against fresh references, the
-   node's earlier pose entries (not stored in a .vmap), and PHYSICS step 5's small refusals.
+   equals Valve's, and so does s2c_ragdollprobe2's (ar_pool_day's mattresses, ledger 169). No other content map on
+   disk has a ragdoll (AggregateScanTests). Left: meshes in an aggregate, the node's earlier pose entries (not stored
+   in a .vmap), and PHYSICS step 5's other small refusals.
    Recipe and captures: PHYSICS.md step 6, tools/re/out/settle_notes/notes_joints.md.
 3. **.vmap_c**: done (ledger 119). Every Valve root byte for byte (25 lit,
    15 unlit), and Hammer's Only Entities preset whole-package exact. Left:
@@ -205,6 +206,7 @@ Ledger 166; PHYSICS.md steps 5a and 6. CS2 closed, Steam open (resourcecompiler 
   (settle_contacts.js) showed the chicken's placement and the run-dependent dynamic order.
 - The write-back and boneTransforms (ledger 168): SettleWorld.Run settles ragdolls; s2c_ragdollprobe's lump equals
   Valve's whole. capture_settle.py --keep-package with probes/hold_to_exit.js keeps the package of the captured run.
+- s2c_ragdollprobe2 (ledger 169): hulls in an aggregate and VPhysXBodyPart_t's defaults (drag 1); lump exact.
 - The suite was not run in full.
 
 ## Earlier session (2026-10-27 evening, a cubemap face with no dump)

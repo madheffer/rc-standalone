@@ -50,8 +50,8 @@ public static partial class SettleWorld
     /// The aggregate branch of FUN_18105dbd0: each part's shapes as the model
     /// stores them (180044bc0 adds them at the aggregate's scale, 1 here),
     /// with the collision attributes they end with. Refused: a node scale
-    /// other than 1, a deformer, a static_prop class, or a model without a
-    /// bind pose per part.
+    /// other than 1, a deformer, a static_prop class, a model without a
+    /// bind pose per part, or mesh shapes.
     /// </summary>
     private static void FromAggregate(DmxBinary.Element node, float[] local, int nodeId, PhysAggregateData phys, Context context,
                                       LatticeDeformer? deformer)
@@ -69,8 +69,8 @@ public static partial class SettleWorld
             var cls = node.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname") ?? "";
             if (context.Schema == null || context.Schema.HasFlag(cls, "static_prop") || !context.Schema.Inherits(cls, "BasePhysicsSimulated"))
                 return "an aggregate of a class that is static or not BasePhysicsSimulated";
-            if (phys.Parts.Any(p => p.Shape.Hulls.Length > 0 || p.Shape.Meshes.Length > 0))
-                return "an aggregate with hull or mesh shapes";
+            if (phys.Parts.Any(p => p.Shape.Meshes.Length > 0))
+                return "an aggregate with mesh shapes (180044bc0's per-triangle materials through vfn 0x70 are not read)";
             return null;
         }
         if (Refusal() is { } refused)
@@ -99,9 +99,12 @@ public static partial class SettleWorld
         {
             var part = phys.Parts[i];
             var p = raw[i];
-            aggregate.Parts.Add(new PartPhysics(part.Flags, part.Mass, p.GetFloatProperty("m_flInertiaScale"),
-                p.GetFloatProperty("m_flLinearDamping"), p.GetFloatProperty("m_flAngularDamping"),
-                p.GetFloatProperty("m_flLinearDrag"), p.GetFloatProperty("m_flAngularDrag")));
+            // A key the model leaves out keeps VPhysXBodyPart_t's default (vphysics2's schema factory
+            // 180091a10: the drags 1, everything else 0).
+            float Field(string key, float fallback) => p.ContainsKey(key) ? p.GetFloatProperty(key) : fallback;
+            aggregate.Parts.Add(new PartPhysics(part.Flags, part.Mass, Field("m_flInertiaScale", 0f),
+                Field("m_flLinearDamping", 0f), Field("m_flAngularDamping", 0f),
+                Field("m_flLinearDrag", 1f), Field("m_flAngularDrag", 1f)));
             if (p.GetIntegerProperty("m_bOverrideMassCenter") != 0)
                 throw new NotSupportedException("an aggregate part with an overridden mass centre (body vfn 0x108) is not ported");
             var shape = part.Shape;
@@ -120,6 +123,11 @@ public static partial class SettleWorld
             foreach (var c in shape.Capsules)
                 body.Shapes.Add(new ShapeBuild(CapsuleType, null, 1f, null, Vector3.One, Attributes(), Material(c.SurfacePropertyIndex),
                                                c.UserFriendlyName ?? "") { Capsule = (c.Shape.Center[0], c.Shape.Center[1], c.Shape.Radius) });
+            // Hulls next (180044bc0: body vfn 0x68 with the part's hull as stored, at the aggregate scale),
+            // then the name and the surface's material as for the round shapes.
+            foreach (var h in shape.Hulls)
+                body.Shapes.Add(new ShapeBuild(BroadphaseShape.HullType, Hull(h.Shape), aggregate.NodeScale, null, Vector3.One, Attributes(),
+                                               Material(h.SurfacePropertyIndex), h.UserFriendlyName ?? ""));
             aggregate.Bodies.Add(bodies.Count);
             bodies.Add(body);
         }
@@ -301,7 +309,8 @@ public static partial class SettleWorld
             var shapes = new List<RnMassUpdate.Shape>();
             foreach (var shape in build.Shapes)
             {
-                w.AddShape(b, shape.Type, default, null, new Vec3(1f, 1f, 1f), shape.Attributes, shape.Material, round: Round(shape));
+                w.AddShape(b, shape.Type, shape.Hull is { } hull ? new HullRef(hull, shape.HullScale) : default, null, new Vec3(1f, 1f, 1f),
+                           shape.Attributes, shape.Material, round: Round(shape));
                 shapes.Add(MassShape(shape));
             }
             var part = a.Parts[i];

@@ -1503,6 +1503,7 @@ MODTOOLS = [
 ]
 
 VPHYSICS2 = [
+    ("180091a10", "VPhysXBodyPart_t::SchemaFactory", ST, "schema class factory (class entry 18044a198, fields 180449fb0): case 2 constructs: all 0 but m_flLinearDrag and m_flAngularDrag 1 and the mass centre override from constants (ledger 169)"),
     ("1803f8740", "CPhysAggregateInstance::vftable", ST, "vfn 0x10 body count, 0x48 physics data, 0x90 scale (+0x28), 0xc0 body, 0xd0 bone name, 0x180 every body asleep"),
     ("180048860", "CPhysAggregateInstance::IsAsleep", ST, "vfn 0x180: every body's vfn 0x408"),
     ("180045af0", "CPhysAggregateInstance::BoneName", ST, "vfn 0xd0: physics data +0x10 names (count +0x18), else an empty string; the +0x18 count rc's single-body branches test (ledger 168)"),

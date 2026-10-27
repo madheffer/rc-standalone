@@ -4597,6 +4597,24 @@ game can answer is raised with the user first, and runs with -insecure.
        printed values. SettleWorld.Run no longer refuses an aggregate, and no longer refuses a single body with a bind
        pose.
 
+169. **Ragdolls beyond the probe: hulls in an aggregate, and the body part's defaults** (2026-10-28: decompile of
+     vphysics2 0924 180044bc0 (the shape loop) and 180091a10 (VPhysXBodyPart_t's schema factory, whose class entry at
+     18044a198 points at the field table 180449fb0); a full compile of s2c_ragdollprobe2 under capture; RagdollLockstepTests,
+     SettleLumpTests, AggregateScanTests).
+     - Found: no other content map on disk has an aggregate in its settle world (AggregateScanTests over every .vmap).
+       ar_pool_day ships no source, and its mattress models only inside its own package. s2c_ragdollprobe2
+       (tools/physics/ragdoll_probe_map.py --set pool on s2c_rounds) drops its lounge_chair_mattress (9 parts, hulls) and
+       buoy_pineapple_mattress_ragdoll (13 parts): flat, tilted, two stacked, spawnflags 65540; the two models are copied
+       into the s2c_rc_probe game folder.
+     - Settled from the code, ported: 180044bc0 adds a part's hulls after its spheres and capsules (body vfn 0x68, the
+       hull as stored at the aggregate scale), named and given the surface's material like the rest. Meshes (vfn 0x70
+       with per-triangle materials) are still refused.
+     - Settled from the code, ported: a VPhysXBodyPart_t key the model leaves out keeps the factory's value: linear
+       and angular drag 1, the rest 0. These mattress models carry no drag keys; reading them as 0 left every body's
+       drag off by 1 before step 0.
+     - Exact: RagdollLockstepTests on the capture (62 dynamic bodies, every contact, final poses, 2700 steps, Valve's
+       order) and SettleLumpTests (our order): the whole lump equals Valve's, 0 differences.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

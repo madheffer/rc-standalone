@@ -47,17 +47,25 @@ public sealed class RagdollLockstepTests(ITestOutputHelper output)
         // The build log: each body wrapper's CRnBody, and the SetType calls in order.
         var rnOf = new Dictionary<string, string>();
         var setTypes = new List<(string Wrapper, int Type)>();
-        var aggregates = new List<(float X, float Y, List<string> Rn)>();
+        var aggregates = new List<(float X, float Y, float Z, List<string> Rn)>();
         var steps = new SortedDictionary<int, List<(int Index, byte[] Body)>>();
         List<(int Index, byte[] Body)>? end = null;
         // settle_contacts.js: the active contacts at Collide's entry and exit, per step.
         var contactsIn = new Dictionary<int, List<Contact>>();
         var contactsOut = new Dictionary<int, List<Contact>>();
+        // A capture of a whole compile goes on past the settle (later phases build aggregates again):
+        // only what comes before "settle_done" is the settle's.
+        var settleDone = false;
         foreach (var line in File.ReadLines(path))
         {
             using var doc = JsonDocument.Parse(line);
             var e = doc.RootElement;
-            switch (e.GetProperty("ev").GetString())
+            var ev = e.GetProperty("ev").GetString();
+            if (ev == "settle_done")
+                settleDone = true;
+            if (settleDone && ev is "build" or "aggregate")
+                continue;
+            switch (ev)
             {
                 case "world" when worldPtrs == null:
                     worldPtrs = [.. e.GetProperty("bodies").EnumerateArray().Select(b => b.GetProperty("ptr").GetString()!)];
@@ -75,7 +83,7 @@ public sealed class RagdollLockstepTests(ITestOutputHelper output)
                     foreach (var b in e.GetProperty("bodies").EnumerateArray())
                         rnOf[b.GetProperty("wrapper").GetString()!] = b.GetProperty("rn").GetString()!;
                     var xf = Convert.FromHexString(e.GetProperty("xf").GetString()!);
-                    aggregates.Add((BitConverter.ToSingle(xf, 0), BitConverter.ToSingle(xf, 4),
+                    aggregates.Add((BitConverter.ToSingle(xf, 0), BitConverter.ToSingle(xf, 4), BitConverter.ToSingle(xf, 8),
                                     [.. e.GetProperty("bodies").EnumerateArray().Select(b => b.GetProperty("rn").GetString()!)]));
                     break;
                 case "contacts_in" or "contacts_out":
@@ -120,9 +128,9 @@ public sealed class RagdollLockstepTests(ITestOutputHelper output)
 
         // Valve's world index -> our body, for every ragdoll part.
         var byIndex = new Dictionary<int, (RnBody Body, string Name)>();
-        foreach (var (x, y, rn) in aggregates)
+        foreach (var (x, y, z, rn) in aggregates)
         {
-            var a = ours.Single(o => o.Part.Position.X == x && o.Part.Position.Y == y);
+            var a = ours.Single(o => o.Part.Position.X == x && o.Part.Position.Y == y && o.Part.Position.Z == z);
             for (var i = 0; i < rn.Count; i++)
                 byIndex[worldPtrs!.IndexOf(rn[i])] = (world.Bodies[1 + a.Bodies[i]], $"agent at ({x}, {y}) part {i}");
         }
