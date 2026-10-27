@@ -62,7 +62,7 @@ map loading ─┬─ mesh export ─┬─ trace scene ── visibility ─┬
 | visibility | [VISIBILITY.md](VISIBILITY.md) | 100% of the deterministic build: byte-identical VXVS from the .vmap on five maps incl. atixref-sized s2c_prefabprobe4 and split hints (2026-10-23); `-oldvis` is not reproducible in Valve's own tool |
 | physics | [PHYSICS.md](PHYSICS.md) | 98%: world_physics and entity models whole-file exact on every map with a compile, incl. cables and deformers placed through instances and prefabs (ledgers 128-133); ragdolls in the settle under way: both joint types' solver functions oracle-exact, every motor mode (ledgers 135, 136, 138), next the joint wrapper, islands and the aggregate build (PHYSICS.md roadmap); left besides: instances inside prefab maps for entity models, render meshes |
 | entity lump | [ENTITIES.md](ENTITIES.md), [SETTLE.md](SETTLE.md) | 99.9%: every lump of every pinned map and all 15 prefab, instance and deformer probes exact; the 14 prefab corpus maps against fresh Valve references (2026-10-23) differ only in Valve's run-to-run settle poses; left: two orders read from output only (GROUND_TRUTH 46) |
-| baked outputs | [BAKED.md](BAKED.md), [CUBEMAPS.md](CUBEMAPS.md) | 84%: lightmaps, probes, far field, fog, nav (markups and round shapes, ledgers 142-143, 146), bomb damage and .vmap_c done; cubemaps: three cubes of two maps (probe01, s2c_l5probe) byte for byte with every block, buffer, texture, sampler, layout, pipeline state and the world draw list ours (ledgers 147-156); the order within a layer is Valve's heap order (nondeterministic), the draws' bindings still from the capture |
+| baked outputs | [BAKED.md](BAKED.md), [CUBEMAPS.md](CUBEMAPS.md) | 85%: lightmaps, probes, far field, fog, nav (markups and round shapes, ledgers 142-143, 146), bomb damage and .vmap_c done; cubemaps: three cubes of two maps byte for byte with every input ours but two (ledgers 147-159), the world draw list and layer selection ours and equal on probe01, s2c_l5probe and atixref; next a face frame with no RenderDoc dump |
 | own lighting (vrad3 port) | [VRAD3.md](VRAD3.md), [LIGHTING_ROADMAP.md](LIGHTING_ROADMAP.md) | 94%: `compile-map -s2cbake` bakes with no vrad3; ze_hold_em_p 99.90% of bytes |
 
 The tracker artifact (https://claude.ai/artifact/4whctxfaTdHEiE4d3oAVHA)
@@ -98,41 +98,51 @@ capture tool restores the package it moved aside, so **after regenerating a prob
 reference** (`tools/pipeline/compile_fresh.py` with the switches it was built with, then copy the result into
 the addon).
 
-1. **Cubemaps** ([CUBEMAPS.md](CUBEMAPS.md) "Whole cubes from our blocks", "A second map", "The pipelines",
-   "The textures", "The buffers", "The binner's items" and "Roadmap", ledgers 117-121, 137-140, 144, 147-154).
-   Where it stands: three cubes from two maps (probe01's two, s2c_l5probe's cube 0) give the game's EXRs byte
-   for byte, and probe01's whole env_cubemap_array.vtex_c is the game's (`ChainedCubeMakesTheGamesExr`). What
-   comes from our data in that render: every constant block (generic's per-material `_Globals_` included),
-   the binner's item records and edges, every texture, vertex and index buffer, sampler, vertex layout and
-   fixed-function state of the world, sky and downsample draws. Since 10-27 (ledger 156, CUBEMAPS.md "The
-   draw list") the world draw list is ours too: `CubemapFaceDrawList` gives the passes, one list per aggregate
-   and layer, the commands, instance blocks and viewports, equal to the capture as whole sets on probe01 and
-   s2c_l5probe, and all three cubes are the game's EXRs drawn from it in `MaterialOrder`'s order
-   (`CUBEREPLAY_OURDRAWS=materials`). The order within a layer is the materials' heap order, which follows
-   creation order: engine-created materials first (ported), the map's own as their loads complete (not data,
-   path order ours). It reaches the output only on coplanar pixels of two materials (ze_hold_em_p: two Valve
-   runs in different orders, 8 of 8 EXRs equal). Still from the RenderDoc dumps: the
-   draws' bindings (descriptor sets), dispatch sizes and push constants, the sky and downsample draws' places,
-   and the spawned pawn's viewmodel and AO box on s2c_l5probe. Next, in order:
-   - layer selection is done (GROUND_TRUTH 157, 159): the object pre-filter, the draw-call and fragment tests and
-     all their inputs are read and ported, and DrawListEqualsTheCapture passes on probe01, s2c_l5probe and atixref;
-     left are 1800f3b10's later per-object conditions (culling box, object size, LOD fade), not needed so far (180041a00 against the layer's +0x480/+0x488/
-     +0x498; atixref's non-shadow-casting blends, alpha-tested prepass layer and no-prepass aggregates fail
-     DrawListEqualsTheCapture today);
-   - the remaining capture inputs: descriptor sets from the programs' reflection, dispatch sizes, then probe01
-     rendered with no dump at all;
-   - s2c_l5probe's cube 1 (needs a capture: `run_probe.py --renderdoc 1 --settle 20` for s2c_l5probe, CS2
-     and Steam closed, ask the user) for its whole array; decide which build state our compile renders at
-     (scripted camera or not, a spawned pawn and its viewmodel or not: roadmap 0e, ledger 149);
-   - animated maps (CUBEMAPS.md roadmap 0a-0e, ledger 144): atixref differs run to run in Valve's own build,
-     so pin its time in cubehost first; scope is 1:1 there too, never static-only;
-   - smaller: the binner's light and environment-map items (none binned in the captured views), the
-     viewmodel's draws, shadowed lights' own view setup (ledger 144), LOD cross-fades, the per-view PVS test,
-     non-aggregate scene objects (42 atixref draws), atixref draw 2305's one-ulp pipeline-library issue,
+1. **Cubemaps** ([CUBEMAPS.md](CUBEMAPS.md) "Whole cubes from our blocks", "A second map", "The draw list",
+   "What the chained cube still takes from the dump", "Roadmap"; ledgers 117-121, 137-140, 144, 147-157, 159).
+   Where it stands (2026-10-27): probe01's two cubes and s2c_l5probe's cube 0 render on our Vulkan device to the
+   game's EXRs byte for byte (`ChainedCubeMakesTheGamesExr` with `CUBEREPLAY_OURDRAWS=materials`), and probe01's
+   whole env_cubemap_array.vtex_c is the game's. Ours in that render: every constant block, buffer, texture,
+   sampler, vertex layout and pipeline state, the world draw list (`CubemapFaceDrawList`: passes, layer
+   selection, commands, instance blocks, viewports) and its order within a layer (`MaterialOrder`).
+   `DrawListEqualsTheCapture` passes on probe01, s2c_l5probe and atixref (560 lists). The inventory
+   (`CUBEREPLAY_INVENTORY=1`) shows only two inputs per face still bound from the dump. **Next, in order:**
+   - **A face frame with no dump (the next task).** The replay still uses the RenderDoc dump as scaffolding:
+     each action's record (program, resource name per set and binding), `passes.jsonl` (passes, clears) and
+     `resources.json` (target formats and sizes). Build the frame from our data in Source2.Compiler.Gpu: the
+     action list (binner dispatches, cascades, prepass, half downsample, colour, sky, quarter downsample, from
+     CubemapFaceDrawList and the passes' order in CUBEMAPS.md), each program's SPIR-V from `ValveProgram`, its
+     bindings from `SpirvReflection` plus the programs' variable tables (as `CubemapFaceSamplers` and the
+     texture lookup already do: set 1 binding 14 + sampler slot, 30 + texture slot), the blocks by role
+     (`OurBlocks` / `BlockRoles` in the test are the map), the targets and clears from the passes. Check: the same
+     three cubes to the game's EXRs, then probe01's whole array, with no file of the dump read (the readbacks and
+     EXRs are only the comparison). Start by moving the per-face setup out of CubemapFaceReplayTests (2,100
+     lines) into a renderer class; keep the replay as the test that compares each action.
+   - The two inputs still from the dump: (a) the colour pass's storage buffer at set 3 binding 31 (probably
+     generic's `g_CullBits`; zeros change no pixel on probe01, but its writer is not read); (b) the light
+     binner's dispatch sizes (256 x 1 x 1, 16 x 32 x 1): scenesystem lightbinner_gpu.cpp
+     (compute_depthbin_cullbits, compute_tile_cullbits); 1801b2850 (CullParams_t) is ported, 1801bf6f0 is
+     ChooseEnvironmentMap, the dispatch call is not located (try 1801bf9e0 and the callers of the two compute
+     materials; or a one-shot hardware breakpoint on the Vulkan dispatch with tools/cubehost/caller_of.js).
+   - Remaining from ledgers 157 / 159 (not needed by the three maps so far): 1800f3b10's later per-object
+     conditions (culling box +0xc18, object size against the split, LOD fade), CPVS's octree walk (engine2
+     180238170 -> 180237ce0 / 1802378f0) for the fragment's 0x20 bit on worlds with vis data, the cull's +0xc fade
+     bit's writer, the layer +0x6dc branch.
+   - s2c_l5probe's cube 1 (needs a capture: `run_probe.py --renderdoc 1 --settle 20`, CS2 and Steam closed, ask
+     the user); decide the build state our compile renders at (scripted camera, spawned pawn and viewmodel:
+     roadmap 0e, ledger 149).
+   - Animated maps (roadmap 0a-0e, ledger 144): atixref differs run to run in Valve's own build; pin its time in
+     cubehost first. Scope is 1:1 there too.
+   - Smaller: the binner's light and environment-map items, the viewmodel's draws, shadowed lights' views,
+     non-aggregate scene objects (194 atixref calls), atixref draw 2305's one-ulp pipeline-library issue,
      probe_classes' engine crash on load.
-   Recipes: CUBEMAPS.md (dump a face: rdc_replay.py with RDC_DUMP=1 per face range from the readback eids;
-   the passes: rdc_passes.py into the capture dir; run all three cubes: see "A second map"; capture a cube:
-   `run_probe.py --renderdoc <n> --settle 20`, CS2 and Steam closed, ask the user).
+   Recipes: CUBEMAPS.md (run the three cubes: "A second map"; capture a cube: `run_probe.py --renderdoc <n>
+   --settle 20`). Frida agents in tools/cubehost (our own cubehost process, never cs2.exe; CS2 and Steam
+   closed): layer_sort.js (sort keys, CMaterial2 creation), layer_members.js (layer tests, material stores,
+   records; check with layer_members_check.py), material_store.js and watch_word.js (hardware watchpoints),
+   caller_of.js (one-shot hardware breakpoint backtrace). Hardware watchpoints during map load can stop the map
+   loading; atixref with an agent needs `--timeout 1500`. Layer objects are reused across views and frames, so
+   pair logged records by address and fields.
 2. **Ragdolls in the settle** ([PHYSICS.md](PHYSICS.md) "Aggregates in the settle", ledgers 135, 136,
    138): props whose model has several physics parts or joints (the CT agents of s2c_ragdollprobe)
    settle through their joints and write boneTransforms; the settle refuses them today. Done: both
@@ -183,7 +193,27 @@ the addon).
     rebuilt) and server.dll's script API; first get a pre-update `.vjs_c` to see
     what changed, and Valve's fresh `cs_script_demo` compile as the reference.
 
-## Latest session (2026-10-27, the world draw list from our data)
+## Latest session (2026-10-27 later, layer selection and the material store; for the next agent)
+
+Commits d5d67e9 .. a095d91 on research/map-authoring, pushed to box (ledgers 156, 157, 159; 158 and 160 are the
+ragdoll session's, which shares this checkout).
+
+- In-layer order (156): the layer sort ends on the CMaterial2 address, which follows creation order; the 957
+  engine-created materials come first (`Resources/cubemap_engine_materials.txt`, `MaterialOrder`), the map's own
+  follow async load completion (not data). Measured that it only matters on coplanar pixels of two materials.
+- Layer selection (157, 159): scenesystem 1800f3b10's object pre-filter, 180041f30's draw-call test and
+  180041a00's fragment test, with every input ported from code (`CubemapLayerFlags`): the object words from
+  m_allFlags / m_anyFlags and meshsystem 180012150, the fragment flags from m_objectFlags, the draw call's flags
+  from meshsystem 180027160 / 180027830 over the material's attributes. Checked on millions of logged game
+  decisions; `DrawListEqualsTheCapture` passes on all three maps.
+- The material attribute store (157): the merge of every render mode's program from the Vulkan shader files
+  (`MaterialAttributes.OfModes`, `ShaderLibrary { Platform = "vulkan_50" }`); probe01's 16 stored keys equal ours.
+  This also explains GROUND_TRUTH 40's AllowBackfaceCulling fallback (the Depth mode's csgo_depth_only).
+- User rule, hard (memory "ground-truth-ledger"): no guessing, no fitted fallback presented as Valve's; every
+  rule from decompile, Frida or RenderDoc, a match is only verification.
+- Not done: the dump-free face frame (item 1 above). The full suite was not run in this session.
+
+## Earlier session (2026-10-27, the world draw list from our data)
 
 Ledger 156; CUBEMAPS.md "The draw list".
 
