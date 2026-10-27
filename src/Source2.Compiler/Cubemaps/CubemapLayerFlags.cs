@@ -101,15 +101,24 @@ public static class CubemapLayerFlags
     /// OBJECT_TYPE_PRECOMPUTED_VISMEMBERS (0x4000); without it, and without OBJECT_TYPE_DISABLE_VIS_CULLING (0x10000,
     /// flag 0x40), it queries the vis system for the fragment's bounds, which is not ported.
     /// </summary>
-    public static ushort FragmentFlags(uint objectFlags, uint materialFlags, int visClusterMemberCount)
+    /// <remarks>
+    /// The query is CPVS vf 8 (engine2 1.41.9.2 180239730, 10-15 180238060): one cluster when the world has no vis
+    /// data or the box covers the vis bounds, else a walk of CPVS's runtime octree (180237ce0 / 1802378f0) setting
+    /// each overlapped cluster. <paramref name="visClusters"/> is its result's count when the caller has it; null
+    /// throws where the query decides.
+    /// </remarks>
+    public static ushort FragmentFlags(uint objectFlags, uint materialFlags, int visClusterMemberCount, int? visClusters = null)
     {
         var f = RecordFlags(objectFlags, materialFlags);
         if ((f & 0x40) != 0)
             return f;
-        if ((objectFlags & 0x4000) == 0)
-            throw new NotSupportedException("a fragment whose vis cluster members come from the vis system's query (not ported)");
-        return visClusterMemberCount > 0 ? (ushort)(f | 0x20) : f;
+        var members = (objectFlags & 0x4000) != 0 ? visClusterMemberCount
+            : visClusters ?? throw new NotSupportedException("a fragment whose vis cluster members come from CPVS's box query (not ported)");
+        return members > 0 ? (ushort)(f | 0x20) : f;
     }
+
+    /// <summary>Whether a fragment's flags need CPVS's box query (no precomputed members, no flag 0x40).</summary>
+    public static bool NeedsVisQuery(uint objectFlags) => (objectFlags & 0x4000) == 0 && ((objectFlags >> 16) & 1) == 0;
 
     /// <summary>worldrenderer 18001e920's flags for scenesystem's AddFragment (1800380a0's param_5).</summary>
     private static ushort RecordFlags(uint objectFlags, uint materialFlags)

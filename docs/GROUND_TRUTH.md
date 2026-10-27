@@ -4226,16 +4226,29 @@ game can answer is raised with the user first, and runs with -insecure.
       0x10, ...), then 180027830's set and clear. Ported: Cubemaps/CubemapLayerFlags.cs.
     - Captured: the BuildCubemaps view's layers and their fields (Static Opaque Forward, Depth Prepass Large /
       Small / AlphaTested, OpaqueRefractDepth, SkyOccluder*, ToolsUtil Opaque), the cascades' DrawDepthOpaque.
-    - Open, each a read still to do (CubemapLayerFlagsCaptureTests shows them on probe01):
-      - the material's runtime attribute store holds keys no file we read declares: BindlessResources (draw call
-        +0x1c 0x1000) and AllowBackfaceCulling (GROUND_TRUTH 40) are in CMaterial2's own store (+0x180, dumped by
-        layer_members.js), and DepthPassBatchID (0x2c5b5105, +0x14 bit 2) is an int expression in the csgo shaders
-        that MaterialAttributes does not evaluate; who writes them is not read;
-      - a fragment's vis cluster member list for meshes without OBJECT_TYPE_PRECOMPUTED_VISMEMBERS comes from
-        worldrenderer's vis-system box query (18001ef4x, the world's visibility vf 8), not ported (the port refuses);
-      - which CSM layer instances are the BuildCubemaps view's cascades: layer objects are reused across views, so
-        their addresses do not tie them to it; the agent has to log within the BuildCubemaps render;
-      - then CubemapFaceDrawList from these tests instead of its fixed four layers.
+    - Settled later 10-27 (the material's runtime store): every key is inserted by materialsystem2 18001e6ad
+      (hardware watchpoints, tools/cubehost/material_store.js), called from 18000e690, which merges one render
+      mode's program attributes into the store (setter 18001e4a0; expressions over that program's features); one
+      job per mode (180014ed0), so a later job overwrites an earlier value and only logs a mismatch, in completion
+      order. The modes are the features file's list (VRF FeaturesHeader.Modes: a fallback shader or a static combo,
+      SHADERATTR probe prints them). The -vulkan game reads shaders_vulkan, whose programs declare
+      BindlessResources; AllowBackfaceCulling and DepthPassBatchID come from the Depth mode's program
+      (csgo_depth_only, `FEAT[2] ? 0 : 1`), which settles GROUND_TRUTH 40's fallback for these shaders. Ported:
+      MaterialAttributes.OfModes over a vulkan_50 ShaderLibrary; on probe01 every key of the game's dumped store
+      (16) equals ours, and so do both draw-call flag words and the object flag (CubemapLayerFlagsCaptureTests).
+      Where two modes disagree the game's value follows job completion order and is not data (none seen).
+    - Settled (the vis query): worldrenderer 18001f1be calls CPVS vf 8 (engine2 1.41.9.2 180239730, 10-15
+      180238060: hardware breakpoint in layer_members.js): one cluster when the world has no vis data (atixref) or
+      the box covers the vis bounds, else a walk of CPVS's runtime octree (180237ce0 / 1802378f0). Only the
+      fragment's 0x20 depends on it, and no layer test reads 0x20 (required bits 1 and 0x100, excluded 2, 4, 8).
+    - Settled by computation: every captured variant of the cascades' DrawDepthOpaque gives the same tests for a
+      world fragment, so which CSM instance is the cube's does not change membership. The visible entries' +0xc
+      bit was 0 in every cube-view test (measured; its writer in the cull is not read).
+    - Open: (1) a stage before 180041f30: in the capture 180041f30 is never called for an opaque material on the
+      AlphaTested layers, nor for an alpha-tested one on Large / Small, though both tests would pass them; the
+      layer's object pre-filter is not read, so CubemapFaceDrawList keeps its four opaque layers (wiring the tests
+      without it adds AlphaTested lists the game does not draw); (2) CPVS's octree walk for worlds with vis data
+      (the 0x20 bit only); (3) the order of a cascade's two layers; (4) the cull's +0xc fade bit.
 
 ## Resolved
 

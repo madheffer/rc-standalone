@@ -17,6 +17,8 @@ namespace Source2.Compiler.Tests;
 /// </summary>
 public class ShaderAttributeProbe(ITestOutputHelper output)
 {
+    private static string Platform => Environment.GetEnvironmentVariable("SHADERATTR_API") == "vulkan" ? "vulkan_50" : "pc_50";
+
     [Fact]
     public void AttributesOfShaders()
     {
@@ -29,12 +31,15 @@ public class ShaderAttributeProbe(ITestOutputHelper output)
         if (Environment.GetEnvironmentVariable("SHADERATTR_DIR") is { Length: > 0 } dir)
             game = Path.Combine(Path.GetDirectoryName(game)!, dir);
         using var package = new Package();
-        package.Read(Path.Combine(game, "shaders_pc_dir.vpk"));
+        // SHADERATTR_API=vulkan reads the Vulkan shaders (the -vulkan game's), whose combos declare attributes the
+        // DX11 files do not (BindlessResources).
+        var api = Environment.GetEnvironmentVariable("SHADERATTR_API") == "vulkan" ? "vulkan" : "pc";
+        package.Read(Path.Combine(game, $"shaders_{api}_dir.vpk"));
         // "*" scans every shader's vs program; the word may then be a murmur ("0x...").
         var names = parts[0] == "*"
-            ? package.Entries!["vcs"].Select(e => e.FileName).Where(n => n.EndsWith("_pc_50_vs")).Select(n => n[..^"_pc_50_vs".Length])
+            ? package.Entries!["vcs"].Select(e => e.FileName).Where(n => n.EndsWith($"_{Platform}_vs")).Select(n => n[..^$"_{Platform}_vs".Length])
             : parts[0].Split(',');
-        foreach (var shader in names.SelectMany(x => parts[0] == "*" ? new[] { x + "_pc_50_vs", x + "_pc_50_ps" } : new[] { x + "_pc_50_features", x + "_pc_50_vs", x + "_pc_50_ps", x + "_pc_50_psrs" }))
+        foreach (var shader in names.SelectMany(x => parts[0] == "*" ? new[] { x + $"_{Platform}_vs", x + $"_{Platform}_ps" } : new[] { x + $"_{Platform}_features", x + $"_{Platform}_vs", x + $"_{Platform}_ps", x + $"_{Platform}_psrs" }))
         {
             var entry = package.FindEntry($"shaders/vfx/{shader}.vcs");
             if (entry == null)
@@ -53,6 +58,10 @@ public class ShaderAttributeProbe(ITestOutputHelper output)
                 output.WriteLine($"{shader}: {e.GetType().Name} {e.Message}");
                 continue;
             }
+            // A features file's render modes: name, the shader it falls back to, and the static combo it selects.
+            if (program.FeaturesHeader is { } features)
+                foreach (var (name, fallback, staticName, value) in features.Modes)
+                    output.WriteLine($"MODE {shader}: {name} shader '{fallback}' combo {staticName}={value}");
             var seen = new Dictionary<string, HashSet<string>>();
             output.WriteLine($"== {shader} static combos: {string.Join(" ", program.StaticComboArray.Select(c => $"{c.Name}[{c.RangeMin}..{c.RangeMax}]x{c.ComboIndexValue}"))}");
             foreach (var id in program.StaticComboEntries.Keys)

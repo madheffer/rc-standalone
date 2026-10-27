@@ -20,7 +20,7 @@ namespace Source2.Compiler.Tests;
 /// </summary>
 public sealed class CubemapLayerFlagsCaptureTests(ITestOutputHelper output)
 {
-    private sealed record Ours(string Name, List<ushort> Fragments, List<int> IndexCounts, uint DrawCall1c, ushort DrawCall14, uint ObjectE0);
+    internal sealed record Ours(string Name, List<ushort> Fragments, List<int> IndexCounts, uint DrawCall1c, ushort DrawCall14, uint ObjectE0, MaterialAttributes? Material, List<bool> VisQuery);
 
     private static uint ObjectFlags(KVObject mesh)
     {
@@ -33,16 +33,17 @@ public sealed class CubemapLayerFlagsCaptureTests(ITestOutputHelper output)
 
     private static bool Flag(KVObject o, string key) => o.ContainsKey(key) && o.GetBooleanProperty(key);
 
-    private static List<Ours> Aggregates(string vpk)
+    internal static List<Ours> Aggregates(string vpk)
     {
         var game = Path.Combine(Environment.GetEnvironmentVariable("CS2_DIR") ?? @"D:\Steam\steamapps\common\Counter-Strike Global Offensive", "game");
         using var content = new GameContent(Path.Combine(game, "csgo", "pak01_dir.vpk"), Path.Combine(game, "csgo_addons", "s2c_rc_probe"));
-        using var shaders = new ShaderLibrary(Path.Combine(game, "csgo", "shaders_pc_dir.vpk"), Path.Combine(game, "core", "shaders_pc_dir.vpk"));
+        // The -vulkan game's programs, every render mode's (MaterialAttributes.OfModes).
+        using var shaders = new ShaderLibrary(Path.Combine(game, "csgo", "shaders_vulkan_dir.vpk"), Path.Combine(game, "core", "shaders_vulkan_dir.vpk")) { Platform = "vulkan_50" };
         var attributes = new Dictionary<string, MaterialAttributes>();
         MaterialAttributes Attributes(string m)
         {
             if (!attributes.TryGetValue(m, out var a))
-                attributes[m] = a = content.Material(m) is { } info ? MaterialAttributes.Of(info, shaders, content.TextureSize) : MaterialAttributes.Empty;
+                attributes[m] = a = content.Material(m) is { } info ? MaterialAttributes.OfModes(info, shaders) : MaterialAttributes.Empty;
             return a;
         }
         using var package = new ValvePak.Package();
@@ -66,10 +67,14 @@ public sealed class CubemapLayerFlagsCaptureTests(ITestOutputHelper output)
                 var flags = calls.Select(c => CubemapLayerFlags.MaterialFlags(c.GetStringProperty("m_material") is { Length: > 0 } m ? Attributes(m) : null)).ToList();
                 var fragments = new List<ushort>();
                 var counts = new List<int>();
+                var query = new List<bool>();
                 foreach (var m in o.GetArray("m_aggregateMeshes"))
                 {
                     var call = m.GetInt32Property("m_nDrawCallIndex");
-                    fragments.Add(CubemapLayerFlags.FragmentFlags(ObjectFlags(m), flags[call], m.GetInt32Property("m_nVisClusterMemberCount")));
+                    var objectFlags = ObjectFlags(m);
+                    // Fragments whose 0x20 needs CPVS's box query (not ported): computed with no clusters, that bit not compared.
+                    query.Add(CubemapLayerFlags.NeedsVisQuery(objectFlags));
+                    fragments.Add(CubemapLayerFlags.FragmentFlags(objectFlags, flags[call], m.GetInt32Property("m_nVisClusterMemberCount"), visClusters: 0));
                     counts.Add(calls[call].GetInt32Property("m_nIndexCount"));
                 }
                 var first = calls[0];
@@ -78,7 +83,7 @@ public sealed class CubemapLayerFlagsCaptureTests(ITestOutputHelper output)
                     Flag(first, "m_bCanBatchWithDynamicShaderConstants"), Flag(first, "m_bDrawLast"), Flag(first, "m_bBakedTwoSided"),
                     Flag(first, "m_bOnlyShadow"), Flag(first, "m_bNoShadow"));
                 var material = first.GetStringProperty("m_material") is { Length: > 0 } fm ? Attributes(fm) : null;
-                result.Add(new Ours(name, fragments, counts, flags[0], CubemapLayerFlags.DrawCallFlags(bools, material), CubemapLayerFlags.ObjectFlags(fragments)));
+                result.Add(new Ours(name, fragments, counts, flags[0], CubemapLayerFlags.DrawCallFlags(bools, material), CubemapLayerFlags.ObjectFlags(fragments), material, query));
             }
         }
         return result;
@@ -91,7 +96,10 @@ public sealed class CubemapLayerFlagsCaptureTests(ITestOutputHelper output)
             return;
         var vpk = Environment.GetEnvironmentVariable("LAYERCAP_VPK") is { Length: > 0 } given ? given : Directory.GetFiles(dir, "*.vpk").Single();
         var ours = Aggregates(vpk);
-        var captured = File.ReadLines(Path.Combine(dir, "frida.jsonl")).Select(l => JsonNode.Parse(l)!).Where(r => (string?)r["kind"] == "object").ToList();
+        var records = File.ReadLines(Path.Combine(dir, "frida.jsonl")).Select(l => JsonNode.Parse(l)!).ToList();
+        var captured = records.Where(r => (string?)r["kind"] == "object").ToList();
+        // The game's attribute store of each object's draw-call material (layer_members.js "attributes").
+        var stores = records.Where(r => (string?)r["kind"] == "attributes").GroupBy(r => (string)r["object"]!).ToDictionary(g => g.Key, g => g.First()["chain"]![0]!["entries"]!.AsArray());
         var failures = new List<string>();
         var matched = 0;
         foreach (var c in captured)
@@ -106,14 +114,26 @@ public sealed class CubemapLayerFlagsCaptureTests(ITestOutputHelper output)
             {
                 var d = new List<string>();
                 for (var i = 0; i < frags.Count; i++)
-                    if ((int)frags[i][0]! != o.Fragments[i])
+                {
+                    var mask = o.VisQuery[i] ? ~0x20 : ~0;
+                    if (((int)frags[i][0]! & mask) != (o.Fragments[i] & mask))
                         d.Add($"fragment {i} flags 0x{(int)frags[i][0]!:x} captured, 0x{o.Fragments[i]:x} ours");
+                }
                 if ((uint)mat[0]! != o.DrawCall1c)
                     d.Add($"draw call +0x1c 0x{(uint)mat[0]!:x} captured, 0x{o.DrawCall1c:x} ours");
                 if ((int)mat[1]! != o.DrawCall14)
                     d.Add($"draw call +0x14 0x{(int)mat[1]!:x} captured, 0x{o.DrawCall14:x} ours");
                 if ((uint)c["objectE0"]! != o.ObjectE0)
                     d.Add($"object +0xe0 0x{(uint)c["objectE0"]!:x} captured, 0x{o.ObjectE0:x} ours");
+                // Every key of the game's store, as int (vf 0x50 reads bools as 0 / 1).
+                if (stores.TryGetValue((string)c["object"]!, out var store) && o.Material != null)
+                    foreach (var e in store)
+                    {
+                        var key = Convert.ToUInt32((string)e![0]!, 16);
+                        var theirs = (long)e[1]!;
+                        if (o.Material.Int(key) is not { } ours || ours != theirs)
+                            d.Add($"attribute 0x{key:x8} {theirs} captured, {(o.Material.Int(key)?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "absent")} ours");
+                    }
                 return string.Join("; ", d);
             }
             var best = candidates.Select(o => (o, Diff(o))).OrderBy(x => x.Item2.Length).First();
@@ -121,7 +141,8 @@ public sealed class CubemapLayerFlagsCaptureTests(ITestOutputHelper output)
             if (best.Item2.Length > 0)
                 failures.Add($"{Path.GetFileNameWithoutExtension(best.o.Name)}: {best.Item2}");
         }
-        output.WriteLine($"{ours.Count} aggregates in the package, {captured.Count} captured objects, {matched} matched by index counts");
+        output.WriteLine($"{ours.Count} aggregates in the package, {captured.Count} captured objects, {matched} matched by index counts; "
+                         + $"{ours.Sum(o => o.VisQuery.Count(q => q))} fragments' 0x20 not compared (CPVS box query not ported)");
         foreach (var f in failures)
             output.WriteLine("FAIL " + f);
         Assert.True(matched > 0, "no captured object matched");

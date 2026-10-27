@@ -66,7 +66,41 @@ public sealed class MaterialAttributes : MeshEntryFlags.IAttributes
 
     private static readonly HashSet<string> NoCullDefault = new(Tier0Strings.IgnoreCase) { "csgo_water_fancy" };
 
-    private void AddShader(ShaderLibrary.ShaderSet set, SettleWorld.MaterialInfo material)
+    /// <summary>
+    /// The attribute store a loaded CMaterial2 holds in the game (GROUND_TRUTH 157): materialsystem2 loads one job per
+    /// render mode (180014ed0) and each merges its program's static-combo attributes into the material's store
+    /// (18000e690, setter 18001e4a0; dynamic expressions over the program's features). The modes are the shader's
+    /// features file's list: a mode with a fallback shader takes that shader's programs, one with a static combo name
+    /// the material's own programs with that static set; the default combo is the material's own. Read from
+    /// <paramref name="shaders"/> (the game's API: the -vulkan game reads shaders_vulkan, whose programs declare
+    /// BindlessResources). A later job overwrites an earlier value; the jobs finish in no fixed order, so where two
+    /// modes disagree on a key the game's value is not data, and this keeps the first.
+    /// </summary>
+    public static MaterialAttributes OfModes(SettleWorld.MaterialInfo material, ShaderLibrary shaders)
+    {
+        var result = new MaterialAttributes();
+        if (shaders.Collection(material.Shader) is not { } own)
+            return result;
+        result.AddShader(own, material);
+        if (own.Features.FeaturesHeader is { } header)
+            foreach (var (_, fallback, staticName, staticValue) in header.Modes)
+            {
+                if (fallback.Length > 0)
+                {
+                    if (shaders.Collection(fallback) is { } other)
+                        result.AddShader(other, material);
+                }
+                else if (staticName.Length > 0)
+                    result.AddShader(own, material, (staticName, staticValue));
+            }
+        foreach (var (name, value) in material.Strings)
+            result.values[MeshEntryFlags.Key(name)] = value;
+        foreach (var (name, value) in material.Ints)
+            result.values[MeshEntryFlags.Key(name)] = value;
+        return result;
+    }
+
+    private void AddShader(ShaderLibrary.ShaderSet set, SettleWorld.MaterialInfo material, (string Name, int Value)? forced = null)
     {
         var features = (material.Params ?? new Dictionary<string, long>())
             .Where(p => p.Key.StartsWith("F_", StringComparison.Ordinal)).ToDictionary(p => p.Key, p => (byte)p.Value);
@@ -74,6 +108,15 @@ public sealed class MaterialAttributes : MeshEntryFlags.IAttributes
         foreach (var program in set.Programs)
         {
             var (config, id) = ShaderDataProvider.GetStaticConfiguration_ForFeatureState(set.Features, program, features);
+            // A mode's static combo (S_MODE_TOOLS_VIS=1 and the like) set over the feature state.
+            if (forced is { } f)
+            {
+                var index = Array.FindIndex(program.StaticComboArray, c => c.Name == f.Name);
+                if (index < 0)
+                    continue;
+                config[index] = f.Value;
+                id = new ConfigMappingIds(program).Id(config);
+            }
             if (!program.StaticComboEntries.ContainsKey(id) && ShaderDataProvider.TryReduceStaticConfiguration(program, config, out var reduced))
                 id = new ConfigMappingIds(program).Id(reduced);
             if (!program.StaticComboEntries.ContainsKey(id))
@@ -284,6 +327,9 @@ public sealed class MaterialAttributes : MeshEntryFlags.IAttributes
 /// <summary>Compiled shaders (shaders_pc_dir.vpk of csgo, then csgo_core) by shader name.</summary>
 public sealed class ShaderLibrary(params string[] packages) : IDisposable
 {
+    /// <summary>The program files' platform: pc_50 (DX11, shaders_pc) by default, vulkan_50 for shaders_vulkan.</summary>
+    public string Platform { get; init; } = "pc_50";
+
     public sealed record ShaderSet(VfxProgramData Features, VfxProgramData[] Programs);
 
     private readonly List<Package> paks = packages.Where(File.Exists).Select(p =>
@@ -304,11 +350,11 @@ public sealed class ShaderLibrary(params string[] packages) : IDisposable
         VfxProgramData? Load(string suffix)
         {
             foreach (var pak in paks)
-                if (pak.FindEntry($"shaders/vfx/{name}_pc_50_{suffix}.vcs") is { } entry)
+                if (pak.FindEntry($"shaders/vfx/{name}_{Platform}_{suffix}.vcs") is { } entry)
                 {
                     pak.ReadEntry(entry, out var bytes);
                     var program = new VfxProgramData();
-                    program.Read($"{name}_pc_50_{suffix}.vcs", new MemoryStream(bytes));
+                    program.Read($"{name}_{Platform}_{suffix}.vcs", new MemoryStream(bytes));
                     return program;
                 }
             return null;

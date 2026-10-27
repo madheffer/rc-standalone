@@ -205,6 +205,34 @@ function slot(mod, global, offset) {
   return { iface: hex(iface), fn: m ? m.name + '!0x' + fn.sub(m.base).add(IMAGE).toString(16) : hex(fn) };
 }
 
+// worldrenderer 18001f1be calls the vis object's vf 8 for a fragment's cluster members (no precomputed list): a
+// one-shot hardware execute breakpoint there names that function (rcx's vtable slot 8), then is cleared.
+let visBp = null;
+function armVis(wr) {
+  visBp = at(wr, '0x18001f1be');
+  for (const t of Process.enumerateThreads())
+    try { t.setHardwareBreakpoint(0, visBp); } catch (e) { }
+}
+Process.setExceptionHandler(details => {
+  if (visBp === null || !details.address.equals(visBp))
+    return false;
+  const ctx = details.context;
+  let rec = {};
+  try {
+    const fn = ctx.rcx.readPointer().add(8).readPointer();
+    const m = Process.findModuleByAddress(fn);
+    const vt = ctx.rcx.readPointer();
+    const mv = Process.findModuleByAddress(vt);
+    rec = { fn: m ? m.name + '!0x' + fn.sub(m.base).add(IMAGE).toString(16) : hex(fn),
+      vtable: mv ? mv.name + '!0x' + vt.sub(mv.base).add(IMAGE).toString(16) : hex(vt) };
+  } catch (e) { rec = { error: '' + e }; }
+  for (const t of Process.enumerateThreads())
+    try { t.unsetHardwareBreakpoint(0); } catch (e) { }
+  visBp = null;
+  send({ kind: 'visquery', ...rec });
+  return true;
+});
+
 let done = false;
 let wrDone = false;
 function poll() {
@@ -219,6 +247,7 @@ function poll() {
     const s = slot(wr, '0x180231bf0', 0x120);
     if (s) {
       wrDone = true;
+      armVis(wr);
       // 180027160 ends by running the meshsystem object's flag callbacks (+0xa8 count, +0xb0 array).
       const iface = at(wr, '0x180231bf0').readPointer();
       const callbacks = [];
