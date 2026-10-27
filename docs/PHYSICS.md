@@ -95,7 +95,8 @@ Open:
   physics parts or a joint (ledger 135). Valve's truth is captured
   (s2c_ragdollprobe); CRnConicalJoint's (every motor mode) and CRnRevoluteJoint's solves are
   ported and oracle-exact, the aggregate builds as Valve's, pose included (ledger 166), and the
-  stepped settle equals Valve's through step 98 (step 6). The settle still refuses such a map.
+  settle with joints replays Valve's step for step (step 6). The settle still refuses such a map, for the
+  write-back (step 7).
   Roadmap, in order, each step checked against the capture before the next:
   1. Done (2026-10-25, ledger 136): CRnRevoluteJoint (VPhysX type 3 with
      flags bit 1 clear, as ctm_sas's two knees): prepare (every motor mode,
@@ -140,15 +141,15 @@ Open:
         other than 1, a deformer, a mass-centre override (body vfn 0x108), joints to the world's static body
         (VPhysXJoint_t flags bit 0), motors, linear limits, breakable and elastic joints (18022c480, 18021ade0),
         CRnRevoluteBlockJoint (flags bit 1). ModelPhysicsProbe (MODELPHYS, MODELPHYS_JOINTS=1) lists a model's.
-  6. Under way (2026-10-28, ledger 166): RagdollLockstepTests builds our world from the .vmap and compares every
-     modelled body field before each captured step. The 30 ragdoll bodies Valve makes dynamic (the same two agents in
-     ours) are exact before every step through 99; before step 100 the agent at (80, 360) differs on all 15 bodies
-     (0.05 units/s). Valve's runs agree with each other through step 110, so this is ours. The capture with every
-     step to 130 is %TEMP%/settle_capture/s2c_ragdollprobe_fine (settle_fine_steps.js after settle_bundle.js and
-     settle_joints.js); RAGDOLL_CONTACTS=1 lists our contacts on ragdoll bodies at steps 90..100. Next: capture
-     Valve's contacts and island at step 99 and find the first differing contact or impulse (a probe is still to
-     write: SettleReplay's collide_in / collide_out events came from a capture script that is not in the repo).
-     The original plan follows.
+  6. Done (2026-10-28, ledgers 166, 167): RagdollLockstepTests builds our world from the .vmap, makes bodies dynamic
+     in the capture's order (ledger 52: Valve's varies run to run), and compares every modelled field of all 33
+     dynamic bodies before each captured step, every active contact at the collide's entry and exit (with
+     settle_contacts.js), and the final poses. Exact on three captures, 2700 steps each. The fix that got there: a
+     single body with a bind pose (the chicken) is set to the part composed with bind pose 0 (rc 18105e299).
+     Captures: %TEMP%/settle_capture/s2c_ragdollprobe_contacts (settle_bundle.js, settle_joints.js,
+     settle_fine_steps.js, settle_contacts.js), _fine, and the 10-27 one. Not checked directly: the island split and
+     sleep with joints (the bodies' flags and awake indices, which they set, are compared).
+     The original plan was:
      Step in lockstep with the capture: a SettleReplay with joints (the capture's "bodies" and "joints" events at
      steps 0..90 and every 10th, "islands" at 0..3 and every 100th), first divergence wins, as for the single-body
      settle (SETTLE.md). This also checks the island split with joints (by step 100 Valve's islands have 16

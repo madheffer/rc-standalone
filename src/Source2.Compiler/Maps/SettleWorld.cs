@@ -724,8 +724,16 @@ public static partial class SettleWorld
         var longest = Enumerable.Range(0, 3)
             .Select(c => MathF.Sqrt(((local[c] * local[c]) + (local[4 + c] * local[4 + c])) + (local[8 + c] * local[8 + c])))
             .Aggregate(0f, (a, b) => a <= b ? b : a);
-        var body = new BodyBuild(nodeId, new Vector3(local[3], local[7], local[11]), longest,
-                                 WithIdentity(Orientation(Unscaled(local))), []) { Node = node };
+        // The body is then set (vfn 0x1b8, rc 18105e299..18105e317) to the part's transform composed
+        // (181253510) with bind pose 0 as 1801ae160 decomposes it (its translation, largest column
+        // scale and rotation), or with the identity when the physics data's +0x18 count is 0. Which
+        // list +0x18 counts is not read; it is taken as the bind pose's, which agrees on every model
+        // seen (the chicken: one part, one bone, one bind pose).
+        var part = new CTransform(new Vector3(local[3], local[7], local[11]), longest, Orientation(Unscaled(local)));
+        var placed = phys.BindPose.Length > 0
+            ? CTransform.Compose(part, BindPoseTransform(Physics.StaticPropHulls.BindPose(phys, 0)))
+            : part with { Rotation = WithIdentity(part.Rotation) };
+        var body = new BodyBuild(nodeId, placed.Position, placed.Scale, placed.Rotation, []) { Node = node };
         // A non-uniform scale takes the matrix path: each shape's points go
         // through the scale matrix (FUN_18125c200) and are cooked again at
         // scale 1 (RnHullCreate, RnMeshCreate).
@@ -876,6 +884,19 @@ public static partial class SettleWorld
         var w = (a.Z * -0f) + (((a.W * 1f) + (a.X * -0f)) + (a.Y * -0f));
         var length = MathF.Sqrt(((x * x) + (y * y)) + ((z * z) + (w * w)));
         return length == 0f ? default : new Quaternion(x / length, y / length, z / length, w / length);
+    }
+
+    /// <summary>
+    /// FUN_1801ae160: a matrix3x4 as a CTransform: the translation of the
+    /// unscaled matrix (18125b270), the largest of the column lengths as the
+    /// scale, and the unscaled rotation's quaternion (18125de90).
+    /// </summary>
+    internal static CTransform BindPoseTransform(float[] m)
+    {
+        float Column(int c) => MathF.Sqrt(((m[c] * m[c]) + (m[4 + c] * m[4 + c])) + (m[8 + c] * m[8 + c]));
+        var scale = MathF.Max(MathF.Max(MathF.Abs(Column(0)), MathF.Abs(Column(1))), MathF.Abs(Column(2)));
+        var r = Unscaled(m);
+        return new CTransform(new Vector3(r[3], r[7], r[11]), scale, Orientation(r));
     }
 
     /// <summary>

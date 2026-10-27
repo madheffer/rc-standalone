@@ -42,12 +42,11 @@ public static partial class SettleWorld
             return result;
         if (bodies.FirstOrDefault(b => b.Unsupported != null) is { } refused)
             throw new NotSupportedException($"node {refused.NodeId}: {refused.Unsupported}");
-        // The aggregate build is Valve's (GROUND_TRUTH 161, 166), and the stepped settle
-        // with joints equals the capture through step 98 of s2c_ragdollprobe; one agent
-        // differs from step 99 (RagdollLockstepTests), and the boneTransforms write-back
-        // is not ported (PHYSICS.md steps 6 and 7).
+        // The aggregate build is Valve's (GROUND_TRUTH 161, 166), and the settle with joints
+        // replays Valve's captures of s2c_ragdollprobe step for step (RagdollLockstepTests,
+        // GROUND_TRUTH 167); the boneTransforms write-back is not ported (PHYSICS.md step 7).
         if (bodies.FirstOrDefault(b => b.Aggregate != null) is { } aggregate)
-            throw new NotSupportedException($"node {aggregate.NodeId}: an aggregate (ragdoll), whose settle differs from step 99 and whose write-back is not ported");
+            throw new NotSupportedException($"node {aggregate.NodeId}: an aggregate (ragdoll), whose boneTransforms write-back is not ported");
         var eligible = Eligible(document, bodies, models, schema);
         var settled = Settled(document, bodies, models, schema);
         var world = CreateWorld(bodies, settled);

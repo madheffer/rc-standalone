@@ -4546,13 +4546,31 @@ game can answer is raised with the user first, and runs with -insecure.
      - Ported: ModelBones carries m_boneScaleParent, SettleWorld.ReferencePose and ModelSpace.
        AggregateBuildCaptureTests passes: every field of all 60 bodies, pose included, every shape attribute and
        all 56 joints equal the capture.
-     - Measured, not a rule: with the pose exact, the stepped settle (RagdollLockstepTests over a capture with
-       every step to 130, settle_fine_steps.js) equals Valve's on the 30 ragdoll bodies Valve makes dynamic (two of
-       the four agents; the same two in ours) before every step through 99. Before step 100 the agent at (80, 360)
-       differs on all 15 bodies, by about 0.05 units/s. Valve's own runs agree with each other through step 110
-       (four runs, 10-27 and 10-28; they part by step 200), so the difference is the port's. Next: Valve's contacts at step 99.
+     - Measured: with the pose exact the stepped settle equals Valve's on the ragdoll bodies through step 98; the
+       step 99 difference is ledger 167 (the chicken's placement and the dynamic order).
      - Not ported: the helper's update (only +0x328 reads it; nothing in the settle does), stored bone overrides
        (181efec40, which fill +0x328 and copy it to +0x310), and models with no m_boneScaleParent (refused).
+
+167. **The ragdoll settle in lockstep: a single body's bind pose, and the dynamic order** (2026-10-28: disassembly of
+     resourcecompiler 0923 18105dbd0 at 18105e299..18105e317 and decompile of 1801ae160; vphysics2 0924 1801f6980 and
+     1801ecfb0 for the contact list; three Frida captures of s2c_ragdollprobe's settle, the last with
+     tools/settle/probes/settle_contacts.js; RagdollLockstepTests).
+     - Settled from the code, ported: a model with one part and no joint gets one body, which rc then sets (body vfn
+       0x1b8) to the part's transform (part +0x30 position and scale, +0x40 rotation) composed (181253510) with bind
+       pose 0 as 1801ae160 decomposes it: the unscaled matrix's translation, the largest column length as the scale,
+       the unscaled rotation's quaternion. With the physics data's +0x18 count at 0 it composes with the identity
+       (the WithIdentity the port already had). We placed such a body at the node: the chicken (prop_ragdoll, one
+       part with a bind pose) sat 7.3 units low and unrotated. SettleWorld.FromModel and BindPoseTransform.
+     - Open: which list the +0x18 count is (the runtime layout is not the schema's); the port tests the bind pose
+       list, which agrees on the chicken (one part, one bone, one bind pose).
+     - Measured: the contact differences from step 33 and the step 99 drift came from the chicken and from the order
+       bodies turn dynamic. That order is ledger 52's (the node hash table over heap pointers): three Valve runs gave
+       three orders. With the chicken placed and each capture's own order, all 33 dynamic bodies equal Valve's before
+       every captured step, every active contact equals Valve's (touch state, list index, size, manifolds at the
+       collide's entry and exit, steps 0 to 100), and so do the final poses, on all three captures, 2700 steps each.
+     - Read for the probe: world +0xa10 count, +0xa14 capacity, +0xa18 the active contacts; contact +8 and +0x10
+       shapes (shape +0x10 body), +0x18 and +0x1c children, +0x40 sort key (the shapes' +0x1c proxies), +0x80 the
+       manifold block (count at +4, manifolds of 0xe0 bytes from +8). The key alone repeats across body pairs.
 
 ## Resolved
 
