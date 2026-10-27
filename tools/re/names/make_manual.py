@@ -2964,7 +2964,7 @@ TIER0_1015 = [
 
 SCENESYSTEM = [
     # The cubemap face render's light binner and sky (decompile of 20261015; the same addresses and code in 20261023).
-    ("1801b2850", "LightBinner_ComputeCullBitsGPU", BAKE, "lightbinner_gpu.cpp: the cull items, then CullParams_t (160 bytes from the stack at local_1b08) for both cull dispatches: tiles +0xf38c/+0xf378/+0xf37c, scale 2t/w, -2t/h, offset t/w - 1, 1 - t/h, bins +0xf380, bin width view +0x34 / bins, 0.001, near 0, first masks (0, wl, wl + we, 0), tile and bin batches per type; items padded to 32 per type; CubemapFaceConstants.LightBinnerCullParams"),
+    ("1801b2850", "LightBinner_ComputeCullBitsGPU", BAKE, "lightbinner_gpu.cpp: the cull items, then CullParams_t (160 bytes from the stack at local_1b08) for both cull dispatches: tiles +0xf38c/+0xf378/+0xf37c, scale 2t/w, -2t/h, offset t/w - 1, 1 - t/h, bins +0xf380, bin width view +0x34 / bins, 0.001, near 0, first masks (0, wl, wl + we, 0), tile and bin batches per type; items padded to 32 per type; CubemapFaceConstants.LightBinnerCullParams. Then the dispatches through the context's vf 0x320 (thread counts): depth bins (+0xf380, mask words +0xf390 + 0xf394 + 0xf398, 1) when +0xf380 > 1, tiles (+0xf378, +0xf37c, mask words); with one bin or the GPU cull off, a fill of +0xf3d0 with 0xffffffff instead (ledger 162)"),
     ("1801a8150", "LightBinner_SetupView", BAKE, "bins = lb_bin_slices clamped 1..8192 rounded up to 32 (+0xf380); tile = view attribute 0x5af50a7c or lb_tile_pixels, at least 4, rounded up to a power of two (+0xf370, log2 +0xf374); tiles (size - 1 + t) >> log2 (+0xf378, +0xf37c), their product +0xf38c"),
     ("1801a9b70", "LightBinner_GatherItems", BAKE, "a chunk of 1801a9410: mask words per type (count + 31) / 32, 0 for none: lights +0xe3a8 -> +0xf390, environment maps -> +0xf394, light probe volumes +0xe520 -> +0xf398"),
     # The face pipelines' shadow bias convars (installed 20261023, same addresses as 20261015; ledger 150).
@@ -3039,6 +3039,7 @@ SCENESYSTEM = [
 RENDERSYSTEMVULKAN_1015 = [
     # Read from the disassembly (rendersystemvulkan 20261015, md5 04e078c3a7e5a02355930f15d42d3d81).
     ("1800d7ca0", "RenderDoc_Hook", BAKE, "with -renderdoc (called at 180093907 and 1800992c8): the RenderDoc path from the registry, loads renderdoc.dll from the RenderDoc install folder and takes its API; returns 1 on success (\"Attempted to hook renderdoc ... Result: 'Success'\"). tools/cubehost run_probe.py --renderdoc, docs/CUBEMAPS.md"),
+    ("180072850", "RenderContext_DispatchThreads", BAKE, "a compute dispatch by thread counts: each count divided by the bound program's workgroup size (+0x140, +0x144, +0x148 of +0x1170) rounding up, then vkCmdDispatch through 18062b8c8; scenesystem 1801b2850's vf 0x320 calls (ledger 162, CubemapFaceRenderer)"),
     ("180254550", "VfxVariableDesc_InitDefaults", BAKE, "a leaf constructor: int ranges [-999999999, 999999999] (+0x15c..+0x178), float ranges [-1e9, 1e9]. Int render attributes reach the constant buffer clamped to it: vrad3's small-chart g_nRNGOffsetX / Y (capture_smallcharts.py; the VCS files declare +-1e9). LightmapBaker.RenderInt"),
 ]
 

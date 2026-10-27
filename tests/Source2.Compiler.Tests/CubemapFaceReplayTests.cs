@@ -105,61 +105,29 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
         return roles.Zip(prefixes).ToDictionary(p => p.Second, p => byRole[p.First]);
     }
 
-    /// <summary>
-    /// probe01's two env_combined_light_probe_volumes (array_index 0 and 1; s2c_l5probe has the same two): each is a
-    /// cube record (its origin) and a light probe volume. A face's light block lists the visible volumes in
-    /// <see cref="Cubemaps.CubemapFaceConstants.VisibleVolumes"/>' order: both have priority 0, and volume 1's box is
-    /// the smaller, so it comes first wherever both are seen.
-    /// </summary>
-    private static readonly Cubemaps.CubemapFaceConstants.LightProbeVolume[] Probe01Volumes =
-    [
-        new(new(512, 96, 112), new(-768, -1088, -112), new(768, 896, 176), new(0, 32, 0)),
-        new(new(512, 1104, 112), new(-576, -144, -112), new(640, 336, 144), new(0, 32, 0), 1),
-    ];
-
-    /// <summary>The same blocks for any face of one of probe01's cubes, by role (<see cref="BlockRoles"/>).</summary>
+    /// <summary>The same blocks for any face of one of probe01's cubes, by role (<see cref="BlockRoles"/>), from <see cref="Cubemaps.CubemapFaceBlocks"/>.</summary>
     private static Dictionary<string, byte[]> OurBlocks(int face, int cube = 0, bool scriptedCamera = true)
     {
-        var origin = Probe01Volumes[cube].Origin;
-        var view = Cubemaps.CubemapFaceViews.Face(origin, System.Numerics.Vector3.Zero, 1f, 10000f, face);
-        var frustum = Cubemaps.AggregateCulling.FaceFrustum(view);
-        var volumes = Cubemaps.CubemapFaceConstants.VisibleVolumes(frustum, Probe01Volumes);
-        var fog = new Cubemaps.CubemapFaceConstants.CubeFog(400f, 12000f, 0.5f, 1.2f, new System.Numerics.Vector4(0f, 2000f, 1f, 1f),
-            System.Numerics.Matrix4x4.CreateTranslation(512, 112, 80));
+        var b = Cubemaps.CubemapFaceBlocks.Build(CubemapFaceRendererTests.Probe01(cube) with { ScriptedCamera = scriptedCamera }, face);
         var ours = new Dictionary<string, byte[]>
         {
-            ["world"] = Cubemaps.CubemapFaceConstants.PerView(view, 1024, 0f, 0.95f),
-            ["sky"] = Cubemaps.CubemapFaceConstants.PerView(view, 1024, 1f, 1f),
-            ["csgo"] = Cubemaps.CubemapFaceConstants.Csgo(view, fog, 4096f),
-            ["baked"] = Cubemaps.CubemapFaceConstants.BakedLighting(new System.Numerics.Vector2(1.1428397f, 1.1428397f), 4096, 4096, false),
+            ["world"] = b.WorldView,
+            ["sky"] = b.SkyView,
+            ["csgo"] = b.Csgo,
+            ["baked"] = b.Baked,
             // Our own slots: two identity transforms, every instance pointing at the second.
             ["transforms"] = Cubemaps.CubemapFaceConstants.Transforms([Cubemaps.CubemapFaceConstants.Identity3x4, Cubemaps.CubemapFaceConstants.Identity3x4]),
             ["instances"] = Cubemaps.CubemapFaceConstants.Instances([.. Enumerable.Repeat(1, 255)]),
+            ["binner"] = b.BinnerParams,
+            ["skyview"] = b.SkyWsToOs,
+            ["binner_records"] = b.BinnerRecords,
+            ["binner_edges"] = b.BinnerEdges,
+            ["lights"] = b.Lights,
         };
-        // The sun cascades' per-view blocks (three cascades and the viewmodel one).
-        var (sun, _, cameraDirection) = Cubemaps.CubemapShadowCascades.SunDirections(new System.Numerics.Vector3(74.99999f, 180.00002f, 0f));
-        var cascades = Cubemaps.CubemapShadowCascades.GameCascades(view, sun, 1f, 10000f, scriptedCamera);
-        var tiles = CascadeTiles;
         for (var k = 0; k < 4; k++)
-            ours[$"cascade{k}"] = Cubemaps.CubemapFaceConstants.CascadePerView(cascades[k], cameraDirection, tiles[k][0], tiles[k][1], Cubemaps.CubemapShadowCascades.Inputs.Resolution, Cubemaps.CubemapShadowCascades.Inputs.AtlasWidth, Cubemaps.CubemapShadowCascades.Inputs.AtlasHeight);
-        // The light block: probe01's light_environment and the cube's light probe volume.
-        var (_, lightDir, _) = Cubemaps.CubemapShadowCascades.SunDirections(new System.Numerics.Vector3(74.99999f, 180.00002f, 0f));
-        var sunLight = new Cubemaps.CubemapFaceConstants.Sun(lightDir, Lighting.SceneLights.SrgbToLinear(248, 249, 232) * 2.25f, 0.1f, 0.05f,
-            Lighting.SceneLights.SrgbToLinear(138, 200, 255), 0.875f);
-        var stretched = Cubemaps.CubemapShadowCascades.Slice(view, 1f, Cubemaps.CubemapShadowCascades.GameDistances(1f, 10000f, scriptedCamera)[^1]).Diameter * 1.42f;
-        // The light binner, from the face's visible items: no lights or environment maps, the volumes above.
-        ours["binner"] = Cubemaps.CubemapFaceConstants.LightBinnerCullParams(1024, 1024, 10000f, 0, 0, volumes.Count);
-        // The sky: env_sky's angles as the sky object's rotation, its material's $Globals, and the depth downsamples'.
-        ours["skyview"] = Cubemaps.CubemapFaceConstants.SkyWsToOs(Cubemaps.CubemapFaceViews.AngleMatrix(System.Numerics.Vector3.Zero, new(512, 112, 48)));
+            ours[$"cascade{k}"] = b.CascadeViews[k];
         foreach (var (role, bytes) in ProgramBlocks.Value)
             ours[role] = bytes;
-        // The binner's item records and edge lines (LightBinnerItems), for the dispatches' set 0 binding 30 buffers.
-        var bin = new Cubemaps.LightBinnerItems.View(view.Origin, new System.Numerics.Vector3(view.CameraToWorld[0], view.CameraToWorld[4], view.CameraToWorld[8]),
-            Cubemaps.AggregateCulling.WorldToProjection(view), 1024, 1024, 8);
-        var footprints = volumes.Select(v => Cubemaps.LightBinnerItems.Bounds(bin, v.BoxMins, v.BoxMaxs, [1f, 0f, 0f, v.Origin.X, 0f, 1f, 0f, v.Origin.Y, 0f, 0f, 1f, v.Origin.Z])
-            ?? throw new InvalidOperationException("a visible volume rejected by the binner")).ToList();
-        (ours["binner_records"], ours["binner_edges"]) = Cubemaps.LightBinnerItems.Pack(bin, footprints);
-        ours["lights"] = Cubemaps.CubemapFaceConstants.LightBlock(sunLight, volumes, cascades, tiles, Cubemaps.CubemapShadowCascades.Inputs.Resolution, Cubemaps.CubemapShadowCascades.Inputs.AtlasWidth, Cubemaps.CubemapShadowCascades.Inputs.AtlasHeight, origin, stretched);
         return ours;
     }
 
@@ -514,7 +482,7 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
         var vpk = Directory.GetFiles(facesDir, "*.vpk").Single();
         var aggregates = DrawListAggregates.Value.GetOrAdd(vpk, AggregateCullingCaptureTests.Aggregates);
         var models = PackageModels.Value.GetOrAdd(vpk, LoadModels);
-        var view = Cubemaps.CubemapFaceViews.Face(Probe01Volumes[cube].Origin, System.Numerics.Vector3.Zero, 1f, 10000f, face);
+        var view = Cubemaps.CubemapFaceViews.Face(CubemapFaceRendererTests.Probe01(cube).Origin, System.Numerics.Vector3.Zero, 1f, 10000f, face);
         var (toSun, _, _) = Cubemaps.CubemapShadowCascades.SunDirections(new System.Numerics.Vector3(74.99999f, 180.00002f, 0f));
         IReadOnlyList<int>? materialOrder = order switch
         {

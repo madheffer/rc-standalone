@@ -4355,6 +4355,68 @@ game can answer is raised with the user first, and runs with -insecure.
       Flags249 bit 2) on the aggregate's bodies; (3) every shape keeps layer 0x400 that Valve drops; (4) the joints
       (180047600 and the creators). SettleWorld.Run refuses a map with an aggregate until these are exact.
 
+162. **A cubemap face rendered with no dump: its bindings, binner dispatches and frame** (2026-10-27: Valve's .vcs
+    write sequences; decompile of scenesystem 20261015 1801b2850 and rendersystemvulkan 20261015 180072850; the
+    passes of the probe01, s2c_l5probe and atixref captures; Gpu/CubemapFaceRenderer.cs, CubemapFaceRendererTests).
+    - Settled from the programs' own tables: every descriptor binding of every face program is named by the combo's
+      write sequence (VfxVariableIndexData: layout set, slot). Measured on every binding of every action of the
+      captures (CubemapFaceBindingsProbe lists them): a ConstantBuffer at its slot, a Texture register (textures and
+      structured buffers) at 30 + slot, a Uav at 158 + slot, a SamplerState at 14 + slot, the stage's $Globals at
+      binding 0 of its set (vertex 0, pixel 1). The descriptor layout builder in rendersystemvulkan is not read.
+    - Settled: the colour pass's set 3 binding 31 is generic's g_BarnLights (attribute BarnLights, slot 1), not
+      g_CullBits (slot 0, binding 30, the binner's output). No barn light is binned in the cubemap view.
+    - Settled from the code: 1801b2850 dispatches through the render context's vf 0x320 with thread counts: the
+      depth bins (+0xf380 = lb_bin_slices rounded, the mask words, 1), when there is more than one bin, then the
+      tiles (+0xf378, +0xf37c, the mask words); the mask words are the light, environment map and volume words
+      (+0xf390 + 0xf394 + 0xf398). rendersystemvulkan 180072850 divides each count by the bound program's workgroup
+      size (+0x140..0x148) rounding up: (8192, 1, 1) / (32, 1, 1) and (128, 128, 1) / (8, 4, 1) give the
+      captures' 256 x 1 x 1 and 16 x 32 x 1. Both programs store each output word from one thread (one OpStore, no
+      atomics), so the cull bits need no clear.
+    - Measured (RenderDoc, every face of the three captures): the passes and clears in a face (the atlas cleared to
+      1 whole, the face to colour 0 / depth 1 / stencil 0, the half depth to depth 1 / stencil 0 and the AO target
+      to white over 512 x 512, the face's stencil to 0 before the quarter downsample), the targets' sizes (half
+      depth and AO at the 1280 x 720 window, quarter depth 256 x 256), the image views' formats (a texture's view is
+      sRGB exactly where its variable reads sRGB, VfxVariableDescription.SrgbRead), and the whole mip chain of
+      every material and lightmap texture bound.
+    - Measured, not read: the renderer picks generic's and csgo_depth_only's D_COMPRESSED_NORMALS_AND_TANGENTS by
+      the draw call's m_bUseCompressedNormalTangent (true on probe01's world nodes), and every program it loads is
+      byte for byte a module of the capture. The engine's path from the flag to the combo is not read (meshsystem
+      names MESH_DRAW_FLAGS_USE_COMPRESSED_NORMAL_TANGENT, scenesystem a COMPRESSED_TANGENT_SPACE batch flag).
+    - Result: probe01's two cubes from the package, the shader and content packages and the scene's inputs alone:
+      all twelve faces equal the game's readbacks, both EXRs and the whole env_cubemap_array.vtex_c (945,838
+      bytes) are the game's byte for byte, no file of a dump read. s2c_l5probe: five faces exact, -X differs where
+      the spawned pawn's viewmodel draws (not ported; roadmap 0e).
+    - Open: the scene's inputs are typed in the test (probe01's volumes, fog, sun, sky, lightmap scale), not read
+      from the package's lumps yet; aggregates with fragment transforms of their own, alpha-tested prepass
+      draws, the viewmodel and non-aggregate scene objects throw; the two vkCmdCopyImage of each face (they do not
+      reach the readback) are not modelled; the texture streaming state of big maps (every capture so far holds
+      whole mip chains).
+
+163. **A cubemap face's scene from the package, and its programs by the shaders' render modes** (2026-10-27:
+    the probe01 / s2c_l5probe / atixref lumps and captures; the .vcs features files' mode tables; client 20261015
+    1801fd3c0 (C_EnvCubemapFog's schema), 180206e50 (the fog attributes); CubemapFaceBlocks.FromPackage,
+    CubemapFaceRenderer.Programs, ValveProgram.LoadOrNone, CubemapFaceProgramsTests).
+    - Settled by the readers' result: probe01's and s2c_l5probe's scene read from the package (volumes, cube origins
+      and handshakes, env_cubemap_fog, light_environment, env_sky, the world's lightmap uv scale, gameinfo's
+      MinSpecLightmapSize) equals the values typed before, which matched the captures word for word; both probe01
+      cubes stay byte for byte. Read but not ported: the fog's height vector (the struct 180206e50 receives is
+      filled elsewhere; C_EnvCubemapFog has its own m_flFogHeightWidth), so a height range throws.
+    - Settled from Valve's data: a material draws a pass in its shader's mode (features header Modes): Depth for
+      the cascades and prepass, ToolsVis for colour; a mode names another shader (generic, csgo_complex,
+      csgo_vertexlitgeneric: csgo_depth_only) or a static combo of the shader's own (csgo_foliage,
+      csgo_environment, csgo_environment_blend: S_MODE_DEPTH=1). A pixel program is absent where its static combo
+      is not in the file (csgo_environment's depth mode) or its dynamic combo's render state names shader file -1
+      (csgo_depth_only's opaque combos): every depth draw of the three captures without a pixel shader is one of
+      these. D_ALPHA_TEST_PREPASS=1 in the alpha-tested prepass layer.
+    - Measured on atixref face 0 (189 world draws, CubemapFaceProgramsTests): 72 draw with our programs byte for
+      byte. The rest are three rules not ported: (1) the depth passes draw the draw call's depth vertex buffer
+      (m_nDepthVertexBufferIndex; props carry a position-only stream) and D_COMPRESSED_NORMALS_AND_TANGENTS follows
+      the bound stream (0 for csgo_depth_only and csgo_environment(_blend) depth, 1 for single-stream foliage);
+      (2) prop aggregates (m_allFlags 0x408, per-mesh transforms, tints and m_nLightProbeVolumePrecomputedHandshake)
+      are lit from probes (D_BAKED_LIGHTING_FROM_PROBE=1), brushes from the lightmap; (3) csgo_foliage's
+      alpha-tested depth pixel combo (static 10) is not found by our static pick.
+
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

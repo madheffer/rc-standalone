@@ -56,6 +56,21 @@ public sealed class ValveProgram
     public static ValveProgram Load(Package package, string shader, string platform, string stage,
                                     IReadOnlyDictionary<string, int> statics, IReadOnlyDictionary<string, int> dynamics,
                                     IReadOnlyDictionary<string, int>? features = null)
+        => Pick(package, shader, platform, stage, statics, dynamics, features, false)!;
+
+    /// <summary>
+    /// <see cref="Load"/>, or null where the combo has no shader: the static combo is not in the file, or the dynamic
+    /// combo's render state names shader file -1 (csgo_depth_only's opaque pixel combos; the engine binds no pixel
+    /// shader there, as every depth-only draw of the cubemap captures shows).
+    /// </summary>
+    public static ValveProgram? LoadOrNone(Package package, string shader, string platform, string stage,
+                                           IReadOnlyDictionary<string, int> statics, IReadOnlyDictionary<string, int> dynamics,
+                                           IReadOnlyDictionary<string, int>? features = null)
+        => Pick(package, shader, platform, stage, statics, dynamics, features, true);
+
+    private static ValveProgram? Pick(Package package, string shader, string platform, string stage,
+                                      IReadOnlyDictionary<string, int> statics, IReadOnlyDictionary<string, int> dynamics,
+                                      IReadOnlyDictionary<string, int>? features, bool orNone)
     {
         var name = $"{shader}_{platform}_{stage}";
         var program = Read(package, name);
@@ -79,6 +94,8 @@ public sealed class ValveProgram
             }
             staticId += (value - c.RangeMin) * c.ComboIndexValue;
         }
+        if (!program.StaticComboEntries.ContainsKey(staticId) && orNone)
+            return null;
         if (!program.StaticComboEntries.ContainsKey(staticId))
             throw new InvalidDataException($"{name}: no static combo {staticId}");
         var combo = program.GetStaticCombo(staticId);
@@ -86,6 +103,8 @@ public sealed class ValveProgram
         foreach (var c in program.DynamicComboArray)
             dynamicId += (dynamics.GetValueOrDefault(c.Name, 0) - c.RangeMin) * c.ComboIndexValue;
         var index = combo.GetDynamicComboIndex(dynamicId);
+        if (orNone && (index < 0 || combo.DynamicComboRenderStates[index].ShaderFileId < 0))
+            return null;
         if (index < 0)
             throw new InvalidDataException($"{name}: static {staticId} has no dynamic combo {dynamicId}");
         var file = combo.DynamicComboRenderStates[index].ShaderFileId is var fileId && fileId >= 0 && fileId < combo.ShaderFiles.Length
