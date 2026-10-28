@@ -59,4 +59,6 @@ ALIASES = {
     "cl": "client_20261015.dll",
     "wr": "worldrenderer_20261023.dll",
     "ss1023": "scenesystem_20261023.dll",
+    "sa": "steamaudio_20261023.dll",
+    "ph": "phonon_20260923.dll",
 }

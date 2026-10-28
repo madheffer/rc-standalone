@@ -6,6 +6,7 @@ class Vpk:
         """src: a path, an open file handle, or a bytes buffer. base is the
         byte offset of this VPK inside the handle (for a nested map VPK)."""
         self.base = base
+        self.path = src if isinstance(src, str) else None
         if isinstance(src, (bytes, bytearray)):
             self.buf, self.fh = bytes(src), None
             head = self.buf[:28]
@@ -47,7 +48,13 @@ class Vpk:
     def read(self, path):
         ao, el, preload, ai = self.entries[path]
         if el == 0: return preload
-        assert ai == 0x7fff, f'entry lives in archive {ai}'
+        if ai != 0x7fff:
+            # a _dir.vpk's entry in a numbered archive beside it (pak01_dir.vpk -> pak01_463.vpk)
+            import os
+            arc = self.path.replace('_dir.vpk', '_%03d.vpk' % ai)
+            with open(arc, 'rb') as fh:
+                fh.seek(ao)
+                return preload + fh.read(el)
         if self.buf is not None:
             return preload + self.buf[self.data_off+ao : self.data_off+ao+el]
         self.fh.seek(self.base + self.data_off + ao)

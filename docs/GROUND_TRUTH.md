@@ -4614,6 +4614,37 @@ game can answer is raised with the user first, and runs with -insecure.
        drag off by 1 before step 0.
      - Exact: RagdollLockstepTests on the capture (62 dynamic bodies, every contact, final poses, 2700 steps, Valve's
        order) and SettleLumpTests (our order): the whole lump equals Valve's, 0 differences.
+170. **Steam Audio's reverb bake: where its randomness comes from, and the bake replayed** (2026-10-28, open: the
+     scene and probes from the .vmap; disassembly of phonon 0923 180a580e0, 1801f5e48..180249a08 and steamaudio 1023
+     180087e90, 180084d90, 1800646d3; Frida captures of resourcecompiler on s2c_saprobe; [STEAM_AUDIO.md](STEAM_AUDIO.md)).
+     - Measured: three Valve compiles of s2c_saprobe give three .sareverb files; the .sapaths is the same each time.
+     - Settled from the code: the reverb rays' seeds are rdtsc (Embree RandomSampler_init from clock() in phonon's
+       ISPC jobs, 16 sites; the low 32 bits feed the murmur mix). The time(NULL)-seeded RandomNumberGenerator
+       (180a580e0) is not reached by the bake (a hook on it saw no call).
+     - Exact: with every rdtsc pinned and -sareverb_threads 1, two Valve compiles are byte-identical; with 8 threads
+       they are not (per-thread energy-field sums), so Valve's multithreaded reverb is not reproducible by anyone.
+     - Settled from the code: the bake block (180087e90's 0x80 bytes), the context variables and the Embree device
+       settings (one reserved byte, 1800646d3); the scene settings (type 1, the Embree device at +0x30) and the
+       static mesh settings (180084d90).
+     - Exact: replay_phonon.py runs Valve's call sequence through phonon.dll in our own process with the captured
+       mesh, probes and block, seeds patched to 0: its probe batch equals the m_pProbeBatch of Valve's seed-0
+       one-thread .sareverb byte for byte.
+     - Exact (port, 10-28): ProbeBatch / FlatBufferBuilder re-write all 14 Valve probe batches (reverb and pathing)
+       byte for byte; SteamAudioFiles writes both whole KV3 files from the batch. The reverb settings are read as
+       18006bc60 does (code defaults, gameinfo ResourceCompiler/SteamAudio/ReverbDefaults, worldspawn via the KV3
+       getters 1801deba0 / 1801de860 / 1801de9f0); the KV3 conversions between value types are refused, not ported.
+     - Settled from the code: Embree 4.4.0's Scene::createTriangleAccel gives phonon's scenes (quality HIGH,
+       DYNAMIC, not robust) BVH8Triangle4 with Möller intersectors. Exact: the Möller tests (FMA dot / cross,
+       rcpps + FMA Newton) reproduce 75,874 captured rtcIntersect8 lanes (t, u, v, Ng, primID) and 55,854
+       rtcOccluded8 lanes by brute force (SteamAudioRayProbe); no tied t occurred, the only case the BVH decides.
+     - Settled from the code (10-28): the sample tables (180a58220, kPi 3.141592f, CRT cosf / sinf FMA paths
+       182683c40 / 182685260) and the AVX2 reverb kernel 180201a50 with its ISPC math, ported; equal to phonon's
+       tables and to Valve's energy fields on 72 of 73 probes. Open: probe 65's single exact tie (triangles 166
+       and 169 share the hit edge at equal t), which Embree's BVH traversal order decides; the reverb estimator.
+     - Exact (10-28, pipeline): reverb times (180a84df0 + CRT expf / log10f FMA paths) on 7 files; the automatic
+       probes (180100e40 box, 18006b2d0 matrix, 180a86090 generator) = Valve's 73; the material table (180128710,
+       180084a40, 180084d90 bands 0/7/9) = Valve's 164. Open: the acoustic geometry collector (180f53780 and its
+       mesh builders), the probe filters (inside shapes 180fbe450 and the rest), the pathing bake.
 
 ## Resolved
 
