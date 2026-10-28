@@ -335,6 +335,7 @@ public static partial class EntityLumpAuthor
 
         AtlasKeys(entity, values, context.LightingKeys);
         VisClusterKey(entity, values, context.LightingKeys);
+        NavLinkKeys(entity, values);
 
         // version is written through the 0/1 path like any other 1: Int64.
         var keyValues = KVObject.Collection();
@@ -348,6 +349,32 @@ public static partial class EntityLumpAuthor
         result.Add("keyValues3Data", keyValues);
         return result;
     }
+
+    /// <summary>
+    /// A CMapNavLink's own keys, after everything CMapEntity_ExportToLump writes (its vf, rc 181065c90):
+    /// width as a number, locatoroffset and locatorangles as "%f %f %f", then nav_link_movement
+    /// ("__ground__" for type 4, GROUND) and, for types 0 and 4, nav_link_movement_reverse. An empty
+    /// string is not written (EntityKv_SetString 180fa8bf0). s2c_navlink's three links are Valve's.
+    /// </summary>
+    private static void NavLinkKeys(MapEntities.Entity entity, KVObject values)
+    {
+        if (entity.NavLink is not { } link)
+            return;
+        values.Add("width", new KVObject((double)link.Width));
+        values.Add("locatoroffset", new KVObject(Fixed6(link.Offset)));
+        values.Add("locatorangles", new KVObject(Fixed6(link.LocatorAngles)));
+        var ground = link.Type == 4;
+        var movement = ground ? "__ground__" : link.Movement;
+        if (movement.Length > 0)
+            values.Add("nav_link_movement", new KVObject(movement));
+        if (link.Type is not (0 or 4))
+            return;
+        var reverse = ground ? "__ground__" : link.MovementReverse;
+        if (reverse.Length > 0)
+            values.Add("nav_link_movement_reverse", new KVObject(reverse));
+    }
+
+    private static string Fixed6(Vector3 v) => $"{Maps.SettleWorld.Fixed6(v.X)} {Maps.SettleWorld.Fixed6(v.Y)} {Maps.SettleWorld.Fixed6(v.Z)}";
 
     /// <summary>
     /// Apply the prefab name fixup to an entity name the map refers to

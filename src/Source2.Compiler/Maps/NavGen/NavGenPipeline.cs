@@ -11,7 +11,7 @@ namespace Source2.Compiler.Maps.NavGen;
 /// (180022b60) through IslandRemoval (029), ClipPolysToHullClearance (022) casting through
 /// <see cref="NavBoxWorld"/>, and LadderConnect (028) on the ladders of mapbuilder.ladder meshes
 /// (<see cref="NavGenMapInput.Ladders"/>) tracing through it. What is not ported refuses with
-/// <see cref="NotSupportedException"/>: markups inside instances or prefabs, nav links (CMapNavLink), func_ladder inside instances or prefabs,
+/// <see cref="NotSupportedException"/>: markups inside instances or prefabs, nav links inside instances, prefabs or groups (NavGenMapInput.Links), func_ladder inside instances or prefabs,
 /// sphere shapes and casts against spheres and capsules, smart props and physics pins in the nav world's
 /// filter, several hulls, a deprecated agent setup. The markups (<see cref="NavMarkupInput.Collect"/>) run
 /// the extraction's NONAV filter, stages 003 and 009 (RemovePolysMarkedNoNav), 019 (SplitPolysByMarkup)
@@ -94,12 +94,8 @@ public static class NavGenPipeline
                                   NavGenSettings settings, FgdSchema schema, Func<string, SettleWorld.MaterialInfo?> material,
                                   Action<string, NavGenPolys>? stage = null)
     {
-        foreach (var e in SettleWorld.AllDocuments(document).SelectMany(d => d.Elements))
-        {
-            // Nav links are CMapNavLink nodes (the collector 180f203b0 into CNavGenInput +0xc0).
-            if (e.Type == "CMapNavLink")
-                throw new NotSupportedException("nav generation with nav links (CMapNavLink, 180f203b0) is not ported");
-        }
+        // Nav links are CMapNavLink nodes (the collector 180f203b0 into CNavGenInput +0xc0); only IslandRemoval reads them.
+        var links = NavGenMapInput.Links(document);
         if (settings.Hulls.Count != 1)
             throw new NotSupportedException($"nav generation with {settings.Hulls.Count} hulls is not ported");
         var ladders = NavGenMapInput.Ladders(document, material);
@@ -133,7 +129,7 @@ public static class NavGenPipeline
         stage?.Invoke("027", recast);
         // 028 LadderConnect (its convar is on only with ladders), 029 IslandRemoval.
         var connectivity = ladders.Count == 0 ? [] : recast.LadderConnect(ladders, world);
-        NavGenStages.IslandStage(recast, new NavIslandInput(NavGenMapInput.Seeds(document), [], connectivity) { Markups = markups }, settings);
+        NavGenStages.IslandStage(recast, new NavIslandInput(NavGenMapInput.Seeds(document), links, connectivity) { Markups = markups }, settings);
         stage?.Invoke("029", recast);
         return new Result(recast, settings, verts, indices, ladders, connectivity);
     }

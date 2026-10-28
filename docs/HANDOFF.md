@@ -163,8 +163,9 @@ the addon).
      references; the wrong ones are in preset_entities_1023_withworld.
 4. **Nav** ([NAV.md](NAV.md), the inventory of every nav input and output the DLLs read and write, 2026-10-28; LIGHTING_ROADMAP L9): markups (L23), spheres and capsules (L22)
    and the analysis' overlap removal (L24) done 10-25 (ledgers 142, 143, 146); ladders and AddJumps' cylinder
-   sweep done 10-28 (ledger 174: s2c_prefabprobe3's .nav Valve's up to the custom data). Left: nav links, a
-   func_ladder in an instance or prefab, movable meshes, markups in instances or prefabs, the NONAV blocks
+   sweep done 10-28 (ledger 174: s2c_prefabprobe3's .nav Valve's up to the custom data); nav links done 10-28
+   (ledger 175: s2c_navlink's whole .nav and its link entities Valve's). Left: the link's other .vmap keys
+   (type, width, angles, movement) and links in instances or prefabs, a func_ladder in an instance or prefab, movable meshes, markups in instances or prefabs, the NONAV blocks
    collector (180f1f830: prop_deformable, block_base_nav_mesh), the CS analysis' casts and
    LadderConnect's rays against round shapes, bomb damage over hull, sphere or
    capsule worlds (L10).
@@ -198,7 +199,21 @@ the addon).
     Debug test build; time a Release build and Valve's own step before sizing it. Any change
     that could alter bytes waits for the user's OK (parity before speed).
 
-## Latest session (2026-10-28, the ragdoll pose and the first lockstep)
+## Latest session (2026-10-28 evening, nav links)
+
+Ledger 175; NAV.md collector 5 and "Order of work" 2. CS2 closed for two short captures, open otherwise.
+
+- tools/coverage/nav_link_specimen.py builds s2c_navlink (probe01, two raised pads, three CMapNavLinks);
+  Valve's compile is in the addon (copy in %TEMP%/navlink_ref), captures in %TEMP%/navgen_capture/s2c_navlink_in
+  (and _camelkey, the run that showed `locatorOffset` is not the .vmap key).
+- NavGenMapInput.Links (the collector), MapEntities.NavLinkFields and EntityLumpAuthor.NavLinkKeys (the lump);
+  NavLinkTests and NavCompileTests' s2c_navlink cases pass. tools/re/tier0_wildcard_oracle.py measures the
+  search's name compare.
+- Next for links: a probe that sets type, width, locatorangles and the movement keys (their .vmap names are the
+  tool attributes' by analogy only, so they refuse), and links inside instances and prefabs.
+- The suite was not run in full.
+
+## Earlier session (2026-10-28, the ragdoll pose and the first lockstep)
 
 Ledger 166; PHYSICS.md steps 5a and 6. CS2 closed, Steam open (resourcecompiler captures only).
 

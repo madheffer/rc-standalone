@@ -172,7 +172,61 @@
    "addr": "180f203b0",
    "name": "NavGen_CollectLinkAreas",
    "module": "s2c:baked/nav",
-   "note": "'ai_nav_link_area'"
+   "note": "CNavGenInput +0xc0 (ledger 175): 180fc7220 for 'ai_nav_link_area' (flags 3, no visibility test), IsA CMapNavLink; per instance path start = (step matrix x node) translation, end = start + locatoroffset (+0x185c) unrotated"
+  },
+  {
+   "addr": "180f2ddc0",
+   "name": "MapEntity_TargetNameMatches",
+   "module": "s2c:baked/nav",
+   "note": "V_CompareNameWithWildcards(pattern, targetname, 0); an empty name never matches"
+  },
+  {
+   "addr": "180fefbc0",
+   "name": "MapEntity_ClassNameMatches",
+   "module": "s2c:baked/nav",
+   "note": "vfn 0x7e0 classname, V_CompareNameWithWildcards(pattern, classname, 0)"
+  },
+  {
+   "addr": "181063b90",
+   "name": "CMapNavLink_Create",
+   "module": "s2c:baked/nav",
+   "note": "0x18b0 bytes: width +0x1858 128, locatoroffset +0x185c (128, 0, 0), locatorangles +0x1868 (0, 180, 0), type +0x1888 0"
+  },
+  {
+   "addr": "181064a10",
+   "name": "CMapNavLink_IsA",
+   "module": "s2c:baked/nav",
+   "note": "CMapNavLink, CMapEntity, CMapGameDataNode, CMapEntityIONode"
+  },
+  {
+   "addr": "181064ab0",
+   "name": "CMapNavLink_UpdateLocators",
+   "module": "s2c:baked/nav",
+   "note": "CMapNavLinkLocator children +0x4a8 0 at the origin, 1 at origin + locatoroffset; created when missing; scripts/npc_units.vdata and navlinks.vdata"
+  },
+  {
+   "addr": "181065c90",
+   "name": "CMapNavLink_ExportToLump",
+   "module": "s2c:entities/lump",
+   "note": "CMapEntity_ExportToLump, then width, locatoroffset and locatorangles (\"%f %f %f\"), nav_link_movement (\"__ground__\" for type 4), the reverse for types 0 and 4"
+  },
+  {
+   "addr": "181065ee0",
+   "name": "CMapNavLink_CopyFrom",
+   "module": "s2c:baked/nav",
+   "note": "type, width, offset, angles, the two movement strings and the preview strings"
+  },
+  {
+   "addr": "181068680",
+   "name": "CMapNavLink_AttributeTable",
+   "module": "s2c:baked/nav",
+   "note": "navlink_type, width, locatoroffset, locatorangles, nav_link_movement, nav_link_preview, nav_link_movement_reverse, nav_link_preview_reverse (hammer_embedded_properties)"
+  },
+  {
+   "addr": "18106b4f0",
+   "name": "CMapNavLink_SetLocatorOffset",
+   "module": "s2c:baked/nav",
+   "note": "change tracking under the name 'locatorOffset', then +0x185c"
   },
   {
    "addr": "180fb15e0",

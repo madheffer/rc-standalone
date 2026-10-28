@@ -129,7 +129,7 @@ public static partial class SettleWorld
     }
 
     /// <summary>printf's "%f" of a float: six decimals, a minus sign whenever the sign bit is set (-0.000000 included).</summary>
-    private static string Fixed6(float f)
+    internal static string Fixed6(float f)
     {
         var magnitude = Math.Abs((double)f).ToString("F6", CultureInfo.InvariantCulture);
         return float.IsNegative(f) ? "-" + magnitude : magnitude;

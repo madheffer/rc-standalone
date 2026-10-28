@@ -43,7 +43,7 @@ In order:
 | 2 | 180f209f0 | func_nav_markup: each `navProperty_<tag>` string key, else a `navProperty_NavAttributes` array | +0x90 markups, tag table +0x30 | ported (ledger 142); a markup inside an instance or prefab (its instance paths, 180f88460) and a scaled markup mesh refuse |
 | 3 | 180f1f830 | prop_deformable and block_base_nav_mesh entities as NONAV blocks | +0x90 | not ported |
 | 4 | 180f21ac0 | info_gravity_shift with `CreateProjectedNavMesh`, then every info_nav_oriented* entity (180f21930) | +0xa8 oriented volumes | not ported |
-| 5 | 180f203b0 | ai_nav_link_area nodes that are CMapNavLink objects: the node's position through each instance path, and that plus the link's vector at +0x185c | +0xc0 links (0x18 each: start, end) | not ported; IslandRemoval already takes links (NavIslandInput.Links) |
+| 5 | 180f203b0 | CMapNavLink nodes whose classname or targetname is ai_nav_link_area (case-blind): the node's position through each instance path, and that plus its `locatoroffset` (+0x185c), unrotated | +0xc0 links (0x18 each: start, end) | ported (ledger 175, NavGenMapInput.Links); a link in an instance, prefab or group, and a hidden or editorOnly one, refuse |
 | 6 | 180fb5440 | the compile context's AVOID list (filled by 180f4aed0 from `nav_attribute_avoid`) as NavGen AVOID markups | +0x90 | not ported |
 | 7 | 180fb15e0 | ladders: meshes with a `mapbuilder.ladder` material, then func_ladder children | +0x60 ladders | ported; a func_ladder in an instance or prefab refuses (below) |
 | 8 | 180f20f00 | info_nav_space (`DetailedGenerationForSmallNpcs`, `CoarseGenerationForLargeNpcs`); with one, info_node_air seeds and path_corner, info_node_hint, info_cover_hint, ai_flyer_flanking_route_hint, info_combine_gunship_bomb_target hints | +0x100 / +0x108 nav space | not ported |
@@ -184,7 +184,8 @@ What Hammer can put in a .vmap that the nav step reads:
   a .vmap can still carry them, so they are in scope.
 - CMapNavLink (the Nav Links tool): type (MapNavLinkType_t GENERIC, GROUND, JUMP_DOWN, CLIMB_UP,
   VAULT_OVER), width, movement forward / reverse and previews (scripts/navlinks.vdata), locators
-  (CMapNavLinkLocator). The collector takes only its two end points.
+  (CMapNavLinkLocator). The collector takes only its two end points. In the .vmap the attributes carry
+  the tool attributes' lower-case names (`locatoroffset` measured; `locatorOffset` is not read).
 - CMapNavData (the map's nav settings, `navData`): ported.
 - Materials: mapbuilder.ladder (tools/toolsinvisibleladder), mapbuilder.navclip,
   nav_attribute_avoid.
@@ -196,8 +197,10 @@ What Hammer can put in a .vmap that the nav step reads:
 
 1. Ladders: done on s2c_prefabprobe3 (2026-10-28). Left: a func_ladder in an instance or prefab,
    the closed-mesh normal (18016f710), and c2m3_coaster_d as a second check.
-2. Nav links: the CMapNavLink collector, IslandRemoval with links, whatever the mesh build and the
-   analysis do with them. Needs a probe map with every link type.
+2. Nav links: done on s2c_navlink (2026-10-28, ledger 175): the collector, IslandRemoval with links
+   (navsystem's only reader; the mesh build and the analysis never see them) and the links' lump
+   entities. Left: the .vmap names of type, width, locatorangles and the movement keys (a probe that
+   sets them), links in instances, prefabs and groups, hidden links.
 3. Movable meshes, every source above.
 4. AVOID from materials (6) and NONAV blocks (3).
 5. Oriented and projected generation (4, 10, stages 005 / 007, JoinNonZup).

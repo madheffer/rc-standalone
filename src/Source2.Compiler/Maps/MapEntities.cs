@@ -68,6 +68,9 @@ public static class MapEntities
         /// </summary>
         public string? BoneTransforms { get; init; }
 
+        /// <summary>A CMapNavLink's own fields (<see cref="NavLinkFields"/>); null for every other node.</summary>
+        public NavLinkFields? NavLink { get; init; }
+
         /// <summary>The <c>CMapPrefab</c> node ids the node was reached through, outermost first
         /// (<see cref="Maps.MapPrefabs"/>); empty for a node of the map's own.</summary>
         public int[] Prefabs { get; init; } = [];
@@ -111,6 +114,30 @@ public static class MapEntities
         Vector3 Origin, IReadOnlyList<KeyValuePair<string, string>> Keys,
         Vector3 InTangent = default, Vector3 OutTangent = default,
         int InTangentType = 0, int OutTangentType = 0);
+
+    /// <summary>
+    /// A CMapNavLink's fields (CMapNavLink, 0x18b0 bytes, factory rc 181063b90): navlink_type +0x1888,
+    /// width +0x1858, locatoroffset +0x185c, locatorangles +0x1868, nav_link_movement +0x1878 and
+    /// nav_link_movement_reverse +0x1880. The factory's defaults: type 0 (GENERIC), width 128, offset
+    /// (128, 0, 0), angles (0, 180, 0), no movement.
+    /// </summary>
+    public sealed record NavLinkFields(int Type, float Width, Vector3 Offset, Vector3 LocatorAngles, string Movement, string MovementReverse)
+    {
+        public static readonly NavLinkFields Defaults = new(0, 128f, new Vector3(128f, 0f, 0f), new Vector3(0f, 180f, 0f), "", "");
+
+        // The element attributes are the tool attributes' names (181068680). Only locatoroffset is measured
+        // (s2c_navlink: Valve's link records and lump take it); the others refuse until a probe sets them.
+        private static readonly string[] Unmeasured =
+            ["navlink_type", "width", "locatorangles", "nav_link_movement", "nav_link_movement_reverse", "nav_link_preview", "nav_link_preview_reverse"];
+
+        internal static NavLinkFields Read(DmxBinary.Element element)
+        {
+            foreach (var name in Unmeasured)
+                if (element.Attributes.ContainsKey(name))
+                    throw new NotSupportedException($"a CMapNavLink's {name} is not measured (only locatoroffset is)");
+            return Defaults with { Offset = element.GetValue<Vector3>("locatoroffset") ?? Defaults.Offset };
+        }
+    }
 
     /// <summary>One output wired to an input on another entity.</summary>
     public sealed record Connection(
@@ -248,8 +275,11 @@ public static class MapEntities
     /// every compile_source_id past the first path 12 too low, which reads as a
     /// difference on every class in the map. A CMapCable is a path too: Mako's
     /// one cable_dynamic and its seven nodes put every later id 8 out.</para>
+    ///
+    /// <para>A CMapNavLink is a CMapEntity (its IsA, rc 181064a10) and ships as one, with keys of
+    /// its own (EntityLumpAuthor.NavLinkKeys): s2c_navlink's three links are compile_source_id 70 to 72.</para>
     /// </summary>
-    private static readonly string[] GameKeyBearer = ["CMapEntity", "CMapPath", "CMapPathNode", "CMapCable"];
+    private static readonly string[] GameKeyBearer = ["CMapEntity", "CMapPath", "CMapPathNode", "CMapCable", "CMapNavLink"];
 
     /// <summary>Node types that are paths and carry CMapPathNode children.</summary>
     private static bool IsPath(DmxBinary.Element element) => element.Type is "CMapPath" or "CMapCable";
@@ -418,7 +448,10 @@ public static class MapEntities
             InterpolationType: element.GetValue<int>("interpolationType") ?? 1,
             // A cable's tint, which a cable_dynamic ships as its rendercolor. The
             // node starts white (0xffffffff, CMapCable's factory).
-            Tint: element.Type is "CMapCable" ? element.Get<byte[]>("tintColor") ?? [255, 255, 255, 255] : null);
+            Tint: element.Type is "CMapCable" ? element.Get<byte[]>("tintColor") ?? [255, 255, 255, 255] : null)
+        {
+            NavLink = element.Type is "CMapNavLink" ? NavLinkFields.Read(element) : null,
+        };
     }
 
     /// <summary>

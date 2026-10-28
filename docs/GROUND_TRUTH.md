@@ -4745,6 +4745,30 @@ game can answer is raised with the user first, and runs with -insecure.
        touching distance (1/32 + 1/128). The +0x8ac pass (1801c6ae0) only records the query.
      - Not ported (refuses): 180202b00's types 1 and 3, compound shapes, a cylinder pointing down (180089a30's
        opposite case), the closed-mesh normal of the ladder cast (18016f710), a func_ladder in an instance or prefab.
+175. **Nav links (CMapNavLink): the collector, the islands and the entity lump** (2026-10-28: decompile and
+     disassembly of resourcecompiler 0923 180f203b0, 180fc7220, 180f2ddc0, 180fefbc0, 181063b90, 181064a10,
+     181064ab0, 181065c90, 181065ee0, 181068680, 18106b4f0, 180fa8bf0; navsystem 20261015 1800217b0 and a load scan
+     of every function reading +0xc0 / +0xc8; hammer 1023 180b33ae0; tier0 V_CompareNameWithWildcards by ctypes,
+     tools/re/tier0_wildcard_oracle.py; Frida captures of s2c_navlink, tools/re/capture_navgen.py.)
+     - The collector takes each CMapEntity of the root (then each sub-map's) whose classname or targetname
+       V_CompareNameWithWildcards("ai_nav_link_area", name, 0) matches, case-blind (the oracle: AI_NAV_LINK_AREA
+       matches with flag 0, not 1; a longer or shorter name never), and that IsA CMapNavLink. No visibility test
+       (the search's flags argument is 0). Per instance path: start = the translation of step matrix x the
+       node's, end = start + locatoroffset, unrotated and unscaled (s2c_navlink link0 at yaw 90 ends at (300,
+       1000, 272), Valve's record).
+     - The .vmap attribute is `locatoroffset`, the tool attribute's lower-case name: a probe with `locatorOffset`
+       (the change-tracking name in 18106b4f0) gave Valve's default (128, 0, 0) on all three links
+       (%TEMP%/navgen_capture/s2c_navlink_camelkey). Factory defaults: width 128, locatorangles (0, 180, 0), type 0.
+     - In navsystem only IslandRemoval reads the links (+0xc0 with +0xc8 loaded together nowhere else; the other
+       hits are the 0x1b8-byte polygon array); the "no walkable seeds" skip counts seeds and markups, not links.
+     - The lump: CMapNavLink is a CMapEntity (181064a10) and takes its compile_source_id in the walk; its vf
+       (181065c90) adds width (a number), locatoroffset and locatorangles ("%f %f %f"), nav_link_movement and
+       the reverse (empty strings not written, 180fa8bf0). s2c_navlink: entities 70 to 72 Valve's.
+     - Exact: the three records (NavLinkTests.LinksAreValvesRecords), 029 from Valve's 028 (pad A kept, pad B
+       removed), the link entities and every compile_source_id, and s2c_navlink's whole .nav from the .vmap
+       (NavCompileTests: bytes 0..5216 and all 3292 custom data lines).
+     - Not measured (refuses): the .vmap names of the other attributes (navlink_type, width, locatorangles,
+       nav_link_movement*, nav_link_preview*), links in instances, prefabs or groups, hidden or editorOnly links.
 
 ## Resolved
 
