@@ -125,17 +125,36 @@ public static class MapEntities
     {
         public static readonly NavLinkFields Defaults = new(0, 128f, new Vector3(128f, 0f, 0f), new Vector3(0f, 180f, 0f), "", "");
 
-        // The element attributes are the tool attributes' names (181068680). Only locatoroffset is measured
-        // (s2c_navlink: Valve's link records and lump take it); the others refuse until a probe sets them.
-        private static readonly string[] Unmeasured =
-            ["navlink_type", "width", "locatorangles", "nav_link_movement", "nav_link_movement_reverse", "nav_link_preview", "nav_link_preview_reverse"];
+        // navlink_type's string setter (181067b60): V_stricmp_fast against each MapNavLinkType_t name of the
+        // table at 18300fa90 (values 0 to 4), an unknown name 0. The display names (Generic, Climb Up, ...)
+        // are the editor's choices only. The other setters (18106b850, 18106b4f0, 18106b350, 18106b6b0,
+        // 18106b6c0) store as given; the preview strings (+0x1890, +0x1898) reach neither the collector nor
+        // the lump. s2c_navlink2 (ledger 176) measures each: a lower-case name parses, a display name is 0.
+        private static readonly string[] TypeNames =
+        [
+            "MapNavLinkType_t::GENERIC", "MapNavLinkType_t::CLIMB_UP", "MapNavLinkType_t::JUMP_DOWN",
+            "MapNavLinkType_t::VAULT_OVER", "MapNavLinkType_t::GROUND",
+        ];
 
         internal static NavLinkFields Read(DmxBinary.Element element)
         {
-            foreach (var name in Unmeasured)
-                if (element.Attributes.ContainsKey(name))
-                    throw new NotSupportedException($"a CMapNavLink's {name} is not measured (only locatoroffset is)");
-            return Defaults with { Offset = element.GetValue<Vector3>("locatoroffset") ?? Defaults.Offset };
+            T? Typed<T>(string name) where T : class
+                => element.Attributes.TryGetValue(name, out var value) ? value as T ?? throw Mistyped(name, value) : null;
+            T? TypedValue<T>(string name) where T : struct
+                => element.Attributes.TryGetValue(name, out var value) ? value is T t ? t : throw Mistyped(name, value) : null;
+            NotSupportedException Mistyped(string name, object? value)
+                => new($"a CMapNavLink's {name} as {value?.GetType().Name ?? "null"} is not measured");
+
+            _ = Typed<string>("nav_link_preview");
+            _ = Typed<string>("nav_link_preview_reverse");
+            var type = Typed<string>("navlink_type") is { } name ? Math.Max(Array.FindIndex(TypeNames, n => Tier0Strings.EqualsIgnoreCase(n, name)), 0) : Defaults.Type;
+            return new NavLinkFields(
+                type,
+                TypedValue<float>("width") ?? Defaults.Width,
+                TypedValue<Vector3>("locatoroffset") ?? Defaults.Offset,
+                TypedValue<Vector3>("locatorangles") ?? Defaults.LocatorAngles,
+                Typed<string>("nav_link_movement") ?? Defaults.Movement,
+                Typed<string>("nav_link_movement_reverse") ?? Defaults.MovementReverse);
         }
     }
 

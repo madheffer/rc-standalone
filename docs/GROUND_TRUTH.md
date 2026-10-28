@@ -4767,8 +4767,26 @@ game can answer is raised with the user first, and runs with -insecure.
      - Exact: the three records (NavLinkTests.LinksAreValvesRecords), 029 from Valve's 028 (pad A kept, pad B
        removed), the link entities and every compile_source_id, and s2c_navlink's whole .nav from the .vmap
        (NavCompileTests: bytes 0..5216 and all 3292 custom data lines).
-     - Not measured (refuses): the .vmap names of the other attributes (navlink_type, width, locatorangles,
-       nav_link_movement*, nav_link_preview*), links in instances, prefabs or groups, hidden or editorOnly links.
+     - Not measured (refuses): links in instances, prefabs or groups, hidden or editorOnly links. The other
+       attributes: ledger 176.
+
+176. **Nav links: every CMapNavLink attribute from the .vmap** (2026-10-28: decompile of resourcecompiler 0923
+     181068680 (the attribute table), 1810663e0, 181067770, 181067b60, 18106b6d0, 18106b850, 18106b350,
+     18106b6b0, 18106b6c0, 18106b830, 18106b840 and the table at 18300fa90; the capture of s2c_navlink2,
+     tools/coverage/nav_link_specimen.py --keys, %TEMP%/navgen_capture/s2c_navlink2_in, and its package.)
+     - navlink_type is a string: its setter from a string (181067b60) compares V_stricmp_fast against each
+       MapNavLinkType_t name of 18300fa90 (GENERIC 0, CLIMB_UP 1, JUMP_DOWN 2, VAULT_OVER 3, GROUND 4) and
+       takes 0 for any other; the display names (Generic, Climb Up, ..., 1810663e0) are editor choices only.
+       Measured: "mapnavlinktype_t::jump_down" loads as 2 (no reverse key), "Ground" as 0 (reverse key written).
+     - width (float), locatorangles (qangle), nav_link_movement and nav_link_movement_reverse (strings) are
+       stored as given (no clamp in their setters); nav_link_preview and nav_link_preview_reverse go to +0x1890
+       and +0x1898, which neither the collector nor the export reads (s2c_navlink2 sets both, lump unchanged).
+     - The export's branches, all measured: GROUND writes "__ground__" for both keys whatever the strings;
+       CLIMB_UP, JUMP_DOWN and VAULT_OVER write only nav_link_movement (none when empty); GENERIC writes both,
+       each only when not empty; width 0 is written as 0.
+     - Exact on s2c_navlink2 (six links): the records, 029, the six link entities and every compile_source_id,
+       and the whole .nav from the .vmap (40 areas, bytes 0..5216 and all 3292 custom data lines).
+     - A key in another DMX type than the above refuses (MapEntities.NavLinkFields).
 
 ## Resolved
 

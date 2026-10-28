@@ -185,7 +185,8 @@ What Hammer can put in a .vmap that the nav step reads:
 - CMapNavLink (the Nav Links tool): type (MapNavLinkType_t GENERIC, GROUND, JUMP_DOWN, CLIMB_UP,
   VAULT_OVER), width, movement forward / reverse and previews (scripts/navlinks.vdata), locators
   (CMapNavLinkLocator). The collector takes only its two end points. In the .vmap the attributes carry
-  the tool attributes' lower-case names (`locatoroffset` measured; `locatorOffset` is not read).
+  the tool attributes' lower-case names (`locatoroffset` measured; `locatorOffset` is not read), and
+  `navlink_type` is the MapNavLinkType_t name as a string, matched case-blind (ledger 176).
 - CMapNavData (the map's nav settings, `navData`): ported.
 - Materials: mapbuilder.ladder (tools/toolsinvisibleladder), mapbuilder.navclip,
   nav_attribute_avoid.
@@ -199,8 +200,8 @@ What Hammer can put in a .vmap that the nav step reads:
    the closed-mesh normal (18016f710), and c2m3_coaster_d as a second check.
 2. Nav links: done on s2c_navlink (2026-10-28, ledger 175): the collector, IslandRemoval with links
    (navsystem's only reader; the mesh build and the analysis never see them) and the links' lump
-   entities. Left: the .vmap names of type, width, locatorangles and the movement keys (a probe that
-   sets them), links in instances, prefabs and groups, hidden links.
+   entities. Every attribute measured on s2c_navlink2 (ledger 176). Left: links in instances,
+   prefabs and groups, hidden links.
 3. Movable meshes, every source above.
 4. AVOID from materials (6) and NONAV blocks (3).
 5. Oriented and projected generation (4, 10, stages 005 / 007, JoinNonZup).

@@ -201,7 +201,7 @@ the addon).
 
 ## Latest session (2026-10-28 evening, nav links)
 
-Ledger 175; NAV.md collector 5 and "Order of work" 2. CS2 closed for two short captures, open otherwise.
+Ledgers 175, 176; NAV.md collector 5 and "Order of work" 2. CS2 closed for two short captures, open otherwise.
 
 - tools/coverage/nav_link_specimen.py builds s2c_navlink (probe01, two raised pads, three CMapNavLinks);
   Valve's compile is in the addon (copy in %TEMP%/navlink_ref), captures in %TEMP%/navgen_capture/s2c_navlink_in
@@ -209,8 +209,10 @@ Ledger 175; NAV.md collector 5 and "Order of work" 2. CS2 closed for two short c
 - NavGenMapInput.Links (the collector), MapEntities.NavLinkFields and EntityLumpAuthor.NavLinkKeys (the lump);
   NavLinkTests and NavCompileTests' s2c_navlink cases pass. tools/re/tier0_wildcard_oracle.py measures the
   search's name compare.
-- Next for links: a probe that sets type, width, locatorangles and the movement keys (their .vmap names are the
-  tool attributes' by analogy only, so they refuse), and links inside instances and prefabs.
+- Ledger 176 (later): every other attribute. `nav_link_specimen.py --keys` builds s2c_navlink2 (six links, one
+  type or export branch each); navlink_type is the MapNavLinkType_t name, case-blind (181067b60). Its records,
+  029, link entities and whole .nav are Valve's; capture in %TEMP%/navgen_capture/s2c_navlink2_in.
+- Next for links: links inside instances, prefabs and groups, and hidden ones (still refused).
 - The suite was not run in full.
 
 ## Earlier session (2026-10-28, the ragdoll pose and the first lockstep)

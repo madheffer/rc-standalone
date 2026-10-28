@@ -229,6 +229,66 @@
    "note": "change tracking under the name 'locatorOffset', then +0x185c"
   },
   {
+   "addr": "1810663e0",
+   "name": "CMapNavLink_TypeChoices",
+   "module": "s2c:baked/nav",
+   "note": "navlink_type's editor choices: Generic, Climb Up, Jump Down, Vault Over, Ground (0 to 4)"
+  },
+  {
+   "addr": "181067770",
+   "name": "CMapNavLink_TypeToString",
+   "module": "s2c:baked/nav",
+   "note": "navlink_type as its MapNavLinkType_t name (table 18300fa90, 0x20-byte rows: value, name, display name), \"\" past 4"
+  },
+  {
+   "addr": "181067b60",
+   "name": "CMapNavLink_TypeFromString",
+   "module": "s2c:baked/nav",
+   "note": "V_stricmp_fast against each MapNavLinkType_t name of 18300fa90, an unknown name 0"
+  },
+  {
+   "addr": "18106b6d0",
+   "name": "CMapNavLink_SetType",
+   "module": "s2c:baked/nav",
+   "note": "change tracking under 'navlink_type', then +0x1888"
+  },
+  {
+   "addr": "18106b850",
+   "name": "CMapNavLink_SetWidth",
+   "module": "s2c:baked/nav",
+   "note": "+0x1858 as given"
+  },
+  {
+   "addr": "18106b350",
+   "name": "CMapNavLink_SetLocatorAngles",
+   "module": "s2c:baked/nav",
+   "note": "change tracking under 'locatorAngles', then +0x1868 as given"
+  },
+  {
+   "addr": "18106b6b0",
+   "name": "CMapNavLink_SetMovement",
+   "module": "s2c:baked/nav",
+   "note": "nav_link_movement into +0x1878"
+  },
+  {
+   "addr": "18106b6c0",
+   "name": "CMapNavLink_SetMovementReverse",
+   "module": "s2c:baked/nav",
+   "note": "nav_link_movement_reverse into +0x1880"
+  },
+  {
+   "addr": "18106b830",
+   "name": "CMapNavLink_SetPreview",
+   "module": "s2c:baked/nav",
+   "note": "nav_link_preview into +0x1890 (not exported)"
+  },
+  {
+   "addr": "18106b840",
+   "name": "CMapNavLink_SetPreviewReverse",
+   "module": "s2c:baked/nav",
+   "note": "nav_link_preview_reverse into +0x1898 (not exported)"
+  },
+  {
    "addr": "180fb15e0",
    "name": "NavGen_CollectLadders",
    "module": "s2c:baked/nav",

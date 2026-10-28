@@ -354,7 +354,8 @@ public static partial class EntityLumpAuthor
     /// A CMapNavLink's own keys, after everything CMapEntity_ExportToLump writes (its vf, rc 181065c90):
     /// width as a number, locatoroffset and locatorangles as "%f %f %f", then nav_link_movement
     /// ("__ground__" for type 4, GROUND) and, for types 0 and 4, nav_link_movement_reverse. An empty
-    /// string is not written (EntityKv_SetString 180fa8bf0). s2c_navlink's three links are Valve's.
+    /// string is not written (EntityKv_SetString 180fa8bf0). s2c_navlink's three links and s2c_navlink2's six
+    /// (every type branch, ledger 176) are Valve's.
     /// </summary>
     private static void NavLinkKeys(MapEntities.Entity entity, KVObject values)
     {

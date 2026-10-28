@@ -1,4 +1,4 @@
-"""nav_link_specimen.py <probe01.vmap> <out.vmap>: the nav link specimen, a copy of probe01 with two
+"""nav_link_specimen.py <probe01.vmap> <out.vmap> [--keys]: the nav link specimen, a copy of probe01 with two
 raised pads (copies of its first func_buyzone's box mesh, 256 x 256 x 32, dev_measuregeneric01, top at
 z 272: too high to reach, so IslandRemoval drops them) and CMapNavLink nodes, which the collector
 (resourcecompiler 180f203b0) takes as ai_nav_link_area entities: start = the node's world position, end
@@ -8,6 +8,11 @@ z 272: too high to reach, so IslandRemoval drops them) and CMapNavLink nodes, wh
   - link1 floor to floor;
   - link2 into the air (no polygon near its end);
   - pad B has no link (removed, the control).
+With --keys (s2c_navlink2) the links also set the other CMapNavLink attributes (181068680), one parse or
+export branch each: navlink_type by its MapNavLinkType_t name (181067b60, V_stricmp_fast, unknown 0), in
+upper and lower case and once by its display name; width, locatorangles, both movement strings and both
+preview strings; and three more floor links (types by display name, VAULT_OVER with no strings, GENERIC
+with only a reverse string).
 Built through Valve's dmxconvert as probe_map.py does."""
 import os
 import sys
@@ -23,13 +28,29 @@ LINKS = [
     ((100, 500, 0), "0 0 0", (64, 0, 0)),
     ((600, 500, 0), "0 0 0", (0, 0, 600)),
 ]
+# --keys: the other attributes per link, as (name, DMX type, value).
+KEYS = [
+    [("navlink_type", "string", "MapNavLinkType_t::GROUND"), ("width", "float", "96"), ("locatorangles", "qangle", "10 20 30"),
+     ("nav_link_movement", "string", "walk"), ("nav_link_movement_reverse", "string", "walkback")],
+    [("navlink_type", "string", "MapNavLinkType_t::CLIMB_UP"), ("width", "float", "64.5"), ("locatorangles", "qangle", "-45 90 0"),
+     ("nav_link_movement", "string", "climb"), ("nav_link_movement_reverse", "string", "unclimb")],
+    [("navlink_type", "string", "mapnavlinktype_t::jump_down"), ("nav_link_movement", "string", "jump"),
+     ("nav_link_movement_reverse", "string", "rev2"), ("nav_link_preview", "string", "previewA"),
+     ("nav_link_preview_reverse", "string", "previewB")],
+    [("navlink_type", "string", "Ground"), ("width", "float", "0"), ("nav_link_movement", "string", "m3"),
+     ("nav_link_movement_reverse", "string", "r3")],
+    [("navlink_type", "string", "MapNavLinkType_t::VAULT_OVER")],
+    [("navlink_type", "string", "MapNavLinkType_t::GENERIC"), ("nav_link_movement", "string", ""),
+     ("nav_link_movement_reverse", "string", "r5")],
+]
+KEY_LINKS = [((100, 300, 0), "0 0 0", (0, 64, 0)), ((300, 300, 0), "0 45 0", (64, 0, 0)), ((500, 300, 0), "0 0 0", (0, 0, 32))]
 
 
 def fmt(v):
     return " ".join(f"{x:g}" for x in v)
 
 
-def link(k, origin, angles, offset):
+def link(k, origin, angles, offset, keys=()):
     e = pm.Element("CMapNavLink")
     e.fields = [["id", "elementid", ""], ["nodeID", "int", "0"], ["referenceID", "uint64", "0x0"],
                 ["children", "element_array", []], ["variableTargetKeys", "string_array", []],
@@ -47,10 +68,11 @@ def link(k, origin, angles, offset):
                  ["scales", "vector3", "1 1 1"], ["transformLocked", "bool", "0"],
                  ["force_hidden", "bool", "0"], ["editorOnly", "bool", "0"],
                  ["locatoroffset", "vector3", fmt(offset)]]
+    e.fields += [list(f) for f in keys]
     return e
 
 
-def main(base, out):
+def main(base, out, keys=False):
     work = tempfile.mkdtemp(prefix="nav_link_")
     text_path = os.path.join(work, "base.vmap")
     pm.convert(base, text_path, "keyvalues2")
@@ -94,7 +116,8 @@ def main(base, out):
                 s.set("data", "vector3_array", [" ".join(f"{float(v) / t * h:g}" for v, t, h in zip(p.split(), (224, 64, 32), PAD_HALF))
                                                 for p in s.get("data")])
         added.append(mesh)
-    added += [link(k, *l) for k, l in enumerate(LINKS)]
+    links = LINKS + KEY_LINKS if keys else LINKS
+    added += [link(k, *l, KEYS[k] if keys else ()) for k, l in enumerate(links)]
     for k, e in enumerate(added):
         for x in pm.walk(e):
             if x.get("id") is not None:
@@ -112,4 +135,4 @@ def main(base, out):
 
 
 if __name__ == "__main__":
-    main(*sys.argv[1:3])
+    main(*[a for a in sys.argv[1:] if a != "--keys"][:2], keys="--keys" in sys.argv)
