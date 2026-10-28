@@ -20,11 +20,15 @@ namespace Source2.Compiler.Maps;
 /// leaves.</item>
 /// <item>A node leaves by FastRemove (180fcb150): the last entry moves into its slot.</item>
 /// <item>A round's instances (prefabs included) are collected once before any collapses (180f86e70, flags 0xd),
-/// so a prefab map's instances, moved in this round, collapse in the next, as the root's do (GROUND_TRUTH 179).</item>
+/// so a prefab map's instances and prefabs, moved in this round, collapse in the next, as the root's do
+/// (GROUND_TRUTH 179). A prefab map's instance that joins the world ahead of its target names a clone of it
+/// (181019590, GROUND_TRUTH 180).</item>
 /// </list>
-/// Refused until measured: a hidden instance or prefab (the bake deletes it without a copy), a prefab whose map has
-/// prefabs, a copied prefab whose map has instances, a prefab inside a target, and a target that loses its last
-/// referrer by being deleted with another (the cascade's order).
+/// Exact against Valve's list on s2c_prefabprobe3, 4, 5, 7 and 9 and s2c_deformpath3 and 4 (MapEntityListTests).
+/// Refused until measured: a hidden instance or prefab (the bake deletes it without a copy), a copied prefab whose
+/// map has instances (Valve crashes), a prefab inside a target, a target that loses its last referrer by being
+/// deleted with another (the cascade's order), and a prefab map's instance ahead of a target with fewer than two
+/// other referrers (moved, not cloned).
 /// </summary>
 public static class MapEntityList
 {
@@ -42,21 +46,13 @@ public static class MapEntityList
         public bool Copy { get; init; }
         public bool Root { get; init; }
         public bool Collapsed { get; set; }
+        // The target clone an instance was pointed at as it joined the world (181019590); null for the element's node.
+        public Node? TargetNode { get; set; }
     }
 
     /// <summary>The list after the bake, in stored order.</summary>
-    public static List<Item> Baked(DmxBinary.Document document) => Baked(document, out _);
-
-    /// <summary>
-    /// The list after the bake; <paramref name="orderMeasured"/> is false once a prefab map's second instance has
-    /// collapsed. Its nodes keep their sub-world slot (OnNodeAdded 180fca010 lists only a node whose index is negative,
-    /// OnNodeRemoved 180fcb150 clears it), so how they reach the root's list is not read: s2c_prefabprobe5 (one such
-    /// instance) is Valve's whole, s2c_prefabprobe3 (80) is Valve's up to its first collapse and not after.
-    /// </summary>
-    public static List<Item> Baked(DmxBinary.Document document, out bool orderMeasured)
+    public static List<Item> Baked(DmxBinary.Document document)
     {
-        orderMeasured = true;
-        var prefabMapCollapses = 0;
         ArgumentNullException.ThrowIfNull(document);
         var world = document.OfType("CMapWorld").FirstOrDefault();
         if (world is null)
@@ -65,6 +61,7 @@ public static class MapEntityList
         var hidden = MapEntities.HiddenNodes(document);
         var root = Build(world, null, [], [], copy: false);
         var insideTarget = new HashSet<Node>();
+        var clones = new HashSet<Node>();
         // The collector (180f86e70, flag 4) skips a target's subtree while an instance names it: per tree, the root's
         // and each prefab's moved map.
         void MarkTargets(Node top)
@@ -132,8 +129,6 @@ public static class MapEntityList
                 if (n.Parent is null)
                     continue;
                 n.Collapsed = true;
-                if (n.Element.Type == "CMapInstance" && n.Prefabs.Count > 0 && ++prefabMapCollapses > 1)
-                    orderMeasured = false;
                 if (!n.Copy && Hidden(n.Element, HiddenOf(n)))
                     throw new NotSupportedException($"a hidden {n.Element.Type} (deleted by the bake without a copy) is not measured in the entity list");
                 if (n.Element.Type == "CMapPrefab")
@@ -143,19 +138,48 @@ public static class MapEntityList
                     if (n.Element.Get<DmxBinary.Element>(MapPrefabs.WorldKey) is not { } map)
                         throw new NotSupportedException("a prefab whose map is not loaded is not measured in the entity list");
                     var doc = n.Element.Get<DmxBinary.Document>(MapPrefabs.DocumentKey);
-                    if (doc is not null && doc.OfType("CMapPrefab").Any())
-                        throw new NotSupportedException("a prefab whose map has prefabs is not measured in the entity list");
+                    // Valve's compiler crashes on this one (s2c_prefabprobe10, ENTITIES.md).
                     if (n.Copy && doc is not null && doc.OfType("CMapInstance").Any())
-                        throw new NotSupportedException("a copied prefab whose map has instances is not measured in the entity list");
-                    // The map's nodes are reparented, not cloned (ledger 178): its instances and targets collapse as
-                    // the root's do, in the next round (the round's list is collected before the prefabs move).
+                        throw new NotSupportedException("a copied prefab whose map has instances (Valve's compiler crashes on it) is not measured in the entity list");
+                    // The map's nodes are reparented, not cloned (ledger 178): its instances, targets and prefabs
+                    // collapse as the root's do, in the next round (the round's list is collected before the prefabs
+                    // move; s2c_prefabprobe7 and 9 nest prefabs).
                     var content = new Node(map, n.Parent, n.Through, [.. n.Prefabs, n.Element]) { Copy = n.Copy, Root = true };
                     foreach (var child in map.GetElements("children"))
                         content.Kids.Add(Build(child, content, n.Through, [.. n.Prefabs, n.Element], copy: n.Copy));
                     n.Parent.Kids.Add(content);
                     MarkTargets(content);
+                    // Each node joins the world in preorder (180fc5010: OnNodeAdded, then vf 0x228, then the children).
+                    // An instance resolves its target there (vf69 1810158a0 -> 181019590): a target still in the
+                    // prefab's own world with two or more other referrers is cloned (180f86a90) into the instance's
+                    // world (180f5f230), its listed nodes joining right after the instance, and the instance names the
+                    // clone; a target already moved is named as it is (GROUND_TRUTH 180).
+                    var moved = new HashSet<DmxBinary.Element>(ReferenceEqualityComparer.Instance);
+                    var cloned = new HashSet<Node>();
+                    var contentInstances = Preorder(content).Where(o => o.Element.Type == "CMapInstance").ToList();
                     foreach (var c in Preorder(content))
+                    {
                         Add(c);
+                        moved.Add(c.Element);
+                        if (c.Element.Type != "CMapInstance" || c.Element.Get<DmxBinary.Element>("target") is not { } t || moved.Contains(t))
+                            continue;
+                        var others = contentInstances.Count(o => !ReferenceEquals(o, c) && !cloned.Contains(o)
+                                                                 && ReferenceEquals(o.Element.Get<DmxBinary.Element>("target"), t));
+                        if (others < 2)
+                            throw new NotSupportedException("a prefab map's instance ahead of its target with fewer than two other referrers (181019590 moves the target) is not measured in the entity list");
+                        if (Preorder(Build(t, null, [], [], copy: false)).Any(o => o.Element.Type is "CMapInstance" or "CMapPrefab"))
+                            throw new NotSupportedException("a cloned target holding instances or prefabs is not measured in the entity list");
+                        var clone = Build(t, root, c.Through, c.Prefabs, copy: false);
+                        root.Kids.Add(clone);
+                        clones.Add(clone);
+                        foreach (var o in Preorder(clone))
+                        {
+                            insideTarget.Add(o);
+                            Add(o);
+                        }
+                        c.TargetNode = clone;
+                        cloned.Add(c);
+                    }
                     Remove(n);
                     Detach(n);
                     continue;
@@ -168,9 +192,11 @@ public static class MapEntityList
                 n.Parent.Kids.Add(copyRoot);
                 foreach (var c in Preorder(copyRoot))
                     Add(c);
-                var referred = Preorder(root).Any(o => !ReferenceEquals(o, n) && o.Element.Type == "CMapInstance" && !o.Collapsed
-                                                   && SameTree(o, n) && ReferenceEquals(o.Element.Get<DmxBinary.Element>("target"), target));
-                if (!referred && Preorder(root).FirstOrDefault(o => !o.Copy && SameTree(o, n) && ReferenceEquals(o.Element, target)) is { } template)
+                // A clone has this instance as its only referrer: it leaves with this collapse (180f88920 == 1).
+                var referred = n.TargetNode is null
+                               && Preorder(root).Any(o => !ReferenceEquals(o, n) && o.Element.Type == "CMapInstance" && !o.Collapsed && o.TargetNode is null
+                                                          && SameTree(o, n) && ReferenceEquals(o.Element.Get<DmxBinary.Element>("target"), target));
+                if (!referred && (n.TargetNode ?? Preorder(root).FirstOrDefault(o => !o.Copy && !clones.Contains(o) && SameTree(o, n) && ReferenceEquals(o.Element, target))) is { } template)
                 {
                     var leaving = Postorder(template).ToList();
                     var left = new HashSet<Node>(leaving);

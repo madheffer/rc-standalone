@@ -64,8 +64,7 @@ public static partial class NavGenMapInput
     /// the bake is done (<see cref="MapEntityList"/>) and takes each node whose classname (180f2ddc0, the game class's
     /// name) V_CompareNameWithWildcards(<paramref name="className"/>, name, 0) matches, case-blind
     /// (tools/re/tier0_wildcard_oracle.py), and whose visibility state (+0x370, flag 1) is on. Refused until measured:
-    /// a hidden node inside an instance or prefab, a node under a group that moves, and two or more matches when the
-    /// list's order is not measured (<see cref="MapEntityList.Baked(DmxBinary.Document, out bool)"/>).
+    /// a hidden node inside an instance or prefab, and a node under a group that moves.
     /// </summary>
     private static IEnumerable<(MapEntityList.Item Item, MapEntities.Entity Entity, bool Copied)> Found(DmxBinary.Document document, string className)
     {
@@ -73,8 +72,7 @@ public static partial class NavGenMapInput
             yield break;
         var parents = Parents(document);
         var hidden = MapEntities.HiddenNodes(document);
-        var found = new List<(MapEntityList.Item, MapEntities.Entity, bool)>();
-        foreach (var item in MapEntityList.Baked(document, out var orderMeasured))
+        foreach (var item in MapEntityList.Baked(document))
         {
             if (MapEntities.ReadNode(item.Node) is not { } entity || !Tier0Strings.EqualsIgnoreCase(entity.ClassName, className))
                 continue;
@@ -100,12 +98,8 @@ public static partial class NavGenMapInput
                     throw new NotSupportedException($"a hidden {className} inside an instance or prefab is not measured");
                 continue;
             }
-            found.Add((item, entity, copied));
-            if (found.Count > 1 && !orderMeasured)
-                throw new NotSupportedException($"two {className} nodes in a map whose entity list order is not measured (a prefab map with several instances)");
+            yield return (item, entity, copied);
         }
-        foreach (var f in found)
-            yield return f;
     }
 
     private static Dictionary<DmxBinary.Element, DmxBinary.Element> Parents(DmxBinary.Document document)

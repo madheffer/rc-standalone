@@ -199,28 +199,27 @@ the addon).
     Debug test build; time a Release build and Valve's own step before sizing it. Any change
     that could alter bytes waits for the user's OK (parity before speed).
 
-## Latest session (2026-10-28 late, walkable seeds and prefabs with instances)
+## Latest session (2026-10-28 late and 10-29, walkable seeds and prefabs with instances)
 
-Ledger 179; NAV.md collector 1 and "Order of work" 2. CS2 closed, Steam open (resourcecompiler captures only).
+Ledgers 179, 180; NAV.md collector 1 and "Order of work" 2. CS2 closed, Steam open (resourcecompiler captures only).
 
 - NavGenMapInput.Seeds now takes the links' search (one shared `Found`: the baked entity list, wildcard classname,
   visibility, the same refusals) instead of the lump's walk; that closes its "unsettled" order note.
-  NavSeedTests: Valve's navinput_seeds.bin on 15 nav captures, bit for bit and in order.
+  NavSeedTests: Valve's navinput_seeds.bin on all 16 nav captures, bit for bit and in order.
 - MapEntityList collapses a prefab map's instances and targets (each named within its own tree; a prefab map's
   hidden ids from its own document). The bake round's shape is decompiled (180f60740 / 180f86e70: instances
   collected once per round, children first, no reordering filter). MapEntityListTests compares the whole list with
   tools/re/capture_entitylist.py's (which now records origins): s2c_prefabprobe5 exact (145 entries).
-- **Open, and the next step:** s2c_prefabprobe3's list (capture in %TEMP%/navgen_capture) is Valve's up to entry
-  2463, where its prefab map's 80 instances collapse, and not after. A reparented node keeps its sub-world slot
-  (OnNodeAdded / OnNodeRemoved read in ledger 179), so the way those nodes reach the root list is unread. Until it
-  is, Baked reports the order unmeasured and the search refuses two or more matches (s2c_prefabprobe4's seeds).
-  To settle it: extend capture_entitylist.py to log the world pointer, node pointer and slot for every edit (the
-  1023 hooks' first argument is not the world on these calls) and the root list after each bake round, then read
-  the prefab collapse's list handling (180f96d40 / 181019d00, ledger 178) beside that log.
-  ENTITYLIST_DUMP=<file> on MapEntityListTests writes ours next to Valve's, line by line.
+- Ledger 180 (2026-10-29): settled. A prefab map's instance that joins the world ahead of its target names a
+  clone of it (181019590), which leaves with that instance's collapse. MapEntityList models it; whole lists exact on
+  s2c_prefabprobe3, 4, 5, 7, 9 and s2c_deformpath3, 4, and all 16 seed captures. tools/re/capture_entitylist_trace.py
+  logs every list edit, the root list around each collapse, referrer counts and target sets (bake-only traces take
+  seconds; `-f` in --switches when the package is up to date). Sweep of the 127 .vmaps on disk: every seed and
+  link search runs but s2c_prefabprobe10's (Valve crashes on it); hidden instances or prefabs (mako, two c2m2
+  variants) still refuse the list, unused there (no seeds or links).
 - The suite was not run in full.
 
-## Latest session (2026-10-28 evening, nav links)
+## Earlier session (2026-10-28 evening, nav links)
 
 Ledgers 175 to 178; NAV.md collector 5 and "Order of work" 2. CS2 closed for two short captures, open otherwise.
 

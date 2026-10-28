@@ -4849,20 +4849,35 @@ game can answer is raised with the user first, and runs with -insecure.
        moves in during the round and its instances wait for the next round's collection.
      - A prefab map's instances and targets collapse as the root's do, each named within its own tree (two prefabs
        of one map stay apart), and a prefab map's hidden ids are its own document's.
-     - Not read: how a prefab map's nodes reach the root's list. OnNodeAdded (180fca010) lists only a node whose
-       stored slot (180fef240) is negative, and OnNodeRemoved (180fcb150) clears the slot of a node not found at it,
-       so a reparented node keeps its sub-world slot. capture_entitylist.py's add / remove counts do not follow the
-       root's list on these calls (its first argument there is not the root world).
      - Exact: s2c_prefabprobe5's whole list (145 entries, one instance in its prefab's map: each entry's class and
-       origin, MapEntityListTests; prop_physics skipped, the settle moves them). s2c_prefabprobe3 (80 instances in
-       its prefab's map) is Valve's up to entry 2463, where they start to collapse: there Valve's slot holds the
-       list's last entry, ours the first copy, and neither "copy then remove" (root instances, s2c_navlink3 / 4) nor
-       "remove then copy" gives Valve's whole tail. So MapEntityList.Baked reports the order unmeasured once a prefab
-       map's second instance collapses, and the search refuses two or more matches then.
-     - The seed records (navinput_seeds.bin) bit for bit and in order on 15 nav captures (NavSeedTests);
-       s2c_prefabprobe4 (six seeds, atixref's prefab with instances) refuses by the rule above.
-     - Still refused: a prefab whose map has prefabs, a copied prefab whose map has instances, a point_nav_walkable
-       under a deformer, and ledger 177's other refusals.
+       origin, MapEntityListTests; prop_physics skipped, the settle moves them). The seed records
+       (navinput_seeds.bin) bit for bit and in order on all 16 nav captures (NavSeedTests).
+     - The first reading of s2c_prefabprobe3 (Valve's list up to entry 2463 and not after) is settled by ledger 180.
+     - Still refused: a point_nav_walkable under a deformer, and ledger 177's other refusals (prefabs: ledger 180).
+
+180. **A prefab map's instance that joins the world ahead of its target names a clone** (2026-10-29: decompile of
+     resourcecompiler 0923 1810158a0, 181019590, 1810197f0, 181018fa0, 180f8f0d0, 180f8ba70, 180f88920,
+     181017820 (its end), 180fc5010, 180f75010, 180fca010, 180fcb150; tools/re/capture_entitylist_trace.py on the
+     1023 build: every list edit with its world, node, slot and counts, the root list around every collapse, the
+     target referrer counts and the target setter's calls with a backtrace; s2c_prefabprobe3, 4, 5, 7, 9 and
+     s2c_deformpath3, 4.)
+     - The prefab collapse reparents the map's nodes (180f75010): each leaves the sub-world's list and joins the
+       root's in preorder (180fc5010: OnNodeAdded, then vf 0x228, then the children). A CMapInstance joining
+       (vf69 1810158a0) resolves its target from the element handle (+0x558) in 181019590: a target in another
+       world (here the prefab map's, not yet moved) with two or more referrers is cloned (180f86a90) into the
+       instance's world (180f5f230) and the instance names the clone; a target already in its world is named as it
+       is. Measured: s2c_prefabprobe3's instance 4928, ahead of its target 4888 in the map's preorder, gets clone
+       5496 (and its entity 5497, listed right after the instance); the 79 behind it name 4888.
+     - The referrer count (180f8ba70) is cached on the target (+0x388 / +0x38c) and reset only by an instance's
+       SetTarget / ClearTarget (180f8f0d0). CMapInstance_Collapse deletes the target when 180f88920 finds exactly
+       one referrer: a clone leaves with its instance's collapse (Valve's slot 2464 on s2c_prefabprobe3).
+     - In a bake round a prefab map's prefabs collapse in the next round as the root's do (s2c_prefabprobe7, 9).
+     - Exact: the whole list after the bake on s2c_prefabprobe3 (2976 entries), 4 (5102, atixref as a prefab), 5,
+       7 (nested prefabs), 9 and s2c_deformpath3, 4 (MapEntityListTests; nodes a deformer bends are checked by type),
+       and s2c_prefabprobe4's six seed records (NavSeedTests).
+     - Refused: a prefab map's instance ahead of a target with fewer than two other referrers (181019590 moves the
+       target there, and whether the two are one document is not read), a cloned target holding instances or
+       prefabs, and a copied prefab whose map has instances (Valve's compiler crashes on s2c_prefabprobe10).
 
 ## Resolved
 

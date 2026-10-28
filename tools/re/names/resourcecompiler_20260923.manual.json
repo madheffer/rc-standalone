@@ -4627,6 +4627,72 @@
    "note": "180f86e70 for 'CMapTerrainFeature', mode 1"
   },
   {
+   "addr": "1810158a0",
+   "name": "CMapInstance::vf69",
+   "module": "s2c:entities/lump",
+   "note": "joining a world: the node's own vf69, then 181019590 with the target its element handle (+0x558) resolves to (ledger 180)"
+  },
+  {
+   "addr": "181019590",
+   "name": "CMapInstance_ResolveTarget",
+   "module": "s2c:entities/lump",
+   "note": "a target in another world (not the instance's, not null, vf 0x888 false) with two or more referrers (180f8ba70 kind 0), or in another document, is cloned (180f86a90) into the instance's world (180f5f230) and the handle moved to the clone (181017400); with fewer it is moved into the instance's world (vf 0x1c8); then SetTarget (ledger 180)"
+  },
+  {
+   "addr": "1810197f0",
+   "name": "CMapInstance_SetTarget",
+   "module": "s2c:entities/lump",
+   "note": "+0x550 = the target; resets the old and new target's cached referrer counts (180f8f0d0)"
+  },
+  {
+   "addr": "181018fa0",
+   "name": "CMapInstance_ClearTarget",
+   "module": "s2c:entities/lump",
+   "note": "resets the target's cached referrer counts, clears the handle and +0x550"
+  },
+  {
+   "addr": "180f8ba70",
+   "name": "MapNode_ReferrerCount",
+   "module": "s2c:entities/lump",
+   "note": "the instances whose 'target' attribute names the node, by vf 0x858 kind (0, 1; 3 the sum), counted through the element referrers once and cached at +0x388 / +0x38c until 180f8f0d0 resets them (ledger 180)"
+  },
+  {
+   "addr": "180f8f0d0",
+   "name": "MapNode_ResetReferrerCounts",
+   "module": "s2c:entities/lump",
+   "note": "+0x388 = -1 (both counts); the only writer of -1 besides the node's init 180f8f920"
+  },
+  {
+   "addr": "180f88920",
+   "name": "MapNode_CollectReferrers",
+   "module": "s2c:entities/lump",
+   "note": "the instances whose 'target' names the node (180f8ba70 kind 3 sizes the list); CMapInstance_Collapse deletes the target (180f63d00) when this finds exactly one"
+  },
+  {
+   "addr": "180fc5010",
+   "name": "MapWorld_RegisterSubtree",
+   "module": "s2c:entities/lump",
+   "note": "per node in preorder: OnNodeAdded, then vf 0x228 (the node joining the world), then its children"
+  },
+  {
+   "addr": "180f75010",
+   "name": "CMapNode::vf57",
+   "module": "s2c:entities/lump",
+   "note": "reparent: off the old world's lists (180fcb650), onto the new parent (vf 0x1f8), then 180fc5010 under the new world"
+  },
+  {
+   "addr": "180f86a90",
+   "name": "MapNode_Clone",
+   "module": "s2c:entities/lump",
+   "note": "a copy of a node and its subtree (used for a target cloned by 181019590)"
+  },
+  {
+   "addr": "180f5f230",
+   "name": "MapDoc_AddNode",
+   "module": "s2c:entities/lump",
+   "note": "adds a node to the document under the given parent"
+  },
+  {
    "addr": "180f86e70",
    "name": "MapNode_CollectByClass",
    "module": "s2c:entities/lump",

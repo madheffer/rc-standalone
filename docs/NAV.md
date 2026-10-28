@@ -39,7 +39,7 @@ In order:
 
 | order | function | input | CNavGenInput | state |
 |---|---|---|---|---|
-| 1 | 180f21760 | point_nav_walkable origins, every instance copy, in the entity list's order after the bake (the links' search, 180fc6f40) | +0x78 seeds | ported (ledgers 109, 179: 15 captures' records bit for bit and in order; refused with several matches where a prefab map has several instances) |
+| 1 | 180f21760 | point_nav_walkable origins, every instance copy, in the entity list's order after the bake (the links' search, 180fc6f40) | +0x78 seeds | ported (ledgers 109, 179, 180: all 16 captures' records bit for bit and in order) |
 | 2 | 180f209f0 | func_nav_markup: each `navProperty_<tag>` string key, else a `navProperty_NavAttributes` array | +0x90 markups, tag table +0x30 | ported (ledger 142); a markup inside an instance or prefab (its instance paths, 180f88460) and a scaled markup mesh refuse |
 | 3 | 180f1f830 | prop_deformable and block_base_nav_mesh entities as NONAV blocks | +0x90 | not ported |
 | 4 | 180f21ac0 | info_gravity_shift with `CreateProjectedNavMesh`, then every info_nav_oriented* entity (180f21930) | +0xa8 oriented volumes | not ported |
@@ -202,10 +202,9 @@ What Hammer can put in a .vmap that the nav step reads:
    (navsystem's only reader; the mesh build and the analysis never see them) and the links' lump
    entities. Every attribute measured on s2c_navlink2 (ledger 176); instances, nested copies, groups
    and hidden links on s2c_navlink4 (ledger 177, the entity list after the bake), prefabs on
-   s2c_navlink3 (ledger 178). Prefabs whose map has instances: ledger 179 (s2c_prefabprobe5's
-   whole list; with several instances the order after their first collapse is not read, see
-   s2c_prefabprobe3). Left: that order, then what MapEntityList still refuses (hidden instances or
-   prefabs, prefabs whose map has prefabs, copied prefabs with instances, prefabs in targets).
+   s2c_navlink3 (ledger 178). Prefabs whose map has instances or prefabs: ledgers 179, 180 (whole
+   lists of s2c_prefabprobe3, 4, 5, 7, 9, s2c_deformpath3, 4). Left: what MapEntityList still
+   refuses (hidden instances or prefabs, prefabs in targets, a target moved rather than cloned).
 3. Movable meshes, every source above.
 4. AVOID from materials (6) and NONAV blocks (3).
 5. Oriented and projected generation (4, 10, stages 005 / 007, JoinNonZup).
