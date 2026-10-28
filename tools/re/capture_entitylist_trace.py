@@ -64,20 +64,23 @@ function hook() {
   const base = rc().base;
   Interceptor.attach(base.add(BAKE), {
     onEnter(args) { root = args[0].add(0x88).readPointer(); inBake = true; send({tag: 'bake_enter', root: hx(root), snap: snap()}); },
-    onLeave() { inBake = false; send({tag: 'bake_left', snap: snap()}); } });
+    onLeave() { inBake = false; const s = snap(); send({tag: 'bake_left', snap: s}); if (BAKEONLY) finish(s); } });
   // The nav link collector (0923 180f203b0): the list its search walks, param_2 the world; the trace ends here.
-  Interceptor.attach(base.add(LINKS), { onEnter(args) {
-    root = args[1];
-    const s = snap();
-    const nodes = {};
-    for (const k of seen) {
-      const p = ptr(k);
-      const r = info(p);
-      try { r.o = [p.add(0xa0).readFloat(), p.add(0xa4).readFloat(), p.add(0xa8).readFloat()]; } catch (x) {}
-      nodes[k] = r;
-    }
-    send({tag: 'bake_leave', snap: s, nodes: nodes});
-  } });
+  Interceptor.attach(base.add(LINKS), { onEnter(args) { root = args[1]; finish(snap()); } });
+  hook2();
+}
+function finish(s) {
+  const nodes = {};
+  for (const k of seen) {
+    const p = ptr(k);
+    const r = info(p);
+    try { r.o = [p.add(0xa0).readFloat(), p.add(0xa4).readFloat(), p.add(0xa8).readFloat()]; } catch (x) {}
+    nodes[k] = r;
+  }
+  send({tag: 'bake_leave', snap: s, nodes: nodes});
+}
+function hook2() {
+  const base = rc().base;
   Interceptor.attach(base.add(COLLAPSE), {
     onEnter(args) { this.node = args[1]; this.r = info(args[1]); this.r.before = inBake ? snap() : null; },
     onLeave(ret) { if (!inBake) return; this.r.after = snap(); this.r.ret = hx(ret); send({tag: 'collapse', r: this.r}); } });
@@ -133,6 +136,7 @@ def main():
     p.add_argument("map")
     p.add_argument("--out")
     p.add_argument("--switches", default="-world -phys -nav")
+    p.add_argument("--bake-only", action="store_true", help="end at the (last) bake's exit, for a map with no nav step")
     a = p.parse_args()
     if running("cs2.exe"):
         raise SystemExit("CS2 is running; not starting")
@@ -182,6 +186,7 @@ def main():
     for name, value in (("BAKE", BAKE), ("COLLAPSE", COLLAPSE), ("ADD", ADD), ("REMOVE", REMOVE), ("REFS", REFS),
                         ("SETTARGET", SETTARGET), ("CLEARTARGET", CLEARTARGET), ("LINKS", LINKS)):
         script = script.replace("base.add(%s)" % name, "base.add(%s)" % hex(value)).replace("[%s, " % name, "[%s, " % hex(value))
+    script = script.replace("if (BAKEONLY)", "if (%s)" % ("true" if a.bake_only else "false"))
     sc = ses.create_script(script)
     sc.on("message", on_message)
     sc.load()

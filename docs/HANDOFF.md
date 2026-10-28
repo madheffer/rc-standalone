@@ -217,6 +217,11 @@ Ledgers 179, 180; NAV.md collector 1 and "Order of work" 2. CS2 closed, Steam op
   seconds; `-f` in --switches when the package is up to date). Sweep of the 127 .vmaps on disk: every seed and
   link search runs but s2c_prefabprobe10's (Valve crashes on it); hidden instances or prefabs (mako, two c2m2
   variants) still refuse the list, unused there (no seeds or links).
+- Next: hidden instances and prefabs. CollapseInstance deletes an instance whose visibility state is off
+  (180f6d410 with flags 3) and the target goes with it when nothing names it; the order of those removals is not
+  measured. `capture_entitylist_trace.py s2c_big ze_ffvii_mako_reactor_v6_p --switches "-f -world -phys -nav"
+  --bake-only` (mako has no nav step, so the trace has to end at the bake) was stopped by the CS2 watchdog on its
+  first run; run it with CS2 closed (several minutes: about 3.4M referrer-count calls go through the hook).
 - The suite was not run in full.
 
 ## Earlier session (2026-10-28 evening, nav links)
