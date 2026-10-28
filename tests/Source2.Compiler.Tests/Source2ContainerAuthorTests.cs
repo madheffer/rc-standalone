@@ -69,12 +69,14 @@ public class Source2ContainerAuthorTests
         Assert.DoesNotContain(edit.SpecialDependencies, d => d.CompilerIdentifier == "CompileSoundEventScript");
     }
 
-    /// <summary>The ModTools stripping fingerprint against what RC 1.41.9.2 recorded in pak01:
-    /// 2278732723 on every csgo .vdata_c (CS2's one strip rule), 0 on core's (no rules).</summary>
+    /// <summary>The ModTools stripping fingerprint against what RC records: 55841844 on csgo .vdata_c
+    /// since 1.41.9.3 (CS2's one strip rule, weapon_lar; 1.41.9.2's weapon_m14 gave 2278732723), 0 on
+    /// core's (no rules).</summary>
     [Fact]
     public void ModToolsStripFingerprint_MatchesPak01()
     {
-        Assert.Equal(2278732723u, Source2ContainerAuthor.VDataModToolsFingerprint);
+        Assert.Equal(55841844u, Source2ContainerAuthor.VDataModToolsFingerprint);
+        Assert.Equal(2278732723u, Source2ContainerAuthor.ModToolsStripFingerprint([("scripts/weapons.vdata", 1, "weapon_m14")]));
         Assert.Equal(0u, Source2ContainerAuthor.ModToolsStripFingerprint([]));
     }
 

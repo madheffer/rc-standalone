@@ -17,6 +17,8 @@ import sys
 import threading
 
 import frida
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "re"))
+from rva_map import installed  # noqa: E402
 
 CS2 = os.environ.get(
     "CS2_DIR", r"D:\Steam\steamapps\common\Counter-Strike Global Offensive")
@@ -90,7 +92,7 @@ def main():
     device = frida.get_local_device()
     pid = device.spawn(argv, cwd=BIN, stdio="pipe")
     session = device.attach(pid)
-    script = session.create_script(AGENT % {"all": BAKE_ALL_RVA, "first": first, "last": last})
+    script = session.create_script(AGENT % {"all": installed("resourcecompiler", BAKE_ALL_RVA, "20260924"), "first": first, "last": last})
     script.on("message", on_message)
     script.load()
     session.on("detached", lambda *a: done.set())

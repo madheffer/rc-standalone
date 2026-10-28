@@ -49,6 +49,12 @@
    "note": "a face's RGBA16F readback to a float bitmap (1813db210), QuarterSize (1813ddd00) down to EnvironmentMapFaceSize, flipped (1813dc290), copied into the 6x1 strip at x = face * size (181756620); Cubemaps/CubemapFaceExr.cs"
   },
   {
+   "addr": "181ad10d0",
+   "name": "BuildCubemaps_FaceTable",
+   "module": "s2c:baked/lighting",
+   "note": "data: six 0x28-byte face records (pitch, yaw, roll, a pointer, FOV 90, then three ints) for +X, -X, +Y, -Y, +Z, -Z; Cubemaps/CubemapFaceViews.cs (181ad3c80 in 20261023, 181ad5c70 in 20261029, bytes equal)"
+  },
+  {
    "addr": "1802091d0",
    "name": "BuildCubemaps_WriteExr",
    "module": "s2c:baked/lighting",

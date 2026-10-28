@@ -273,6 +273,125 @@
    "rva": "0x1d3100",
    "script": "tools/vis/capture_propmeshes.py",
    "use": "HOOKS load: WRB_LoadPropMeshes"
+  },
+  {
+   "dll": "resourcecompiler",
+   "build": "20261015",
+   "rva": "0xff00c0",
+   "script": "tools/entities/capture_entitysearch.py",
+   "use": "hook: entity search caller"
+  },
+  {
+   "dll": "resourcecompiler",
+   "build": "20261015",
+   "rva": "0xfc7790",
+   "script": "tools/entities/capture_entitysearch.py",
+   "use": "hook: MapWorld_FindEntitiesByClass worker"
+  },
+  {
+   "dll": "resourcecompiler",
+   "build": "20261001",
+   "rva": "0x10dd569",
+   "script": "tools/entities/capture_matflags.py",
+   "use": "hook: material flags read (mid-function)"
+  },
+  {
+   "dll": "resourcecompiler",
+   "build": "20260923",
+   "rva": "0x23bd30",
+   "script": "tools/hulls/dump_meshbuf.py",
+   "use": "hook: MapBuilder_ReadMeshBuffers"
+  },
+  {
+   "dll": "resourcecompiler",
+   "build": "20260923",
+   "rva": "0xffd380",
+   "script": "tools/hulls/dump_meshbuf.py",
+   "use": "hook: mesh buffer consumer"
+  },
+  {
+   "dll": "phonon",
+   "build": "20260923",
+   "rva": "0x2683840",
+   "script": "tools/steamaudio/oracle_atan2.py",
+   "use": "ATAN2F_RVA: statically linked atan2f"
+  },
+  {
+   "dll": "resourcecompiler",
+   "build": "20261001",
+   "rva": "0x3b5b350",
+   "script": "tools/vis/capture_propmeshes.py",
+   "use": "IFACE_RVA: geometry interface pointer (data)"
+  },
+  {
+   "dll": "resourcecompiler",
+   "build": "20261001",
+   "rva": "0x282c20",
+   "script": "tools/vis/capture_rclusters.py",
+   "use": "hook: render cluster build"
+  },
+  {
+   "dll": "resourcecompiler",
+   "build": "20261001",
+   "rva": "0xd46900",
+   "script": "tools/vis/capture_vertexcopy.py",
+   "use": "hook: vertex copy"
+  },
+  {
+   "dll": "vrad3",
+   "build": "20261015",
+   "rva": "0x666e9",
+   "script": "tools/vrad3/capture_amel_keyw.py",
+   "use": "READ_RVA: FillBlocks key slot read (mid-function)"
+  },
+  {
+   "dll": "vrad3",
+   "build": "20261015",
+   "rva": "0x6676e",
+   "script": "tools/vrad3/capture_amel_keyw.py",
+   "use": "hook inside FillBlocks"
+  },
+  {
+   "dll": "vrad3",
+   "build": "20261015",
+   "rva": "0x399e70",
+   "script": "tools/vrad3/capture_amel_keyw.py",
+   "use": "data: per-channel block state"
+  },
+  {
+   "dll": "vrad3",
+   "build": "20261015",
+   "rva": "0x66a86",
+   "script": "tools/vrad3/capture_amel_keyw.py",
+   "use": "hook inside FillBlocks"
+  },
+  {
+   "dll": "vrad3",
+   "build": "20261015",
+   "rva": "0x741b0",
+   "script": "tools/vrad3/capture_amel_keyw.py",
+   "use": "hook: amelioration helper"
+  },
+  {
+   "dll": "materialsystem2",
+   "build": "20261015",
+   "rva": "0x81260",
+   "script": "tools/vrad3/capture_colormatrix.py",
+   "use": "MatrixColorCorrect2 core"
+  },
+  {
+   "dll": "materialsystem2",
+   "build": "20261015",
+   "rva": "0x818d0",
+   "script": "tools/vrad3/capture_colormatrix.py",
+   "use": "MatrixColorTint2 core"
+  },
+  {
+   "dll": "scenesystem",
+   "build": "20261015",
+   "rva": "0x99c00",
+   "script": "tools/vrad3/capture_host.py",
+   "use": "UPLOAD_RVA"
   }
  ]
 }

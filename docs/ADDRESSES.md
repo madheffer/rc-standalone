@@ -21,7 +21,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 - file: `animationsystem_20261023.dll`, 9,329,816 bytes, PE time 2026-10-22 16:00 UTC
 - SHA-256 `8aa57d0c5b90cb49ad5fd9f141004710180a601b08159e50e93c4470142ea132`
-- installed: this build
+- installed: a different build
+- against the installed build (20261029_1.41.9.3.md): 9 tracked addresses: identical 9
 - 9 addresses
 
 ### s2c:entities/settle
@@ -43,6 +44,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `bc7e_20261015.dll`, 1,529,856 bytes, PE time 2022-05-26 03:42 UTC
 - SHA-256 `a340167d3d9e2576b7d0d1ade6d9a290c10b9c747ac7f621e4da3b4dfc1196ee`
 - installed: this build
+- against the installed build (20261029_1.41.9.3.md): 5 tracked addresses: identical 5
 - 5 addresses
 
 ### s2c:baked/lighting
@@ -60,7 +62,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `client_20261015.dll`, 39,205,528 bytes, PE time 2026-10-14 23:41 UTC
 - SHA-256 `659940c1db362ed981d1df10637cec8c2a3d99409b77fc3b73e435e4649e36b0`
 - installed: a different build
-- 11 addresses
+- against the installed build (20261029_1.41.9.3.md): 38 tracked addresses: ambiguous 6, changed 3, identical 11, moved 16, relocated 2
+- 12 addresses
 
 ### s2c:baked/lighting
 
@@ -76,6 +79,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1817465f0` | `Frustum_PlanesFromMatrix` | six planes from a row-major world-to-projection: r3 - r0, r3 + r0, r3 - r1, r3 + r1, r3 + r2 (r2 with the flag), r3 - r2 (the near plane when degenerate); (n, -w) normalised by 1 / sqrt((x x + y y) + z z) when >= 1e-20; AggregateCulling.ExtractPlanes | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:11`, `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:47` |
 | `181747070` | `Matrix4_Invert` | 4 x 4 inverse by Gauss-Jordan on [M \| I]: per column the permuted row with the largest magnitude above 1e-6 (strictly), scaled by 1 / pivot, others r = (-r_k) pivot + r; the view's +0x2c8 from +0x288; AggregateCulling.Invert4 | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:146`, `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:256` |
 | `18174fe70` | `View_BuildProjection` | the projection, then +0x288 (18174f330), the planes (1817465f0) moved to the camera, d + ((nz (-oz) + ny (-oy)) + nx (-ox)), and packed (1817435e0); AggregateCulling.FaceFrustum | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:12`, `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:80`, `src/Source2.Compiler/Cubemaps/CubemapFaceViews.cs:15` |
+| `181ad10d0` | `BuildCubemaps_FaceTable` | data: six 0x28-byte face records (pitch, yaw, roll, a pointer, FOV 90, then three ints) for +X, -X, +Y, -Y, +Z, -Z; Cubemaps/CubemapFaceViews.cs (181ad3c80 in 20261023, 181ad5c70 in 20261029, bytes equal) | `src/Source2.Compiler/Cubemaps/CubemapFaceViews.cs:23` |
 | `18237eab0` | `g_buildcubemaps_renderdoc_capture` | the convar's data pointer (name at +0, int value at +0x58); BuildCubemaps compares the value with the cube counter (from 0) and calls the render device's StartCapture (vfunc 0x638) and EndCapture (0x640) around that cube; read at 18020e5cc and 18020f5b2. cubehost --renderdoc-capture writes it in its own process |  |
 
 ## client.dll, build 20261021
@@ -83,6 +87,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `client_20261021.dll`, 39,205,528 bytes, PE time 2026-10-20 18:34 UTC
 - SHA-256 `5a46a09b521bbd607012146364dafae2abfa50364246638391990d4c7dfb9d49`
 - installed: a different build
+- against the installed build (20261029_1.41.9.3.md): 38 tracked addresses: ambiguous 6, changed 3, identical 11, moved 16, relocated 2
 - 12 addresses
 
 ### s2c:baked/lighting
@@ -107,6 +112,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `client_20261023.dll`, 39,215,768 bytes, PE time 2026-10-22 20:34 UTC
 - SHA-256 `ccaf4e4926babc052994502b19ec61198a11008a39dce712921b93dd993be9f5`
 - installed: a different build
+- against the installed build (20261029_1.41.9.3.md): 38 tracked addresses: ambiguous 6, changed 3, identical 11, moved 16, relocated 2
 - 5 addresses
 
 ### s2c:baked/lighting
@@ -119,11 +125,27 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1811e7ae0` | `RenderPipeline_HalfResDepth` | the HalfResDepth layer at the view's size / r_csgo_mixed_resolution_particles_scale; its depth downsample's g_nDownsampleRatio (0x779e702b) is that scale (10-15: 1811e58b0) | `src/Source2.Compiler.Gpu/CubemapFaceRenderer.cs:831` |
 | `1823806d8` | `g_buildcubemaps_renderdoc_capture` | the convar's data pointer (name at +0, int value at +0x58), 18237eab0 in the 10-15 and 10-21 builds; cubehost --renderdoc-capture picks it by client.dll's PE time stamp 6ada7340 |  |
 
+## client.dll, build 20261029
+
+- file: `client_20261029.dll`, 39,224,472 bytes, PE time 2026-10-28 15:41 UTC
+- SHA-256 `08a741030c1e569d8b854c5886a87fcafc21d0d0e2f05dfd380e8a351171501d`
+- installed: this build
+- against the installed build (20261029_1.41.9.3.md): 38 tracked addresses: ambiguous 6, changed 3, identical 11, moved 16, relocated 2
+- 2 addresses
+
+### s2c:baked/lighting
+
+| address | name | what | cited in |
+|---|---|---|---|
+| `1800538d8` | `Convar_buildcubemaps_renderdoc_capture` | registration as in 10-15 (flags 2, development-only); the handle it passes at 1800538ed is 182382850, so the data pointer is the global 182382858 |  |
+| `182382858` | `g_buildcubemaps_renderdoc_capture` | the convar's data pointer (name at +0, int value at +0x58), 1823806d8 in 10-23; cubehost --renderdoc-capture picks it by client.dll's PE time stamp 6ae217a2 |  |
+
 ## hammer.dll, build 20260924
 
 - file: `hammer_20260924.dll`, 39,597,208 bytes, PE time 2026-09-23 22:00 UTC
 - SHA-256 `c638a81a542ab960e2a51cceaa4d5cfeaa62fa555df117be8293bdc887cb1395`
 - installed: a different build
+- against the installed build (20261029_1.41.9.3.md): 12 tracked addresses: ambiguous 1, moved 11
 - 11 addresses
 
 ### s2c:containers/compile-map
@@ -147,6 +169,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `materialsystem2_20261001.dll`, 1,429,144 bytes, PE time 2026-09-30 18:55 UTC
 - SHA-256 `336abe089468bd5b218f773f09da3942fa9346b7f49f24d9e3591722fc54c5e6`
 - installed: a different build
+- against the installed build (20261029_1.41.9.3.md): 16 tracked addresses: identical 9, relocated 7
 - 1 addresses
 
 ### s2c:physics/material-sampler
@@ -160,6 +183,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `materialsystem2_20261015.dll`, 1,429,144 bytes, PE time 2026-10-14 18:39 UTC
 - SHA-256 `b4d5c667eb65f13d9193d743a88eb1f9dfa623cc8f745cef764d9977969e38b6`
 - installed: a different build
+- against the installed build (20261029_1.41.9.3.md): 16 tracked addresses: identical 9, relocated 7
 - 16 addresses
 
 ### s2c:infra
@@ -193,6 +217,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `meshsystem_20260923.dll`, 1,664,664 bytes, PE time 2026-09-21 20:51 UTC
 - SHA-256 `11203f370437e5d55dbec46f530812b6a6f92c894e8f1c85f3c3b6e8773dc1d6`
 - installed: a different build
+- against the installed build (20261029_1.41.9.3.md): 11 tracked addresses: identical 10, relocated 1
 - 7 addresses
 
 ### s2c:baked/light-keys
@@ -217,6 +242,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `modtools_20261015.dll`, 17,944,216 bytes, PE time 2026-10-14 18:40 UTC
 - SHA-256 `31a29e428fd5e9bacf66614e7d11a44d273cdd74636bb3c45256e541655c18d6`
 - installed: a different build
+- against the installed build (20261029_1.41.9.3.md): 20 tracked addresses: moved 19, relocated 1
 - 19 addresses
 
 ### s2c:baked/bomb
@@ -248,19 +274,21 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `modtools_20261023.dll`, 17,946,264 bytes, PE time 2026-10-22 16:02 UTC
 - SHA-256 `c9c4d68a8a235ed541f4ca07eae1f02b94830cceba94bc37f55e7cc9f1b18b68`
 - installed: a different build
+- against the installed build (20261029_1.41.9.3.md): 20 tracked addresses: moved 19, relocated 1
 - 1 addresses
 
 ### s2c:containers
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `18002e190` | `CModTools_VDataStripRules` | Source2ModTools001 (object 180ef5be0) vfn 0x80: a thread-safe static list of one rule, {"scripts/weapons.vdata", 1, "weapon_m14"} (built at 18002e1ef); its fingerprint is 2278732723 | `src/Source2.Compiler/Containers/Source2ContainerAuthor.Vdata.cs:15` |
+| `18002e190` | `CModTools_VDataStripRules` | Source2ModTools001 (object 180ef5be0) vfn 0x80: a thread-safe static list of one rule, {"scripts/weapons.vdata", 1, "weapon_m14"} (built at 18002e1ef); its fingerprint is 2278732723; 1.41.9.3 (20261029) keeps the code at this address with weapon_lar instead (55841844) | `src/Source2.Compiler/Containers/Source2ContainerAuthor.Vdata.cs:15` |
 
 ## navsystem.dll, build 20261015
 
 - file: `navsystem_20261015.dll`, 1,314,968 bytes, PE time 2026-10-14 18:39 UTC
 - SHA-256 `919803ec647ac53c95524a6be8193fb19fddede2936ed05a8b8cda984f33098e`
 - installed: a different build
+- against the installed build (20261029_1.41.9.3.md): 251 tracked addresses: identical 246, relocated 5
 - 250 addresses
 
 ### s2c:baked/navgen
@@ -523,6 +551,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `phonon_20260923.dll`, 53,322,904 bytes, PE time 2026-08-03 21:30 UTC
 - SHA-256 `a97c891d49619e6d6dc3cbad8d64db1648db8dc6efcfe1d01378e90c954161ea`
 - installed: this build
+- against the installed build (20261029_1.41.9.3.md): 29 tracked addresses: identical 29
 - 27 addresses
 
 ### s2c:baked/steamaudio
@@ -562,6 +591,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `physicsbuilder_20260924.dll`, 13,936,280 bytes, PE time 2026-09-23 21:59 UTC
 - SHA-256 `1c324870ffbf4ece889329238a340cecb2fcbedd44664d06c4eedce1729c391b`
 - installed: a different build
+- against the installed build (20261029_1.41.9.3.md): 95 tracked addresses: ambiguous 1, changed 4, identical 4, moved 86
 - 89 addresses
 
 ### s2c:geometry/props
@@ -688,6 +718,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `rendersystemvulkan_20261015.dll`, 6,248,600 bytes, PE time 2026-10-14 18:39 UTC
 - SHA-256 `2febd86471b9ed1953e75875296f3e76999661f1e86cb68e928c0cb12a2afb4a`
 - installed: a different build
+- against the installed build (20261029_1.41.9.3.md): 5 tracked addresses: moved 5
 - 3 addresses
 
 ### s2c:baked/lighting
@@ -703,6 +734,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `resourcecompiler_20260923.dll`, 56,313,496 bytes, PE time 2026-09-22 19:17 UTC
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
+- against the installed build (20261029_1.41.9.3.md): 1331 tracked addresses: ambiguous 81, changed 22, identical 7, moved 1218, relocated 3
 - 1247 addresses
 
 ### s2c:baked/light-keys
@@ -2098,6 +2130,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `resourcecompiler_20261006.dll`, 56,323,736 bytes, PE time 2026-10-05 21:03 UTC
 - SHA-256 `e2cd4c06976ee54ab8d32a6b109e7adcb7b551c02766cd0c6954b492b0aedbe3`
 - installed: a different build
+- against the installed build (20261029_1.41.9.3.md): 1331 tracked addresses: ambiguous 81, changed 22, identical 7, moved 1218, relocated 3
 - 10 addresses
 
 ### s2c:entities
@@ -2125,6 +2158,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `resourcecompiler_20261015.dll`, 56,337,048 bytes, PE time 2026-10-14 18:44 UTC
 - SHA-256 `204e16e550fd3936585bd467303b9b2033fdd7de9f1038c045095b3f5e15ac78`
 - installed: a different build
+- against the installed build (20261029_1.41.9.3.md): 1331 tracked addresses: ambiguous 81, changed 22, identical 7, moved 1218, relocated 3
 - 1 addresses
 
 ### s2c:baked/nav
@@ -2137,7 +2171,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 - file: `resourcecompiler_20261023.dll`, 56,351,896 bytes, PE time 2026-10-22 16:05 UTC
 - SHA-256 `eee3b5a3cbb92359ce8fffdf7cf1c83e938b03202daef8277c575bda42cc8d7a`
-- installed: this build
+- installed: a different build
+- against the installed build (20261029_1.41.9.3.md): 1331 tracked addresses: ambiguous 81, changed 22, identical 7, moved 1218, relocated 3
 - 3 addresses
 
 ### s2c:containers
@@ -2146,14 +2181,15 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 |---|---|---|---|
 | `18015adb0` | `CompileVData_SpecialDependencyFingerprint` | "VData Compiler Version" 2 (1 before 10-23), "VData ModTools Stripping Version" 18015bc50 over the strip rules the game's ModTools (183b64970, vfn 0x80) returns ({0, 0} without one), "KV3 Compiler Version" 2; Source2ContainerAuthor.SpecByExtension | `src/Source2.Compiler/Containers/Source2ContainerAuthor.cs:52`, `src/Source2.Compiler/Containers/Source2ContainerAuthor.Vdata.cs:13` |
 | `18015ae70` | `CompileVData_ModToolsStrippingVersion` | 2 for the named identity, else 1: a dependency's own version check |  |
-| `18015bc50` | `VDataStrip_RulesFingerprint` | per 24-byte rule {char *file, int, char *member}: FNV-1a of each string folded (h << 17 ^ h) + (h >> 21), the int through murmur3's finaliser, combined boost-style (0x9e3779b9); no rules gives 0; Source2ContainerAuthor.ModToolsStripFingerprint | `src/Source2.Compiler/Containers/Source2ContainerAuthor.Vdata.cs:13`, `src/Source2.Compiler/Containers/Source2ContainerAuthor.Vdata.cs:20` |
+| `18015bc50` | `VDataStrip_RulesFingerprint` | per 24-byte rule {char *file, int, char *member}: FNV-1a of each string folded (h << 17 ^ h) + (h >> 21), the int through murmur3's finaliser, combined boost-style (0x9e3779b9); no rules gives 0; Source2ContainerAuthor.ModToolsStripFingerprint | `src/Source2.Compiler/Containers/Source2ContainerAuthor.Vdata.cs:13`, `src/Source2.Compiler/Containers/Source2ContainerAuthor.Vdata.cs:22` |
 
 ## scenesystem.dll, build 20261015
 
 - file: `scenesystem_20261015.dll`, 7,094,936 bytes, PE time 2026-10-14 18:43 UTC
 - SHA-256 `040eb851fa7875523346b890f1ed6e158abc59e08bccbd8dc60539435277efa5`
 - installed: a different build
-- 87 addresses
+- against the installed build (20261029_1.41.9.3.md): 96 tracked addresses: identical 52, relocated 44
+- 84 addresses
 
 ### s2c:baked/lighting
 
@@ -2207,9 +2243,6 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18049dd60` | `Matrix3x4_TransformPoint` | through 18049c3a0: x' = (y m1 + m3) + (x m0 + z m2); AggregateCulling.TransformPoint | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:368`, `src/Source2.Compiler/Lighting/Bake/PathTraceBounds.cs:12` |
 | `1804a7a60` | `CSM_ShadowViewFrustum` | a cascade's frustum object: camera = translation of the inverted view (180498c70), planes from projection x (view x translate(camera)) through 180498520 with the zero-to-one flag, packed by 18049bcb0; CubemapShadowCascades.Camera, AggregateCulling.CascadeFrustum | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:129`, `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:345`, `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:255` |
 | `1804c9ad0` | `TinyBvh_BuildCustomAabb` | tiny_bvh.h BVH::Build(customGetAABB, count): root bounds, then 1804c87c0 (the same build as resourcecompiler's 181ed64a0); Lighting/TinyBvh.cs | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:591` |
-| `1805ec900` | `SkyCube_Vertices` | data: the sky's unit cube, eight corners at +-0.5; CubemapFaceMeshes.SkyCubeVertices | `src/Source2.Compiler/Cubemaps/CubemapFaceMeshes.cs:9` |
-| `1805ec960` | `SkyCube_Triangles` | data: its twelve triangles as one-based ints (1 3 2, 1 4 3, ...); CubemapFaceMeshes.SkyCubeIndices | `src/Source2.Compiler/Cubemaps/CubemapFaceMeshes.cs:17` |
-| `1805fe430` | `LightBinner_SilhouetteTable` | data (20261023; 1805fe400 in 20261015): per eye-outside plane mask, a count and up to 8 box corner indices of the outline | `src/Source2.Compiler/Cubemaps/LightBinnerItems.cs:17` |
 
 ### s2c:baked/vrad3
 
@@ -2252,11 +2285,29 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1804c8280` | `LightBinGrid_Size` | (grid, budget bytes, bytes a cell, min, max): bisects the cell size from (0, largest extent) while the step is over 0.01, counts cvtss2si(extent / size) at least 1, the smaller size kept while count x bytes fits the budget (unsigned) | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:84`, `src/Source2.Compiler/Lighting/Bake/PathTraceBounds.cs:18`, `src/Source2.Compiler/Lighting/Bake/PathTraceBounds.cs:141` |
 | `180567b00` | `CompressTangentFrame` | same code as resourcecompiler 182067e80 | `src/Source2.Compiler/Lighting/Bake/SceneVertexLayout.cs:30`, `src/Source2.Compiler/Lighting/Bake/SceneVertexLayout.cs:32` |
 
+## scenesystem.dll, build 20261023
+
+- file: `scenesystem_20261023.dll`, 7,094,936 bytes, PE time 2026-10-22 16:02 UTC
+- SHA-256 `0f17ccdc083290a496e6ac13e4fe54413077ad2b83b7dfd281749cffd2733d9b`
+- installed: a different build
+- against the installed build (20261029_1.41.9.3.md): 96 tracked addresses: identical 52, relocated 44
+- 4 addresses
+
+### s2c:baked/lighting
+
+| address | name | what | cited in |
+|---|---|---|---|
+| `1805ec900` | `SkyCube_Vertices` | data: the sky's unit cube, eight corners at +-0.5; CubemapFaceMeshes.SkyCubeVertices | `src/Source2.Compiler/Cubemaps/CubemapFaceMeshes.cs:9` |
+| `1805ec960` | `SkyCube_Triangles` | data: its twelve triangles as one-based ints (1 3 2, 1 4 3, ...); CubemapFaceMeshes.SkyCubeIndices | `src/Source2.Compiler/Cubemaps/CubemapFaceMeshes.cs:17` |
+| `1805fe430` | `LightBinner_SilhouetteTable` | data (20261023; 1805fe400 in 20261015): per eye-outside plane mask, a count and up to 8 box corner indices of the outline | `src/Source2.Compiler/Cubemaps/LightBinnerItems.cs:17` |
+| `1806006e0` | `Shadow3x3PCF_KernelWeights` | data: g_vShadow3x3PCFTermC0..C3's kernel weights; CubemapFaceConstants | `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:446` |
+
 ## server.dll, build 20261015
 
 - file: `server_20261015.dll`, 34,628,248 bytes, PE time 2026-10-14 18:43 UTC
 - SHA-256 `09e8c04c5f44040155d04fa79a3f43491d542a386f45807ed77785729e5925a9`
 - installed: a different build
+- against the installed build (20261029_1.41.9.3.md): 49 tracked addresses: ambiguous 3, changed 2, moved 44
 - 47 addresses
 
 ### s2c:baked/lighting
@@ -2321,6 +2372,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `server_20261021.dll`, 34,628,248 bytes, PE time 2026-10-20 18:34 UTC
 - SHA-256 `05e6f04972bb2983f463c08824c3133626e0703e881443589288b68e200acc4d`
 - installed: a different build
+- against the installed build (20261029_1.41.9.3.md): 49 tracked addresses: ambiguous 3, changed 2, moved 44
 - 1 addresses
 
 ### s2c:baked/lighting
@@ -2334,6 +2386,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `smartprops_20260923.dll`, 1,511,576 bytes, PE time 2026-09-21 21:05 UTC
 - SHA-256 `383e57f1eb82a84157e537050a81fa598a4676389598778bdd9ea4167ea16545`
 - installed: a different build
+- against the installed build (20261029_1.41.9.3.md): 30 tracked addresses: identical 22, relocated 8
 - 30 addresses
 
 ### s2c:smartprops
@@ -2375,7 +2428,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 - file: `steamaudio_20261023.dll`, 3,547,288 bytes, PE time 2026-10-22 16:00 UTC
 - SHA-256 `50a9eb97250dd9bc09c03b8c3abadb8f2c971712dc94db020d6a1c1691de5d1c`
-- installed: this build
+- installed: a different build
+- against the installed build (20261029_1.41.9.3.md): 20 tracked addresses: identical 20
 - 17 addresses
 
 ### s2c:baked/steamaudio
@@ -2405,6 +2459,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `tier0_20260923.dll`, 3,979,416 bytes, PE time 2026-09-21 20:48 UTC
 - SHA-256 `4e0dcb0af3f6953f37ddaed0f4e67a56d031f1e84964a262148f8a6f80547791`
 - installed: a different build
+- against the installed build (20261029_1.41.9.3.md): 67 tracked addresses: changed 9, identical 32, missing 1, moved 22, relocated 3
 - 52 addresses
 
 ### s2c:baked/bomb
@@ -2484,6 +2539,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `tier0_20261015.dll`, 3,979,928 bytes, PE time 2026-10-14 18:37 UTC
 - SHA-256 `990ea56bf1626d299ba54b64b423f2e409bd592bb737c7a5edf7972ad5c7143e`
 - installed: a different build
+- against the installed build (20261029_1.41.9.3.md): 67 tracked addresses: changed 9, identical 32, missing 1, moved 22, relocated 3
 - 11 addresses
 
 ### s2c:io
@@ -2507,6 +2563,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `visbuilder_20260923.dll`, 1,855,640 bytes, PE time 2026-09-21 20:55 UTC
 - SHA-256 `4381c507be2cc8f783a0cd262e18759bb1ef0399ba2ca2deef6d236cde17c3cf`
 - installed: a different build
+- against the installed build (20261029_1.41.9.3.md): 201 tracked addresses: changed 36, identical 123, relocated 42
 - 200 addresses
 
 ### s2c:visibility
@@ -2719,6 +2776,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `vphysics2_20260924.dll`, 4,829,848 bytes, PE time 2026-09-23 21:58 UTC
 - SHA-256 `0f896375fa9233196e3de769f23ce3c21907c1adab81a786418822da75518228`
 - installed: a different build
+- against the installed build (20261029_1.41.9.3.md): 625 tracked addresses: changed 16, identical 391, moved 1, relocated 217
 - 625 addresses
 
 ### s2c:baked/bomb
@@ -3396,6 +3454,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `vrad3_20261001.dll`, 3,269,272 bytes, PE time 2026-09-30 18:56 UTC
 - SHA-256 `172f7513161afca8e7c28fed95bb0abe9fae58f4377b49eea1bf9ae9322b722c`
 - installed: a different build
+- against the installed build (20261029_1.41.9.3.md): 412 tracked addresses: identical 271, relocated 141
 - 410 addresses
 
 ### s2c:baked/vrad3
@@ -3817,7 +3876,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 - file: `worldrenderer_20261023.dll`, 2,029,720 bytes, PE time 2026-10-22 16:00 UTC
 - SHA-256 `e0b1ed04a652f8268fd9d6b75b5a97910ab57197e2cdb8a0a4966703a5ec8322`
-- installed: this build
+- installed: a different build
+- against the installed build (20261029_1.41.9.3.md): 3 tracked addresses: identical 3
 - 3 addresses
 
 ### s2c:baked/lighting

@@ -55,11 +55,18 @@ BIN = os.path.join(CS2, "game", "bin", "win64")
 # rendersystemvulkan and rendersystemdx11: the material sampler's render (texture preload cap).
 # vrad3: the lighting baker resourcecompiler runs (docs/VRAD3.md), being reversed for our own bake.
 # client: the game half of the cubemap build (docs/CUBEMAPS.md: face views, readback, strip, EXR).
+# The rest carry hand-kept names too (names/<dll>_<build>.manual.json): the cubemap face render
+# (scenesystem, materialsystem2, meshsystem, worldrenderer), nav generation (navsystem), the settle's
+# animation helper (animationsystem), Steam Audio (steamaudio, phonon), bomb damage and the VData strip
+# (modtools), server entities (server) and the BC7 encoder (bc7e).
 DLLS = ["resourcecompiler", "vphysics2", "physicsbuilder", "tier0", "visbuilder", "smartprops", "hammer",
-        "rendersystemvulkan", "rendersystemdx11", "vrad3", "client"]
+        "rendersystemvulkan", "rendersystemdx11", "vrad3", "client",
+        "scenesystem", "materialsystem2", "meshsystem", "worldrenderer", "navsystem", "animationsystem",
+        "steamaudio", "phonon", "bc7e", "modtools", "server"]
 # DLLs not directly in bin/win64: Hammer's build dialog (compile-map follows its command line), the game's
-# client (csgo/bin/win64).
-SUBDIR = {"hammer": "tools", "client": os.path.join("..", "..", "csgo", "bin", "win64")}
+# client, server and modtools (csgo/bin/win64).
+CSGO_BIN = os.path.join("..", "..", "csgo", "bin", "win64")
+SUBDIR = {"hammer": "tools", "client": CSGO_BIN, "server": CSGO_BIN, "modtools": CSGO_BIN}
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import paths  # noqa: E402
 BASELINE_DIRS = [paths.BINARIES, paths.STAGING]
@@ -197,9 +204,13 @@ def tracked(dll, analysis_build):
         if r["dll"] == dll:
             out.append((BASE + int(r["rva"], 16), r["build"], "script:" + r["script"], r["use"]))
     rx = re.compile(dll + r"[^\n]{0,80}?\b(18[0-9a-f]{7})\b")
+    # A cited address the name lists already hold is checked against the build it was recorded on there.
+    named = {a for a, _, source, _ in out if source == "manual"}
     for p in glob.glob(os.path.join(REPO, "src", "**", "*.cs"), recursive=True):
         text = open(p, encoding="utf-8", errors="replace").read()
         for m in rx.finditer(text):
+            if int(m.group(1), 16) in named:
+                continue
             around = m.group(0)
             build = "20260923" if "0923" in around else "20260924" if "0924" in around else analysis_build
             out.append((int(m.group(1), 16), build, "src:" + os.path.relpath(p, REPO).replace("\\", "/"), ""))

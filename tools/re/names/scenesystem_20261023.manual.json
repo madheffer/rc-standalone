@@ -1,0 +1,28 @@
+{
+ "functions": [
+  {
+   "addr": "1805ec900",
+   "name": "SkyCube_Vertices",
+   "module": "s2c:baked/lighting",
+   "note": "data: the sky's unit cube, eight corners at +-0.5; CubemapFaceMeshes.SkyCubeVertices"
+  },
+  {
+   "addr": "1805ec960",
+   "name": "SkyCube_Triangles",
+   "module": "s2c:baked/lighting",
+   "note": "data: its twelve triangles as one-based ints (1 3 2, 1 4 3, ...); CubemapFaceMeshes.SkyCubeIndices"
+  },
+  {
+   "addr": "1805fe430",
+   "name": "LightBinner_SilhouetteTable",
+   "module": "s2c:baked/lighting",
+   "note": "data (20261023; 1805fe400 in 20261015): per eye-outside plane mask, a count and up to 8 box corner indices of the outline"
+  },
+  {
+   "addr": "1806006e0",
+   "name": "Shadow3x3PCF_KernelWeights",
+   "module": "s2c:baked/lighting",
+   "note": "data: g_vShadow3x3PCFTermC0..C3's kernel weights; CubemapFaceConstants"
+  }
+ ]
+}

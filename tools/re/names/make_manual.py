@@ -3151,9 +3151,6 @@ SCENESYSTEM = [
     ("1801c6b60", "ClipPolygon_Y", BAKE, "against w >= k y"),
     ("1801c7100", "ClipPolygon_X", BAKE, "against w >= k x"),
     ("1801ad810", "LightBinner_FootprintEdges", BAKE, "edges of the footprint hull (count +0x80, points +0x84) as (nx, ny, quarter diagonal - (ny y + nx x), 0): longer than two pixel diagonals, turning one way; rsqrtss with (3 - r len2 r) (r 0.5); the last folded into the first when they turn back; LightBinnerItems.Edges"),
-    ("1805ec900", "SkyCube_Vertices", BAKE, "data: the sky's unit cube, eight corners at +-0.5; CubemapFaceMeshes.SkyCubeVertices"),
-    ("1805ec960", "SkyCube_Triangles", BAKE, "data: its twelve triangles as one-based ints (1 3 2, 1 4 3, ...); CubemapFaceMeshes.SkyCubeIndices"),
-    ("1805fe430", "LightBinner_SilhouetteTable", BAKE, "data (20261023; 1805fe400 in 20261015): per eye-outside plane mask, a count and up to 8 box corner indices of the outline"),
     ("1801cc400", "LPV_SortRecords", BAKE, "std::sort (introsort, insertion below 0x2520 bytes) of the 0x120-byte records: +0x14 descending, then the float +0x10 ascending, then the object pointer +0 ascending; 1801a9b70 calls it after capping the list at 128 (1801cbc20 nth_element first, logging 'Exceeded maximum number visible lpvs')"),
     ("1801af7b0", "LightBinner_WriteLightBlock", BAKE, "PerViewLightingConstantBufferGpu_t: g_VisibleLPV from +0xe528 (at most 128): world-to-volume rows 18049b3b0(object +0x30), box +0xd0 .. +0xe4 padded by 0.1, 1 / +0xe8, +0xec, +0xf0 (FLT_MAX for 0), then the int from the view's map; g_vShadowSampleRotations V_sincosf(i / 16 2pi + frame 1.618034); CubemapFaceConstants.LightBlock"),
     ("18000f900", "Convar_lb_tile_pixels", BAKE, "registration, default 8 (data 1809239a8)"),
@@ -3298,6 +3295,7 @@ CLIENT_1015 = [
     ("181201670", "GamePipeline_DepthPrepassLayers", BAKE, "the game view's prepass layers: Large +0x6d0 = r_csgo_depth_prepass_cull_threshold (1825f6150, 60) / 100, Small = -that; AggregateCulling.PrepassSplit"),
     ("1811d5ae0", "Pipeline_DepthPrepassLayers", BAKE, "creates Depth Prepass Large / Small / AlphaTested with +0x6d0 = threshold / 100 and its negation (the 3D skybox passes r_csgo_depth_prepass_skybox_small_cull_threshold)"),
     ("18020e130", "BuildCubemaps_FaceToStrip", BAKE, "a face's RGBA16F readback to a float bitmap (1813db210), QuarterSize (1813ddd00) down to EnvironmentMapFaceSize, flipped (1813dc290), copied into the 6x1 strip at x = face * size (181756620); Cubemaps/CubemapFaceExr.cs"),
+    ("181ad10d0", "BuildCubemaps_FaceTable", BAKE, "data: six 0x28-byte face records (pitch, yaw, roll, a pointer, FOV 90, then three ints) for +X, -X, +Y, -Y, +Z, -Z; Cubemaps/CubemapFaceViews.cs (181ad3c80 in 20261023, 181ad5c70 in 20261029, bytes equal)"),
     ("1802091d0", "BuildCubemaps_WriteExr", BAKE, "the strip as an uncompressed half EXR through tinyexr's fast writer (1813dede0), channels B, G, R; Cubemaps/CubemapFaceExr.cs"),
     ("1800538d8", "Convar_buildcubemaps_renderdoc_capture", BAKE, "registration of buildcubemaps_renderdoc_capture (\"Capture a specific cubemap with RenderDoc during buildcubemaps.\") with flags 2, development-only: a release build hides it from the console and the command line; its data pointer is the global 18237eab0"),
     ("18237eab0", "g_buildcubemaps_renderdoc_capture", BAKE, "the convar's data pointer (name at +0, int value at +0x58); BuildCubemaps compares the value with the cube counter (from 0) and calls the render device's StartCapture (vfunc 0x638) and EndCapture (0x640) around that cube; read at 18020e5cc and 18020f5b2. cubehost --renderdoc-capture writes it in its own process"),
@@ -3360,6 +3358,21 @@ CLIENT_1023 = [
     ("1823806d8", "g_buildcubemaps_renderdoc_capture", BAKE, "the convar's data pointer (name at +0, int value at +0x58), 18237eab0 in the 10-15 and 10-21 builds; cubehost --renderdoc-capture picks it by client.dll's PE time stamp 6ada7340"),
 ]
 
+# scenesystem 20261023 (tools/re/binaries/scenesystem_20261023.dll): data the cubemap face render reads, at
+# the addresses of the installed 1.41.9.2 build (the 10-15 build had them elsewhere); 20261029 keeps them in place.
+SCENESYSTEM_1023 = [
+    ("1805ec900", "SkyCube_Vertices", BAKE, "data: the sky's unit cube, eight corners at +-0.5; CubemapFaceMeshes.SkyCubeVertices"),
+    ("1805ec960", "SkyCube_Triangles", BAKE, "data: its twelve triangles as one-based ints (1 3 2, 1 4 3, ...); CubemapFaceMeshes.SkyCubeIndices"),
+    ("1805fe430", "LightBinner_SilhouetteTable", BAKE, "data (20261023; 1805fe400 in 20261015): per eye-outside plane mask, a count and up to 8 box corner indices of the outline"),
+    ("1806006e0", "Shadow3x3PCF_KernelWeights", BAKE, "data: g_vShadow3x3PCFTermC0..C3's kernel weights; CubemapFaceConstants"),
+]
+
+# client.dll 20261029, 1.41.9.3 (installed; tools/re/binaries/client_20261029.dll).
+CLIENT_1029 = [
+    ("1800538d8", "Convar_buildcubemaps_renderdoc_capture", BAKE, "registration as in 10-15 (flags 2, development-only); the handle it passes at 1800538ed is 182382850, so the data pointer is the global 182382858"),
+    ("182382858", "g_buildcubemaps_renderdoc_capture", BAKE, "the convar's data pointer (name at +0, int value at +0x58), 1823806d8 in 10-23; cubehost --renderdoc-capture picks it by client.dll's PE time stamp 6ae217a2"),
+]
+
 # server.dll 20261021 (installed; tools/re/binaries/server_20261021.dll).
 SERVER_1021 = [
     ("18017c8d0", "CLightComponent_Construct", BAKE, "every cascade field zeroed (+0xe4 .. +0xf8 through the network-var initialisers 18017c390 .. 18017c3e0): with csgo.fgd's remove_key the light gives no cascade distances"),
@@ -3384,7 +3397,7 @@ RESOURCECOMPILER_1023 = [
 
 # csgo's modtools.dll 20261023 (tools/re/binaries/modtools_20261023.dll).
 MODTOOLS_1023 = [
-    ("18002e190", "CModTools_VDataStripRules", CT, "Source2ModTools001 (object 180ef5be0) vfn 0x80: a thread-safe static list of one rule, {\"scripts/weapons.vdata\", 1, \"weapon_m14\"} (built at 18002e1ef); its fingerprint is 2278732723"),
+    ("18002e190", "CModTools_VDataStripRules", CT, "Source2ModTools001 (object 180ef5be0) vfn 0x80: a thread-safe static list of one rule, {\"scripts/weapons.vdata\", 1, \"weapon_m14\"} (built at 18002e1ef); its fingerprint is 2278732723; 1.41.9.3 (20261029) keeps the code at this address with weapon_lar instead (55841844)"),
 ]
 
 # animationsystem.dll 20261023 (installed; tools/re/binaries/animationsystem_20261023.dll): the map entity's animation helper (ledger 166).
@@ -3477,6 +3490,7 @@ if __name__ == "__main__":
     write("resourcecompiler_20261006.manual.json", RESOURCECOMPILER_1006)
     write("tier0_20261015.manual.json", TIER0_1015)
     write("scenesystem_20261015.manual.json", SCENESYSTEM + SCENESYSTEM_CASCADES)
+    write("scenesystem_20261023.manual.json", SCENESYSTEM_1023)
     write("materialsystem2_20261015.manual.json", MATERIALSYSTEM_1015)
     write("rendersystemvulkan_20261015.manual.json", RENDERSYSTEMVULKAN_1015)
     write("server_20261015.manual.json", SERVER_1015 + SERVER_1015_CUBEHOST)
@@ -3490,6 +3504,7 @@ if __name__ == "__main__":
     write("client_20261015.manual.json", CLIENT_1015)
     write("client_20261021.manual.json", CLIENT_1021)
     write("client_20261023.manual.json", CLIENT_1023)
+    write("client_20261029.manual.json", CLIENT_1029)
     write("worldrenderer_20261023.manual.json", WORLDRENDERER_1023)
     write("server_20261021.manual.json", SERVER_1021)
     print(len(RESOURCECOMPILER), len(VPHYSICS2), len(PHYSICSBUILDER), len(VISBUILDER), len(SMARTPROPS), len(TIER0), len(HAMMER))

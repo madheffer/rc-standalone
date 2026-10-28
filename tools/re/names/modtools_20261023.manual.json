@@ -4,7 +4,7 @@
    "addr": "18002e190",
    "name": "CModTools_VDataStripRules",
    "module": "s2c:containers",
-   "note": "Source2ModTools001 (object 180ef5be0) vfn 0x80: a thread-safe static list of one rule, {\"scripts/weapons.vdata\", 1, \"weapon_m14\"} (built at 18002e1ef); its fingerprint is 2278732723"
+   "note": "Source2ModTools001 (object 180ef5be0) vfn 0x80: a thread-safe static list of one rule, {\"scripts/weapons.vdata\", 1, \"weapon_m14\"} (built at 18002e1ef); its fingerprint is 2278732723; 1.41.9.3 (20261029) keeps the code at this address with weapon_lar instead (55841844)"
   }
  ]
 }

@@ -193,13 +193,39 @@ the addon).
     (new "Panorama Compiler Conditionals Fingerprint", every shipped `.vjs_c`
     rebuilt) and server.dll's script API; first get a pre-update `.vjs_c` to see
     what changed, and Valve's fresh `cs_script_demo` compile as the reference.
+    1.41.9.3 (10-29) changed the Panorama preprocessor's quoted-string tokenizer
+    (resourcecompiler 18011be50 in 20261029, same address in 20261023; "Reached end of
+    stream without matching quote"): a new branch when the saved quote index is -1.
+    It is the only real code change in that update's resourcecompiler.
 12. **Speed, after parity (user, 2026-10-28):** nav and vis are the two big compile stages.
     Vis: the PVS scan is about 90 of the 113 min on s2c_prefabprobe4. Nav: our nav from
     s2c_prefabprobe3's .vmap (generation, ladders, the CS analysis) ran over an hour in a
     Debug test build; time a Release build and Valve's own step before sizing it. Any change
     that could alter bytes waits for the user's OK (parity before speed).
 
-## Latest session (2026-10-28 late and 10-29, walkable seeds and prefabs with instances)
+## Latest session (2026-10-29, the 1.41.9.3 update)
+
+Ledger 182; tools/re/patch_reports/20261029_1.41.9.3.md. CS2 1.41.9.3 (Oct 28 build, SourceRevision 11181008)
+rebuilt every toolchain DLL but tier0.
+
+- build_diff against 1023: vphysics2, physicsbuilder, visbuilder, smartprops, vrad3, hammer, rendersystemdx11,
+  scenesystem, materialsystem2, meshsystem, worldrenderer, navsystem, animationsystem and steamaudio are
+  code-identical. Every tracked address resolves to the same code (ambiguous rows by neighbouring anchors,
+  mid-function ones through their function, vftables slot by slot through RTTI); visbuilder's signatures
+  165/165.
+- resourcecompiler: one real code change, the Panorama preprocessor's quoted-string tokenizer (roadmap item 11).
+  The rest of its 34 "real" diffs are inline switch tables and libraries (libtiff, OpenSSL, protobuf).
+- Output change: the VData strip rule is weapon_lar now, fingerprint 55841844 (ledger 182). Valve references
+  holding a .vdata_c or a .vdata child (bomb damage roots) from before 10-29 carry the old value.
+- patch_check now checks every DLL with a name list (scenesystem, materialsystem2, meshsystem, worldrenderer,
+  navsystem, animationsystem, steamaudio, phonon, bc7e, modtools and server were not checked before); a src
+  citation already in a list is checked against that list's build. 17 script RVAs registered.
+- Capture scripts with literal RVAs map them to the installed build (rva_map.rebase(agent, build) or installed());
+  rva_map.installed hands zero-filled .bss to installed_data (capture_propmeshes' pointer had moved unseen).
+- cubehost knows client 10-29's buildcubemaps_renderdoc_capture global (182382858).
+- Not done: Valve recompiles of the corpus references on 1.41.9.3 (only the RcReference probes were redone).
+
+## Earlier session (2026-10-28 late and 10-29, walkable seeds and prefabs with instances)
 
 Ledgers 179, 180; NAV.md collector 1 and "Order of work" 2. CS2 closed, Steam open (resourcecompiler captures only).
 

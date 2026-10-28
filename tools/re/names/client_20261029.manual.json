@@ -1,0 +1,16 @@
+{
+ "functions": [
+  {
+   "addr": "1800538d8",
+   "name": "Convar_buildcubemaps_renderdoc_capture",
+   "module": "s2c:baked/lighting",
+   "note": "registration as in 10-15 (flags 2, development-only); the handle it passes at 1800538ed is 182382850, so the data pointer is the global 182382858"
+  },
+  {
+   "addr": "182382858",
+   "name": "g_buildcubemaps_renderdoc_capture",
+   "module": "s2c:baked/lighting",
+   "note": "the convar's data pointer (name at +0, int value at +0x58), 1823806d8 in 10-23; cubehost --renderdoc-capture picks it by client.dll's PE time stamp 6ae217a2"
+  }
+ ]
+}

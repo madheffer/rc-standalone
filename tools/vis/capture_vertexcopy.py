@@ -16,6 +16,8 @@ import sys
 import threading
 
 import frida
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "re"))
+from rva_map import rebase  # noqa: E402
 
 CS2 = os.environ.get("CS2_DIR", r"D:\Steam\steamapps\common\Counter-Strike Global Offensive")
 BIN = os.path.join(CS2, "game", "bin", "win64")
@@ -64,7 +66,7 @@ def main():
     pid = dev.spawn([os.path.join(BIN, "resourcecompiler.exe"), "-nop4", "-game", os.path.join(CS2, "game", "csgo"),
                      "-i", source, "-world", "-fshallow"], cwd=BIN, stdio="pipe")
     ses = dev.attach(pid)
-    sc = ses.create_script(AGENT)
+    sc = ses.create_script(rebase(AGENT, "20261001"))
     sc.on("message", lambda m, d: print(m.get("payload") if m.get("type") == "send" else m))
     sc.load()
     done = threading.Event()

@@ -13,11 +13,14 @@ import argparse
 import filecmp
 import json
 import os
+import sys
 import shutil
 import subprocess
 import threading
 
 import frida
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "re"))
+from rva_map import rebase  # noqa: E402
 
 CS2 = os.environ.get("CS2_DIR", r"D:\Steam\steamapps\common\Counter-Strike Global Offensive")
 BIN = os.path.join(CS2, "game", "bin", "win64")
@@ -117,7 +120,7 @@ def main():
     pid = dev.spawn([os.path.join(BIN, "resourcecompiler.exe"), "-nop4", "-game", os.path.join(CS2, "game", "csgo"),
                      "-i", source] + a.switches.split(), cwd=BIN, stdio="pipe")
     ses = dev.attach(pid)
-    sc = ses.create_script(AGENT)
+    sc = ses.create_script(rebase(AGENT, "20261015"))
     sc.on("message", on_message)
     sc.load()
     done = threading.Event()

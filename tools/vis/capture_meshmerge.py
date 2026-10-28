@@ -28,6 +28,8 @@ import threading
 import time
 
 import frida
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "re"))
+from rva_map import installed  # noqa: E402
 
 CS2 = os.environ.get(
     "CS2_DIR", r"D:\Steam\steamapps\common\Counter-Strike Global Offensive")
@@ -230,7 +232,7 @@ def main():
     dev = frida.get_local_device()
     pid = dev.spawn(argv, cwd=BIN, stdio="pipe")
     ses = dev.attach(pid)
-    sc = ses.create_script(AGENT % {"merge": MERGE_RVA, "canmerge": CANMERGE_RVA})
+    sc = ses.create_script(AGENT % {"merge": installed("resourcecompiler", MERGE_RVA, "20261001"), "canmerge": installed("resourcecompiler", CANMERGE_RVA, "20261001")})
     sc.on("message", on_message)
     sc.load()
     done = threading.Event()

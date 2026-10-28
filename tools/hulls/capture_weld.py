@@ -25,6 +25,8 @@ import threading
 import time
 
 import frida
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "re"))
+from rva_map import installed  # noqa: E402
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from package_guard import PackageGuard  # noqa: E402
@@ -201,8 +203,8 @@ def main():
         guard.pid = pid
         session = device.attach(pid)
         script = session.create_script(AGENT % {
-            "rva": WELD_RVA, "limit": args.limit, "phys": PHYS_RVA,
-            "dophys": str(args.phys).lower(), "xform": XFORM_RVA,
+            "rva": installed("resourcecompiler", WELD_RVA, "20260924"), "limit": args.limit, "phys": installed("resourcecompiler", PHYS_RVA, "20260924"),
+            "dophys": str(args.phys).lower(), "xform": installed("resourcecompiler", XFORM_RVA, "20260924"),
             "doxform": str(args.xform).lower()})
         script.on("message", on_message)
         script.load()

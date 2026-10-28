@@ -22,6 +22,8 @@ import sys
 import threading
 
 import frida
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "re"))
+from rva_map import installed  # noqa: E402
 import pefile
 
 CS2 = os.environ.get(
@@ -160,7 +162,7 @@ def main():
     dev.on("output", lambda _pid, _fd, data: rc_log.write(data or b""))
     pid = dev.spawn(argv, cwd=BIN, stdio="pipe")
     ses = dev.attach(pid)
-    sc = ses.create_script(AGENT % dict({k: v[1] for k, v in HOOKS.items()}, iface=IFACE_RVA))
+    sc = ses.create_script(AGENT % dict({k: v[1] for k, v in HOOKS.items()}, iface=installed("resourcecompiler", IFACE_RVA, "20261001")))
     sc.on("message", on_message)
     sc.load()
     done = threading.Event()

@@ -20,7 +20,7 @@ import threading
 
 import frida
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "re"))
-from rva_map import require  # noqa: E402
+from rva_map import rebase  # noqa: E402
 
 CS2 = os.environ.get(
     "CS2_DIR", r"D:\Steam\steamapps\common\Counter-Strike Global Offensive")
@@ -85,8 +85,6 @@ def main():
     p.add_argument("map")
     p.add_argument("outdir")
     a = p.parse_args()
-    # Literal 0923 addresses below: refuse a build that moved them.
-    require("resourcecompiler", [0x23bd30, 0xffd380])
     os.makedirs(a.outdir, exist_ok=True)
     source = os.path.join(CS2, "content", "csgo_addons", a.addon, "maps", a.map + ".vmap")
     if busy():
@@ -119,7 +117,7 @@ def main():
     dev = frida.get_local_device()
     pid = dev.spawn(argv, cwd=BIN, stdio="pipe")
     ses = dev.attach(pid)
-    sc = ses.create_script(AGENT)
+    sc = ses.create_script(rebase(AGENT, "20260923"))
     sc.on("message", on_message)
     sc.load()
     done = threading.Event()

@@ -4895,6 +4895,16 @@ game can answer is raised with the user first, and runs with -insecure.
      - Exact: ze_ffvii_mako_reactor_v6_p's whole list after the bake (5753 entries) and c2m3_coaster_d_d's (1884)
        (MapEntityListTests).
      - Refused: a hidden CMapPrefab (none on disk once flag 4 is read right).
+182. **CS2 1.41.9.3's VData strip rule** (2026-10-29: disassembly of csgo modtools 20261023 and 20261029 at
+     18002e1ef; resourcecompiler 1.41.9.3's own compile of the RcReference probes through tools/rc-oracle.ps1.)
+     - CModTools_VDataStripRules (18002e190, unmoved) builds the same one-rule list, now
+       {"scripts/weapons.vdata", 1, "weapon_lar"} (was weapon_m14). Its fingerprint through 18015bc50's hash is
+       55841844 (was 2278732723), the "VData ModTools Stripping Version" RC 1.41.9.3 records in rc_probe.vdata_c
+       and rc_probe_ints.vdata_c: those differ from their 1.41.9.2 compiles in those 4 bytes only.
+     - Source2ContainerAuthor.VDataModToolsFingerprint uses the new rule; RcReference re-baked from the 10-29
+       compile (the .vsndevts_c and .vpcf_c references were from 09-07, their RED2 now RC's current one).
+     - Every .vdata_c and map root with a .vdata child (baked_bomb_damage) compiled by Valve before 10-29 holds the
+       old value: refresh such references before comparing.
 
 ## Resolved
 

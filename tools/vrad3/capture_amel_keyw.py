@@ -17,6 +17,8 @@ import sys
 import time
 
 import frida
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "re"))
+from rva_map import require  # noqa: E402
 
 CS2 = os.environ.get("CS2_DIR", r"D:\Steam\steamapps\common\Counter-Strike Global Offensive")
 VRAD3 = os.path.join(CS2, "game", "bin", "win64", "vrad3.exe")
@@ -98,6 +100,8 @@ def main():
         print(__doc__)
         sys.exit(2)
     addon, source = sys.argv[1], sys.argv[2]
+    # Literal 10-15 addresses (hooks and the per-channel state): refuse a build that moved them.
+    require("vrad3", [READ_RVA, 0x6676e, 0x399e70, 0x66a86, 0x741b0], "20261015")
     trace = [[int(v) for v in a.split(",")] for a in sys.argv[3:]]
     job = os.path.join(CS2, "game", "csgo_addons", addon, "_vrad3")
     lines = ["gpu_init", "lightmap_type ahd", "lightmap_image_gpu 4096 4096 1024",

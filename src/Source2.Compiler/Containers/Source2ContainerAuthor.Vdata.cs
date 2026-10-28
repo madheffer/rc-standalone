@@ -12,10 +12,12 @@ public static partial class Source2ContainerAuthor
     /// <summary>
     /// The "VData ModTools Stripping Version" fingerprint (RC 1.41.9.2, 18015adb0): 18015bc50 hashes
     /// the root-member strip rules the game's modtools.dll returns from Source2ModTools001 slot 16
-    /// (18002e190). CS2's list is one rule, weapon_m14 out of scripts/weapons.vdata, so csgo content
-    /// records 2278732723; core, with no modtools, records 0 (both as shipped in pak01, 2026-10-23).
+    /// (18002e190, the same address in 20261023 and 20261029). CS2's list is one rule out of
+    /// scripts/weapons.vdata: weapon_m14 in 1.41.9.2 (2278732723), weapon_lar since 1.41.9.3
+    /// (2026-10-29, 55841844, RC's own compile of the RcReference probes). Core, with no modtools,
+    /// records 0.
     /// </summary>
-    public static uint VDataModToolsFingerprint => ModToolsStripFingerprint([("scripts/weapons.vdata", 1, "weapon_m14")]);
+    public static uint VDataModToolsFingerprint => ModToolsStripFingerprint([("scripts/weapons.vdata", 1, "weapon_lar")]);
 
     /// <summary>18015bc50: per rule {file, int, member}, FNV-1a of each string folded by
     /// (h &lt;&lt; 17 ^ h) + (h &gt;&gt; 21), the int through murmur3's finaliser, all combined boost-style.</summary>

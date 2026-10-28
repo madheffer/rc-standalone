@@ -103,6 +103,18 @@ Names and addresses:
    (`BinarySignatureTests`, `VisMergeCostTests`). A constant that resolves
    with a different value is a real behaviour change; the rest is
    mechanical.
+5. **Which functions really changed:** `python tools/re/build_diff.py
+   <old.dll> <new.dll> --names <report> --strings` for each new build. A
+   patch report's "changed" or "ambiguous" row is against the build the
+   address was recorded on; check it against the previous build through
+   build_diff before re-reading anything. Its "real" changes include inline
+   switch tables that decode as junk; diff the disassembly to be sure.
+6. **Output identities:** `tools/rc-oracle.ps1` (CS2 closed) recompiles the
+   RcReference probes; a changed fingerprint is an output change (1.41.9.3:
+   the VData strip rule).
+7. **Capture scripts** map their literal RVAs through `tools/re/rva_map.py`
+   (`rebase(agent, build)`, `installed`, `installed_data` for globals); a
+   new script's RVAs go in `tools/re/tracked_rvas.json`.
 
 A signature breaking is evidence about bytes, not behaviour. In the
 2026-09-23 rebuild, `Normalise` was inlined into its callers and

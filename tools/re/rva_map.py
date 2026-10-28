@@ -36,6 +36,10 @@ def installed(dll, rva, build=None):
         raise SystemExit(f"no {dll}_{build}.dll in {pc.BASELINE_DIRS}")
     old = _image(found[build])
     new = _image(os.path.join(pc.BIN, pc.SUBDIR.get(dll, ""), dll + ".dll"))
+    lo, hi = old.text
+    if not lo <= rva < hi and not any(old.img[rva:rva + 64]):
+        # Zero-filled data (.bss past a section's raw bytes) matches anywhere: find the global by its users.
+        return installed_data(dll, rva, build)
     status, at, note = pc.compare(old, new, rva)
     if status not in ("identical", "relocated", "moved") or at is None:
         raise SystemExit(f"{dll} 0x{rva:x}: {status} in the installed build ({note}); re-read it before hooking")
@@ -101,11 +105,12 @@ def require(dll, rvas, build=None):
                          + "\n  ".join(moved))
 
 
-def rebase(agent):
+def rebase(agent, build=None):
     """A Frida agent with each m.base.add(0x...) moved to the installed build.
 
     The DLL of each literal is the one named by the nearest findModuleByName
-    before it in the text, as the capture scripts are written."""
+    before it in the text, as the capture scripts are written; <build> is the
+    build the literals were read on (default: the DLL's analysis build)."""
     import re
     out, at, dll = [], 0, None
     for m in re.finditer(r"findModuleByName\('([a-z0-9_]+)\.dll'\)|base\.add\((0x[0-9a-fA-F]+)\)", agent):
@@ -116,7 +121,7 @@ def rebase(agent):
         else:
             if dll is None:
                 raise SystemExit("rebase: base.add before any findModuleByName")
-            out.append(f"base.add(0x{installed(dll, int(m.group(2), 16)):x})")
+            out.append(f"base.add(0x{installed(dll, int(m.group(2), 16), build):x})")
         at = m.end()
     out.append(agent[at:])
     return "".join(out)
