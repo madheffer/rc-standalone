@@ -1,7 +1,7 @@
 """capture_entitylist.py <addon> <map> [--out file.json] [--switches "-world -phys -nav"]: the map document's entity
 list (doc +0x1828 count, +0x1830 CMapEntity* array), which FUN_180fc7220's search walks in stored order.
 
-Snapshots, each entry as node id (+0x300), vtable RVA and, for CMapNavLink entries (vtable of the first one the
+Snapshots, each entry as node id (+0x300), vtable RVA, origin (+0xa0, o) and, for CMapNavLink entries (vtable of the first one the
 collector's search returns), locatoroffset (+0x185c):
   links                    the nav link collector (0923 180f203b0; 1023 180f21570), param_2 the CMapWorld that owns
                            the list (180fca3d0 adds the world itself at +0x1828).
@@ -36,6 +36,7 @@ function snap(tag, doc) {
     if (e.isNull()) { out.push(null); continue; }
     const vt = e.readPointer();
     const r = {id: e.add(0x300).readU32(), vt: vt.sub(rc.base).toInt32()};
+    r.o = [e.add(0xa0).readFloat(), e.add(0xa4).readFloat(), e.add(0xa8).readFloat()];
     try { r.off = [e.add(0x185c).readFloat(), e.add(0x1860).readFloat(), e.add(0x1864).readFloat()]; } catch (x) {}
     out.push(r);
   }

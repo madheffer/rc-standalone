@@ -4835,6 +4835,27 @@ game can answer is raised with the user first, and runs with -insecure.
      - Exact on s2c_navlink3 (14 records, three of them a prefab's at yaw 90): the records, 029, the whole lump
        and the whole .nav from the .vmap.
 
+179. **The walkable seeds through the entity list, and prefabs whose map has instances** (2026-10-28: decompile of
+     resourcecompiler 0923 180f21760, 180f60740, 180f60af0, 180f57ff0, 180f86e70, 180feb950 and the CMapInstance
+     vtable 182349b48 slots 0x850 to 0x870; Frida on the 1023 build, tools/re/capture_entitylist.py, which now records
+     each entry's origin +0xa0; captures of s2c_prefabprobe5 and s2c_prefabprobe3.)
+     - The seed collector is the link collector's search (180fc6f40 for "point_nav_walkable", mode 2, flags 3) with
+       no IsA test; per instance path the translation of step matrix x the node's vf 0xa0 matrix. So the seeds come
+       in the entity list's order after the bake, not the lump's walk (the "unsettled" note of NavGenMapInput.Seeds).
+     - A bake round (180f60740): terrain features (180f60af0, CMapTerrainFeature only), tile meshes (180f5f490), then
+       the CMapInstance-typed nodes (CMapPrefab included) collected once by 180f86e70 with flags 0xd: children before
+       the node, sub-worlds skipped, a node with instance referrers (180f8ba70) skipped with its subtree. The filter's
+       vf 0x868 and 0x870 are 1800de990 (return 0), so it drops only non-instances and never reorders. A prefab's map
+       moves in during the round and its instances wait for the next round's collection.
+     - So a prefab map's instances and targets collapse as the root's do, each named within its own tree (two prefabs
+       of one map stay apart), and a prefab map's hidden ids are its own document's.
+     - Exact: s2c_prefabprobe5's whole list after the bake (145 entries, a prefab of s2c_pinst with an instance in
+       its map: each entry's class and origin, MapEntityListTests), and the seed records (navinput_seeds.bin) bit for
+       bit and in order on all 16 nav captures, s2c_prefabprobe4's six (atixref's walkables through a prefab with
+       instances) included (NavSeedTests).
+     - Still refused: a prefab whose map has prefabs, a copied prefab whose map has instances, a point_nav_walkable
+       under a deformer, and ledger 177's other refusals.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

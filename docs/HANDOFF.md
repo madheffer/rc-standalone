@@ -199,6 +199,21 @@ the addon).
     Debug test build; time a Release build and Valve's own step before sizing it. Any change
     that could alter bytes waits for the user's OK (parity before speed).
 
+## Latest session (2026-10-28 late, walkable seeds and prefabs with instances)
+
+Ledger 179; NAV.md collector 1 and "Order of work" 2. CS2 closed, Steam open (resourcecompiler captures only).
+
+- NavGenMapInput.Seeds now takes the links' search (one shared `Found`: the baked entity list, wildcard classname,
+  visibility, the same refusals) instead of the lump's walk; that closes its "unsettled" order note.
+  NavSeedTests: Valve's navinput_seeds.bin on all 16 nav captures, bit for bit and in order.
+- MapEntityList collapses a prefab map's instances and targets (each named within its own tree; a prefab map's
+  hidden ids from its own document). The bake round's shape is decompiled (180f60740 / 180f86e70: instances
+  collected once per round, children first, no reordering filter). MapEntityListTests compares the whole list with
+  tools/re/capture_entitylist.py's (which now records origins): s2c_prefabprobe5 exact (145 entries).
+- Next: s2c_prefabprobe3 / 4 list captures (`python tools/re/capture_entitylist.py s2c_rc_probe <map>`, under
+  heavy.py), then the remaining refusals (prefabs in prefab maps, copied prefabs with instances, hidden instances).
+- The suite was not run in full.
+
 ## Latest session (2026-10-28 evening, nav links)
 
 Ledgers 175 to 178; NAV.md collector 5 and "Order of work" 2. CS2 closed for two short captures, open otherwise.

@@ -19,10 +19,12 @@ namespace Source2.Compiler.Maps;
 /// subtree leaves, in postorder; then the instance leaves. A prefab appends its map's listed nodes in preorder, then
 /// leaves.</item>
 /// <item>A node leaves by FastRemove (180fcb150): the last entry moves into its slot.</item>
+/// <item>A round's instances (prefabs included) are collected once before any collapses (180f86e70, flags 0xd),
+/// so a prefab map's instances, moved in this round, collapse in the next, as the root's do (GROUND_TRUTH 179).</item>
 /// </list>
 /// Refused until measured: a hidden instance or prefab (the bake deletes it without a copy), a prefab whose map has
-/// instances or prefabs of its own, a prefab inside a target, and a target that loses its last referrer by being
-/// deleted with another (the cascade's order).
+/// prefabs, a copied prefab whose map has instances, a prefab inside a target, and a target that loses its last
+/// referrer by being deleted with another (the cascade's order).
 /// </summary>
 public static class MapEntityList
 {
@@ -52,18 +54,35 @@ public static class MapEntityList
 
         var hidden = MapEntities.HiddenNodes(document);
         var root = Build(world, null, [], [], copy: false);
-        var targets = new HashSet<DmxBinary.Element>(ReferenceEqualityComparer.Instance);
         var insideTarget = new HashSet<Node>();
-        foreach (var n in Preorder(root).Where(n => n.Element.Type == "CMapInstance"))
-            if (n.Element.Get<DmxBinary.Element>("target") is { } t)
-                targets.Add(t);
-        foreach (var n in Preorder(root))
-            for (var at = n.Parent; at != null; at = at.Parent)
-                if (targets.Contains(at.Element))
-                {
-                    insideTarget.Add(n);
-                    break;
-                }
+        // The collector (180f86e70, flag 4) skips a target's subtree while an instance names it: per tree, the root's
+        // and each prefab's moved map.
+        void MarkTargets(Node top)
+        {
+            var targets = new HashSet<DmxBinary.Element>(ReferenceEqualityComparer.Instance);
+            foreach (var n in Preorder(top).Where(n => n.Element.Type == "CMapInstance"))
+                if (n.Element.Get<DmxBinary.Element>("target") is { } t)
+                    targets.Add(t);
+            foreach (var n in Preorder(top))
+                for (var at = n.Parent; at != null; at = at.Parent)
+                    if (targets.Contains(at.Element))
+                    {
+                        insideTarget.Add(n);
+                        break;
+                    }
+        }
+        MarkTargets(root);
+        // A prefab map's node ids are its own document's.
+        var hiddenByDoc = new Dictionary<DmxBinary.Element, IReadOnlySet<int>>(ReferenceEqualityComparer.Instance);
+        IReadOnlySet<int> HiddenOf(Node n)
+        {
+            if (n.Prefabs.Count == 0)
+                return hidden;
+            var prefab = n.Prefabs[^1];
+            if (!hiddenByDoc.TryGetValue(prefab, out var set))
+                hiddenByDoc[prefab] = set = prefab.Get<DmxBinary.Document>(MapPrefabs.DocumentKey) is { } d ? MapEntities.HiddenNodes(d) : new HashSet<int>();
+            return set;
+        }
 
         var list = new List<Node>();
         var slot = new Dictionary<Node, int>();
@@ -103,7 +122,7 @@ public static class MapEntityList
                 if (n.Parent is null)
                     continue;
                 n.Collapsed = true;
-                if (!n.Copy && Hidden(n.Element, hidden))
+                if (!n.Copy && Hidden(n.Element, HiddenOf(n)))
                     throw new NotSupportedException($"a hidden {n.Element.Type} (deleted by the bake without a copy) is not measured in the entity list");
                 if (n.Element.Type == "CMapPrefab")
                 {
@@ -112,12 +131,17 @@ public static class MapEntityList
                     if (n.Element.Get<DmxBinary.Element>(MapPrefabs.WorldKey) is not { } map)
                         throw new NotSupportedException("a prefab whose map is not loaded is not measured in the entity list");
                     var doc = n.Element.Get<DmxBinary.Document>(MapPrefabs.DocumentKey);
-                    if (doc is not null && (doc.OfType("CMapInstance").Any() || doc.OfType("CMapPrefab").Any()))
-                        throw new NotSupportedException("a prefab whose map has instances or prefabs is not measured in the entity list");
-                    var content = new Node(map, n.Parent, n.Through, [.. n.Prefabs, n.Element]) { Copy = true, Root = true };
+                    if (doc is not null && doc.OfType("CMapPrefab").Any())
+                        throw new NotSupportedException("a prefab whose map has prefabs is not measured in the entity list");
+                    if (n.Copy && doc is not null && doc.OfType("CMapInstance").Any())
+                        throw new NotSupportedException("a copied prefab whose map has instances is not measured in the entity list");
+                    // The map's nodes are reparented, not cloned (ledger 178): its instances and targets collapse as
+                    // the root's do, in the next round (the round's list is collected before the prefabs move).
+                    var content = new Node(map, n.Parent, n.Through, [.. n.Prefabs, n.Element]) { Copy = n.Copy, Root = true };
                     foreach (var child in map.GetElements("children"))
-                        content.Kids.Add(Build(child, content, n.Through, [.. n.Prefabs, n.Element], copy: true));
+                        content.Kids.Add(Build(child, content, n.Through, [.. n.Prefabs, n.Element], copy: n.Copy));
                     n.Parent.Kids.Add(content);
+                    MarkTargets(content);
                     foreach (var c in Preorder(content))
                         Add(c);
                     Remove(n);
@@ -133,8 +157,8 @@ public static class MapEntityList
                 foreach (var c in Preorder(copyRoot))
                     Add(c);
                 var referred = Preorder(root).Any(o => !ReferenceEquals(o, n) && o.Element.Type == "CMapInstance" && !o.Collapsed
-                                                   && ReferenceEquals(o.Element.Get<DmxBinary.Element>("target"), target));
-                if (!referred && Preorder(root).FirstOrDefault(o => !o.Copy && ReferenceEquals(o.Element, target)) is { } template)
+                                                   && SameTree(o, n) && ReferenceEquals(o.Element.Get<DmxBinary.Element>("target"), target));
+                if (!referred && Preorder(root).FirstOrDefault(o => !o.Copy && SameTree(o, n) && ReferenceEquals(o.Element, target)) is { } template)
                 {
                     var leaving = Postorder(template).ToList();
                     var left = new HashSet<Node>(leaving);
@@ -142,7 +166,7 @@ public static class MapEntityList
                     {
                         var innerTarget = inner.Element.Get<DmxBinary.Element>("target");
                         if (!Preorder(root).Any(o => !left.Contains(o) && !ReferenceEquals(o, n) && o.Element.Type == "CMapInstance" && !o.Collapsed
-                                                     && ReferenceEquals(o.Element.Get<DmxBinary.Element>("target"), innerTarget)))
+                                                     && SameTree(o, inner) && ReferenceEquals(o.Element.Get<DmxBinary.Element>("target"), innerTarget)))
                             throw new NotSupportedException("a target deleted with another (the delete cascade's order) is not measured in the entity list");
                     }
                     foreach (var o in leaving)
@@ -164,6 +188,10 @@ public static class MapEntityList
     internal static bool Hidden(DmxBinary.Element node, IReadOnlySet<int> hidden)
         => node.GetValue<bool>("editorOnly") == true || (node.GetValue<int>("nodeID") is { } id && hidden.Contains(id))
            || node.GetValue<bool>("force_hidden") == true;
+
+    // Whether two nodes come from the same tree: the root's, or one prefab's moved map (a target is named within it).
+    private static bool SameTree(Node a, Node b)
+        => a.Prefabs.Count == b.Prefabs.Count && a.Prefabs.Zip(b.Prefabs).All(p => ReferenceEquals(p.First, p.Second));
 
     // Listed: CMapEntityIONode by IsA (the world, CMapGameDataNode, CMapInstance, CMapPrefab); a copy's or a prefab
     // content's root is a group.

@@ -4606,7 +4606,31 @@
    "addr": "180f60740",
    "name": "MapDoc_BakeInstances",
    "module": "s2c:entities/lump",
-   "note": "rounds until none collapses: tile meshes, then every CMapInstance-typed node (prefabs too) in tree order"
+   "note": "rounds until none collapses: terrain features (180f60af0), tile meshes (180f5f490), then every CMapInstance-typed node (prefabs too) collected by 180f86e70 (flags 0xd) once per round and collapsed in that order; the filter drops only non-instances (vf 0x868 / 0x870 are 1800de990, return 0) (ledger 179)"
+  },
+  {
+   "addr": "180f60af0",
+   "name": "MapDoc_BakeTerrainFeatures",
+   "module": "s2c:entities/lump",
+   "note": "each CMapTerrainFeature (180f57ff0) whose visibility state +0x370 is on and vf 0x850 says so is deleted; first step of each bake round"
+  },
+  {
+   "addr": "180f57ff0",
+   "name": "MapWorld_CollectTerrainFeatures",
+   "module": "s2c:entities/lump",
+   "note": "180f86e70 for 'CMapTerrainFeature', mode 1"
+  },
+  {
+   "addr": "180f86e70",
+   "name": "MapNode_CollectByClass",
+   "module": "s2c:entities/lump",
+   "note": "per child: sub-worlds skipped with flag 1; flag 4 skips a node (and its subtree) with 180f8ba70 >= 1 (an instance target); flag 0x10 vf 0x188, flag 0x20 the visibility state; mode 0 recurses before appending (children first), mode 1 after; flag 8 tests IsA (vf 0x770) else vf 0x3c0"
+  },
+  {
+   "addr": "1800de990",
+   "name": "ReturnFalse",
+   "module": "s2c:entities/lump",
+   "note": "CMapInstance vf 0x868 and vf 0x870"
   },
   {
    "addr": "180f7aa30",
