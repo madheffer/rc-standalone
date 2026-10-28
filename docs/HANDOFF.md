@@ -217,11 +217,19 @@ Ledgers 179, 180; NAV.md collector 1 and "Order of work" 2. CS2 closed, Steam op
   seconds; `-f` in --switches when the package is up to date). Sweep of the 127 .vmaps on disk: every seed and
   link search runs but s2c_prefabprobe10's (Valve crashes on it); hidden instances or prefabs (mako, two c2m2
   variants) still refuse the list, unused there (no seeds or links).
-- Next: hidden instances and prefabs. CollapseInstance deletes an instance whose visibility state is off
-  (180f6d410 with flags 3) and the target goes with it when nothing names it; the order of those removals is not
-  measured. `capture_entitylist_trace.py s2c_big ze_ffvii_mako_reactor_v6_p --switches "-f -world -phys -nav"
-  --bake-only` (mako has no nav step, so the trace has to end at the bake) was stopped by the CS2 watchdog on its
-  first run; run it with CS2 closed (several minutes: about 3.4M referrer-count calls go through the hook).
+- Ledger 181 (2026-10-29): hidden instances (deleted, then their target when unnamed; mako's whole list exact) and
+  hiddenFlags: only & 0xb hides (MapEntities.HiddenNodes fixed; flag 4 is c2m3_coaster_d_d's visible prefabs, whose
+  list is now exact too). `--bake-only` on capture_entitylist_trace.py ends at the bake for maps with no nav step.
+  Left in MapEntityList: a hidden prefab (none on disk), a prefab inside a target, a target moved rather than
+  cloned, the delete cascade's order, and s2c_prefabprobe10 (Valve crashes).
+- Full suite (10-29, Release, after ledger 181): 1090 to 1091 passed, then the test host crashed while
+  NavCompileTests.NavWithLaddersMatchesValve (s2c_prefabprobe3, the nav from the .vmap) was running, at 8 to 10
+  minutes, three runs out of three. Alone it does not crash (75 min, about 460 to 640 MB, stopped by hand before it
+  finished; the analyze=true case is the hours-long CS analysis). Not settled whether the crash is that test under
+  the suite's parallel load or another test running beside it. The one failure is
+  MapRootFileTests.MapRootEqualsValves on s2c_navlink3: its reference package (10-28 21:11) predates
+  s2c_navlinkpf.vmap (21:27), so the root's m_nFileCRC differs; recompile the reference (compile_fresh.py).
+  Note: a Bash tool timeout kills the run at 10 min and looks like the same crash; run the suite detached.
 - The suite was not run in full.
 
 ## Earlier session (2026-10-28 evening, nav links)

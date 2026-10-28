@@ -703,7 +703,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `resourcecompiler_20260923.dll`, 56,313,496 bytes, PE time 2026-09-22 19:17 UTC
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
-- 1244 addresses
+- 1247 addresses
 
 ### s2c:baked/light-keys
 
@@ -963,7 +963,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180f5c680` | `std_Sort_SubassetReferences` | MSVC introsort over 0x18-byte (type, name, count) records, insertion sort under 0x318 bytes (180f59640: strcmp type, then name) |  |
 | `180f71a50` | `MapDoc_BuildSubassetReferences` | map_asset_references, then the subasset references collected in a hash container (entries 0x20: hash, type, name, count), copied to a vector, std::sorted (180f5c680, strcmp on type then name) into map_subasset_reference_types / _names / _counts | `src/Source2.Compiler/Maps/MapAssets.cs:7`, `src/Source2.Compiler/Maps/MapSubassets.cs:11` |
 | `180fb0680` | `Hammer_LoadGameSettings` | gameinfo's Hammer section (BakeOnlyCubemaps among the map builder switches) |  |
-| `180fc9930` | `MapWorld_GatherSubassetReferences` | the world's nodes depth first (180f8b7c0 / 180f8bd70): a node whose +0x370 visibility is 0 is skipped, one in an instance target only when an instance refers to it (180f88460); each kept node's references to the collector (180f8c400); MapEntities' force_hidden | `src/Source2.Compiler/Maps/MapEntities.cs:353` |
+| `180fc9930` | `MapWorld_GatherSubassetReferences` | the world's nodes depth first (180f8b7c0 / 180f8bd70): a node whose +0x370 visibility is 0 is skipped, one in an instance target only when an instance refers to it (180f88460); each kept node's references to the collector (180f8c400); MapEntities' force_hidden | `src/Source2.Compiler/Maps/MapEntities.cs:356` |
 | `181112e80` | `LightingProcessor_PathTraceLightList` | per light (MapDoc_GatherLights order) its LightShape (181297030) and info (180eece60); a bounce light at bounce scale != 1 gets a separate entry first, colour times the scale, flags 1 or 9 (ledger 90); the sky light found by dynamic cast of the entity's components | `src/Source2.Compiler/Lighting/SceneLights.cs:9`, `src/Source2.Compiler/Lighting/SceneLights.cs:317` |
 | `181113af0` | `PathTraceScene_WriteLightEntry` | one scene_info light: light_cookie = the record's 0xc4 cookie handle's resource name (then 0xc4 = -1), barn table, flags, baked shadow index, illumination volume | `src/Source2.Compiler/Lighting/SceneLights.cs:365`, `src/Source2.Compiler/Maps/LightShape.cs:66` |
 | `181113f20` | `LightingProcessor_PathTraceLights` | vf 0x40: the lights (181112e80) and the ibl: path_trace_light_flags, the env_sky transform, scale, material, sky_bounce, sky_bounce_scale, sun_light_min_brightness; null without a sky light | `src/Source2.Compiler/Lighting/SceneLights.cs:235` |
@@ -1014,8 +1014,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180f30580` | `EntityKeys_GetTagList` | a tag_list value's tokens, commas and white space between | `src/Source2.Compiler/Maps/NavGen/NavGenMarkups.cs:57`, `src/Source2.Compiler/Maps/NavGen/NavGenMarkups.cs:112` |
 | `180f4aed0` | `NavGen_CollectAvoidMaterials` | 'nav_attribute_avoid': the compile context's AVOID list that 180fb5440 turns into markups |  |
 | `180f4d220` | `PhysDoc_NodeFilter` | flags 0x16 for the nav world: GenerateNav (0x10); a smart prop with +0x688 0 and a physics pin out; flag 2: a mesh under an entity needs solidity 2 and no AlwaysSolidIgnoreNav, any other node its entity's FGD class (+0x550) with has_static_mesh (180dd2210); flag 4: solid 0 out; then 180f4bb00 (10-15: 180f4d790) | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:83`, `src/Source2.Compiler/Physics/EntityPhysicsModels.cs:243`, `src/Source2.Compiler/Physics/WorldCollision.cs:600` |
-| `180f684c0` | `MapDoc_UnregisterSubtree` | children first; a CMapInstance whose target no other instance names (180f8e9e0) has its target deleted too | `src/Source2.Compiler/Maps/MapEntityList.cs:18` |
-| `180f6d410` | `MapDoc_DeleteNode` | flags 3 from the bake; unregisters the subtree (180f684c0) and runs the queued deletes |  |
+| `180f684c0` | `MapDoc_UnregisterSubtree` | children first; a CMapInstance whose target no other instance names (180f8e9e0) has its target deleted too | `src/Source2.Compiler/Maps/MapEntityList.cs:18`, `src/Source2.Compiler/Maps/MapEntityList.cs:136` |
+| `180f6d410` | `MapDoc_DeleteNode` | flags 3 from the bake; unregisters the subtree (180f684c0) and runs the queued deletes | `src/Source2.Compiler/Maps/MapEntityList.cs:135` |
 | `180f7a350` | `CMapNode_SetVisible` | the visibility state byte +0x370 (180f8f920 starts it at 1) |  |
 | `180f8b7c0` | `MapNode_ChildIterator_Begin` | a depth-first iterator over a node's descendants of one type (180f8bd70 advances); AddMarkup takes the first CMapMesh | `src/Source2.Compiler/Maps/NavGen/NavGenMarkups.cs:117` |
 | `180f8bc60` | `MapNode_LocalBounds` | the node's bounds in its frame, +0x14c / +0x158 |  |
@@ -1037,7 +1037,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180fefbc0` | `MapEntity_TargetNameMatches` | vfn 0x7e0 targetname (the name 180fca010 hashes into the world 200 name buckets), V_CompareNameWithWildcards(pattern, name, 0) (search mode 1) |  |
 | `181063b90` | `CMapNavLink_Create` | 0x18b0 bytes: width +0x1858 128, locatoroffset +0x185c (128, 0, 0), locatorangles +0x1868 (0, 180, 0), type +0x1888 0 | `src/Source2.Compiler/Maps/MapEntities.cs:119` |
 | `181064300` | `CMapNavLinkLocator_IsA` | CMapNavLinkLocator, CMapProceduralLocator, CMapLocator, CMapTransform (vtable 182362db0, vf 0xc8 181076410) |  |
-| `181064a10` | `CMapNavLink_IsA` | CMapNavLink, CMapEntity, CMapGameDataNode, CMapEntityIONode | `src/Source2.Compiler/Maps/MapEntities.cs:323` |
+| `181064a10` | `CMapNavLink_IsA` | CMapNavLink, CMapEntity, CMapGameDataNode, CMapEntityIONode | `src/Source2.Compiler/Maps/MapEntities.cs:326` |
 | `181064ab0` | `CMapNavLink_UpdateLocators` | CMapNavLinkLocator children +0x4a8 0 at the origin, 1 at origin + locatoroffset; created when missing; scripts/npc_units.vdata and navlinks.vdata | `src/Source2.Compiler/Maps/MapEntities.cs:142`, `src/Source2.Compiler/Maps/MapInstances.cs:373`, `src/Source2.Compiler/Maps/SmartProps.cs:60` |
 | `181065610` | `CMapNavLink_SetScales` | vf 0x98: always (1, 1, 1) | `src/Source2.Compiler/Maps/NavGen/NavGenMapInput.cs:40` |
 | `181065720` | `CMapNavLink_OnLocatorChanged` | locator 0 differing: the link takes its origin and angles, locatoroffset kept in place; locator 1: locatoroffset and locatorangles = locator 1 - link | `src/Source2.Compiler/Maps/MapEntities.cs:144` |
@@ -1182,7 +1182,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180245770` | `EntityLump_StaticModelRecord` | filed in builder +0x118's CUtlRBTree at +0x190 (strcmp 180291a00) under the model path, or "%s_%d" of the static counter 183bb375c (from 0) with a deformer, +0x40 overrides or +0x1e8 (ledger 165); prop record; +0x10 = Concat(AngleMatrix(angles), Matrix3x4_Scale(scales)) with the origin; +0x160/+0x164 fademindist/fademaxdist, +0x16c visoccluder, +0x16d baketoworld, +0x16f disableshadows, +0x170 disableinlowquality, +0x172 rendertocubemaps, +0x173 emissive, +0x174 emissive_lighting_boost, +0x178 emissive_mode, +0x17d bakelightdoublesided, +0x148 rendercolor / 255, +0x154 renderamt / 255, +0x1e4 lodlevel (-1), +0x210 lightmapstatic (default 1 for a prop_static; any other class without it makes no record), +0x173 emissive defaults to 1; +0x1f0 bit 2 donotcollapse or disablemerging; +0x17c lightmapped (bakelighting key, else model prop_data bakelighting and a SupportsLightmapping material; only when the builder bakes or flattenPropsWithBakedLighting), +0x214 = V_powf(2, lightmapscalebias) | `src/Source2.Compiler/Lighting/PathTraceProps.cs:14`, `src/Source2.Compiler/Lighting/PathTraceProps.cs:34`, `src/Source2.Compiler/Lighting/PathTraceProps.cs:43` +8 |
 | `18024adc0` | `WRB_WriteEntityLump` | entity_lump_params, entities\ |  |
 | `18024d710` | `WRB_CreateEntityTemplateLumps` | create_entity_template_lumps; the template pass driver (TemplatePass_Run) | `src/Source2.Compiler/Maps/EntityLumpSet.cs:13`, `src/Source2.Compiler/Maps/EntityLumpSet.cs:166` |
-| `180f77240` | `CMapNode_PassesFilter` | node filter by flags: +0x366, vfn 0x408, editorOnly (vfn 0x440 or +0x365) under flag bits 1, 2 or 4 without 0, vfn 0x410, 0x150, 0x438 | `src/Source2.Compiler/Maps/MapEntities.cs:351`, `src/Source2.Compiler/Maps/MapEntities.cs:359` |
+| `180f77240` | `CMapNode_PassesFilter` | node filter by flags: +0x366, vfn 0x408, editorOnly (vfn 0x440 or +0x365) under flag bits 1, 2 or 4 without 0, vfn 0x410, 0x150, 0x438 | `src/Source2.Compiler/Maps/MapEntities.cs:354`, `src/Source2.Compiler/Maps/MapEntities.cs:362` |
 | `180f8e990` | `CMapNode_GetEditorOnly` | vfn 0x440, else byte +0x365 |  |
 | `180f94820` | `CMapNode_SetEditorOnly` | +0x365 |  |
 
@@ -1237,16 +1237,16 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180f34460` | `Fgd_HasSpawnflag` | case blind | `src/Source2.Compiler/Maps/FgdSchema.cs:165` |
 | `180f385c0` | `MapNode_SetKeyValue` | (node, key, string); from call sites |  |
 | `180f57ff0` | `MapWorld_CollectTerrainFeatures` | 180f86e70 for 'CMapTerrainFeature', mode 1 |  |
-| `180f5f230` | `MapDoc_AddNode` | adds a node to the document under the given parent | `src/Source2.Compiler/Maps/MapEntityList.cs:155`, `src/Source2.Compiler/Maps/MapInstances.cs:366` |
-| `180f5ff40` | `MapDoc_CollapseInstance` | the copy from vf 0x860 (CMapInstance::vf268), then the id remap 180f90cb0 |  |
+| `180f5f230` | `MapDoc_AddNode` | adds a node to the document under the given parent | `src/Source2.Compiler/Maps/MapEntityList.cs:169`, `src/Source2.Compiler/Maps/MapInstances.cs:366` |
+| `180f5ff40` | `MapDoc_CollapseInstance` | the copy from vf 0x860 (CMapInstance::vf268), then the id remap 180f90cb0 | `src/Source2.Compiler/Maps/MapEntityList.cs:135` |
 | `180f60740` | `MapDoc_BakeInstances` | rounds until none collapses: terrain features (180f60af0), tile meshes (180f5f490), then every CMapInstance-typed node (prefabs too) collected by 180f86e70 (flags 0xd) once per round and collapsed in that order; the filter drops only non-instances (vf 0x868 / 0x870 are 1800de990, return 0) (ledger 179) | `src/Source2.Compiler/Maps/MapEntityList.cs:16`, `src/Source2.Compiler/Maps/MapInstances.cs:85`, `src/Source2.Compiler/Maps/MapInstances.cs:100` +1 |
 | `180f60af0` | `MapDoc_BakeTerrainFeatures` | each CMapTerrainFeature (180f57ff0) whose visibility state +0x370 is on and vf 0x850 says so is deleted; first step of each bake round |  |
 | `180f741a0` | `CMapNodeDataProvider::vf35` | legacy light description at identity; false for barn/rect/omni2 |  |
 | `180f75010` | `CMapNode::vf57` | reparent: off the old world's lists (180fcb650), onto the new parent (vf 0x1f8), then 180fc5010 under the new world | `src/Source2.Compiler/Maps/MapPrefabs.cs:68` |
 | `180f7aa30` | `CMapNode::vf205` | snapshot path generator |  |
-| `180f86a90` | `MapNode_Clone` | a copy of a node and its subtree (used for a target cloned by 181019590) | `src/Source2.Compiler/Maps/MapEntityList.cs:154`, `src/Source2.Compiler/Maps/MapInstances.cs:367` |
-| `180f86e70` | `MapNode_CollectByClass` | per child: sub-worlds skipped with flag 1; flag 4 skips a node (and its subtree) with 180f8ba70 >= 1 (an instance target); flag 0x10 vf 0x188, flag 0x20 the visibility state; mode 0 recurses before appending (children first), mode 1 after; flag 8 tests IsA (vf 0x770) else vf 0x3c0 | `src/Source2.Compiler/Maps/MapEntityList.cs:22`, `src/Source2.Compiler/Maps/MapEntityList.cs:65`, `src/Source2.Compiler/Maps/MapPrefabs.cs:65` |
-| `180f88920` | `MapNode_CollectReferrers` | the instances whose 'target' names the node (180f8ba70 kind 3 sizes the list); CMapInstance_Collapse deletes the target (180f63d00) when this finds exactly one | `src/Source2.Compiler/Maps/MapEntityList.cs:195` |
+| `180f86a90` | `MapNode_Clone` | a copy of a node and its subtree (used for a target cloned by 181019590) | `src/Source2.Compiler/Maps/MapEntityList.cs:168`, `src/Source2.Compiler/Maps/MapInstances.cs:367` |
+| `180f86e70` | `MapNode_CollectByClass` | per child: sub-worlds skipped with flag 1; flag 4 skips a node (and its subtree) with 180f8ba70 >= 1 (an instance target); flag 0x10 vf 0x188, flag 0x20 the visibility state; mode 0 recurses before appending (children first), mode 1 after; flag 8 tests IsA (vf 0x770) else vf 0x3c0 | `src/Source2.Compiler/Maps/MapEntityList.cs:22`, `src/Source2.Compiler/Maps/MapEntityList.cs:68`, `src/Source2.Compiler/Maps/MapPrefabs.cs:65` |
+| `180f88920` | `MapNode_CollectReferrers` | the instances whose 'target' names the node (180f8ba70 kind 3 sizes the list); CMapInstance_Collapse deletes the target (180f63d00) when this finds exactly one | `src/Source2.Compiler/Maps/MapEntityList.cs:216` |
 | `180f8ba70` | `MapNode_ReferrerCount` | the instances whose 'target' attribute names the node, by vf 0x858 kind (0, 1; 3 the sum), counted through the element referrers once and cached at +0x388 / +0x38c until 180f8f0d0 resets them (ledger 180) | `src/Source2.Compiler/Maps/PathDeformer.Copies.cs:41` |
 | `180f8ee20` | `CMapEntity_SnapshotFile` | snapshot_file from snapshot_mesh | `src/Source2.Compiler/Maps/EntityLumpSet.cs:47` |
 | `180f8f0d0` | `MapNode_ResetReferrerCounts` | +0x388 = -1 (both counts); the only writer of -1 besides the node's init 180f8f920 |  |
@@ -1262,24 +1262,27 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180fa8bf0` | `EntityKv_SetString` | skips an empty value; keeps the key's existing string flag | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:357` |
 | `180fa8cc0` | `EntityKv_SetVector3` | subtype 0x1d |  |
 | `180fc1560` | `CMapWorld_ExportToLump` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:210` |
-| `180fc5010` | `MapWorld_RegisterSubtree` | per node in preorder: OnNodeAdded, then vf 0x228 (the node joining the world), then its children | `src/Source2.Compiler/Maps/MapEntityList.cs:152` |
+| `180fc5010` | `MapWorld_RegisterSubtree` | per node in preorder: OnNodeAdded, then vf 0x228 (the node joining the world), then its children | `src/Source2.Compiler/Maps/MapEntityList.cs:166` |
 | `180fc9490` | `CMapWorld_MapUsageType` | index of world +0x2bb8 in standard, background, skybox, minigame, sharedenvironment |  |
 | `180fefb60` | `EntityLump_FixupValue` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:382` |
 | `181004020` | `CMapEntity_ExportToLump` | keys in the table's own iteration order (180f30fd0 first, 180f33d10 next), then class_game_keys | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:210` |
 | `181013ec0` | `CMapInstance::vf268` | calls CMapInstance_Collapse |  |
-| `1810158a0` | `CMapInstance::vf69` | joining a world: the node's own vf69, then 181019590 with the target its element handle (+0x558) resolves to (ledger 180) | `src/Source2.Compiler/Maps/MapEntityList.cs:153` |
+| `1810158a0` | `CMapInstance::vf69` | joining a world: the node's own vf69, then 181019590 with the target its element handle (+0x558) resolves to (ledger 180) | `src/Source2.Compiler/Maps/MapEntityList.cs:167` |
 | `181017820` | `CMapInstance_Collapse` | the copy added as the last child of the instance's parent (vf 0x1c8) | `src/Source2.Compiler/Maps/MapInstances.cs:103` |
 | `181018fa0` | `CMapInstance_ClearTarget` | resets the target's cached referrer counts, clears the handle and +0x550 |  |
-| `181019590` | `CMapInstance_ResolveTarget` | a target in another world (not the instance's, not null, vf 0x888 false) with two or more referrers (180f8ba70 kind 0), or in another document, is cloned (180f86a90) into the instance's world (180f5f230) and the handle moved to the clone (181017400); with fewer it is moved into the instance's world (vf 0x1c8); then SetTarget (ledger 180) | `src/Source2.Compiler/Maps/MapEntityList.cs:25`, `src/Source2.Compiler/Maps/MapEntityList.cs:49`, `src/Source2.Compiler/Maps/MapEntityList.cs:153` +1 |
+| `181019590` | `CMapInstance_ResolveTarget` | a target in another world (not the instance's, not null, vf 0x888 false) with two or more referrers (180f8ba70 kind 0), or in another document, is cloned (180f86a90) into the instance's world (180f5f230) and the handle moved to the clone (181017400); with fewer it is moved into the instance's world (vf 0x1c8); then SetTarget (ledger 180) | `src/Source2.Compiler/Maps/MapEntityList.cs:25`, `src/Source2.Compiler/Maps/MapEntityList.cs:52`, `src/Source2.Compiler/Maps/MapEntityList.cs:167` +1 |
 | `1810197f0` | `CMapInstance_SetTarget` | +0x550 = the target; resets the old and new target's cached referrer counts (180f8f0d0) |  |
 | `181065c90` | `CMapNavLink_ExportToLump` | CMapEntity_ExportToLump, then width, locatoroffset and locatorangles ("%f %f %f"), nav_link_movement ("__ground__" for type 4), the reverse for types 0 and 4 | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:354` |
 | `181089940` | `CMapCable_RegisterProperties` | registers the embedded property binding (rendercolor as text) |  |
 | `1810b5480` | `CMapPath_ExportKeys` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:302`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:445` |
-| `1810b66e0` | `CMapPath_FirstNodeMoved` | vf274: when the node that changed is the path's first CMapPathNode child, the path's origin is set to it (CMapNode::vf17) and the path refreshed (vf 0x8b8) | `src/Source2.Compiler/Maps/MapEntities.cs:472` |
+| `1810b66e0` | `CMapPath_FirstNodeMoved` | vf274: when the node that changed is the path's first CMapPathNode child, the path's origin is set to it (CMapNode::vf17) and the path refreshed (vf 0x8b8) | `src/Source2.Compiler/Maps/MapEntities.cs:475` |
 | `1810b7ca0` | `CMapPath_IsLoop` | loops with more than one node | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:461`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:499`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:516` +7 |
 | `1810be2f0` | `CMapPath_NextNode` | the node after; the last node's is the first on a supports_loop closed loop of 2+ nodes | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:545` |
 | `1810be5b0` | `CMapPath_PreviousNode` | the node before; the first node's is the last on a supports_loop closed loop of 2+ nodes | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:545` |
 | `1810bfd50` | `CMapPath_Value` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:662` |
+| `1810ecf10` | `CVisibilityMgr::vf10` | init: 'nodes' at +0x498, 'hiddenFlags' at +0x4c0, +0x508 = 0 (its only writer) |  |
+| `1810eeba0` | `VisibilityMgr_NodeShown` | true unless mask & hiddenFlags[node] & ~+0x508 (VisibilityMgr_IsNodeVisible passes mask 0xb: flag 4 alone does not hide; ledger 181) | `src/Source2.Compiler/Maps/MapEntities.cs:294` |
+| `1810f2750` | `VisibilityMgr_StoredVisible` | the per-node visible byte of the document's set at +0x730 (true when absent) |  |
 | `181110ba0` | `CMapPath_Tangents` | in and out tangents | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:552` |
 | `181111cc0` | `CMapPathNode_Scale` | radius and height scale, 1 and 1 unless the class | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:502`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:645` |
 | `18114cb20` | `CMapCable::vf217` | rendercolor = tint as '%i %i %i' |  |
@@ -1365,7 +1368,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180d47b90` | `DmeMeshToCMesh` | stream layout from the DMX; CMesh +0x184 = V_powf(2, the face set's lightmapScaleBias) | `src/Source2.Compiler/Maps/NodeMeshEntries.cs:53` |
 | `180d5c570` | `CMesh_WriteDmeMesh` |  |  |
 | `180f0ea90` | `MapDoc_ApplyVertexLighting` | per mesh instance, the CDmeNodeInstanceData by node path: vertexLightingData (RGBA8 per face vertex) into PerVertexLighting as byte / 255; 180f0dc80 when none matches | `src/Source2.Compiler/Maps/NodeMeshEntries.cs:17`, `src/Source2.Compiler/Maps/NodeMeshEntries.cs:223` |
-| `180f6ffc0` | `VisibilityMgr_IsNodeVisible` | the parent visible first (recursive), the manager's hidden sets, then vf 0x358 (CMapNode_PassesFilter 180f77240) with the manager's flags; force_hidden so hides a node and all below it | `src/Source2.Compiler/Maps/MapEntities.cs:352`, `src/Source2.Compiler/Maps/MapEntityList.cs:222` |
+| `180f6ffc0` | `VisibilityMgr_IsNodeVisible` | the parent visible first (recursive), the manager's hidden sets, then vf 0x358 (CMapNode_PassesFilter 180f77240) with the manager's flags; force_hidden so hides a node and all below it | `src/Source2.Compiler/Maps/MapEntities.cs:294`, `src/Source2.Compiler/Maps/MapEntities.cs:355`, `src/Source2.Compiler/Maps/MapEntityList.cs:242` |
 | `180f72fb0` | `VisibilityMgr_UpdateNode` | a node's visibility state: 180f6ffc0, stored through vf 0x608 at +0x370, then the instance and target flags |  |
 | `180f74350` | `MapNode_GetMeshBuffersForwarder` |  |  |
 | `180f75580` | `CMapNode_RemapReferences` | vf 0x210: each reference (+0x2d8) whose id the remap table holds gets the new node's referenceID (+0x348, 181075d90) | `src/Source2.Compiler/Maps/PathDeformer.Copies.cs:31` |
@@ -1375,7 +1378,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180f88d70` | `CMapNode_VisibilityState` | +0x3c8; only the constructor (180f8f920) writes it in resourcecompiler |  |
 | `180f8f5a0` | `CMapNode_NotifyChanged` | unless kind 1 or already notifying (+0x2c8): each listener of the node (+0x2f0, +0x2e8) through vf 0x20, i.e. a reference's change | `src/Source2.Compiler/Maps/PathDeformer.Copies.cs:16` |
 | `180f90cb0` | `CMapNode_WalkTree` | vf 0x210 over a subtree, the collapse's id remap | `src/Source2.Compiler/Maps/PathDeformer.Copies.cs:30` |
-| `180f94900` | `CMapNode_SetForceHidden` | force_hidden: +0x366, then the document's visibility notice | `src/Source2.Compiler/Maps/MapEntities.cs:351`, `src/Source2.Compiler/Maps/PathDeformer.cs:62` |
+| `180f94900` | `CMapNode_SetForceHidden` | force_hidden: +0x366, then the document's visibility notice | `src/Source2.Compiler/Maps/MapEntities.cs:354`, `src/Source2.Compiler/Maps/PathDeformer.cs:62` |
 | `180f94f70` | `EmbeddedProperty_LoadAttribute` | by the attribute's type, the value handed to the property's setter |  |
 | `180f96d40` | `CMapPrefab_Collapse` | a group at the prefab's transform, 181018e50 places the map, its nodes move into the group (vf 0x1c8), then the remap | `src/Source2.Compiler/Maps/PathDeformer.Copies.cs:43`, `src/Source2.Compiler/Maps/SettleWorld.Deformed.cs:28` |
 | `180fca9b0` | `CMapWorld_RegisterReference` | the reference listed by its target id (+0x2b68), then resolved by the world's referenceID table (+0x2b48, first holder kept) through 181075180 | `src/Source2.Compiler/Maps/PathDeformer.Copies.cs:44`, `src/Source2.Compiler/Maps/PathDeformer.Copies.cs:110`, `src/Source2.Compiler/Maps/PathDeformer.cs:49` |

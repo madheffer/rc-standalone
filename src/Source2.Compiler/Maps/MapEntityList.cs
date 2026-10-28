@@ -23,9 +23,12 @@ namespace Source2.Compiler.Maps;
 /// so a prefab map's instances and prefabs, moved in this round, collapse in the next, as the root's do
 /// (GROUND_TRUTH 179). A prefab map's instance that joins the world ahead of its target names a clone of it
 /// (181019590, GROUND_TRUTH 180).</item>
+/// <item>A hidden instance (visibility state off) is deleted, not collapsed: it leaves, then its target if nothing else
+/// names it (GROUND_TRUTH 181).</item>
 /// </list>
-/// Exact against Valve's list on s2c_prefabprobe3, 4, 5, 7 and 9 and s2c_deformpath3 and 4 (MapEntityListTests).
-/// Refused until measured: a hidden instance or prefab (the bake deletes it without a copy), a copied prefab whose
+/// Exact against Valve's list on s2c_prefabprobe3, 4, 5, 7 and 9, s2c_deformpath3 and 4, ze_ffvii_mako_reactor_v6_p and
+/// c2m3_coaster_d_d (MapEntityListTests).
+/// Refused until measured: a hidden prefab, a copied prefab whose
 /// map has instances (Valve crashes), a prefab inside a target, a target that loses its last referrer by being
 /// deleted with another (the cascade's order), and a prefab map's instance ahead of a target with fewer than two
 /// other referrers (moved, not cloned).
@@ -129,8 +132,19 @@ public static class MapEntityList
                 if (n.Parent is null)
                     continue;
                 n.Collapsed = true;
+                // A hidden instance is deleted, not collapsed (180f5ff40 -> 180f6d410 with flags 3): it leaves the list,
+                // then UnregisterSubtree (180f684c0) deletes its target when nothing else names it (GROUND_TRUTH 181).
                 if (!n.Copy && Hidden(n.Element, HiddenOf(n)))
-                    throw new NotSupportedException($"a hidden {n.Element.Type} (deleted by the bake without a copy) is not measured in the entity list");
+                {
+                    if (n.Element.Type == "CMapPrefab")
+                        throw new NotSupportedException("a hidden CMapPrefab (deleted by the bake) is not measured in the entity list");
+                    if (n.Element.Get<DmxBinary.Element>("target") is not { } hiddenTarget)
+                        throw new NotSupportedException("a hidden instance with no target is not measured in the entity list");
+                    Remove(n);
+                    RemoveTargetIfUnnamed(n, hiddenTarget);
+                    Detach(n);
+                    continue;
+                }
                 if (n.Element.Type == "CMapPrefab")
                 {
                     if (insideTarget.Contains(n))
@@ -192,28 +206,34 @@ public static class MapEntityList
                 n.Parent.Kids.Add(copyRoot);
                 foreach (var c in Preorder(copyRoot))
                     Add(c);
-                // A clone has this instance as its only referrer: it leaves with this collapse (180f88920 == 1).
-                var referred = n.TargetNode is null
-                               && Preorder(root).Any(o => !ReferenceEquals(o, n) && o.Element.Type == "CMapInstance" && !o.Collapsed && o.TargetNode is null
-                                                          && SameTree(o, n) && ReferenceEquals(o.Element.Get<DmxBinary.Element>("target"), target));
-                if (!referred && (n.TargetNode ?? Preorder(root).FirstOrDefault(o => !o.Copy && !clones.Contains(o) && SameTree(o, n) && ReferenceEquals(o.Element, target))) is { } template)
-                {
-                    var leaving = Postorder(template).ToList();
-                    var left = new HashSet<Node>(leaving);
-                    foreach (var inner in leaving.Where(o => o.Element.Type == "CMapInstance"))
-                    {
-                        var innerTarget = inner.Element.Get<DmxBinary.Element>("target");
-                        if (!Preorder(root).Any(o => !left.Contains(o) && !ReferenceEquals(o, n) && o.Element.Type == "CMapInstance" && !o.Collapsed
-                                                     && SameTree(o, inner) && ReferenceEquals(o.Element.Get<DmxBinary.Element>("target"), innerTarget)))
-                            throw new NotSupportedException("a target deleted with another (the delete cascade's order) is not measured in the entity list");
-                    }
-                    foreach (var o in leaving)
-                        Remove(o);
-                    Detach(template);
-                }
+                RemoveTargetIfUnnamed(n, target);
                 Remove(n);
                 Detach(n);
             }
+        }
+
+        // The target leaves, its subtree in postorder, when no other instance still names it: CMapInstance_Collapse's
+        // 180f88920 == 1 after a collapse, UnregisterSubtree's 180f8e9e0 == false after a delete. A clone has its
+        // instance as the only referrer.
+        void RemoveTargetIfUnnamed(Node n, DmxBinary.Element target)
+        {
+            var referred = n.TargetNode is null
+                           && Preorder(root).Any(o => !ReferenceEquals(o, n) && o.Element.Type == "CMapInstance" && !o.Collapsed && o.TargetNode is null
+                                                      && SameTree(o, n) && ReferenceEquals(o.Element.Get<DmxBinary.Element>("target"), target));
+            if (referred || (n.TargetNode ?? Preorder(root).FirstOrDefault(o => !o.Copy && !clones.Contains(o) && SameTree(o, n) && ReferenceEquals(o.Element, target))) is not { } template)
+                return;
+            var leaving = Postorder(template).ToList();
+            var left = new HashSet<Node>(leaving);
+            foreach (var inner in leaving.Where(o => o.Element.Type == "CMapInstance"))
+            {
+                var innerTarget = inner.Element.Get<DmxBinary.Element>("target");
+                if (!Preorder(root).Any(o => !left.Contains(o) && !ReferenceEquals(o, n) && o.Element.Type == "CMapInstance" && !o.Collapsed
+                                             && SameTree(o, inner) && ReferenceEquals(o.Element.Get<DmxBinary.Element>("target"), innerTarget)))
+                    throw new NotSupportedException("a target deleted with another (the delete cascade's order) is not measured in the entity list");
+            }
+            foreach (var o in leaving)
+                Remove(o);
+            Detach(template);
         }
         return [.. list.Select(n => new Item(n.Element, n.Through, n.Prefabs))];
     }

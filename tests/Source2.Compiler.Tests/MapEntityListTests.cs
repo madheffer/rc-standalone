@@ -56,12 +56,14 @@ public sealed class MapEntityListTests(ITestOutputHelper output)
     [InlineData("s2c_prefabprobe9")]
     [InlineData("s2c_deformpath3")]
     [InlineData("s2c_deformpath4")]
+    [InlineData("ze_ffvii_mako_reactor_v6_p")]
+    [InlineData("c2m3_coaster_d_d")]
     public void ListIsValves(string map)
     {
         if (CS2Fixtures.StockPak() is null || Valve(map) is not { } valve)
             return;
 
-        var addon = Path.Combine(Root, "content", "csgo_addons", "s2c_rc_probe");
+        var addon = Path.Combine(Root, "content", "csgo_addons", map.StartsWith("ze_", StringComparison.Ordinal) ? "s2c_big" : map.StartsWith("c2m", StringComparison.Ordinal) ? "c2m2" : "s2c_rc_probe");
         var document = DmxBinary.ReadFile(Path.Combine(addon, "maps", map + ".vmap"));
         MapPrefabs.Attach(document, MapPrefabs.FromContent(addon));
         var ours = MapEntityList.Baked(document);

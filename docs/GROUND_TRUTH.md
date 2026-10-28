@@ -4879,6 +4879,23 @@ game can answer is raised with the user first, and runs with -insecure.
        target there, and whether the two are one document is not read), a cloned target holding instances or
        prefabs, and a copied prefab whose map has instances (Valve's compiler crashes on s2c_prefabprobe10).
 
+181. **Hidden instances in the bake, and which hiddenFlags hide** (2026-10-29: decompile of resourcecompiler 0923
+     180f5ff40, 180f6d410, 180f684c0, 180f6ffc0, 1810eeba0, 1810f2750, 1810ecf10; capture_entitylist_trace.py
+     --bake-only on ze_ffvii_mako_reactor_v6_p and c2m3_coaster_d_d.)
+     - A node is hidden by the visibility manager when hiddenFlags & 0xb & ~manager+0x508 is not zero
+       (VisibilityMgr_IsNodeVisible passes 0xb to 1810eeba0; +0x508 is only set to 0, in CVisibilityMgr::vf10). Flag 4
+       alone does not hide: c2m3_coaster_d_d's four prefabs with flag 4 collapse in Valve's bake. MapEntities.HiddenNodes
+       tested any non-zero flag; it now tests & 0xb. On disk flag 4 is on those four prefabs, one prefab of
+       dkr_m1_motel_d_c2m2 and mako's prop_physics_override 1305 (mako's 70 lumps unchanged: 0 differences).
+     - CollapseInstance deletes an instance whose visibility state is off (180f6d410 with flags 3): it leaves the
+       list (FastRemove), then UnregisterSubtree deletes its target when no other instance names it, the target's
+       listed nodes in postorder. Measured on mako's four hidden instances: the first three leave alone (their target
+       still named), the last takes its target's two nodes with it, and Valve's slots (2096, 2097, 2100 hold 33734,
+       33733, 33735) are those of instance-first, then the target's nodes.
+     - Exact: ze_ffvii_mako_reactor_v6_p's whole list after the bake (5753 entries) and c2m3_coaster_d_d's (1884)
+       (MapEntityListTests).
+     - Refused: a hidden CMapPrefab (none on disk once flag 4 is read right).
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

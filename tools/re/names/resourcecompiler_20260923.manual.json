@@ -4651,6 +4651,24 @@
    "note": "resets the target's cached referrer counts, clears the handle and +0x550"
   },
   {
+   "addr": "1810ecf10",
+   "name": "CVisibilityMgr::vf10",
+   "module": "s2c:entities/lump",
+   "note": "init: 'nodes' at +0x498, 'hiddenFlags' at +0x4c0, +0x508 = 0 (its only writer)"
+  },
+  {
+   "addr": "1810eeba0",
+   "name": "VisibilityMgr_NodeShown",
+   "module": "s2c:entities/lump",
+   "note": "true unless mask & hiddenFlags[node] & ~+0x508 (VisibilityMgr_IsNodeVisible passes mask 0xb: flag 4 alone does not hide; ledger 181)"
+  },
+  {
+   "addr": "1810f2750",
+   "name": "VisibilityMgr_StoredVisible",
+   "module": "s2c:entities/lump",
+   "note": "the per-node visible byte of the document's set at +0x730 (true when absent)"
+  },
+  {
    "addr": "180f8ba70",
    "name": "MapNode_ReferrerCount",
    "module": "s2c:entities/lump",

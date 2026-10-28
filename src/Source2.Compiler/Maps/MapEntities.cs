@@ -291,8 +291,11 @@ public static class MapEntities
         // the file used rather than assumed to be one width.
         var nodes = manager.GetElements("nodes").ToList();
         var flags = manager.Get<object[]>("hiddenFlags") ?? [];
+        // VisibilityMgr_IsNodeVisible (180f6ffc0) asks 1810eeba0 with mask 0xb: a node is hidden when
+        // flags & 0xb & ~manager+0x508 is not zero, and +0x508 is only ever set to 0 (CVisibilityMgr::vf10). Flag 4
+        // alone does not hide (c2m3_coaster_d_d's prefabs, GROUND_TRUTH 181).
         for (var i = 0; i < nodes.Count && i < flags.Length; i++)
-            if (flags[i] is IConvertible flag && flag.ToInt64(CultureInfo.InvariantCulture) != 0
+            if (flags[i] is IConvertible flag && (flag.ToInt64(CultureInfo.InvariantCulture) & 0xb) != 0
                 && nodes[i].GetValue<int>("nodeID") is { } id)
                 hidden.Add(id);
         return hidden;
