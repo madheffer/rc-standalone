@@ -131,11 +131,19 @@ public static class ProbeGeneration
     }
 
     /// <summary>A generated probe through resourcecompiler (Source inches) and back to the bake's metres.</summary>
-    public static Sphere RoundTrip(Sphere probe)
+    public static Sphere RoundTrip(Sphere probe) => FromSource(ToSource(probe));
+
+    /// <summary>A generated probe as resourcecompiler's filters see it (18006b260; radius x 39.37008).</summary>
+    public static (float X, float Y, float Z, float Radius) ToSource(Sphere probe)
     {
         var (x, y, z) = MetersToSource(probe.X, probe.Y, probe.Z);
-        var r = probe.Radius * 39.37008f;
-        var (a, b, c) = SourceToMeters(x, y, z);
-        return new Sphere(a, b, c, r * 0.0254f);
+        return (x, y, z, probe.Radius * 39.37008f);
+    }
+
+    /// <summary>A filtered probe back into the bake (180063600; radius x 0.0254).</summary>
+    public static Sphere FromSource((float X, float Y, float Z, float Radius) probe)
+    {
+        var (a, b, c) = SourceToMeters(probe.X, probe.Y, probe.Z);
+        return new Sphere(a, b, c, probe.Radius * 0.0254f);
     }
 }

@@ -15,21 +15,29 @@ public class SteamAudioSceneTests(ITestOutputHelper output)
     private const string Content = @"D:\Steam\steamapps\common\Counter-Strike Global Offensive\content\csgo_addons\s2c_rc_probe\maps\";
     private const string AddonGame = @"D:\Steam\steamapps\common\Counter-Strike Global Offensive\game\csgo_addons\s2c_rc_probe";
 
-    private static string Dir => Path.Combine(SteamAudioProbeBatchTests.Refs, "s2c_saprobe_api0");
+    private static string Dir => DirOf("s2c_saprobe");
 
-    /// <summary>s2c_saprobe's scene with the given mask, and the material table; null without the map, the capture or the game.</summary>
-    private static (AcousticScene Scene, AcousticMaterial[] Materials)? Saprobe(ulong mask)
+    /// <summary>A map's seed-0, one-thread capture (tools/steamaudio/capture_phonon_api.py --seed 0 --paths).</summary>
+    private static string DirOf(string map) => Path.Combine(SteamAudioProbeBatchTests.Refs, map + "_api0");
+
+    /// <summary>A map's scene with the given mask, and the material table; null without the map, the capture or the game.</summary>
+    private static (AcousticScene Scene, AcousticMaterial[] Materials)? Saprobe(ulong mask, string map = "s2c_saprobe")
+        => WithMap<(AcousticScene, AcousticMaterial[])?>(map, (document, models, schema, names, materials)
+            => (AcousticScene.Build(document, models, schema, names, mask), materials));
+
+    /// <summary>Runs <paramref name="use"/> on a map with its game content; default without the map, the capture or the game.</summary>
+    private static T? WithMap<T>(string map, Func<DmxBinary.Document, SettleBuildTests.PakModels, FgdSchema, string[], AcousticMaterial[], T> use)
     {
-        var vmap = Path.Combine(Content, "s2c_saprobe.vmap");
-        if (!File.Exists(Path.Combine(Dir, "mesh_0_vertices.bin")) || !File.Exists(vmap) || CS2Fixtures.StockPak() is not { } pak
+        var vmap = Path.Combine(Content, map + ".vmap");
+        if (!File.Exists(Path.Combine(DirOf(map), "mesh_0_vertices.bin")) || !File.Exists(vmap) || CS2Fixtures.StockPak() is not { } pak
             || MapFixtures.GameSchema() is not { } schema)
-            return null;
+            return default;
         var document = DmxBinary.ReadFile(vmap);
         MapPrefabs.Attach(document, MapPrefabs.FromContent(Path.GetDirectoryName(Path.GetDirectoryName(vmap))!));
         using var models = new SettleBuildTests.PakModels(pak, AddonGame);
         var txt = System.Text.Encoding.UTF8.GetString(models.Read("scripts/surfaceproperties_steamaudio.txt")!);
         var (materials, names) = AcousticMaterials.Build(models.SurfaceProperties(), txt);
-        return (AcousticScene.Build(document, models, schema, names, mask), materials);
+        return use(document, models, schema, names, materials);
     }
 
     /// <summary>
@@ -37,18 +45,20 @@ public class SteamAudioSceneTests(ITestOutputHelper output)
     /// scenes (mesh_2, mesh_3) against the bake's. s2c_saprobe has no passbullets-only shape, so its four are equal.
     /// </summary>
     [Theory]
-    [InlineData(AcousticScene.GenerationMask, 0)]
-    [InlineData(AcousticScene.BakeMask, 1)]
-    [InlineData(AcousticScene.BakeMask, 2)]
-    [InlineData(AcousticScene.BakeMask, 3)]
-    public void SaprobeSceneMatchesValve(ulong mask, int mesh)
+    [InlineData(AcousticScene.GenerationMask, 0, "s2c_saprobe")]
+    [InlineData(AcousticScene.BakeMask, 1, "s2c_saprobe")]
+    [InlineData(AcousticScene.BakeMask, 2, "s2c_saprobe")]
+    [InlineData(AcousticScene.BakeMask, 3, "s2c_saprobe")]
+    [InlineData(AcousticScene.GenerationMask, 0, "s2c_sainside")]
+    [InlineData(AcousticScene.BakeMask, 1, "s2c_sainside")]
+    public void SaprobeSceneMatchesValve(ulong mask, int mesh, string map)
     {
-        if (Saprobe(mask) is not { } built)
+        if (Saprobe(mask, map) is not { } built)
             return;
         var (vertices, triangles, materials) = built.Scene.ToSteamAudio();
-        var vb = File.ReadAllBytes(Path.Combine(Dir, $"mesh_{mesh}_vertices.bin"));
-        var tb = File.ReadAllBytes(Path.Combine(Dir, $"mesh_{mesh}_triangles.bin"));
-        var mb = File.ReadAllBytes(Path.Combine(Dir, $"mesh_{mesh}_materialindices.bin"));
+        var vb = File.ReadAllBytes(Path.Combine(DirOf(map), $"mesh_{mesh}_vertices.bin"));
+        var tb = File.ReadAllBytes(Path.Combine(DirOf(map), $"mesh_{mesh}_triangles.bin"));
+        var mb = File.ReadAllBytes(Path.Combine(DirOf(map), $"mesh_{mesh}_materialindices.bin"));
         var vv = Enumerable.Range(0, vb.Length / 12).Select(i => new Vector3(BitConverter.ToSingle(vb, i * 12), BitConverter.ToSingle(vb, i * 12 + 4), BitConverter.ToSingle(vb, i * 12 + 8))).ToArray();
         var vt = Enumerable.Range(0, tb.Length / 12).Select(i => (BitConverter.ToInt32(tb, i * 12), BitConverter.ToInt32(tb, i * 12 + 4), BitConverter.ToInt32(tb, i * 12 + 8))).ToArray();
         var vm = Enumerable.Range(0, mb.Length / 4).Select(i => BitConverter.ToInt32(mb, i * 4)).ToArray();
@@ -68,32 +78,47 @@ public class SteamAudioSceneTests(ITestOutputHelper output)
 
     /// <summary>
     /// The automatic probes from the .vmap alone: our generation scene's box (180100e40) as phonon's matrix
-    /// (18006b2d0, null rotation) against the captured iplProbeArrayGenerateProbes block, then the floor probes on
-    /// our scene against the probes Valve's bake used.
+    /// (18006b2d0, null rotation) against the captured iplProbeArrayGenerateProbes block, the floor probes on our scene,
+    /// then the inside-shapes filter (180fbe450) on the compile's physics world (the nav world: the settle build
+    /// through NavWorldFilter), against the probes Valve's bake used. The other filters keep every probe on these
+    /// maps (no ladders, nav areas, volumes, ziplines, map or opvar probes).
     /// </summary>
-    [Fact]
-    public void SaprobeProbesFromTheMap()
+    [Theory]
+    [InlineData("s2c_saprobe")]
+    [InlineData("s2c_sainside")]
+    public void ProbesFromTheMap(string map)
     {
-        if (Saprobe(AcousticScene.GenerationMask) is not { } built)
-            return;
-        var calls = File.ReadLines(Path.Combine(Dir, "api.jsonl")).Select(l => System.Text.Json.JsonDocument.Parse(l).RootElement)
-            .Where(c => c.GetProperty("op").GetString() == "call").ToList();
-        var gen = calls.First(c => c.GetProperty("name").GetString() == "iplProbeArrayGenerateProbes" && c.TryGetProperty("struct", out var s) && s.GetString() != "unreadable");
-        var block = Convert.FromBase64String(gen.GetProperty("struct").GetString()!);
-        var valveMatrix = Enumerable.Range(0, 16).Select(i => BitConverter.ToSingle(block, 12 + 4 * i)).ToArray();
-        var (centre, size) = built.Scene.Box();
-        var matrix = ProbeGeneration.BoxMatrix(0f, 0f, 0f, 0f, centre.X, centre.Y, centre.Z, size.X, size.Y, size.Z);
-        output.WriteLine($"box centre {centre} size {size}");
-        for (var i = 0; i < 16; i++)
-            Assert.True(BitConverter.SingleToInt32Bits(matrix[i]) == BitConverter.SingleToInt32Bits(valveMatrix[i]), $"matrix [{i}]: ours {matrix[i]:R}, Valve {valveMatrix[i]:R}");
-        var (vertices, triangles, materials) = built.Scene.ToSteamAudio();
-        var scene = new TriangleScene([.. vertices.SelectMany(v => new[] { v.X, v.Y, v.Z })], [.. triangles.SelectMany(t => new[] { t.Item1, t.Item2, t.Item3 })],
-                                      materials, built.Materials);
-        var ours = ProbeGeneration.UniformFloor(scene, matrix, BitConverter.ToSingle(block, 4), BitConverter.ToSingle(block, 8)).Select(ProbeGeneration.RoundTrip).ToList();
-        var valve = calls.Where(c => c.GetProperty("name").GetString() == "iplProbeArraySetProbe")
-            .Select(c => System.Runtime.InteropServices.MemoryMarshal.Read<Sphere>(Convert.FromBase64String(c.GetProperty("struct").GetString()!))).ToList();
-        output.WriteLine($"Valve {valve.Count} probes, ours {ours.Count}, ties {scene.Ties}");
-        Assert.Equal(valve, ours);
+        var dir = DirOf(map);
+        WithMap(map, (document, models, schema, names, materials) =>
+        {
+            var built = AcousticScene.Build(document, models, schema, names, AcousticScene.GenerationMask);
+            var calls = File.ReadLines(Path.Combine(dir, "api.jsonl")).Select(l => System.Text.Json.JsonDocument.Parse(l).RootElement)
+                .Where(c => c.GetProperty("op").GetString() == "call").ToList();
+            var gen = calls.First(c => c.GetProperty("name").GetString() == "iplProbeArrayGenerateProbes" && c.TryGetProperty("struct", out var s) && s.GetString() != "unreadable");
+            var block = Convert.FromBase64String(gen.GetProperty("struct").GetString()!);
+            var valveMatrix = Enumerable.Range(0, 16).Select(i => BitConverter.ToSingle(block, 12 + 4 * i)).ToArray();
+            var (centre, size) = built.Box();
+            var matrix = ProbeGeneration.BoxMatrix(0f, 0f, 0f, 0f, centre.X, centre.Y, centre.Z, size.X, size.Y, size.Z);
+            output.WriteLine($"box centre {centre} size {size}");
+            for (var i = 0; i < 16; i++)
+                Assert.True(BitConverter.SingleToInt32Bits(matrix[i]) == BitConverter.SingleToInt32Bits(valveMatrix[i]), $"matrix [{i}]: ours {matrix[i]:R}, Valve {valveMatrix[i]:R}");
+            var scene = SceneOf((built, materials));
+            var generated = ProbeGeneration.UniformFloor(scene, matrix, BitConverter.ToSingle(block, 4), BitConverter.ToSingle(block, 8));
+            var bodies = SettleWorld.Build(document, models, schema, SmartProps.NodesCreatedOnLoad(document, MapFixtures.SmartPropLocators),
+                d => SmartProps.NodesCreatedOnLoad(d, MapFixtures.SmartPropLocators));
+            var inNav = Maps.NavGen.NavGenInput.NavWorldFilter(document, schema);
+            var world = SettleWorld.CreateWorld([.. bodies.Where(inNav)], []);
+            var source = generated.Select(ProbeGeneration.ToSource).ToList();
+            var kept = ProbeFilters.InsideShapes(world, source);
+            var ours = kept.Select(ProbeGeneration.FromSource).ToList();
+            var valve = calls.Where(c => c.GetProperty("name").GetString() == "iplProbeArraySetProbe")
+                .Select(c => System.Runtime.InteropServices.MemoryMarshal.Read<Sphere>(Convert.FromBase64String(c.GetProperty("struct").GetString()!))).ToList();
+            output.WriteLine($"{map}: generated {generated.Count}, kept {ours.Count}; Valve {valve.Count}; ties {scene.Ties}");
+            foreach (var s in source.Where(s => !kept.Contains(s)))
+                output.WriteLine($"  dropped ({s.X:R}, {s.Y:R}, {s.Z:R})");
+            Assert.Equal(valve, ours);
+            return true;
+        });
     }
 
     /// <summary>
