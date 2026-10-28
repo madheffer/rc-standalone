@@ -106,11 +106,6 @@ public class SteamAudioSceneTests(ITestOutputHelper output)
     {
         if (Saprobe(AcousticScene.GenerationMask) is not { } gen || Saprobe(AcousticScene.BakeMask) is not { } bake)
             return;
-        static TriangleScene SceneOf((AcousticScene Scene, AcousticMaterial[] Materials) b)
-        {
-            var (v, t, m) = b.Scene.ToSteamAudio();
-            return new TriangleScene([.. v.SelectMany(x => new[] { x.X, x.Y, x.Z })], [.. t.SelectMany(x => new[] { x.Item1, x.Item2, x.Item3 })], m, b.Materials);
-        }
         var (centre, size) = gen.Scene.Box();
         var matrix = ProbeGeneration.BoxMatrix(0f, 0f, 0f, 0f, centre.X, centre.Y, centre.Z, size.X, size.Y, size.Z);
         var probes = ProbeGeneration.UniformFloor(SceneOf(gen), matrix, 6.0f, 1.5f).Select(ProbeGeneration.RoundTrip).ToList();
@@ -144,6 +139,78 @@ public class SteamAudioSceneTests(ITestOutputHelper output)
         output.WriteLine($".sapaths: Valve {valveBytes.Length}, ours {bytes.Length}, first difference {first}");
         Assert.Equal(valveBytes.Length, bytes.Length);
         Assert.Equal(-1, first);
+    }
+
+    /// <summary>
+    /// The whole .sareverb from the .vmap alone (one thread, seed 0, as the pinned capture s2c_saprobe_api0): our bake
+    /// scene, our probes, the reverb kernel per probe (listener and source at the probe with the default axes), the
+    /// reverb times, the reflections layer (type 0, variation 0, every probe's needs_update cleared) and the KV3 file.
+    /// A probe whose rays met an exact tie (Embree's BVH order, not ported) is reported and swapped for Valve's before
+    /// the file comparison; every other probe must be bit-exact. About 90 s on 8 cores: runs with SAREVERB_FULL=1.
+    /// </summary>
+    [Fact]
+    public void SaprobeReverbFromTheMap()
+    {
+        if (Environment.GetEnvironmentVariable("SAREVERB_FULL") != "1")
+            return;
+        if (Saprobe(AcousticScene.GenerationMask) is not { } gen || Saprobe(AcousticScene.BakeMask) is not { } bake)
+            return;
+        var (centre, size) = gen.Scene.Box();
+        var matrix = ProbeGeneration.BoxMatrix(0f, 0f, 0f, 0f, centre.X, centre.Y, centre.Z, size.X, size.Y, size.Z);
+        var probes = ProbeGeneration.UniformFloor(SceneOf(gen), matrix, 6.0f, 1.5f).Select(ProbeGeneration.RoundTrip).ToList();
+        var settings = new ReverbSettings();
+        var sim = new ReflectionSimulator(settings.Rays, 2048, settings.AmbisonicsOrder) { Seed = 0 };
+        var bins = (int)(settings.IRDuration / 0.01f);
+        var fields = new EnergyField?[probes.Count];
+        var reverbs = new float[3 * probes.Count];
+        var tied = new System.Collections.Concurrent.ConcurrentBag<int>();
+        System.Threading.Tasks.Parallel.For(0, probes.Count, p =>
+        {
+            var scene = SceneOf(bake);
+            var c = probes[p];
+            var space = new ReflectionSimulator.Space(1f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, -1f, c.X, c.Y, c.Z);
+            var field = sim.Bake(scene, space, space, settings.Rays, settings.Bounces, settings.IRDuration, settings.AmbisonicsOrder, bins);
+            if (scene.Ties > 0)
+                tied.Add(p);
+            fields[p] = new EnergyField { Channels = field.Length, Bins = bins, Data = [.. field.SelectMany(ch => ch.SelectMany(b => b))] };
+            ReverbEstimator.Estimate(field, 0.01f).CopyTo(reverbs, 3 * p);
+        });
+        var file = Path.Combine(Dir, "s2c_saprobe.sareverb");
+        var valveBytes = File.ReadAllBytes(file);
+        var valve = ProbeBatch.Read(SteamAudioProbeBatchTests.Batch(SteamAudioProbeBatchTests.Root(file))).Layers[0].Reflections!;
+        var bad = new List<int>();
+        for (var p = 0; p < probes.Count; p++)
+        {
+            var same = fields[p]!.Data.Length == valve.EnergyFields![p]!.Data.Length
+                       && fields[p]!.Data.Zip(valve.EnergyFields[p]!.Data).All(z => BitConverter.SingleToInt32Bits(z.First) == BitConverter.SingleToInt32Bits(z.Second))
+                       && Enumerable.Range(0, 3).All(b => BitConverter.SingleToInt32Bits(reverbs[3 * p + b]) == BitConverter.SingleToInt32Bits(valve.Reverbs![3 * p + b]));
+            if (!same)
+                bad.Add(p);
+        }
+        output.WriteLine($"{probes.Count} probes; differ: [{string.Join(", ", bad)}]; tied: [{string.Join(", ", tied.Order())}]");
+        Assert.All(bad, p => Assert.Contains(p, tied));
+        foreach (var p in bad)
+        {
+            fields[p] = valve.EnergyFields![p];
+            Array.Copy(valve.Reverbs!, 3 * p, reverbs, 3 * p, 3);
+        }
+        var layer = new BakedDataLayer
+        {
+            Type = 0,
+            Variation = 0,
+            Reflections = new BakedReflections { EnergyFields = [.. fields], Reverbs = reverbs, NeedsUpdate = new byte[probes.Count] },
+        };
+        var bytes = SteamAudioFiles.Reverb(new ProbeBatch { Probes = probes, Layers = [layer] }.Write(), settings);
+        var first = Enumerable.Range(0, Math.Min(bytes.Length, valveBytes.Length)).FirstOrDefault(i => bytes[i] != valveBytes[i], -1);
+        output.WriteLine($".sareverb: Valve {valveBytes.Length}, ours {bytes.Length}, first difference {first}");
+        Assert.Equal(valveBytes.Length, bytes.Length);
+        Assert.Equal(-1, first);
+    }
+
+    private static TriangleScene SceneOf((AcousticScene Scene, AcousticMaterial[] Materials) b)
+    {
+        var (v, t, m) = b.Scene.ToSteamAudio();
+        return new TriangleScene([.. v.SelectMany(x => new[] { x.X, x.Y, x.Z })], [.. t.SelectMany(x => new[] { x.Item1, x.Item2, x.Item3 })], m, b.Materials);
     }
 
     private static bool Same(Vector3 a, Vector3 b)
@@ -185,3 +252,4 @@ public class SteamAudioAtan2Tests(ITestOutputHelper output)
         Assert.Equal(0, bad);
     }
 }
+

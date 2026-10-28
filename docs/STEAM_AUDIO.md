@@ -138,6 +138,9 @@ Ported and exact:
   atan2f for the turning angles (`CrtMath.Atan2`, equal to phonon's on 200,000 oracle pairs,
   tools/steamaudio/oracle_atan2.py). SteamAudioSceneTests: s2c_saprobe's whole .sapaths from the .vmap alone equals
   Valve's, byte for byte.
+- End to end (`SteamAudioSceneTests.SaprobeReverbFromTheMap`, SAREVERB_FULL=1): the whole s2c_saprobe.sareverb
+  from the .vmap alone equals Valve's seed-0, one-thread file except probe 65's tie (swapped in, the file is then
+  byte for byte Valve's).
 - rcpps is the CPU's own approximation: Intel and AMD differ, so the bake is reproducible per CPU family (as
   Valve's is).
 

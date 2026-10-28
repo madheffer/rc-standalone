@@ -4689,6 +4689,11 @@ game can answer is raised with the user first, and runs with -insecure.
        which 3 turn, 2628 refs).
      - Not ported, refused: sampled visibility (numSamples > 1 with a radius), coincident probes (kZero's
        direction), the flag at +0x40, pruning, atan2f's NaN / infinity / mixed-sign zero and underflow paths.
+     - Exact (end to end): SteamAudioSceneTests.SaprobeReverbFromTheMap (SAREVERB_FULL=1): from the .vmap alone, our
+       scene, probes, reverb kernel (one thread, seed 0), reverb times, the reflections layer (type 0, variation 0,
+       needs_update cleared per probe as 4.8.1's BakedReflectionsData::set does; Valve's file has all 73 at 0) and the
+       KV3 file: 72 of 73 probes bit-exact, probe 65 the known tie; with Valve's probe 65 put in, the whole
+       s2c_saprobe.sareverb (355,507 bytes) equals Valve's seed-0 file.
 
 ## Resolved
 
