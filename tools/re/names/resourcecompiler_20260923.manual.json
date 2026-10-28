@@ -7169,6 +7169,30 @@
    "name": "SteamAudio_AppendOpvarProbes",
    "module": "s2c:baked/steamaudio",
    "note": "sound_opvar_set_point entities and proxy probes"
+  },
+  {
+   "addr": "1800a1980",
+   "name": "ConVar_snd_steamaudio_enabe_append_probes_to_cover_navmesh",
+   "module": "s2c:baked/steamaudio",
+   "note": "registered on (bool 1); 180fbcb10 reads it at 1837228c0 + 0x58"
+  },
+  {
+   "addr": "1818e4a00",
+   "name": "CNavArea_RandomPoint",
+   "module": "s2c:baked/steamaudio",
+   "note": "the area's corners (1818dace0) into 1818e3290"
+  },
+  {
+   "addr": "1818dace0",
+   "name": "CNavArea_Corners",
+   "module": "s2c:baked/steamaudio",
+   "note": "4 corners for an area without a polygon (+8 = -1), else the polygon's"
+  },
+  {
+   "addr": "1818e3290",
+   "name": "Polygon_RandomPoint",
+   "module": "s2c:baked/steamaudio",
+   "note": "a triangle picked by area through tier0 RandomFloat, then a uniform point in it (sqrt of a RandomFloat): the global random stream"
   }
  ]
 }

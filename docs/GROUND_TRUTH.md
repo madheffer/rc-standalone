@@ -4695,6 +4695,32 @@ game can answer is raised with the user first, and runs with -insecure.
        KV3 file: 72 of 73 probes bit-exact, probe 65 the known tie; with Valve's probe 65 put in, the whole
        s2c_saprobe.sareverb (355,507 bytes) equals Valve's seed-0 file.
 
+173. **Steam Audio's probe filters: inside shapes ported, the nav coverage appender read** (2026-10-28: decompile and
+     disassembly of resourcecompiler 0923 180100e40, 180fbe450, 180fbcb10, 1800a1980, 1818e4a00 / 1818dace0 /
+     1818e3290, the step table at 182771988 and CompileMap 1800fd550; vphysics2 0924 1800655d0, 1801fcf60, 1801dda70,
+     1801ec3c0, 1802facf0, 18024ca60, 18024fbc0, 180254790, 1802eca10, 18012e550, 18024af70, 180248c80, 1800010b0;
+     a Valve capture of s2c_sainside; SteamAudioSceneTests.ProbesFromTheMap).
+     - Settled from the code: the filters run in the order 180100e40 calls them, on Source-inch probes. The physics
+       world they query is the compile context's (vfn 0x18), built in CompileMap's "Build physics world"
+       (180fb6de0, MapCompile_NavPhysicsWorld): the world navsystem reads, the settle build through PhysDoc flags 0x16.
+     - Settled from the code, ported (SteamAudio/ProbeFilters.cs): inside shapes is world vfn 0x5d8, a sphere query of
+       radius 0 per probe with InteractsWith 0x400, static bodies, group 3, flags 0x49 (bit 0x80, left from the stack,
+       is never read by 1802facf0); a probe goes when any shape passes the filter and its exact test. The tests:
+       sphere and capsule against (r + R)^2, a hull by GJK distance to the point (both at the 3x4 identity, which a
+       static initialiser makes from 1.0) at most r, a mesh holding the point when closed, else a BVH triangle within
+       r. The body frame's origin sums (k x q) + (c + w k), unlike 1801d64a0's ((k x q) + c) + w k.
+     - Exact: s2c_sainside (tools/coverage/steamaudio_inside_specimen.py: s2c_saprobe with a floating mesh box, a
+       hull box and a closed-mesh box over three probe columns): our scene equals Valve's (226 vertices, 308
+       triangles), our generation gives 75 probes, the filter drops the one inside the hull and the one inside the
+       closed mesh, and the 73 left equal the probes Valve baked bit for bit (Valve's log: 73 remaining). The open
+       mesh box keeps its probe in both.
+     - Read, not ported: the nav coverage appender (180fbcb10) runs on every compile with a nav mesh (its convar,
+       snd_steamaudio_enabe_append_probes_to_cover_navmesh, registers on). Per nav area it traces from the centre and
+       corners and, for areas over (spacing x 39.37)^2, up to 10 points from tier0's global RandomFloat (1818e3290),
+       keeps candidates no existing probe within the spacing can see, and clusters them (180fbb450). Porting it needs
+       the global random stream's state at that point of the compile. On s2c_saprobe and s2c_sainside it appends
+       nothing (73 = 73).
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

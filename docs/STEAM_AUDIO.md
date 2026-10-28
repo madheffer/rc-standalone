@@ -141,6 +141,10 @@ Ported and exact:
 - End to end (`SteamAudioSceneTests.SaprobeReverbFromTheMap`, SAREVERB_FULL=1): the whole s2c_saprobe.sareverb
   from the .vmap alone equals Valve's seed-0, one-thread file except probe 65's tie (swapped in, the file is then
   byte for byte Valve's).
+- The inside-shapes filter (`SteamAudio/ProbeFilters.cs`, ledger 173): a radius-0 query per probe on the compile's
+  physics world (the nav world), vphysics2's broadphase walk, collision filter, body frame and per-shape tests
+  from their disassembly. s2c_sainside (floating mesh, hull and closed-mesh boxes,
+  tools/coverage/steamaudio_inside_specimen.py): the 73 probes left of 75 equal Valve's bit for bit.
 - rcpps is the CPU's own approximation: Intel and AMD differ, so the bake is reproducible per CPU family (as
   Valve's is).
 
@@ -165,10 +169,12 @@ In order of the plan (the user's call, 10-28: the rest of the pipeline first, Em
    InteractsAs; then more maps, one with a passbullets-only shape to tell the two masks apart.
 2. **The probe filters** (resourcecompiler 180100e40, in this order): nav mesh (180fbea90, when
    `steamaudio_reverb_filter_navmesh`), ladders (180fbc630), missing nav areas (180fbcb10), exclusion volumes
-   (180fbde60, when `..._filter_volumes`), citadel ziplines (180fbba50), inside shapes (180fbe450, against the
-   physics world), probes placed in the map (180fbc2d0), snd_opvar_set_point probes (180fbd800). Also the other
-   generation types (probe generation volumes, manual) and the height-layer variant of 180087940 (the convar at
-   18035cd30), the max-probes limits and clustering.
+   (180fbde60, when `..._filter_volumes`), citadel ziplines (180fbba50), inside shapes (180fbe450, **ported**,
+   ledger 173), probes placed in the map (180fbc2d0), snd_opvar_set_point probes (180fbd800). The missing nav areas
+   appender runs on every compile with a nav mesh (its convar registers on) and samples big areas with tier0's
+   global RandomFloat: porting it needs that random stream's state at this point of the compile (pin it in a
+   capture first, as the reverb seeds were). Also the other generation types (probe generation volumes, manual) and
+   the height-layer variant of 180087940 (the convar at 18035cd30), the max-probes limits and clustering.
 3. **Pathing's remaining cases**: sampled visibility (numSamples > 1 with a radius; the sphere volume samples), the
    4.9 flag at +0x40, coincident probes, and the KV3 conversion of worldspawn choices keys (generation type, rebake option). The
    pathing settings reader (18006c1b0) is ported (`PathingSettings.From`, gameinfo PathingDefaults then worldspawn).

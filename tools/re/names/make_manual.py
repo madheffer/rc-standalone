@@ -1266,6 +1266,10 @@ RESOURCECOMPILER = [
     ("180fbe450", "SteamAudio_FilterProbesInsideShapes", SA, "probes remaining after filtering by inside shapes, against the physics world"),
     ("180fbc2d0", "SteamAudio_AppendMapProbes", SA, "probes from the map"),
     ("180fbd800", "SteamAudio_AppendOpvarProbes", SA, "sound_opvar_set_point entities and proxy probes"),
+    ("1800a1980", "ConVar_snd_steamaudio_enabe_append_probes_to_cover_navmesh", SA, "registered on (bool 1); 180fbcb10 reads it at 1837228c0 + 0x58"),
+    ("1818e4a00", "CNavArea_RandomPoint", SA, "the area's corners (1818dace0) into 1818e3290"),
+    ("1818dace0", "CNavArea_Corners", SA, "4 corners for an area without a polygon (+8 = -1), else the polygon's"),
+    ("1818e3290", "Polygon_RandomPoint", SA, "a triangle picked by area through tier0 RandomFloat, then a uniform point in it (sqrt of a RandomFloat): the global random stream"),
 ]
 
 BOMB = "s2c:baked/bomb"
@@ -1550,6 +1554,17 @@ MODTOOLS = [
 ]
 
 VPHYSICS2 = [
+    ("1800010b0", "StaticInit_IdentityMatrix3x4", SA, "18055e8e0 = the 3x4 identity (1.0 from 1803fdd34)"),
+    ("1800655d0", "CPhysicsWorld::QueryPoint", SA, "world vfn 0x5d8: the RnWorld (+0x30) into 1801fcf60"),
+    ("1801fcf60", "RnWorld_QuerySphere", SA, "body mask from the query's +0x2f (0xf all), the broadphase walk 1801dda70 with 1801ec3c0, then the +0x8ac bit 1 pass (1801c6ae0)"),
+    ("1801dda70", "RnBroadphase_QuerySphere", SA, "each tree whose kind (+0x50) meets the mask, from its root: a node entered when (min(p, max) - max(p, min))^2 summed is at most r^2; leaves to the callback"),
+    ("1801ec3c0", "RnWorld_QuerySphereCallback", SA, "body type against the mask, 1802facf0, the point into the body frame ((k x q) + (c + w k) origin; (t1 dy + t0 dx) + t2 dz rows), shape vfn 0x38 when the exact flag is set, the shape (+0x98) into the results"),
+    ("18024ca60", "CRnSphereShape::OverlapSphere", SA, "vfn 0x38: (dy^2 + dx^2) + dz^2 <= (r + R)^2"),
+    ("18024fbc0", "CRnCapsuleShape::OverlapSphere", SA, "vfn 0x38: segment parameter over max(FLT_MIN, |e|^2), minss 1, maxss 0; (x^2 + y^2) + z^2 <= (r + R)^2"),
+    ("180254790", "CRnHullShape::OverlapSphere", SA, "vfn 0x38: no vertices no hit; GJK (1802eca10) between the point and the hull proxy (18012e550 at the shape scale), distance <= r"),
+    ("1802eca10", "Gjk_DistanceFresh", SA, "a zeroed cache (count 0, direction 0), then 1802ec220"),
+    ("18024af70", "CRnMeshShape::OverlapSphere", SA, "vfn 0x38: 180248c80 with the shape's scale (+0xb8)"),
+    ("180248c80", "RnMesh_OverlapSphere", SA, "a closed mesh (+0xb4 bit 0) holding the point (180248a30) hits, and with r 0 nothing else is tested; else the BVH (scaled boxes within r^2) and each leaf triangle's nearest point (18008b720) within r"),
     ("180091a10", "VPhysXBodyPart_t::SchemaFactory", ST, "schema class factory (class entry 18044a198, fields 180449fb0): case 2 constructs: all 0 but m_flLinearDrag and m_flAngularDrag 1 and the mass centre override from constants (ledger 169)"),
     ("1803f8740", "CPhysAggregateInstance::vftable", ST, "vfn 0x10 body count, 0x48 physics data, 0x90 scale (+0x28), 0xc0 body, 0xd0 bone name, 0x180 every body asleep"),
     ("180048860", "CPhysAggregateInstance::IsAsleep", ST, "vfn 0x180: every body's vfn 0x408"),

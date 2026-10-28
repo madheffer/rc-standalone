@@ -1,6 +1,72 @@
 {
  "functions": [
   {
+   "addr": "1800010b0",
+   "name": "StaticInit_IdentityMatrix3x4",
+   "module": "s2c:baked/steamaudio",
+   "note": "18055e8e0 = the 3x4 identity (1.0 from 1803fdd34)"
+  },
+  {
+   "addr": "1800655d0",
+   "name": "CPhysicsWorld::QueryPoint",
+   "module": "s2c:baked/steamaudio",
+   "note": "world vfn 0x5d8: the RnWorld (+0x30) into 1801fcf60"
+  },
+  {
+   "addr": "1801fcf60",
+   "name": "RnWorld_QuerySphere",
+   "module": "s2c:baked/steamaudio",
+   "note": "body mask from the query's +0x2f (0xf all), the broadphase walk 1801dda70 with 1801ec3c0, then the +0x8ac bit 1 pass (1801c6ae0)"
+  },
+  {
+   "addr": "1801dda70",
+   "name": "RnBroadphase_QuerySphere",
+   "module": "s2c:baked/steamaudio",
+   "note": "each tree whose kind (+0x50) meets the mask, from its root: a node entered when (min(p, max) - max(p, min))^2 summed is at most r^2; leaves to the callback"
+  },
+  {
+   "addr": "1801ec3c0",
+   "name": "RnWorld_QuerySphereCallback",
+   "module": "s2c:baked/steamaudio",
+   "note": "body type against the mask, 1802facf0, the point into the body frame ((k x q) + (c + w k) origin; (t1 dy + t0 dx) + t2 dz rows), shape vfn 0x38 when the exact flag is set, the shape (+0x98) into the results"
+  },
+  {
+   "addr": "18024ca60",
+   "name": "CRnSphereShape::OverlapSphere",
+   "module": "s2c:baked/steamaudio",
+   "note": "vfn 0x38: (dy^2 + dx^2) + dz^2 <= (r + R)^2"
+  },
+  {
+   "addr": "18024fbc0",
+   "name": "CRnCapsuleShape::OverlapSphere",
+   "module": "s2c:baked/steamaudio",
+   "note": "vfn 0x38: segment parameter over max(FLT_MIN, |e|^2), minss 1, maxss 0; (x^2 + y^2) + z^2 <= (r + R)^2"
+  },
+  {
+   "addr": "180254790",
+   "name": "CRnHullShape::OverlapSphere",
+   "module": "s2c:baked/steamaudio",
+   "note": "vfn 0x38: no vertices no hit; GJK (1802eca10) between the point and the hull proxy (18012e550 at the shape scale), distance <= r"
+  },
+  {
+   "addr": "1802eca10",
+   "name": "Gjk_DistanceFresh",
+   "module": "s2c:baked/steamaudio",
+   "note": "a zeroed cache (count 0, direction 0), then 1802ec220"
+  },
+  {
+   "addr": "18024af70",
+   "name": "CRnMeshShape::OverlapSphere",
+   "module": "s2c:baked/steamaudio",
+   "note": "vfn 0x38: 180248c80 with the shape's scale (+0xb8)"
+  },
+  {
+   "addr": "180248c80",
+   "name": "RnMesh_OverlapSphere",
+   "module": "s2c:baked/steamaudio",
+   "note": "a closed mesh (+0xb4 bit 0) holding the point (180248a30) hits, and with r 0 nothing else is tested; else the BVH (scaled boxes within r^2) and each leaf triangle's nearest point (18008b720) within r"
+  },
+  {
    "addr": "180091a10",
    "name": "VPhysXBodyPart_t::SchemaFactory",
    "module": "s2c:entities/settle",

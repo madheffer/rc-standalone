@@ -703,7 +703,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `resourcecompiler_20260923.dll`, 56,313,496 bytes, PE time 2026-09-22 19:17 UTC
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
-- 1195 addresses
+- 1199 addresses
 
 ### s2c:baked/light-keys
 
@@ -1024,7 +1024,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180fb5440` | `NavGen_CollectAvoidMarkups` | 'NavGen' 'AVOID' |  |
 | `180fb5ce0` | `NavGen_CollectMovableMeshes` | func_movelinear / func_mover CreateMovableNavMesh, point_nav_movable_mesh ref_ent / navgen_on_ref_ent / GravityFollowsRotation, prop_deformable enable_map_generated_navmesh; called from 180fb5020 |  |
 | `180fb6cf0` | `MapCompile_NavBodyEntry` | 0x78-byte entries from the 0x90 stride list at ctx + 0x18 |  |
-| `180fb6de0` | `MapCompile_NavPhysicsWorld` | *(*(ctx + 0x18) + 8) + 8: the settle world handed to navsystem |  |
+| `180fb6de0` | `MapCompile_NavPhysicsWorld` | *(*(ctx + 0x18) + 8) + 8: the settle world handed to navsystem | `src/Source2.Compiler/SteamAudio/ProbeFilters.cs:31` |
 | `180fc8c80` | `MapWorld_SubMaps` | a map's sub-maps (flag 3 / 7), as the func_ladder collector recurses into them | `src/Source2.Compiler/Maps/NavGen/NavGenLadders.cs:30`, `src/Source2.Compiler/Maps/NavGen/NavGenLadders.cs:60` |
 | `1810ce420` | `HalfEdge_FaceBoundsTransformed` | the face's corners through the matrix (18139b130 -> 1812651a0) into min/max | `src/Source2.Compiler/Maps/NavGen/NavGenLadders.cs:88` |
 | `18139b130` | `HalfEdge_FacePositionsTransformed` | each corner from the face's first half-edge through 1812651a0 (18125d1f0) |  |
@@ -1074,7 +1074,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `180100e40` | `SteamAudio_GenerateProbes` | the generation collection (180f54950, first flag clear: mask 0x3400), its vertex bounds as the box (min / max on <=, centre (min + max) 0.5, size max - min, null rotation), steamaudio's generation (vfn 0x30), then the filters 180fbea90 .. 180fbd800 in order | `src/Source2.Compiler/SteamAudio/AcousticScene.cs:50`, `src/Source2.Compiler/SteamAudio/AcousticScene.cs:192`, `src/Source2.Compiler/SteamAudio/ProbeGeneration.cs:4` +1 |
+| `1800a1980` | `ConVar_snd_steamaudio_enabe_append_probes_to_cover_navmesh` | registered on (bool 1); 180fbcb10 reads it at 1837228c0 + 0x58 |  |
+| `180100e40` | `SteamAudio_GenerateProbes` | the generation collection (180f54950, first flag clear: mask 0x3400), its vertex bounds as the box (min / max on <=, centre (min + max) 0.5, size max - min, null rotation), steamaudio's generation (vfn 0x30), then the filters 180fbea90 .. 180fbd800 in order | `src/Source2.Compiler/SteamAudio/AcousticScene.cs:50`, `src/Source2.Compiler/SteamAudio/AcousticScene.cs:192`, `src/Source2.Compiler/SteamAudio/ProbeFilters.cs:7` +2 |
 | `180101690` | `SteamAudio_PrepareReverbBake` | worldspawn's reverb_* keys, the probes (180100e40), then the bake collection (180f54950 with flag 1: mask 0x1400) into steamaudio's CreateScene (vfn 0x70) | `src/Source2.Compiler/SteamAudio/AcousticScene.cs:45` |
 | `180f4bb00` | `MapNode_HasCollisionGeometry` | a CMapMesh / CMapPath whose CollisionType (vf 0x680) is not 0, a CMapSmartProp, or a model child with physics | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:90`, `src/Source2.Compiler/SteamAudio/AcousticScene.cs:12` |
 | `180f50ed0` | `SteamAudio_AddPiece` | static: the piece's CTransform matrix (1801feb70) into 180f510d0 with the mask; dynamic: a 0x80-byte entry named <name>:<instance> |  |
@@ -1085,17 +1086,20 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180f53f40` | `SteamAudio_CollectWalk` | skips a node in the exclude list, 180f53780 on it, then its children (+0x1f8 handles) in order | `src/Source2.Compiler/SteamAudio/AcousticScene.cs:11`, `src/Source2.Compiler/SteamAudio/AcousticScene.cs:57`, `src/Source2.Compiler/SteamAudio/AcousticScene.cs:82` |
 | `180f54020` | `SteamAudio_FaceGeometryPieces` | a mesh's faces whose material sets tools.steamaudiogeometry (vf 0x48), triangulated (18139f930) with 3 points per triangle, grouped by the material's surface (not ported) | `src/Source2.Compiler/SteamAudio/AcousticScene.cs:61`, `src/Source2.Compiler/SteamAudio/AcousticScene.cs:119`, `src/Source2.Compiler/SteamAudio/AcousticScene.cs:124` |
 | `180f54950` | `SteamAudio_CollectGeometry` | clears the outputs; static mask 0x1400 with the first flag, 0x3400 without, 1 with the second; dynamic mask 0xc3001; the walk 180f53f40 from the given node | `src/Source2.Compiler/SteamAudio/AcousticScene.cs:11`, `src/Source2.Compiler/SteamAudio/AcousticScene.cs:45`, `src/Source2.Compiler/SteamAudio/AcousticScene.cs:57` |
-| `180fbba50` | `SteamAudio_AppendZiplineProbes` | citadel_zipline_path_node entities as probes |  |
-| `180fbc2d0` | `SteamAudio_AppendMapProbes` | probes from the map |  |
-| `180fbc630` | `SteamAudio_AppendLadderProbes` | probes near ladders |  |
-| `180fbcb10` | `SteamAudio_AppendMissingNavProbes` | probes near missing navmesh areas |  |
-| `180fbd800` | `SteamAudio_AppendOpvarProbes` | sound_opvar_set_point entities and proxy probes |  |
-| `180fbde60` | `SteamAudio_FilterProbesByVolumes` | probes remaining after filtering by exclusion volumes |  |
-| `180fbe450` | `SteamAudio_FilterProbesInsideShapes` | probes remaining after filtering by inside shapes, against the physics world |  |
-| `180fbea90` | `SteamAudio_FilterProbesByNavMesh` | probes remaining after filtering by nav mesh |  |
+| `180fbba50` | `SteamAudio_AppendZiplineProbes` | citadel_zipline_path_node entities as probes | `src/Source2.Compiler/SteamAudio/ProbeFilters.cs:9` |
+| `180fbc2d0` | `SteamAudio_AppendMapProbes` | probes from the map | `src/Source2.Compiler/SteamAudio/ProbeFilters.cs:9` |
+| `180fbc630` | `SteamAudio_AppendLadderProbes` | probes near ladders | `src/Source2.Compiler/SteamAudio/ProbeFilters.cs:8` |
+| `180fbcb10` | `SteamAudio_AppendMissingNavProbes` | probes near missing navmesh areas | `src/Source2.Compiler/SteamAudio/ProbeFilters.cs:8` |
+| `180fbd800` | `SteamAudio_AppendOpvarProbes` | sound_opvar_set_point entities and proxy probes | `src/Source2.Compiler/SteamAudio/ProbeFilters.cs:10` |
+| `180fbde60` | `SteamAudio_FilterProbesByVolumes` | probes remaining after filtering by exclusion volumes | `src/Source2.Compiler/SteamAudio/ProbeFilters.cs:8` |
+| `180fbe450` | `SteamAudio_FilterProbesInsideShapes` | probes remaining after filtering by inside shapes, against the physics world | `src/Source2.Compiler/SteamAudio/ProbeFilters.cs:9`, `src/Source2.Compiler/SteamAudio/ProbeFilters.cs:16` |
+| `180fbea90` | `SteamAudio_FilterProbesByNavMesh` | probes remaining after filtering by nav mesh | `src/Source2.Compiler/SteamAudio/ProbeFilters.cs:8` |
 | `1810e6fb0` | `CMapMeshBase_GetSteamAudioGeometryMode` | +0x3b70, the embedded property steamaudioGeometryMode (0 default, 1 exclude, 2 force static, 3 force dynamic; registered in 1810e3f50) |  |
 | `18139f930` | `HalfEdge_TriangulateFaces` | the faces triangulated, 3 points per triangle, the per-triangle face material, optional UV and attribute streams |  |
 | `1813a3370` | `HalfEdge_FacesWithMaterials` | the faces whose material (face stream +0x2fbc) is in the mask; mode 0 also drops material flags & 5, mode != 2 faces whose stream +0x2fda value & 7 |  |
+| `1818dace0` | `CNavArea_Corners` | 4 corners for an area without a polygon (+8 = -1), else the polygon's | `src/Source2.Compiler/Maps/NavGen/NavMeshLadders.cs:187` |
+| `1818e3290` | `Polygon_RandomPoint` | a triangle picked by area through tier0 RandomFloat, then a uniform point in it (sqrt of a RandomFloat): the global random stream |  |
+| `1818e4a00` | `CNavArea_RandomPoint` | the area's corners (1818dace0) into 1818e3290 |  |
 | `1819cea20` | `RnMesh_Triangulate` | the mesh's vertices (+0x30 count, +0x38) times a scale vector and its triangles (+0x48, +0x50) offset by the vertices before | `src/Source2.Compiler/SteamAudio/AcousticScene.cs:15`, `src/Source2.Compiler/SteamAudio/AcousticScene.cs:177` |
 
 ### s2c:containers
@@ -1139,7 +1143,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | address | name | what | cited in |
 |---|---|---|---|
 | `180f20f00` | `Nav_GatherA` | nav gather |  |
-| `180fbd800` | `SteamAudio_Probes` | Steam Audio probes |  |
+| `180fbd800` | `SteamAudio_Probes` | Steam Audio probes | `src/Source2.Compiler/SteamAudio/ProbeFilters.cs:10` |
 
 ### s2c:entities
 
@@ -2331,14 +2335,14 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | address | name | what | cited in |
 |---|---|---|---|
 | `1800635d0` | `SteamAudio_ToSteamAudioAxes` | Source (x, y, z) to (-y, z, -x) | `src/Source2.Compiler/SteamAudio/ProbeGeneration.cs:22` |
-| `180063600` | `SteamAudio_SourceToMeters` | x 0.0254, then the axes | `src/Source2.Compiler/SteamAudio/AcousticScene.cs:22`, `src/Source2.Compiler/SteamAudio/AcousticScene.cs:213`, `src/Source2.Compiler/SteamAudio/ProbeGeneration.cs:16` +1 |
+| `180063600` | `SteamAudio_SourceToMeters` | x 0.0254, then the axes | `src/Source2.Compiler/SteamAudio/AcousticScene.cs:22`, `src/Source2.Compiler/SteamAudio/AcousticScene.cs:213`, `src/Source2.Compiler/SteamAudio/ProbeGeneration.cs:16` +2 |
 | `1800636b0` | `SteamAudio_ToSourceAxes` | (-z, -x, y) | `src/Source2.Compiler/SteamAudio/ProbeGeneration.cs:25` |
 | `180067dc0` | `CSteamAudioScene_Create` | a 0x78-byte scene, then its build (180084d90) |  |
-| `18006b260` | `SteamAudio_MetersToSource` | the axes, then x 39.37008 | `src/Source2.Compiler/SteamAudio/ProbeGeneration.cs:15`, `src/Source2.Compiler/SteamAudio/ProbeGeneration.cs:31` |
+| `18006b260` | `SteamAudio_MetersToSource` | the axes, then x 39.37008 | `src/Source2.Compiler/SteamAudio/ProbeFilters.cs:10`, `src/Source2.Compiler/SteamAudio/ProbeGeneration.cs:15`, `src/Source2.Compiler/SteamAudio/ProbeGeneration.cs:31` +1 |
 | `18006b2d0` | `SteamAudio_BoxMatrix` | a box (quaternion, centre, size in inches) as phonon's row-major 4x4 | `src/Source2.Compiler/SteamAudio/ProbeGeneration.cs:9`, `src/Source2.Compiler/SteamAudio/ProbeGeneration.cs:39` |
 | `18006bc60` | `SteamAudio_ReadReverbSettings` | code defaults, gameinfo ReverbDefaults, then worldspawn | `src/Source2.Compiler/SteamAudio/SteamAudioFiles.cs:6`, `src/Source2.Compiler/SteamAudio/SteamAudioFiles.cs:33` |
-| `18006c1b0` | `SteamAudio_ReadPathingSettings` |  |  |
-| `180071240` | `SteamAudio_WriteProbeBatchBlob` | the serialized batch into m_pProbeBatch | `src/Source2.Compiler/SteamAudio/SteamAudioFiles.cs:107` |
+| `18006c1b0` | `SteamAudio_ReadPathingSettings` |  | `src/Source2.Compiler/SteamAudio/SteamAudioFiles.cs:105` |
+| `180071240` | `SteamAudio_WriteProbeBatchBlob` | the serialized batch into m_pProbeBatch | `src/Source2.Compiler/SteamAudio/SteamAudioFiles.cs:226` |
 | `18007d0b0` | `SteamAudio_SumBands` | a band array summed in order from 0 | `src/Source2.Compiler/SteamAudio/AcousticMaterials.cs:16` |
 | `180084720` | `CSteamAudioMaterial_ReadEntry` | a surfaceproperties_steamaudio.txt entry's coefficients; missing arrays keep theirs | `src/Source2.Compiler/SteamAudio/AcousticMaterials.cs:13` |
 | `180084910` | `CSteamAudioMaterial_CopyBase` |  | `src/Source2.Compiler/SteamAudio/AcousticMaterials.cs:12` |
@@ -2667,7 +2671,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `vphysics2_20260924.dll`, 4,829,848 bytes, PE time 2026-09-23 21:58 UTC
 - SHA-256 `0f896375fa9233196e3de769f23ce3c21907c1adab81a786418822da75518228`
 - installed: a different build
-- 596 addresses
+- 607 addresses
 
 ### s2c:baked/bomb
 
@@ -2698,7 +2702,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1802643e0` | `RnMesh_GetTriangles` | BVH leaves in node order when flags (+0xb4) have bit 3, else 0..n | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:14`, `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:264` |
 | `1802661f0` | `RnShape_GetTriangles` | by shape type: 0 sphere, 1 capsule, 2 hull (180130e60), 3 mesh (1802643e0), 4 compound | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:14`, `src/Source2.Compiler/Maps/NavGen/NavGenShapes.cs:6` |
 | `18029b6f0` | `RnGjk_PointSetDistance` | point-list proxies (scale 1, no box), 32 iterations | `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:71` |
-| `1802facf0` | `RnQueryAttributes_Test` | layers, excludes, shape flag 2, function mask, group table 18045b328 | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:32`, `src/Source2.Compiler/Maps/NavGen/NavSphereWorld.cs:69` |
+| `1802facf0` | `RnQueryAttributes_Test` | layers, excludes, shape flag 2, function mask, group table 18045b328 | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:32`, `src/Source2.Compiler/Maps/NavGen/NavSphereWorld.cs:69`, `src/Source2.Compiler/SteamAudio/ProbeFilters.cs:24` |
 
 ### s2c:baked/navgen
 
@@ -2721,7 +2725,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180243770` | `RnMesh_SweptTriangleTestWings` | 180244380 for triangles with three wings; the same fraction, another normal | `src/Source2.Compiler/Simulation/BoxCast.cs:53`, `src/Source2.Compiler/Simulation/BoxCast.cs:160` |
 | `180244dc0` | `RnMesh_CastBoxTransformed` | start and half extents into the mesh frame, triangle box (min - 1/32) - h; Simulation/BoxCast.MeshTransformed | `src/Source2.Compiler/Maps/NavGen/NavBoxWorld.cs:16`, `src/Source2.Compiler/Maps/NavGen/NavTriangleWorld.cs:7`, `src/Source2.Compiler/Simulation/BoxCast.cs:151` |
 | `180247c30` | `RnMesh_CastSphere` | BVH walk with the swept sphere (node box grown by the half extent, three cross-axis tests); triangle box +-1/32 and radius; 1803157c0 / 180315820 per triangle; closed meshes 18024ac40; Simulation/SphereCast.Mesh | `src/Source2.Compiler/Simulation/SphereCast.cs:7`, `src/Source2.Compiler/Simulation/SphereCast.cs:16`, `src/Source2.Compiler/Simulation/SphereCast.cs:788` |
-| `180248a30` | `RnMesh_PointInsideClosed` | ray to the nearest bound face (ties z, then y) through 18023fe00; inside when the hit faces along it | `src/Source2.Compiler/Simulation/BoxCast.cs:57`, `src/Source2.Compiler/Simulation/BoxCast.cs:294` |
+| `180248a30` | `RnMesh_PointInsideClosed` | ray to the nearest bound face (ties z, then y) through 18023fe00; inside when the hit faces along it | `src/Source2.Compiler/Simulation/BoxCast.cs:57`, `src/Source2.Compiler/Simulation/BoxCast.cs:294`, `src/Source2.Compiler/SteamAudio/ProbeFilters.cs:29` |
 | `18024ac40` | `RnMesh_CastBoxClosed` | closed meshes (+0xb4 bit 0): the start inside (180248a30) makes the fraction 0 | `src/Source2.Compiler/Simulation/BoxCast.cs:162`, `src/Source2.Compiler/Simulation/BoxCast.cs:283`, `src/Source2.Compiler/Simulation/SphereCast.cs:18` |
 | `180250540` | `CRnHullShape::CastBox` | 180251800 with the shape's hull (+0xc0) and scale (+0xb8) | `src/Source2.Compiler/Simulation/HullCast.cs:6` |
 | `1802505c0` | `CRnHullShape::CastRay` | 180251dc0 with the shape's hull (+0xc0) and scale (+0xb8) | `src/Source2.Compiler/Maps/NavGen/NavBoxWorld.cs:197` |
@@ -2760,6 +2764,22 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180339a30` | `SphereTriangle_SweepVertex` | quadratic against the vertex, exits through the two edge planes (1, 2) | `src/Source2.Compiler/Simulation/SphereCast.cs:186` |
 | `180339fc0` | `SphereTriangle_SweepEdge` | cylinder about the edge, exits to its end vertices (1, 2) or the face (3) | `src/Source2.Compiler/Simulation/SphereCast.cs:308` |
 | `18037d090` | `SegmentSphereClip` | 18037cd90 clipped to [0, 1] | `src/Source2.Compiler/Simulation/HullCast.cs:1091` |
+
+### s2c:baked/steamaudio
+
+| address | name | what | cited in |
+|---|---|---|---|
+| `1800010b0` | `StaticInit_IdentityMatrix3x4` | 18055e8e0 = the 3x4 identity (1.0 from 1803fdd34) |  |
+| `1800655d0` | `CPhysicsWorld::QueryPoint` | world vfn 0x5d8: the RnWorld (+0x30) into 1801fcf60 | `src/Source2.Compiler/SteamAudio/ProbeFilters.cs:17` |
+| `1801dda70` | `RnBroadphase_QuerySphere` | each tree whose kind (+0x50) meets the mask, from its root: a node entered when (min(p, max) - max(p, min))^2 summed is at most r^2; leaves to the callback | `src/Source2.Compiler/SteamAudio/ProbeFilters.cs:21` |
+| `1801ec3c0` | `RnWorld_QuerySphereCallback` | body type against the mask, 1802facf0, the point into the body frame ((k x q) + (c + w k) origin; (t1 dy + t0 dx) + t2 dz rows), shape vfn 0x38 when the exact flag is set, the shape (+0x98) into the results | `src/Source2.Compiler/SteamAudio/ProbeFilters.cs:24`, `src/Source2.Compiler/SteamAudio/ProbeFilters.cs:106` |
+| `1801fcf60` | `RnWorld_QuerySphere` | body mask from the query's +0x2f (0xf all), the broadphase walk 1801dda70 with 1801ec3c0, then the +0x8ac bit 1 pass (1801c6ae0) | `src/Source2.Compiler/SteamAudio/ProbeFilters.cs:17` |
+| `180248c80` | `RnMesh_OverlapSphere` | a closed mesh (+0xb4 bit 0) holding the point (180248a30) hits, and with r 0 nothing else is tested; else the BVH (scaled boxes within r^2) and each leaf triangle's nearest point (18008b720) within r | `src/Source2.Compiler/SteamAudio/ProbeFilters.cs:28`, `src/Source2.Compiler/SteamAudio/ProbeFilters.cs:173` |
+| `18024af70` | `CRnMeshShape::OverlapSphere` | vfn 0x38: 180248c80 with the shape's scale (+0xb8) | `src/Source2.Compiler/SteamAudio/ProbeFilters.cs:28` |
+| `18024ca60` | `CRnSphereShape::OverlapSphere` | vfn 0x38: (dy^2 + dx^2) + dz^2 <= (r + R)^2 | `src/Source2.Compiler/SteamAudio/ProbeFilters.cs:26`, `src/Source2.Compiler/SteamAudio/ProbeFilters.cs:135` |
+| `18024fbc0` | `CRnCapsuleShape::OverlapSphere` | vfn 0x38: segment parameter over max(FLT_MIN, \|e\|^2), minss 1, maxss 0; (x^2 + y^2) + z^2 <= (r + R)^2 | `src/Source2.Compiler/SteamAudio/ProbeFilters.cs:26`, `src/Source2.Compiler/SteamAudio/ProbeFilters.cs:143` |
+| `180254790` | `CRnHullShape::OverlapSphere` | vfn 0x38: no vertices no hit; GJK (1802eca10) between the point and the hull proxy (18012e550 at the shape scale), distance <= r | `src/Source2.Compiler/SteamAudio/ProbeFilters.cs:27`, `src/Source2.Compiler/SteamAudio/ProbeFilters.cs:161` |
+| `1802eca10` | `Gjk_DistanceFresh` | a zeroed cache (count 0, direction 0), then 1802ec220 | `src/Source2.Compiler/SteamAudio/ProbeFilters.cs:27` |
 
 ### s2c:entities/settle
 
@@ -3221,7 +3241,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `18008b720` | `ClosestPointOnTriangle` | Voronoi region out: 1-3 vertices, 4 ab, 6 ac, 5 bc, 7 face | `src/Source2.Compiler/Simulation/RoundCollision.Mesh.cs:10`, `src/Source2.Compiler/Simulation/RoundCollision.Mesh.cs:85` |
+| `18008b720` | `ClosestPointOnTriangle` | Voronoi region out: 1-3 vertices, 4 ab, 6 ac, 5 bc, 7 face | `src/Source2.Compiler/Simulation/RoundCollision.Mesh.cs:10`, `src/Source2.Compiler/Simulation/RoundCollision.Mesh.cs:85`, `src/Source2.Compiler/SteamAudio/ProbeFilters.cs:175` |
 
 ### s2c:physics/hull
 
