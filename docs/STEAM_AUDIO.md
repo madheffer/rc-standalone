@@ -157,6 +157,30 @@ Valve references: `%TEMP%/steamaudio_refs` (`s2c_saprobe_api0`: seed 0, one thre
 `rays_saprobe.bin`; `s2c_saprobe_t1_seed1`; the 8-thread and unpinned runs; ar_pool_day's SABD files). phonon
 0923 and steamaudio 1023 are in the Ghidra project (revaq aliases `ph`, `sa`).
 
+## Status (2026-10-28, end of day)
+
+From the .vmap alone, on the specimens, with no Valve input but the game content:
+
+| piece | state | checked by |
+|---|---|---|
+| acoustic scene (both masks) | exact | SteamAudioSceneTests.SaprobeSceneMatchesValve (s2c_saprobe, s2c_sainside) |
+| material table | exact | SteamAudioMaterialTests |
+| automatic probes + inside-shapes filter | exact | SteamAudioSceneTests.ProbesFromTheMap (73 of 73; 73 of 75) |
+| reverb kernel, reverb times | 72 of 73 probes exact (probe 65: Embree tie) | SteamAudioReverbBakeTests, SaprobeReverbFromTheMap (SAREVERB_FULL=1, 90 s) |
+| whole `.sareverb` | exact with probe 65 swapped in | SaprobeReverbFromTheMap |
+| pathing bake, whole `.sapaths` | exact | SaprobePathsFromTheMap |
+| CRT atan2f | exact on 200,000 oracle pairs | SteamAudioAtan2Tests |
+| KV3 files, probe batch | exact (14 Valve files round-trip) | SteamAudioProbeBatchTests |
+
+Refs in `%TEMP%/steamaudio_refs`: `s2c_saprobe_api0`, `s2c_sainside_api0` (seed 0, one thread, with pathing;
+recapture with `tools/steamaudio/capture_phonon_api.py s2c_rc_probe <map> <dir> --seed 0 --paths`, CS2 closed),
+`tables_saprobe`, `atan2f_oracle.bin` (`tools/steamaudio/oracle_atan2.py`). Specimens: `steamaudio_specimen.py`
+(s2c_saprobe from probe01), `steamaudio_inside_specimen.py` (s2c_sainside).
+
+Nothing runs in compile-map yet: `-sareverb` / `-sapaths` are still refused there. Recommended order for what is
+left: the nav coverage appender (item 2: capture tier0's RandomFloat state first, it runs on every map with a nav),
+the entity-driven filters and scene refusals (items 1, 2), compile-map (item 4), then Embree's tie order (item 5).
+
 ## What is left
 
 In order of the plan (the user's call, 10-28: the rest of the pipeline first, Embree's tie order after):
