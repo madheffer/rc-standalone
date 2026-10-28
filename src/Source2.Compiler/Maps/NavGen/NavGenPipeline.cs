@@ -11,7 +11,7 @@ namespace Source2.Compiler.Maps.NavGen;
 /// (180022b60) through IslandRemoval (029), ClipPolysToHullClearance (022) casting through
 /// <see cref="NavBoxWorld"/>, and LadderConnect (028) on the ladders of mapbuilder.ladder meshes
 /// (<see cref="NavGenMapInput.Ladders"/>) tracing through it. What is not ported refuses with
-/// <see cref="NotSupportedException"/>: markups inside instances or prefabs, nav links, func_ladder,
+/// <see cref="NotSupportedException"/>: markups inside instances or prefabs, nav links (CMapNavLink), func_ladder,
 /// sphere shapes and casts against spheres and capsules, smart props and physics pins in the nav world's
 /// filter, several hulls, a deprecated agent setup. The markups (<see cref="NavMarkupInput.Collect"/>) run
 /// the extraction's NONAV filter, stages 003 and 009 (RemovePolysMarkedNoNav), 019 (SplitPolysByMarkup)
@@ -19,8 +19,8 @@ namespace Source2.Compiler.Maps.NavGen;
 /// </summary>
 public static class NavGenPipeline
 {
-    /// <summary>The polygons after stage 029 and the input they came from.</summary>
-    public sealed record Result(NavGenPolys Polys, NavGenSettings Settings, List<Vector3> Verts, List<int> Indices);
+    /// <summary>The polygons after stage 029, the input they came from and the RC ladders (CNavGenInput +0x60).</summary>
+    public sealed record Result(NavGenPolys Polys, NavGenSettings Settings, List<Vector3> Verts, List<int> Indices, List<NavLadder> Ladders);
 
     /// <summary>gameinfo.gi's NavSystem block as key/value pairs (null when absent).</summary>
     public static Dictionary<string, string>? NavSystemBlock(string gameinfo)
@@ -92,9 +92,12 @@ public static class NavGenPipeline
     {
         foreach (var e in SettleWorld.AllDocuments(document).SelectMany(d => d.Elements))
         {
+            // Nav links are CMapNavLink nodes (the collector 180f203b0 into CNavGenInput +0xc0).
+            if (e.Type == "CMapNavLink")
+                throw new NotSupportedException("nav generation with nav links (CMapNavLink, 180f203b0) is not ported");
             var props = e.Get<DmxBinary.Element>("entity_properties");
             var cls = props?.Get<string>("classname");
-            if (cls is "func_ladder" or "info_nav_link" or "point_nav_link")
+            if (cls is "func_ladder")
                 throw new NotSupportedException($"nav generation with {cls} is not ported");
         }
         if (settings.Hulls.Count != 1)
@@ -132,6 +135,6 @@ public static class NavGenPipeline
         var connectivity = ladders.Count == 0 ? [] : recast.LadderConnect(ladders, world);
         NavGenStages.IslandStage(recast, new NavIslandInput(NavGenMapInput.Seeds(document), [], connectivity) { Markups = markups }, settings);
         stage?.Invoke("029", recast);
-        return new Result(recast, settings, verts, indices);
+        return new Result(recast, settings, verts, indices, ladders);
     }
 }

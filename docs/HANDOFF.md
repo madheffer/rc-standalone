@@ -62,7 +62,7 @@ map loading ─┬─ mesh export ─┬─ trace scene ── visibility ─┬
 | visibility | [VISIBILITY.md](VISIBILITY.md) | 100% of the deterministic build: byte-identical VXVS from the .vmap on five maps incl. atixref-sized s2c_prefabprobe4 and split hints (2026-10-23); `-oldvis` is not reproducible in Valve's own tool |
 | physics | [PHYSICS.md](PHYSICS.md) | 98%: world_physics and entity models whole-file exact on every map with a compile, incl. cables and deformers placed through instances and prefabs (ledgers 128-133); ragdolls in the settle: joints, islands, the aggregate build, the whole stepped settle and the boneTransforms write-back exact on s2c_ragdollprobe (ledgers 135-168), next the corpus maps with ragdolls (PHYSICS.md roadmap); left besides: instances inside prefab maps for entity models, render meshes |
 | entity lump | [ENTITIES.md](ENTITIES.md), [SETTLE.md](SETTLE.md) | 99.9%: every lump of every pinned map and all 15 prefab, instance and deformer probes exact; the 14 prefab corpus maps against fresh Valve references (2026-10-23) differ only in Valve's run-to-run settle poses; left: two orders read from output only (GROUND_TRUTH 46) |
-| baked outputs | [BAKED.md](BAKED.md), [CUBEMAPS.md](CUBEMAPS.md) | 85%: lightmaps, probes, far field, fog, nav (markups and round shapes, ledgers 142-143, 146), bomb damage and .vmap_c done; cubemaps: probe01's two cubes and whole array rendered with no RenderDoc dump, byte for byte (ledger 162); the world draw list and layer selection equal on probe01, s2c_l5probe and atixref; next the scene's inputs from the package |
+| baked outputs | [BAKED.md](BAKED.md), [CUBEMAPS.md](CUBEMAPS.md), [NAV.md](NAV.md) | 85%: lightmaps, probes, far field, fog, nav (markups and round shapes, ledgers 142-143, 146), bomb damage and .vmap_c done; cubemaps: probe01's two cubes and whole array rendered with no RenderDoc dump, byte for byte (ledger 162); the world draw list and layer selection equal on probe01, s2c_l5probe and atixref; next the scene's inputs from the package |
 | own lighting (vrad3 port) | [VRAD3.md](VRAD3.md), [LIGHTING_ROADMAP.md](LIGHTING_ROADMAP.md) | 94%: `compile-map -s2cbake` bakes with no vrad3; ze_hold_em_p 99.90% of bytes |
 
 The tracker artifact (https://claude.ai/artifact/4whctxfaTdHEiE4d3oAVHA)
@@ -161,7 +161,7 @@ the addon).
      (ParityReport with PARITY_BASE, 25/25 and 27/27 files);
      UnlitMapRootsEqualValves passes. %TEMP%/preset_entities holds the new
      references; the wrong ones are in preset_entities_1023_withworld.
-4. **Nav** (LIGHTING_ROADMAP L9): markups (L23), spheres and capsules (L22)
+4. **Nav** ([NAV.md](NAV.md), the inventory of every nav input and output the DLLs read and write, 2026-10-28; LIGHTING_ROADMAP L9): markups (L23), spheres and capsules (L22)
    and the analysis' overlap removal (L24) done 10-25 (ledgers 142, 143, 146). Left: nav links, func_ladder
    ladders, movable meshes, markups in instances or prefabs, the NONAV blocks
    collector (180f1f830: prop_deformable, block_base_nav_mesh), the CS analysis' casts and

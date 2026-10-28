@@ -37,6 +37,11 @@ public static class NavCompile
         var vdata = NavGenPipeline.HullVData(assets.Read);
         var settings = NavGenPipeline.Settings(document, vdata, NavGenPipeline.NavSystemBlock(gameinfo));
         var result = NavGenPipeline.Generate(document, bodies, rules, settings, schema, assets.Material);
+        // The mesh build's ladders (1818d63c0 -> 1818dc620: 10-unit steps traced through the nav
+        // physics interface 1818d2b40, the area links of 1818e69b0) and their save (1818e71b0) are not
+        // ported; docs/NAV.md "Ladders in the mesh build".
+        if (result.Ladders.Count > 0)
+            throw new NotSupportedException("a nav with ladders (the mesh build's ladders and their save) is not ported");
         var mesh = NavWriter.Build(result.Polys);
         if (mesh.Movable.Count > 0)
             throw new NotSupportedException("a nav with movable meshes is not ported");

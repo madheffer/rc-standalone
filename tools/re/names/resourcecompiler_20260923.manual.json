@@ -235,6 +235,132 @@
    "note": "debug gen/render clips"
   },
   {
+   "addr": "180fb5ce0",
+   "name": "NavGen_CollectMovableMeshes",
+   "module": "s2c:baked/nav",
+   "note": "func_movelinear / func_mover CreateMovableNavMesh, point_nav_movable_mesh ref_ent / navgen_on_ref_ent / GravityFollowsRotation, prop_deformable enable_map_generated_navmesh; called from 180fb5020"
+  },
+  {
+   "addr": "180f4aed0",
+   "name": "NavGen_CollectAvoidMaterials",
+   "module": "s2c:baked/nav",
+   "note": "'nav_attribute_avoid': the compile context's AVOID list that 180fb5440 turns into markups"
+  },
+  {
+   "addr": "180fc8c80",
+   "name": "MapWorld_SubMaps",
+   "module": "s2c:baked/nav",
+   "note": "a map's sub-maps (flag 3 / 7), as the func_ladder collector recurses into them"
+  },
+  {
+   "addr": "1818c78a0",
+   "name": "CNavGenInput_GetLadder",
+   "module": "s2c:baked/nav",
+   "note": "top, bottom, normal, width of the 0x28-byte entry at +0x68"
+  },
+  {
+   "addr": "1818e6970",
+   "name": "CNavLadder_Construct",
+   "module": "s2c:baked/nav",
+   "note": "mesh +0x70, the seven area slots cleared, id +0x68 from the counter 183023cb0"
+  },
+  {
+   "addr": "1818dc620",
+   "name": "CNavMesh_BuildLadder",
+   "module": "s2c:baked/nav",
+   "note": "direction from the input normal, 1818e7300, bottom up and top down in 10-unit steps until a 32 n trace is clear, length, 1818e7300 again, 1818e69b0"
+  },
+  {
+   "addr": "1818e7300",
+   "name": "CNavLadder_SetDirection",
+   "module": "s2c:baked/nav",
+   "note": "normal from the direction (0 -y, 1 +x, 2 +y, 3 -x); a trace from the centre +5 n to -32 n takes the hit normal when InteractsAs bit 8"
+  },
+  {
+   "addr": "1818e69b0",
+   "name": "CNavLadder_ConnectAreas",
+   "module": "s2c:baked/nav",
+   "note": "record 4..6 bottom areas (list 0), 0..3 top areas (list 1); top z raised to the top areas closest point above bottom z + 5"
+  },
+  {
+   "addr": "1818ea300",
+   "name": "CNavArea_AddLadder",
+   "module": "s2c:baked/nav",
+   "note": "removes the ladder from both lists (1818eb970), ensures the lists (1818ea400, flag 0x100 at +0x48), appends to the list"
+  },
+  {
+   "addr": "1818eb970",
+   "name": "CNavArea_RemoveLadder",
+   "module": "s2c:baked/nav",
+   "note": "from list 0 and list 1; +0x68 counts the change"
+  },
+  {
+   "addr": "1818ea400",
+   "name": "CNavArea_EnsureLadderLists",
+   "module": "s2c:baked/nav",
+   "note": "a 0x10-byte slot in a global vector, keyed by the area id (+0x60) in a hash map"
+  },
+  {
+   "addr": "1818ed310",
+   "name": "CNavArea_LadderList",
+   "module": "s2c:baked/nav",
+   "note": "the area's ladder list 0 or 1 through the hash map, null without flag 0x100"
+  },
+  {
+   "addr": "1818e4490",
+   "name": "CNavArea_ClosestPointToLadderTop",
+   "module": "s2c:baked/nav",
+   "note": "least squared distance over the area's fan (18129b060 per triangle)"
+  },
+  {
+   "addr": "1818dace0",
+   "name": "CNavArea_Corners",
+   "module": "s2c:baked/nav",
+   "note": "the area's polygon corners from the geometry manager, 4 for an area with no polygon"
+  },
+  {
+   "addr": "1818e71b0",
+   "name": "CNavLadder_Save",
+   "module": "s2c:baked/nav",
+   "note": "id, width, top, bottom, length, direction, the seven area ids"
+  },
+  {
+   "addr": "1818e6d80",
+   "name": "CNavLadder_ReportUnconnected",
+   "module": "s2c:baked/nav",
+   "note": "'ERROR: Unconnected ladder #%d top / bottom'"
+  },
+  {
+   "addr": "1818d4720",
+   "name": "CNavMesh_Construct",
+   "module": "s2c:baked/nav",
+   "note": "sets the ladder id counter to 1"
+  },
+  {
+   "addr": "1818dc3b0",
+   "name": "CNavMesh_Reset",
+   "module": "s2c:baked/nav",
+   "note": "sets the ladder id counter to 1"
+  },
+  {
+   "addr": "1818d2b40",
+   "name": "CNavToolsPhysicsInterface_TraceLine",
+   "module": "s2c:baked/nav",
+   "note": "vfn 0x10 (vtable 182771930): the shape {0, 0, 0, 0.1} with byte 1 at +0x28, then vfn 0x20"
+  },
+  {
+   "addr": "1818d2c10",
+   "name": "CNavToolsPhysicsInterface_TraceShape",
+   "module": "s2c:baked/nav",
+   "note": "query: interacts with the mask, +0x2f / +0x30 from the caller, flags 0x49; result fraction +0xac, normal +0x90, start-solid +0xbb, the hit attributes at +0x50 and their first qword | 1 at +0x28"
+  },
+  {
+   "addr": "1818d1fa0",
+   "name": "CNavToolsPhysicsInterface_CastShape",
+   "module": "s2c:baked/nav",
+   "note": "world vfn 0x560 into up to 128 hits of 0x48 bytes, the least fraction (+0x34) kept"
+  },
+  {
    "addr": "1802c4a20",
    "name": "ShapeBuilder_LoopShapes",
    "module": "s2c:physics/hull",
