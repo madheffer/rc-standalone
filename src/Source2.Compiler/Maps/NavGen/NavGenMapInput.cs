@@ -43,8 +43,8 @@ public static partial class NavGenMapInput
     /// the node's origin and end start + locatoroffset, a copy's both as its locators leave them
     /// (<see cref="MapEntities.NavLinkFields.Copied"/>); CMapNavLink's SetScales (181065610) keeps scale 1.
     /// s2c_navlink and s2c_navlink4 (GROUND_TRUTH 175, 177): Valve's records, instance copies, a nested copy and the
-    /// list's order included. Refused until measured: a link inside a prefab, a hidden link inside an instance, and a
-    /// link under a group that moves.
+    /// list's order included; s2c_navlink3 (GROUND_TRUTH 178) adds a prefab's links. Refused until measured: a hidden
+    /// link inside an instance or prefab, and a link under a group that moves.
     /// </summary>
     public static List<((float X, float Y, float Z) A, (float X, float Y, float Z) B)> Links(DmxBinary.Document document)
     {
@@ -64,11 +64,7 @@ public static partial class NavGenMapInput
                 continue;
             if (!Tier0Strings.EqualsIgnoreCase(entity.ClassName, "ai_nav_link_area"))
                 continue;
-            // s2c_navlink3's prefab copies are off by a few ulps from SettleWorld.Placed's matrix; the prefab's content is
-            // cloned with a per-node transform (181102620) not yet read through.
-            if (item.Prefabs.Count > 0)
-                throw new NotSupportedException("a CMapNavLink inside a prefab (its placement, 181102620) is not ported");
-            var copied = item.Through.Count > 0;
+            var copied = item.Through.Count > 0 || item.Prefabs.Count > 0;
             var hiddenHere = false;
             for (var at = item.Node; at != null && !ReferenceEquals(at, world); at = parents.GetValueOrDefault(at))
             {
@@ -86,7 +82,7 @@ public static partial class NavGenMapInput
                     throw new NotSupportedException("a hidden CMapNavLink inside an instance or prefab is not measured");
                 continue;
             }
-            var (o, offset) = copied && link.Copied(entity.Origin, entity.Angles, item.Through) is var (co, _, cl)
+            var (o, offset) = copied && link.Copied(entity.Origin, entity.Angles, item.Through, item.Prefabs) is var (co, _, cl)
                 ? (co, cl.Offset)
                 : (entity.Origin, link.Offset);
             links.Add(((o.X, o.Y, o.Z), (o.X + offset.X, o.Y + offset.Y, o.Z + offset.Z)));

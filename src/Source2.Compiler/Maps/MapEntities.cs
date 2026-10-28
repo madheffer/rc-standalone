@@ -143,14 +143,17 @@ public static class MapEntities
         /// are CMapTransforms and move by their own TransformBy (vf 0xc8 181076410, the step as a CTransform:
         /// <see cref="Maps.SettleWorld.UnderDeformerStep"/>). The locators' handler (181065720) then gives the link
         /// locator 0's origin and angles and takes locatoroffset and locatorangles as locator 1 minus locator 0
-        /// (s2c_navlink4: the records and the lump's copies, GROUND_TRUTH 177).
+        /// (s2c_navlink4: the records and the lump's copies, GROUND_TRUTH 177). A prefab's map moves the same way
+        /// (its collapse moves every node by the group setter's step, 180f834d0, ledger 133's prefab note):
+        /// <paramref name="prefabs"/>, outermost first (s2c_navlink3, GROUND_TRUTH 178).
         /// </summary>
-        internal (Vector3 Origin, Vector3 Angles, NavLinkFields Link) Copied(Vector3 origin, Vector3 angles, IReadOnlyList<DmxBinary.Element> through)
+        internal (Vector3 Origin, Vector3 Angles, NavLinkFields Link) Copied(Vector3 origin, Vector3 angles, IReadOnlyList<DmxBinary.Element> through,
+                                                                             IReadOnlyList<DmxBinary.Element> prefabs)
         {
-            var (o, a) = Maps.SettleWorld.UnderDeformerStep(origin, angles, through, []);
+            var (o, a) = Maps.SettleWorld.UnderDeformerStep(origin, angles, through, prefabs);
             var (l, la) = Maps.SettleWorld.UnderDeformerStep(
                 new Vector3(Offset.X + origin.X, Offset.Y + origin.Y, Offset.Z + origin.Z),
-                new Vector3(LocatorAngles.X + angles.X, LocatorAngles.Y + angles.Y, LocatorAngles.Z + angles.Z), through, []);
+                new Vector3(LocatorAngles.X + angles.X, LocatorAngles.Y + angles.Y, LocatorAngles.Z + angles.Z), through, prefabs);
             return (o, a, this with
             {
                 Offset = new Vector3(l.X - o.X, l.Y - o.Y, l.Z - o.Z),
@@ -367,6 +370,12 @@ public static class MapEntities
                     // (SettleWorld.PlacedPath; s2c_prefabinst's tangents).
                     if (entity.PathNodes is not null)
                         entity = Maps.SettleWorld.PlacedPath(entity, [], prefab.Chain, Maps.PathDeformer.UnderAnyDeformer(child), child);
+                    // A link stands where its locators leave it (NavLinkFields.Copied).
+                    else if (entity.NavLink is { } link)
+                    {
+                        var (origin, angles, moved) = link.Copied(entity.Origin, entity.Angles, [], prefab.Chain);
+                        entity = entity with { Origin = origin, Angles = angles, NavLink = moved };
+                    }
                     else
                     {
                         var (origin, angles) = Maps.SettleWorld.PrefabPlacement(entity.Origin, entity.Angles, prefab.Chain);

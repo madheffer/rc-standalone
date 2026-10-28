@@ -201,7 +201,7 @@ the addon).
 
 ## Latest session (2026-10-28 evening, nav links)
 
-Ledgers 175 to 177; NAV.md collector 5 and "Order of work" 2. CS2 closed for two short captures, open otherwise.
+Ledgers 175 to 178; NAV.md collector 5 and "Order of work" 2. CS2 closed for two short captures, open otherwise.
 
 - tools/coverage/nav_link_specimen.py builds s2c_navlink (probe01, two raised pads, three CMapNavLinks);
   Valve's compile is in the addon (copy in %TEMP%/navlink_ref), captures in %TEMP%/navgen_capture/s2c_navlink_in
@@ -220,8 +220,9 @@ Ledgers 175 to 177; NAV.md collector 5 and "Order of work" 2. CS2 closed for two
 - The seed collector (180f21760) searches the same list (180fc6f40, flags 3, make_manual); its order
   (NavGenMapInput.Seeds' "unsettled" note) can now come from MapEntityList (not done, not checked for markups
   or ladders).
-- Next for links: links in prefabs (s2c_navlink3's prefab copies differ by ulps; the clone's placement, 181102620,
-  is unread; a float quaternion rotation matches what was tried).
+- Ledger 178 (later): links in prefabs. The prefab's step moves the locators by CMapTransform's TransformBy as an
+  instance does; s2c_navlink3's records, 029, lump and .nav are Valve's.
+- Next for links: what MapEntityList refuses (hidden instances, prefabs with instances inside, prefabs in targets).
 - The suite was not run in full.
 
 ## Earlier session (2026-10-28, the ragdoll pose and the first lockstep)

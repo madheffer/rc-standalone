@@ -389,7 +389,7 @@ public static class EntityLumpSet
             var navLink = template.NavLink is not { } link ? ((Vector3, Vector3, MapEntities.NavLinkFields)?)null
                 : copy.Prefabs.Length > 0 || copy.Node is null
                     ? throw new NotSupportedException("a CMapNavLink copied inside a prefab's map is not ported")
-                    : link.Copied(template.Origin, template.Angles, copy.Through);
+                    : link.Copied(template.Origin, template.Angles, copy.Through, []);
             here.Add(new EntityLumpAuthor.Emission(
                 Settle(template with
                 {

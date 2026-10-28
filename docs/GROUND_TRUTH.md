@@ -4818,11 +4818,22 @@ game can answer is raised with the user first, and runs with -insecure.
      - Exact on s2c_navlink4: the 11 records (two instances of one target, a nested copy through a turned
        instance, a plain group), 029, the whole lump (every copy's id, origin, angles, locatoroffset,
        locatorangles) and the whole .nav from the .vmap.
-     - Not ported (refuses): a link inside a prefab. s2c_navlink3's three prefab copies are a few ulps from the
-       matrix placement; a float quaternion rotation, v + 2w(q x v) + 2q x (q x v), gives every value of them
-       tried, but the code doing it (the prefab clone 181102620 and what it hands the clone) is not read yet.
-       Also refused: a hidden instance or prefab, a prefab whose map has instances or prefabs, a prefab inside a
-       target, a target deleted with another, a hidden link inside an instance, a link under a group that moves.
+     - Refused: a hidden instance or prefab, a prefab whose map has instances or prefabs, a prefab inside a
+       target, a target deleted with another, a hidden link inside an instance or prefab, a link under a group
+       that moves. Links in prefabs: ledger 178.
+
+178. **Nav links in a prefab** (2026-10-28: the prefab collapse as ledger 133 reads it, 180f96d40, 181019d00,
+     180fc1bf0, 180f834d0, with the locators' TransformBy 181076410 and handler 181065720 of ledger 177; the
+     s2c_navlink3 capture.)
+     - A prefab's map nodes are reparented, not cloned, and moved by the group setter's step (180f834d0) from the
+       origin to the prefab's placement, each node by its own TransformBy: the link's locators by CMapTransform's
+       (the step as a CTransform), so the link ends at locator 0, as in an instance (NavLinkFields.Copied with
+       the prefab chain; MapEntities places a prefab map's link the same way for the lump).
+     - At yaw 90 the CTransform path and the matrix path part by ulps: Valve's start (-259.99994, 1000.00006) is
+       locator 0's, the matrix gives (-260, 1000). Ledger 177's quaternion observation was this, not a separate
+       clone transform (181102620, which writes lightmapscalebias, is not the collapse ledger 133 reads).
+     - Exact on s2c_navlink3 (14 records, three of them a prefab's at yaw 90): the records, 029, the whole lump
+       and the whole .nav from the .vmap.
 
 ## Resolved
 

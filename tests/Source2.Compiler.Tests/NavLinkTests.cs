@@ -32,6 +32,7 @@ public sealed class NavLinkTests(ITestOutputHelper output)
     [InlineData("s2c_navlink")]
     [InlineData("s2c_navlink2")]
     [InlineData("s2c_navlink4")]
+    [InlineData("s2c_navlink3")]
     public void LinksAreValvesRecords(string map)
     {
         var path = Path.Combine(Dir(map), "navinput_links.bin");
@@ -60,6 +61,7 @@ public sealed class NavLinkTests(ITestOutputHelper output)
     [InlineData("s2c_navlink")]
     [InlineData("s2c_navlink2")]
     [InlineData("s2c_navlink4")]
+    [InlineData("s2c_navlink3")]
     public void IslandRemovalKeepsTheLinkedPad(string map)
     {
         if (CS2Fixtures.StockPak() is not { } pak || !File.Exists(Path.Combine(Dir(map), "029_IslandRemoval_out_conn.bin")) || !File.Exists(Vmap(map)))
@@ -83,7 +85,7 @@ public sealed class NavLinkTests(ITestOutputHelper output)
     /// The links' entities in the lump (CMapNavLink's export, 181065c90) equal Valve's, and every entity keeps its
     /// compile_source_id. s2c_navlink2 sets each attribute: navlink_type by name, in either case and by display name
     /// (which parses as GENERIC), width, locatorangles and the movement strings for each type branch. Authored without
-    /// the instance bake: s2c_navlink4's copies are checked whole by EntityLumpAgainstValveTests.
+    /// the instance bake: s2c_navlink3's and s2c_navlink4's copies are checked whole by EntityLumpAgainstValveTests.
     /// </summary>
     [Theory]
     [InlineData("s2c_navlink")]
@@ -115,15 +117,6 @@ public sealed class NavLinkTests(ITestOutputHelper output)
         }
         Assert.Equal(NavGenMapInput.Links(document).Count, links);
         Assert.True(links >= 3);
-    }
-
-    /// <summary>s2c_navlink3 also places links through a prefab, whose placement is not ported: refused.</summary>
-    [Fact]
-    public void PrefabLinksRefuse()
-    {
-        if (CS2Fixtures.StockPak() is null || !File.Exists(Vmap("s2c_navlink3")))
-            return;
-        Assert.Throws<NotSupportedException>(() => NavGenMapInput.Links(Load("s2c_navlink3")));
     }
 
     private static NavGenPolys Load(string map, string stage)
