@@ -75,9 +75,9 @@ public sealed record ReverbSettings
         return s;
     }
 
-    // A value of the getter's own type. The KV3 conversions between types (tier0's GetValue paths behind
+    // A value of the getter's own type (shared with PathingSettings). The KV3 conversions between types (tier0's GetValue paths behind
     // 1801df480 / 1801d6c60 / 180052810) are not ported, so another type is refused rather than converted.
-    private static int Int(Func<string, object?> world, string key, int def) => world(key) switch
+    internal static int Int(Func<string, object?> world, string key, int def) => world(key) switch
     {
         null => def,
         int i => i,
@@ -85,7 +85,7 @@ public sealed record ReverbSettings
         var v => throw new NotSupportedException($"worldspawn {key}: a {v.GetType().Name}, not an int"),
     };
 
-    private static float Float(Func<string, object?> world, string key, float def) => world(key) switch
+    internal static float Float(Func<string, object?> world, string key, float def) => world(key) switch
     {
         null => def,
         float f => f,
@@ -93,12 +93,131 @@ public sealed record ReverbSettings
         var v => throw new NotSupportedException($"worldspawn {key}: a {v.GetType().Name}, not a float"),
     };
 
-    private static bool Bool(Func<string, object?> world, string key, bool def) => world(key) switch
+    internal static bool Bool(Func<string, object?> world, string key, bool def) => world(key) switch
     {
         null => def,
         bool b => b,
         var v => throw new NotSupportedException($"worldspawn {key}: a {v.GetType().Name}, not a bool"),
     };
+}
+
+/// <summary>
+/// The pathing bake's settings (steamaudio 1023 18006c1b0), read as the reverb ones are: the code defaults (spacing
+/// 4, height 1.5, 1 visibility sample, radius 0, threshold 0.1, path range 1000, volumes filtered), then gameinfo's
+/// <c>ResourceCompiler/SteamAudio/PathingDefaults</c> (GetFloat's fallbacks are the code's literals), then the
+/// worldspawn keys through the KV3 getters.
+/// </summary>
+public sealed record PathingSettings
+{
+    public int GenerationType;
+    public bool FilterVolumes = true;
+    public bool FilterNavMesh;
+    public float GridSpacing = 4.0f;
+    public float HeightAboveFloor = 1.5f;
+    public int RebakeOption;
+    public int VisibilitySamples = 1;
+    public float VisibilityRadius;
+    public float VisibilityThreshold = 0.1f;
+    public float PathRange = 1000.0f;
+
+    /// <summary>
+    /// A gameinfo block's keys by the KeyValues path steamaudio reads (<c>ResourceCompiler/SteamAudio/PathingDefaults</c>
+    /// under the GameInfo root, names ignoring case as KeyValues finds them); null when the path is missing.
+    /// </summary>
+    public static Dictionary<string, string>? GameInfoBlock(string gameinfoText, string path)
+    {
+        // KeyValues text: quoted or bare tokens, braces, // comments; a [condition] after a value is skipped.
+        var tokens = new List<string?>();
+        for (var i = 0; i < gameinfoText.Length;)
+        {
+            var c = gameinfoText[i];
+            if (char.IsWhiteSpace(c))
+                i++;
+            else if (c == '/' && i + 1 < gameinfoText.Length && gameinfoText[i + 1] == '/')
+                while (i < gameinfoText.Length && gameinfoText[i] != '\n')
+                    i++;
+            else if (c is '{' or '}')
+            {
+                tokens.Add(c == '{' ? null : "}");
+                i++;
+            }
+            else if (c == '[')
+                while (i < gameinfoText.Length && gameinfoText[i++] != ']') { }
+            else if (c == '"')
+            {
+                var end = gameinfoText.IndexOf('"', i + 1);
+                tokens.Add(gameinfoText[(i + 1)..end]);
+                i = end + 1;
+            }
+            else
+            {
+                var start = i;
+                while (i < gameinfoText.Length && !char.IsWhiteSpace(gameinfoText[i]) && gameinfoText[i] is not '{' and not '}' and not '"')
+                    i++;
+                tokens.Add(gameinfoText[start..i]);
+            }
+        }
+        var at = 0;
+        Dictionary<string, object> Block()
+        {
+            var keys = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+            while (at < tokens.Count && tokens[at] != "}")
+            {
+                var name = tokens[at++] ?? "";
+                if (at < tokens.Count && tokens[at] == null)
+                {
+                    at++;
+                    var inner = Block();
+                    at++;
+                    keys.TryAdd(name, inner);
+                }
+                else if (at < tokens.Count)
+                    keys.TryAdd(name, tokens[at++] ?? "");
+            }
+            return keys;
+        }
+        var node = Block();
+        if (node.Values.FirstOrDefault() is not Dictionary<string, object> root)
+            return null;
+        foreach (var part in path.Split('/'))
+        {
+            if (!root.TryGetValue(part, out var next) || next is not Dictionary<string, object> d)
+                return null;
+            root = d;
+        }
+        return root.Where(kv => kv.Value is string).ToDictionary(kv => kv.Key, kv => (string)kv.Value, StringComparer.OrdinalIgnoreCase);
+    }
+
+    public static PathingSettings From(IReadOnlyDictionary<string, string>? defaults, Func<string, object?> world)
+    {
+        var s = new PathingSettings();
+        if (defaults != null)
+        {
+            int I(string k, int d) => defaults.TryGetValue(k, out var v) ? (int)CNumbers.Atoi(v) : d;
+            float F(string k, float d) => defaults.TryGetValue(k, out var v) ? CNumbers.Atof(v) : d;
+            s.GenerationType = I("GridGenerationType", s.GenerationType);
+            s.FilterVolumes = I("FilterUsingVolumes", s.FilterVolumes ? 1 : 0) != 0;
+            s.FilterNavMesh = I("FilterUsingNavMesh", s.FilterNavMesh ? 1 : 0) != 0;
+            s.GridSpacing = F("GridSpacing", 4.0f);
+            s.HeightAboveFloor = F("HeightAboveFloor", 1.5f);
+            s.RebakeOption = I("RebakeOption", s.RebakeOption);
+            s.VisibilitySamples = I("NumVisSamples", 1);
+            s.VisibilityRadius = F("ProbeVisRadius", 0.0f);
+            s.VisibilityThreshold = F("ProbeVisThreshold", 0.1f);
+            s.PathRange = F("ProbeVisPathRange", 1000.0f);
+        }
+        s.GenerationType = ReverbSettings.Int(world, "steamaudio_pathing_generation_type", s.GenerationType);
+        s.FilterVolumes = ReverbSettings.Bool(world, "steamaudio_pathing_filter_volumes", s.FilterVolumes);
+        s.FilterNavMesh = ReverbSettings.Bool(world, "steamaudio_pathing_filter_navmesh", s.FilterNavMesh);
+        s.GridSpacing = ReverbSettings.Float(world, "steamaudio_pathing_grid_spacing", s.GridSpacing);
+        s.HeightAboveFloor = ReverbSettings.Float(world, "steamaudio_pathing_height_above_floor", s.HeightAboveFloor);
+        s.RebakeOption = ReverbSettings.Int(world, "steamaudio_pathing_rebake_option", s.RebakeOption);
+        s.VisibilitySamples = ReverbSettings.Int(world, "steamaudio_pathing_visibility_samples", s.VisibilitySamples);
+        s.VisibilityRadius = ReverbSettings.Float(world, "steamaudio_pathing_visibility_radius", s.VisibilityRadius);
+        s.VisibilityThreshold = ReverbSettings.Float(world, "steamaudio_pathing_visibility_threshold", s.VisibilityThreshold);
+        s.PathRange = ReverbSettings.Float(world, "steamaudio_pathing_visibility_pathrange", s.PathRange);
+        return s;
+    }
 }
 
 /// <summary>

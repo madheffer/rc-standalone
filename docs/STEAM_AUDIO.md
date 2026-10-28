@@ -170,8 +170,8 @@ In order of the plan (the user's call, 10-28: the rest of the pipeline first, Em
    generation types (probe generation volumes, manual) and the height-layer variant of 180087940 (the convar at
    18035cd30), the max-probes limits and clustering.
 3. **Pathing's remaining cases**: sampled visibility (numSamples > 1 with a radius; the sphere volume samples), the
-   4.9 flag at +0x40, coincident probes, and the pathing settings reader (18006c1b0, like the reverb one; the
-   s2c_saprobe test passes the captured values).
+   4.9 flag at +0x40, coincident probes, and the KV3 conversion of worldspawn choices keys (generation type, rebake option). The
+   pathing settings reader (18006c1b0) is ported (`PathingSettings.From`, gameinfo PathingDefaults then worldspawn).
 4. **compile-map**: `-sareverb` / `-sapaths` steps instead of the refusal in MapCompile.cs, the rebake options
    (0 cleanup, 1 manual, 2 auto) and what each does to an existing file, `-sareverb_threads` (more than one
    thread is not reproducible in Valve's build either: refuse or document), the seed (Valve's is rdtsc; ours

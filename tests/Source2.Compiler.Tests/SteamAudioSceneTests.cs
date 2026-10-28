@@ -118,7 +118,10 @@ public class SteamAudioSceneTests(ITestOutputHelper output)
                          + $"{vl.Pathing!.UniquePaths.Count} paths, {vl.Pathing.Paths.Length} refs, longest {vl.Pathing.UniquePaths.Max(p => p.Direct ? 0 : 1)}");
         Assert.Equal(valve.Probes, probes);
 
-        var ours = PathBaker.Bake(SceneOf(bake), probes, 1, 0f, 0.1f, float.PositiveInfinity, 100f);
+        var settings = Pathing();
+        output.WriteLine($"pathing settings: {settings}");
+        var ours = PathBaker.Bake(SceneOf(bake), probes, settings.VisibilitySamples, settings.VisibilityRadius, settings.VisibilityThreshold,
+                                  float.PositiveInfinity, settings.PathRange);
         var vp = vl.Pathing;
         var badVis = Enumerable.Range(0, Math.Min(vp.VisGraph.Count, ours.VisGraph.Count)).Where(i => !vp.VisGraph[i].SequenceEqual(ours.VisGraph[i])).ToList();
         foreach (var i in badVis.Take(5))
@@ -205,6 +208,26 @@ public class SteamAudioSceneTests(ITestOutputHelper output)
         output.WriteLine($".sareverb: Valve {valveBytes.Length}, ours {bytes.Length}, first difference {first}");
         Assert.Equal(valveBytes.Length, bytes.Length);
         Assert.Equal(-1, first);
+    }
+
+    /// <summary>
+    /// The pathing settings for s2c_saprobe: gameinfo's PathingDefaults, then worldspawn as the compile fills it with
+    /// the FGD's defaults (integer, float and boolean keys as KV3 ints, floats and bools; choices keys left out, their
+    /// KV3 conversion is not ported). They must equal what Valve's iplPathBakerBake got.
+    /// </summary>
+    private static PathingSettings Pathing()
+    {
+        var csgo = Path.GetDirectoryName(CS2Fixtures.StockPak()!)!;
+        var block = PathingSettings.GameInfoBlock(File.ReadAllText(Path.Combine(csgo, "gameinfo.gi")), "ResourceCompiler/SteamAudio/PathingDefaults");
+        var schema = MapFixtures.GameSchema()!;
+        object? World(string key) => schema.KeyOf("worldspawn", key) is { Default: { } d } k ? k.Type switch
+        {
+            FgdSchema.FieldType.Integer => (int)CNumbers.Atoi(d),
+            FgdSchema.FieldType.Float => CNumbers.Atof(d),
+            FgdSchema.FieldType.Boolean => d == "true" || CNumbers.Atoi(d) != 0,
+            _ => null,
+        } : null;
+        return PathingSettings.From(block, World);
     }
 
     private static TriangleScene SceneOf((AcousticScene Scene, AcousticMaterial[] Materials) b)
