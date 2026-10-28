@@ -105,6 +105,30 @@ public sealed class TriangleScene
         return best;
     }
 
+    /// <summary>
+    /// rtcOccluded1 (the single-ray MoellerTrumboreIntersector1 ClosestHit1 uses, with the occlusion epilog) for
+    /// phonon's EmbreeScene::isOccluded (180afbc20): any triangle in (tnear, tfar].
+    /// </summary>
+    public bool Occluded1(float ox, float oy, float oz, float dx, float dy, float dz, float tnear, float tfar)
+    {
+        for (var p = 0; p < _v0x.Length; p++)
+        {
+            float cx = _v0x[p] - ox, cy = _v0y[p] - oy, cz = _v0z[p] - oz;
+            var (rx, ry, rz) = Embree.Cross(cx, cy, cz, dx, dy, dz);
+            var den = Embree.Dot(_nx[p], _ny[p], _nz[p], dx, dy, dz);
+            var absDen = MathF.Abs(den);
+            var sgn = BitConverter.SingleToInt32Bits(den) & unchecked((int)0x80000000);
+            var u = Xor(Embree.Dot(rx, ry, rz, _e2x[p], _e2y[p], _e2z[p]), sgn);
+            var v = Xor(Embree.Dot(rx, ry, rz, _e1x[p], _e1y[p], _e1z[p]), sgn);
+            if (!(den != 0.0f && u >= 0.0f && v >= 0.0f && u + v <= absDen))
+                continue;
+            var T = Xor(Embree.Dot(_nx[p], _ny[p], _nz[p], cx, cy, cz), sgn);
+            if (absDen * tnear < T && T <= absDen * tfar)
+                return true;
+        }
+        return false;
+    }
+
     /// <summary>rtcOccluded: any triangle in (tnear, tfar].</summary>
     public bool Occluded(float ox, float oy, float oz, float dx, float dy, float dz, float tnear, float tfar)
     {

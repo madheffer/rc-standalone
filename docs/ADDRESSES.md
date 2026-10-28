@@ -523,21 +523,35 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `phonon_20260923.dll`, 53,322,904 bytes, PE time 2026-08-03 21:30 UTC
 - SHA-256 `a97c891d49619e6d6dc3cbad8d64db1648db8dc6efcfe1d01378e90c954161ea`
 - installed: this build
-- 13 addresses
+- 27 addresses
 
 ### s2c:baked/steamaudio
 
 | address | name | what | cited in |
 |---|---|---|---|
 | `1801f50a0` | `ispc_simulateEnergyField_Dispatch` | ISA level 4 picks the AVX2 kernel |  |
-| `180201a50` | `ispc_simulateEnergyField_avx2` | 8-lane gangs, gang-uniform RandomSampler seeded from rdtsc | `src/Source2.Compiler/SteamAudio/ReflectionSimulator.cs:160`, `src/Source2.Compiler/SteamAudio/ReflectionSimulator.cs:229` |
+| `180201a50` | `ispc_simulateEnergyField_avx2` | 8-lane gangs, gang-uniform RandomSampler seeded from rdtsc | `src/Source2.Compiler/SteamAudio/ReflectionSimulator.cs:184`, `src/Source2.Compiler/SteamAudio/ReflectionSimulator.cs:253` |
 | `180a58220` | `generateSphereSamples` | Math::kPi 3.141592f, CRT cosf / sinf | `src/Source2.Compiler/SteamAudio/Sampling.cs:12` |
 | `180a71a30` | `Matrix4x4_TransformColumnMajor` |  | `src/Source2.Compiler/SteamAudio/ProbeGeneration.cs:72` |
+| `180a71c40` | `IScene_isOccluded_Points` | direction (to - from) x (1 / length) above 1e-5 else kZero, then vfn 0x78 with (0, length) | `src/Source2.Compiler/SteamAudio/PathBaker.cs:10`, `src/Source2.Compiler/SteamAudio/PathBaker.cs:141` |
 | `180a84df0` | `ReverbEstimator_reverbTime` | no FMA | `src/Source2.Compiler/SteamAudio/ReverbEstimator.cs:5` |
 | `180a86090` | `generateUniformFloorProbes` | inlined into the API | `src/Source2.Compiler/SteamAudio/ProbeGeneration.cs:5`, `src/Source2.Compiler/SteamAudio/ProbeGeneration.cs:11` |
+| `180a939f0` | `ProbeVisibilityTester_areProbesVisible` | no samples or radius <= 0: one isOccluded(from, to) | `src/Source2.Compiler/SteamAudio/PathBaker.cs:10`, `src/Source2.Compiler/SteamAudio/PathBaker.cs:37` |
+| `180a93c70` | `ProbeVisibilityTester_areProbesTooFar` | offset less its part along down when asymmetric; length > visRange (no FMA) | `src/Source2.Compiler/SteamAudio/PathBaker.cs:9`, `src/Source2.Compiler/SteamAudio/PathBaker.cs:128` |
+| `180a93db0` | `ProbeVisibilityGraph_ctor` | one job per probe row (180a93fe0) | `src/Source2.Compiler/SteamAudio/PathBaker.cs:8` |
+| `180a93fe0` | `ProbeVisibilityGraph_Job` | row i: j < i not too far and visible gives (j, \|p[i] - p[j]\|, 0); the last job appends each edge's reverse to row j | `src/Source2.Compiler/SteamAudio/PathBaker.cs:8` |
+| `180a954f0` | `PathFinder_findAllShortestPaths` | Dijkstra on MSVC's heap of (index, cost); relaxes when cost[u] + c < cost[v] and \|p[start] - p[v]\| <= pathRange (4.9) | `src/Source2.Compiler/SteamAudio/PathBaker.cs:12`, `src/Source2.Compiler/SteamAudio/PathBaker.cs:167` |
+| `180a96a30` | `SoundPath_ctor` | probes as shorts, direct for an empty valid path, summed segment lengths, summed atan2f turning angles | `src/Source2.Compiler/SteamAudio/PathBaker.cs:16`, `src/Source2.Compiler/SteamAudio/PathBaker.cs:251` |
+| `180a978e0` | `BakedPathData_ctor` | visibility graph, the per-probe Dijkstra jobs, j > i cleared, std::sort (180a9a8b0), unique SoundPaths (180a96a30), refs, then the optional prune (180a944d0) | `src/Source2.Compiler/SteamAudio/PathBaker.cs:6` |
+| `180a986a0` | `BakedPathData_PathJob` | row start's paths: parents back to the start, std::reverse | `src/Source2.Compiler/SteamAudio/PathBaker.cs:14` |
+| `180a9a8b0` | `Sort_ProbePaths` | MSVC introsort of 0x28-byte ProbePaths; predicate: invalid before valid, else node lists lexicographically (180a9ae80) |  |
 | `180ab3a20` | `iplMatrix_Transpose` |  | `src/Source2.Compiler/SteamAudio/ProbeGeneration.cs:11` |
+| `180ab5650` | `CContext_bakePaths` | params: identifier +0x10, numSamples +0x28, radius +0x2c, threshold +0x30, visRange +0x34, pathRange +0x38, threads +0x3c, a 4.9 flag +0x40 (== 1 skips the path search); asymmetric vis range, down (0, -1, 0), visRangeRealTime = visRange, no pruning | `src/Source2.Compiler/SteamAudio/PathBaker.cs:5` |
+| `180acb910` | `iplPathBakerBake_Validated` | the validation layer's bakePaths, then 180ab5650 | `src/Source2.Compiler/SteamAudio/PathBaker.cs:4` |
 | `180afba80` | `EmbreeScene_ClosestHitSingle` |  | `src/Source2.Compiler/SteamAudio/ReflectionSimulator.cs:78` |
-| `180afeff0` | `ReflectionsBaker_JobLambda` | sums the threads' energy fields after the last job | `src/Source2.Compiler/SteamAudio/ReflectionSimulator.cs:230` |
+| `180afbc20` | `EmbreeScene_isOccluded` | rtcOccluded1 (180b415c0): org, tnear, dir, time 0, tfar, mask -1 | `src/Source2.Compiler/SteamAudio/ReflectionSimulator.cs:110` |
+| `180afeff0` | `ReflectionsBaker_JobLambda` | sums the threads' energy fields after the last job | `src/Source2.Compiler/SteamAudio/ReflectionSimulator.cs:254` |
+| `182683840` | `crt_atan2f` | one path, in double: table atan(c / 256) above u = 1/16, a polynomial below, u below 1e-4 as is; exponent gaps 26 / 13 / 126; table 182b64e60 | `src/Source2.Compiler/SteamAudio/CrtMath.cs:179` |
 | `182683c40` | `crt_cosf` | FMA path | `src/Source2.Compiler/SteamAudio/CrtMath.cs:4` |
 | `182685260` | `crt_sinf` | FMA path; the cosine branch fuses 1 - x^2/2 | `src/Source2.Compiler/SteamAudio/CrtMath.cs:5` |
 | `1827a2450` | `crt_expf` | FMA path, table driven | `src/Source2.Compiler/SteamAudio/CrtMath.cs:5` |

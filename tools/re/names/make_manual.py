@@ -3355,6 +3355,20 @@ PHONON_0923 = [
     ("182685260", "crt_sinf", SA, "FMA path; the cosine branch fuses 1 - x^2/2"),
     ("1827a2450", "crt_expf", SA, "FMA path, table driven"),
     ("1827a2700", "crt_log10f", SA, "FMA path, table driven"),
+    ("182683840", "crt_atan2f", SA, "one path, in double: table atan(c / 256) above u = 1/16, a polynomial below, u below 1e-4 as is; exponent gaps 26 / 13 / 126; table 182b64e60"),
+    ("180acb910", "iplPathBakerBake_Validated", SA, "the validation layer's bakePaths, then 180ab5650"),
+    ("180ab5650", "CContext_bakePaths", SA, "params: identifier +0x10, numSamples +0x28, radius +0x2c, threshold +0x30, visRange +0x34, pathRange +0x38, threads +0x3c, a 4.9 flag +0x40 (== 1 skips the path search); asymmetric vis range, down (0, -1, 0), visRangeRealTime = visRange, no pruning"),
+    ("180a978e0", "BakedPathData_ctor", SA, "visibility graph, the per-probe Dijkstra jobs, j > i cleared, std::sort (180a9a8b0), unique SoundPaths (180a96a30), refs, then the optional prune (180a944d0)"),
+    ("180a93db0", "ProbeVisibilityGraph_ctor", SA, "one job per probe row (180a93fe0)"),
+    ("180a93fe0", "ProbeVisibilityGraph_Job", SA, "row i: j < i not too far and visible gives (j, |p[i] - p[j]|, 0); the last job appends each edge's reverse to row j"),
+    ("180a93c70", "ProbeVisibilityTester_areProbesTooFar", SA, "offset less its part along down when asymmetric; length > visRange (no FMA)"),
+    ("180a939f0", "ProbeVisibilityTester_areProbesVisible", SA, "no samples or radius <= 0: one isOccluded(from, to)"),
+    ("180a71c40", "IScene_isOccluded_Points", SA, "direction (to - from) x (1 / length) above 1e-5 else kZero, then vfn 0x78 with (0, length)"),
+    ("180afbc20", "EmbreeScene_isOccluded", SA, "rtcOccluded1 (180b415c0): org, tnear, dir, time 0, tfar, mask -1"),
+    ("180a954f0", "PathFinder_findAllShortestPaths", SA, "Dijkstra on MSVC's heap of (index, cost); relaxes when cost[u] + c < cost[v] and |p[start] - p[v]| <= pathRange (4.9)"),
+    ("180a986a0", "BakedPathData_PathJob", SA, "row start's paths: parents back to the start, std::reverse"),
+    ("180a9a8b0", "Sort_ProbePaths", SA, "MSVC introsort of 0x28-byte ProbePaths; predicate: invalid before valid, else node lists lexicographically (180a9ae80)"),
+    ("180a96a30", "SoundPath_ctor", SA, "probes as shorts, direct for an empty valid path, summed segment lengths, summed atan2f turning angles"),
 ]
 
 # bc7e.dll as installed (PE time 2026-01-01; unchanged by the 10-15 update), copied as bc7e_20261015.dll.

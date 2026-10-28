@@ -1,7 +1,7 @@
 # Steam Audio
 
 What resourcecompiler's `-sareverb`, `-sapaths` and `-sacustomdata` write, how Valve's bake runs, and how far
-the port has got. Ledger: [GROUND_TRUTH.md](GROUND_TRUTH.md) 170, 171. Started 2026-10-28.
+the port has got. Ledger: [GROUND_TRUTH.md](GROUND_TRUTH.md) 170 to 172. Started 2026-10-28.
 
 ## The outputs
 
@@ -132,6 +132,12 @@ Ported and exact:
   steamaudio_geometry_mode, solidity 2) as 180f53780 has them. steamaudio's build (180084d90) converts to metres
   and reverses each triangle; nothing welds. SteamAudioSceneTests: s2c_saprobe's scene equals Valve's four captured
   scenes bit for bit, and the probe box and the 73 probes follow from it with no capture input.
+- The pathing bake (`SteamAudio/PathBaker.cs`, ledger 172): phonon 4.9's BakedPathData (180a978e0) from its
+  disassembly: the visibility graph (one rtcOccluded1 per probe pair, `TriangleScene.Occluded1`), Dijkstra per
+  probe on MSVC's heap with 4.9's straight-distance range test, the sorted unique paths, the refs, and the CRT's
+  atan2f for the turning angles (`CrtMath.Atan2`, equal to phonon's on 200,000 oracle pairs,
+  tools/steamaudio/oracle_atan2.py). SteamAudioSceneTests: s2c_saprobe's whole .sapaths from the .vmap alone equals
+  Valve's, byte for byte.
 - rcpps is the CPU's own approximation: Intel and AMD differ, so the bake is reproducible per CPU family (as
   Valve's is).
 
@@ -160,9 +166,9 @@ In order of the plan (the user's call, 10-28: the rest of the pipeline first, Em
    physics world), probes placed in the map (180fbc2d0), snd_opvar_set_point probes (180fbd800). Also the other
    generation types (probe generation volumes, manual) and the height-layer variant of 180087940 (the convar at
    18035cd30), the max-probes limits and clustering.
-3. **The pathing bake** (`.sapaths`): iplPathBakerBake's visibility graph (occlusion rays between probes,
-   numSamples / radius / threshold / range from 18006c1b0) and path search; deterministic in Valve's build, so
-   bit parity is directly checkable. The pathing settings reader (18006c1b0) like the reverb one.
+3. **Pathing's remaining cases**: sampled visibility (numSamples > 1 with a radius; the sphere volume samples), the
+   4.9 flag at +0x40, coincident probes, and the pathing settings reader (18006c1b0, like the reverb one; the
+   s2c_saprobe test passes the captured values).
 4. **compile-map**: `-sareverb` / `-sapaths` steps instead of the refusal in MapCompile.cs, the rebake options
    (0 cleanup, 1 manual, 2 auto) and what each does to an existing file, `-sareverb_threads` (more than one
    thread is not reproducible in Valve's build either: refuse or document), the seed (Valve's is rdtsc; ours

@@ -4672,6 +4672,24 @@ game can answer is raised with the user first, and runs with -insecure.
        (180f54020), a default-group shape with no InteractsAs (the physics interface's layers, 180f519d0's vfn
        0xd8 / 0x58). s2c_saprobe does not tell the two masks apart (it has no passbullets-only shape).
 
+172. **Steam Audio's pathing bake (.sapaths)** (2026-10-28: decompile and disassembly of phonon 0923 180acb910,
+     180ab5650, 180a978e0, 180a93db0, 180a93fe0, 180a93c70, 180a939f0, 180a71c40, 180afbc20, 180a954f0, 180a986a0,
+     180a9a8b0 / 180a9ae80, 180a96a30, the CRT atan2f 182683840 and its table 182b64e60; the s2c_saprobe capture's
+     iplPathBakerBake block; tools/steamaudio/oracle_atan2.py; SteamAudioSceneTests, SteamAudioAtan2Tests).
+     - Settled from the code: the bake is 4.8.1's PathBaker with two 4.9 changes. Dijkstra's range test is the
+       straight distance |p[start] - p[v]| <= pathRange, not the path cost; a new parameter flag (+0x40, 0 in Valve's
+       call) skips the path search when 1. The API fixes asymmetricVisRange, down (0, -1, 0), visRangeRealTime =
+       visRange and no pruning. Visibility with one sample or radius 0 is one rtcOccluded1 from p[i] to p[j] over
+       (0, |p[j] - p[i]|]. The heap is MSVC's push_heap / pop_heap on (index, cost) with cost >. The sort predicate
+       (invalid, then direct, then node lists) is a total order on content, so the unique-path order is fixed. No FMA:
+       lengths are sqrt(((x x + 0) + y y) + z z); the turning angle is atan2f(|perpendicular|, |parallel|).
+     - Exact: CrtMath.Atan2 against phonon's atan2f on 200,000 oracle pairs (4,867 edge pairs refused, none differ).
+     - Exact: SteamAudioSceneTests.SaprobePathsFromTheMap: from the .vmap alone (our scene, our 73 probes, the
+       captured settings) the whole s2c_saprobe.sapaths equals Valve's, 14,007 bytes (73 visibility lists, 51 paths of
+       which 3 turn, 2628 refs).
+     - Not ported, refused: sampled visibility (numSamples > 1 with a radius), coincident probes (kZero's
+       direction), the flag at +0x40, pruning, atan2f's NaN / infinity / mixed-sign zero and underflow paths.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).
