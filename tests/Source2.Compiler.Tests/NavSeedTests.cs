@@ -8,7 +8,7 @@ namespace Source2.Compiler.Tests;
 /// <summary>
 /// The walkable seed collector (180f21760, CNavGenInput +0x78) against tools/re/capture_navgen.py's records of Valve's
 /// compiles (%TEMP%/navgen_capture/&lt;map&gt;_in/navinput_seeds.bin: count, then each seed's three floats), in order and
-/// bit for bit. probe_classes and s2c_prefabprobe4 to 6 hold several seeds, through instances and prefabs.
+/// bit for bit. probe_classes, s2c_prefabprobe5 and 6 hold several seeds, through instances and prefabs.
 /// </summary>
 public sealed class NavSeedTests(ITestOutputHelper output)
 {
@@ -42,6 +42,13 @@ public sealed class NavSeedTests(ITestOutputHelper output)
             return;
         var document = DmxBinary.ReadFile(Vmap(map));
         MapPrefabs.Attach(document, MapPrefabs.FromContent(Path.Combine(Root, "content", "csgo_addons", "s2c_rc_probe")));
+        // s2c_prefabprobe4: six seeds in a map whose prefab map has several instances, where the entity list's order
+        // is not measured (GROUND_TRUTH 179); Valve's records are kept for when it is.
+        if (map == "s2c_prefabprobe4")
+        {
+            Assert.Throws<NotSupportedException>(() => NavGenMapInput.Seeds(document));
+            return;
+        }
         var seeds = NavGenMapInput.Seeds(document);
         var ours = new List<byte>(BitConverter.GetBytes(seeds.Count));
         foreach (var (x, y, z) in seeds)

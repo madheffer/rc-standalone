@@ -45,8 +45,18 @@ public static class MapEntityList
     }
 
     /// <summary>The list after the bake, in stored order.</summary>
-    public static List<Item> Baked(DmxBinary.Document document)
+    public static List<Item> Baked(DmxBinary.Document document) => Baked(document, out _);
+
+    /// <summary>
+    /// The list after the bake; <paramref name="orderMeasured"/> is false once a prefab map's second instance has
+    /// collapsed. Its nodes keep their sub-world slot (OnNodeAdded 180fca010 lists only a node whose index is negative,
+    /// OnNodeRemoved 180fcb150 clears it), so how they reach the root's list is not read: s2c_prefabprobe5 (one such
+    /// instance) is Valve's whole, s2c_prefabprobe3 (80) is Valve's up to its first collapse and not after.
+    /// </summary>
+    public static List<Item> Baked(DmxBinary.Document document, out bool orderMeasured)
     {
+        orderMeasured = true;
+        var prefabMapCollapses = 0;
         ArgumentNullException.ThrowIfNull(document);
         var world = document.OfType("CMapWorld").FirstOrDefault();
         if (world is null)
@@ -122,6 +132,8 @@ public static class MapEntityList
                 if (n.Parent is null)
                     continue;
                 n.Collapsed = true;
+                if (n.Element.Type == "CMapInstance" && n.Prefabs.Count > 0 && ++prefabMapCollapses > 1)
+                    orderMeasured = false;
                 if (!n.Copy && Hidden(n.Element, HiddenOf(n)))
                     throw new NotSupportedException($"a hidden {n.Element.Type} (deleted by the bake without a copy) is not measured in the entity list");
                 if (n.Element.Type == "CMapPrefab")

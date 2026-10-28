@@ -322,7 +322,13 @@
    "addr": "180fcb150",
    "name": "CMapWorld_OnNodeRemoved",
    "module": "s2c:baked/nav",
-   "note": "FastRemove from +0x1828: the last entry moves into the slot; then out of the name buckets"
+   "note": "FastRemove from +0x1828 when the node is at its stored slot: the last entry moves into the slot; a node found elsewhere is not removed, only its slot cleared (-1); then out of the name buckets (ledger 179)"
+  },
+  {
+   "addr": "180fef240",
+   "name": "CMapEntityIONode_ListSlot",
+   "module": "s2c:baked/nav",
+   "note": "the node's slot in its world's entity list (set by 180fefb50); OnNodeAdded lists only a node whose slot is negative (ledger 179)"
   },
   {
    "addr": "180f6d410",

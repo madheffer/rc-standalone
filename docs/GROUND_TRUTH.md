@@ -4847,12 +4847,20 @@ game can answer is raised with the user first, and runs with -insecure.
        the node, sub-worlds skipped, a node with instance referrers (180f8ba70) skipped with its subtree. The filter's
        vf 0x868 and 0x870 are 1800de990 (return 0), so it drops only non-instances and never reorders. A prefab's map
        moves in during the round and its instances wait for the next round's collection.
-     - So a prefab map's instances and targets collapse as the root's do, each named within its own tree (two prefabs
+     - A prefab map's instances and targets collapse as the root's do, each named within its own tree (two prefabs
        of one map stay apart), and a prefab map's hidden ids are its own document's.
-     - Exact: s2c_prefabprobe5's whole list after the bake (145 entries, a prefab of s2c_pinst with an instance in
-       its map: each entry's class and origin, MapEntityListTests), and the seed records (navinput_seeds.bin) bit for
-       bit and in order on all 16 nav captures, s2c_prefabprobe4's six (atixref's walkables through a prefab with
-       instances) included (NavSeedTests).
+     - Not read: how a prefab map's nodes reach the root's list. OnNodeAdded (180fca010) lists only a node whose
+       stored slot (180fef240) is negative, and OnNodeRemoved (180fcb150) clears the slot of a node not found at it,
+       so a reparented node keeps its sub-world slot. capture_entitylist.py's add / remove counts do not follow the
+       root's list on these calls (its first argument there is not the root world).
+     - Exact: s2c_prefabprobe5's whole list (145 entries, one instance in its prefab's map: each entry's class and
+       origin, MapEntityListTests; prop_physics skipped, the settle moves them). s2c_prefabprobe3 (80 instances in
+       its prefab's map) is Valve's up to entry 2463, where they start to collapse: there Valve's slot holds the
+       list's last entry, ours the first copy, and neither "copy then remove" (root instances, s2c_navlink3 / 4) nor
+       "remove then copy" gives Valve's whole tail. So MapEntityList.Baked reports the order unmeasured once a prefab
+       map's second instance collapses, and the search refuses two or more matches then.
+     - The seed records (navinput_seeds.bin) bit for bit and in order on 15 nav captures (NavSeedTests);
+       s2c_prefabprobe4 (six seeds, atixref's prefab with instances) refuses by the rule above.
      - Still refused: a prefab whose map has prefabs, a copied prefab whose map has instances, a point_nav_walkable
        under a deformer, and ledger 177's other refusals.
 

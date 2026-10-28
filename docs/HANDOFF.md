@@ -205,13 +205,19 @@ Ledger 179; NAV.md collector 1 and "Order of work" 2. CS2 closed, Steam open (re
 
 - NavGenMapInput.Seeds now takes the links' search (one shared `Found`: the baked entity list, wildcard classname,
   visibility, the same refusals) instead of the lump's walk; that closes its "unsettled" order note.
-  NavSeedTests: Valve's navinput_seeds.bin on all 16 nav captures, bit for bit and in order.
+  NavSeedTests: Valve's navinput_seeds.bin on 15 nav captures, bit for bit and in order.
 - MapEntityList collapses a prefab map's instances and targets (each named within its own tree; a prefab map's
   hidden ids from its own document). The bake round's shape is decompiled (180f60740 / 180f86e70: instances
   collected once per round, children first, no reordering filter). MapEntityListTests compares the whole list with
   tools/re/capture_entitylist.py's (which now records origins): s2c_prefabprobe5 exact (145 entries).
-- Next: s2c_prefabprobe3 / 4 list captures (`python tools/re/capture_entitylist.py s2c_rc_probe <map>`, under
-  heavy.py), then the remaining refusals (prefabs in prefab maps, copied prefabs with instances, hidden instances).
+- **Open, and the next step:** s2c_prefabprobe3's list (capture in %TEMP%/navgen_capture) is Valve's up to entry
+  2463, where its prefab map's 80 instances collapse, and not after. A reparented node keeps its sub-world slot
+  (OnNodeAdded / OnNodeRemoved read in ledger 179), so the way those nodes reach the root list is unread. Until it
+  is, Baked reports the order unmeasured and the search refuses two or more matches (s2c_prefabprobe4's seeds).
+  To settle it: extend capture_entitylist.py to log the world pointer, node pointer and slot for every edit (the
+  1023 hooks' first argument is not the world on these calls) and the root list after each bake round, then read
+  the prefab collapse's list handling (180f96d40 / 181019d00, ledger 178) beside that log.
+  ENTITYLIST_DUMP=<file> on MapEntityListTests writes ours next to Valve's, line by line.
 - The suite was not run in full.
 
 ## Latest session (2026-10-28 evening, nav links)
