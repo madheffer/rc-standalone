@@ -201,7 +201,7 @@ the addon).
 
 ## Latest session (2026-10-28 evening, nav links)
 
-Ledgers 175, 176; NAV.md collector 5 and "Order of work" 2. CS2 closed for two short captures, open otherwise.
+Ledgers 175 to 177; NAV.md collector 5 and "Order of work" 2. CS2 closed for two short captures, open otherwise.
 
 - tools/coverage/nav_link_specimen.py builds s2c_navlink (probe01, two raised pads, three CMapNavLinks);
   Valve's compile is in the addon (copy in %TEMP%/navlink_ref), captures in %TEMP%/navgen_capture/s2c_navlink_in
@@ -212,7 +212,16 @@ Ledgers 175, 176; NAV.md collector 5 and "Order of work" 2. CS2 closed for two s
 - Ledger 176 (later): every other attribute. `nav_link_specimen.py --keys` builds s2c_navlink2 (six links, one
   type or export branch each); navlink_type is the MapNavLinkType_t name, case-blind (181067b60). Its records,
   029, link entities and whole .nav are Valve's; capture in %TEMP%/navgen_capture/s2c_navlink2_in.
-- Next for links: links inside instances, prefabs and groups, and hidden ones (still refused).
+- Ledger 177 (later): links in instances. tools/coverage/nav_link_nest_probe.py builds s2c_navlinkpf, s2c_navlink3
+  (with a prefab) and s2c_navlink4 (without); tools/re/capture_entitylist.py logs every edit of the world's entity
+  list. Maps/MapEntityList.cs simulates that list after the bake (the search's order); NavLinkFields.Copied places a
+  copy as its locators do (CMapTransform's TransformBy). s2c_navlink4's records, 029, whole lump and whole .nav are
+  Valve's. Ledger 175's search rule was wrong (classname only, visibility tested); corrected there.
+- The seed collector (180f21760) searches the same list (180fc6f40, flags 3, make_manual); its order
+  (NavGenMapInput.Seeds' "unsettled" note) can now come from MapEntityList (not done, not checked for markups
+  or ladders).
+- Next for links: links in prefabs (s2c_navlink3's prefab copies differ by ulps; the clone's placement, 181102620,
+  is unread; a float quaternion rotation matches what was tried).
 - The suite was not run in full.
 
 ## Earlier session (2026-10-28, the ragdoll pose and the first lockstep)

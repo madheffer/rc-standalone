@@ -1,3 +1,4 @@
+using System.Numerics;
 using Source2.Compiler.Io;
 
 namespace Source2.Compiler.Maps.NavGen;
@@ -34,38 +35,68 @@ public static partial class NavGenMapInput
     }
 
     /// <summary>
-    /// 180f203b0 into CNavGenInput +0xc0: each CMapNavLink that the search for "ai_nav_link_area"
-    /// finds (180fc7220, flags 3: its classname or its targetname by tier0's V_CompareNameWithWildcards
-    /// with flag 0, case-blind, tools/re/tier0_wildcard_oracle.py), as (start, end). The start is the
-    /// translation of each instance step matrix times the node's (one copy here), the end the start
-    /// plus locatoroffset in world axes, neither rotated nor scaled. s2c_navlink: Valve's three
-    /// records, link0 at yaw 90 included. Refused until measured: a link inside an instance or prefab,
-    /// one under a group, a hidden or editorOnly one (the search, flag 0, does not test visibility).
+    /// 180f203b0 into CNavGenInput +0xc0: the search (180fc6f40: FUN_180fc7220 with mode 2 and flags 3) walks the
+    /// world's entity list in stored order once the bake is done (<see cref="MapEntityList"/>) and takes each CMapEntity
+    /// whose classname (180f2ddc0, the game class's name) V_CompareNameWithWildcards("ai_nav_link_area", name, 0)
+    /// matches, case-blind (tools/re/tier0_wildcard_oracle.py), and whose visibility state (+0x370, flag 1) is on; the
+    /// collector keeps the CMapNavLinks. After the bake every node has one instance path, the identity, so start is
+    /// the node's origin and end start + locatoroffset, a copy's both as its locators leave them
+    /// (<see cref="MapEntities.NavLinkFields.Copied"/>); CMapNavLink's SetScales (181065610) keeps scale 1.
+    /// s2c_navlink and s2c_navlink4 (GROUND_TRUTH 175, 177): Valve's records, instance copies, a nested copy and the
+    /// list's order included. Refused until measured: a link inside a prefab, a hidden link inside an instance, and a
+    /// link under a group that moves.
     /// </summary>
     public static List<((float X, float Y, float Z) A, (float X, float Y, float Z) B)> Links(DmxBinary.Document document)
     {
         var links = new List<((float X, float Y, float Z) A, (float X, float Y, float Z) B)>();
-        var world = document.OfType("CMapWorld").FirstOrDefault();
-        if (world is null)
+        // The list is only built for a map that has a link: the search finds nothing in one that has none.
+        if (document.OfType("CMapWorld").FirstOrDefault() is not { } world
+            || !SettleWorld.AllDocuments(document).Any(d => d.OfType("CMapNavLink").Any()))
             return links;
-        var topLevel = world.GetElements("children").ToHashSet();
-        foreach (var e in SettleWorld.AllDocuments(document).SelectMany(d => d.Elements).Where(e => e.Type == "CMapNavLink"))
+        var parents = new Dictionary<DmxBinary.Element, DmxBinary.Element>(ReferenceEqualityComparer.Instance);
+        foreach (var e in SettleWorld.AllDocuments(document).SelectMany(d => d.Elements))
+            foreach (var child in e.GetElements("children"))
+                parents.TryAdd(child, e);
+        var hidden = MapEntities.HiddenNodes(document);
+        foreach (var item in MapEntityList.Baked(document))
         {
-            if (!topLevel.Contains(e))
-                throw new NotSupportedException("a CMapNavLink inside an instance, prefab or group (180f88460's paths) is not ported");
-            if (e.GetValue<bool>("force_hidden") == true || e.GetValue<bool>("editorOnly") == true)
-                throw new NotSupportedException("a hidden or editorOnly CMapNavLink is not measured");
-        }
-        foreach (var child in world.GetElements("children"))
-        {
-            if (child.Type != "CMapNavLink" || MapEntities.ReadNode(child) is not { NavLink: { } link } entity)
+            if (item.Node.Type != "CMapNavLink" || MapEntities.ReadNode(item.Node) is not { NavLink: { } link } entity)
                 continue;
-            var name = entity.Keys.FirstOrDefault(k => Tier0Strings.EqualsIgnoreCase(k.Key, "targetname")).Value ?? "";
-            if (!Tier0Strings.EqualsIgnoreCase(entity.ClassName, "ai_nav_link_area") && !Tier0Strings.EqualsIgnoreCase(name, "ai_nav_link_area"))
+            if (!Tier0Strings.EqualsIgnoreCase(entity.ClassName, "ai_nav_link_area"))
                 continue;
-            var o = entity.Origin;
-            links.Add(((o.X, o.Y, o.Z), (o.X + link.Offset.X, o.Y + link.Offset.Y, o.Z + link.Offset.Z)));
+            // s2c_navlink3's prefab copies are off by a few ulps from SettleWorld.Placed's matrix; the prefab's content is
+            // cloned with a per-node transform (181102620) not yet read through.
+            if (item.Prefabs.Count > 0)
+                throw new NotSupportedException("a CMapNavLink inside a prefab (its placement, 181102620) is not ported");
+            var copied = item.Through.Count > 0;
+            var hiddenHere = false;
+            for (var at = item.Node; at != null && !ReferenceEquals(at, world); at = parents.GetValueOrDefault(at))
+            {
+                if (ReferenceEquals(at, item.Node) ? MapEntityList.Hidden(at, hidden) : at.GetValue<bool>("force_hidden") == true)
+                    hiddenHere = true;
+                if (!ReferenceEquals(at, item.Node) && at.Type != "CMapWorld" && !IsTarget(at, item)
+                    && ((at.GetValue<Vector3>("origin") ?? Vector3.Zero) != Vector3.Zero || (at.GetValue<Vector3>("angles") ?? Vector3.Zero) != Vector3.Zero))
+                    throw new NotSupportedException("a CMapNavLink under a group that moves is not measured");
+                if (IsTarget(at, item))
+                    break;
+            }
+            if (hiddenHere)
+            {
+                if (copied)
+                    throw new NotSupportedException("a hidden CMapNavLink inside an instance or prefab is not measured");
+                continue;
+            }
+            var (o, offset) = copied && link.Copied(entity.Origin, entity.Angles, item.Through) is var (co, _, cl)
+                ? (co, cl.Offset)
+                : (entity.Origin, link.Offset);
+            links.Add(((o.X, o.Y, o.Z), (o.X + offset.X, o.Y + offset.Y, o.Z + offset.Z)));
         }
         return links;
     }
+
+    // The group a copy was made from (the innermost instance's target) or the prefab's map world: where the copy's
+    // placement starts.
+    private static bool IsTarget(DmxBinary.Element at, MapEntityList.Item item)
+        => (item.Through.Count > 0 && ReferenceEquals(at, item.Through[^1].Get<DmxBinary.Element>("target")))
+           || (item.Through.Count == 0 && item.Prefabs.Count > 0 && ReferenceEquals(at, item.Prefabs[^1].Get<DmxBinary.Element>(MapPrefabs.WorldKey)));
 }

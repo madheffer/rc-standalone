@@ -246,6 +246,8 @@ public sealed class NavCompileTests(ITestOutputHelper output)
     [InlineData("s2c_rc_probe", "s2c_navlink", true)]
     [InlineData("s2c_rc_probe", "s2c_navlink2", false)]
     [InlineData("s2c_rc_probe", "s2c_navlink2", true)]
+    [InlineData("s2c_rc_probe", "s2c_navlink4", false)]
+    [InlineData("s2c_rc_probe", "s2c_navlink4", true)]
     public void NavWithLaddersMatchesValve(string addon, string map, bool analyze)
     {
         if (CS2Fixtures.StockPak() is not { } pak || MapFixtures.GameSchema() is not { } schema)

@@ -137,7 +137,7 @@ public static class MapInstances
             // A prefab's lattice locators already have their slots in its copy count.
             next += tree.Nodes.GetValueOrDefault(instance.Target) + 1
                     + (instance.Prefab && createdOnLoadIn is not null && instance.Node.Get<DmxBinary.Document>(Maps.MapPrefabs.DocumentKey) is { } loaded
-                        ? createdOnLoadIn(loaded) - loaded.OfType("CMapDeformerLattice").Sum(Maps.LatticeDeformer.ControlPointCount) : 0);
+                        ? createdOnLoadIn(loaded) - loaded.Elements.Sum(ClonedLocators) : 0);
             if (instance.Prefab)
             {
                 prefabBlock?.Invoke(instance.Node, start);
@@ -370,8 +370,12 @@ public static class MapInstances
     /// which vf 0x4f8 (180f78950) finds through the parent, and a fresh clone
     /// has none yet.
     /// </summary>
+    /// <para>A CMapNavLink likewise holds two CMapNavLinkLocators the loader makes (181064ab0: locator 0 at the
+    /// link, locator 1 at the end, each from the node factory and added as its last child), which a clone copies:
+    /// s2c_navlink3's load gives each link the two ids after its own and its copies take three slots
+    /// (tools/re/capture_entitylist.py).</para>
     internal static int ClonedLocators(DmxBinary.Element node)
-        => Maps.LatticeDeformer.ControlPointCount(node);
+        => Maps.LatticeDeformer.ControlPointCount(node) + (node.Type == "CMapNavLink" ? 2 : 0);
 
     /// <summary>
     /// A node of the tree the bake walks: an original (one of the map's, or of a

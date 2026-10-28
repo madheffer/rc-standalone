@@ -43,7 +43,7 @@ In order:
 | 2 | 180f209f0 | func_nav_markup: each `navProperty_<tag>` string key, else a `navProperty_NavAttributes` array | +0x90 markups, tag table +0x30 | ported (ledger 142); a markup inside an instance or prefab (its instance paths, 180f88460) and a scaled markup mesh refuse |
 | 3 | 180f1f830 | prop_deformable and block_base_nav_mesh entities as NONAV blocks | +0x90 | not ported |
 | 4 | 180f21ac0 | info_gravity_shift with `CreateProjectedNavMesh`, then every info_nav_oriented* entity (180f21930) | +0xa8 oriented volumes | not ported |
-| 5 | 180f203b0 | CMapNavLink nodes whose classname or targetname is ai_nav_link_area (case-blind): the node's position through each instance path, and that plus its `locatoroffset` (+0x185c), unrotated | +0xc0 links (0x18 each: start, end) | ported (ledger 175, NavGenMapInput.Links); a link in an instance, prefab or group, and a hidden or editorOnly one, refuse |
+| 5 | 180f203b0 | visible CMapNavLink nodes whose classname is ai_nav_link_area (case-blind), in the world's entity list order after the bake (MapEntityList): the node's position, and that plus its `locatoroffset` (+0x185c); a copy's both as its locators leave them | +0xc0 links (0x18 each: start, end) | ported (ledgers 175, 177, NavGenMapInput.Links): instances, nested copies, plain groups, hidden links skipped; a link in a prefab refuses |
 | 6 | 180fb5440 | the compile context's AVOID list (filled by 180f4aed0 from `nav_attribute_avoid`) as NavGen AVOID markups | +0x90 | not ported |
 | 7 | 180fb15e0 | ladders: meshes with a `mapbuilder.ladder` material, then func_ladder children | +0x60 ladders | ported; a func_ladder in an instance or prefab refuses (below) |
 | 8 | 180f20f00 | info_nav_space (`DetailedGenerationForSmallNpcs`, `CoarseGenerationForLargeNpcs`); with one, info_node_air seeds and path_corner, info_node_hint, info_cover_hint, ai_flyer_flanking_route_hint, info_combine_gunship_bomb_target hints | +0x100 / +0x108 nav space | not ported |
@@ -200,8 +200,9 @@ What Hammer can put in a .vmap that the nav step reads:
    the closed-mesh normal (18016f710), and c2m3_coaster_d as a second check.
 2. Nav links: done on s2c_navlink (2026-10-28, ledger 175): the collector, IslandRemoval with links
    (navsystem's only reader; the mesh build and the analysis never see them) and the links' lump
-   entities. Every attribute measured on s2c_navlink2 (ledger 176). Left: links in instances,
-   prefabs and groups, hidden links.
+   entities. Every attribute measured on s2c_navlink2 (ledger 176); instances, nested copies, groups
+   and hidden links on s2c_navlink4 (ledger 177, the entity list after the bake). Left: links in
+   prefabs (the prefab clone's placement, 181102620).
 3. Movable meshes, every source above.
 4. AVOID from materials (6) and NONAV blocks (3).
 5. Oriented and projected generation (4, 10, stages 005 / 007, JoinNonZup).

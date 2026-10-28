@@ -136,6 +136,28 @@ public static class MapEntities
             "MapNavLinkType_t::VAULT_OVER", "MapNavLinkType_t::GROUND",
         ];
 
+        /// <summary>
+        /// A copy an instance bake made of a link standing at <paramref name="origin"/>, <paramref name="angles"/>:
+        /// its origin, angles and fields. The collapse moves the link (TransformBy, 181001820) and its locators
+        /// (181064ab0: locator 0 at the link, locator 1 at locatoroffset + origin with locatorangles + angles), which
+        /// are CMapTransforms and move by their own TransformBy (vf 0xc8 181076410, the step as a CTransform:
+        /// <see cref="Maps.SettleWorld.UnderDeformerStep"/>). The locators' handler (181065720) then gives the link
+        /// locator 0's origin and angles and takes locatoroffset and locatorangles as locator 1 minus locator 0
+        /// (s2c_navlink4: the records and the lump's copies, GROUND_TRUTH 177).
+        /// </summary>
+        internal (Vector3 Origin, Vector3 Angles, NavLinkFields Link) Copied(Vector3 origin, Vector3 angles, IReadOnlyList<DmxBinary.Element> through)
+        {
+            var (o, a) = Maps.SettleWorld.UnderDeformerStep(origin, angles, through, []);
+            var (l, la) = Maps.SettleWorld.UnderDeformerStep(
+                new Vector3(Offset.X + origin.X, Offset.Y + origin.Y, Offset.Z + origin.Z),
+                new Vector3(LocatorAngles.X + angles.X, LocatorAngles.Y + angles.Y, LocatorAngles.Z + angles.Z), through, []);
+            return (o, a, this with
+            {
+                Offset = new Vector3(l.X - o.X, l.Y - o.Y, l.Z - o.Z),
+                LocatorAngles = new Vector3(la.X - a.X, la.Y - a.Y, la.Z - a.Z),
+            });
+        }
+
         internal static NavLinkFields Read(DmxBinary.Element element)
         {
             T? Typed<T>(string name) where T : class

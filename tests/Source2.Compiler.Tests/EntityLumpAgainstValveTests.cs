@@ -90,6 +90,7 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
     // Hammer's lattice and bend deformers (tools/physics/deformer_probe_map.py, deformer_probe2.py).
     [InlineData("deformerprobe")]
     [InlineData("deformerprobe2")]
+    [InlineData("s2c_navlink4")]
     public void PrefabProbe_DiffersOnlyInTheDocumentedGaps(string map)
     {
         var source = MapFixtures.VmapSource("s2c_rc_probe", map);

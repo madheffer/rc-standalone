@@ -19,22 +19,38 @@ public sealed class NavLinkTests(ITestOutputHelper output)
 
     private static string Vmap(string map) => Path.Combine(Root, "content", "csgo_addons", "s2c_rc_probe", "maps", map + ".vmap");
 
+    // The .vmap with its prefabs' maps attached, as compile-map loads it (MapSource).
+    private static DmxBinary.Document Load(string map)
+    {
+        var document = DmxBinary.ReadFile(Vmap(map));
+        MapPrefabs.Attach(document, MapPrefabs.FromContent(Path.Combine(Root, "content", "csgo_addons", "s2c_rc_probe")));
+        return document;
+    }
+
     /// <summary>The collector's records (180f203b0, CNavGenInput +0xc0) bit for bit: count, then start and end per link.</summary>
     [Theory]
     [InlineData("s2c_navlink")]
     [InlineData("s2c_navlink2")]
+    [InlineData("s2c_navlink4")]
     public void LinksAreValvesRecords(string map)
     {
         var path = Path.Combine(Dir(map), "navinput_links.bin");
         if (CS2Fixtures.StockPak() is null || !File.Exists(path) || !File.Exists(Vmap(map)))
             return;
         var valve = File.ReadAllBytes(path);
-        var links = NavGenMapInput.Links(DmxBinary.ReadFile(Vmap(map)));
+        var links = NavGenMapInput.Links(Load(map));
         Assert.Equal(BitConverter.ToInt32(valve, 0), links.Count);
         var ours = new List<byte>(BitConverter.GetBytes(links.Count));
         foreach (var (a, b) in links)
             foreach (var f in new[] { a.X, a.Y, a.Z, b.X, b.Y, b.Z })
                 ours.AddRange(BitConverter.GetBytes(f));
+        for (var i = 0; i < links.Count; i++)
+        {
+            var theirs = Enumerable.Range(0, 6).Select(k => BitConverter.ToSingle(valve, 4 + 24 * i + 4 * k)).ToArray();
+            var mine = Enumerable.Range(0, 6).Select(k => BitConverter.ToSingle(ours.ToArray(), 4 + 24 * i + 4 * k)).ToArray();
+            if (!theirs.SequenceEqual(mine))
+                output.WriteLine($"record {i}: Valve's {string.Join(" ", theirs.Select(f => f.ToString("R")))}, ours {string.Join(" ", mine.Select(f => f.ToString("R")))}");
+        }
         Assert.Equal(valve, ours.ToArray());
         output.WriteLine(string.Join("; ", links));
     }
@@ -43,11 +59,12 @@ public sealed class NavLinkTests(ITestOutputHelper output)
     [Theory]
     [InlineData("s2c_navlink")]
     [InlineData("s2c_navlink2")]
+    [InlineData("s2c_navlink4")]
     public void IslandRemovalKeepsTheLinkedPad(string map)
     {
         if (CS2Fixtures.StockPak() is not { } pak || !File.Exists(Path.Combine(Dir(map), "029_IslandRemoval_out_conn.bin")) || !File.Exists(Vmap(map)))
             return;
-        var document = DmxBinary.ReadFile(Vmap(map));
+        var document = Load(map);
         var settings = NavGenInputTests.MapSettings(document, pak);
         var g = Load(map, "029_IslandRemoval_in");
         var valve = Load(map, "029_IslandRemoval_out");
@@ -65,7 +82,8 @@ public sealed class NavLinkTests(ITestOutputHelper output)
     /// <summary>
     /// The links' entities in the lump (CMapNavLink's export, 181065c90) equal Valve's, and every entity keeps its
     /// compile_source_id. s2c_navlink2 sets each attribute: navlink_type by name, in either case and by display name
-    /// (which parses as GENERIC), width, locatorangles and the movement strings for each type branch.
+    /// (which parses as GENERIC), width, locatorangles and the movement strings for each type branch. Authored without
+    /// the instance bake: s2c_navlink4's copies are checked whole by EntityLumpAgainstValveTests.
     /// </summary>
     [Theory]
     [InlineData("s2c_navlink")]
@@ -79,7 +97,7 @@ public sealed class NavLinkTests(ITestOutputHelper output)
         package.Read(compiled);
         var lumpPath = "maps/" + map + "/entities/default_ents.vents_c";
         var theirs = EntityLumpComparison.Read(Io.VpkEntries.Read(package, package.FindEntry(lumpPath)!), lumpPath);
-        var document = DmxBinary.ReadFile(Vmap(map));
+        var document = Load(map);
         var bytes = EntityLumpAuthor.Author(MapEntities.From(document), schema, worldName: map, fixupEntityNames: MapEntities.FixupEntityNames(document));
         var ours = EntityLumpComparison.Read(bytes, lumpPath);
         Assert.Equal(theirs.Count, ours.Count);
@@ -97,6 +115,15 @@ public sealed class NavLinkTests(ITestOutputHelper output)
         }
         Assert.Equal(NavGenMapInput.Links(document).Count, links);
         Assert.True(links >= 3);
+    }
+
+    /// <summary>s2c_navlink3 also places links through a prefab, whose placement is not ported: refused.</summary>
+    [Fact]
+    public void PrefabLinksRefuse()
+    {
+        if (CS2Fixtures.StockPak() is null || !File.Exists(Vmap("s2c_navlink3")))
+            return;
+        Assert.Throws<NotSupportedException>(() => NavGenMapInput.Links(Load("s2c_navlink3")));
     }
 
     private static NavGenPolys Load(string map, string stage)

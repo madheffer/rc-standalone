@@ -4750,12 +4750,13 @@ game can answer is raised with the user first, and runs with -insecure.
      181064ab0, 181065c90, 181065ee0, 181068680, 18106b4f0, 180fa8bf0; navsystem 20261015 1800217b0 and a load scan
      of every function reading +0xc0 / +0xc8; hammer 1023 180b33ae0; tier0 V_CompareNameWithWildcards by ctypes,
      tools/re/tier0_wildcard_oracle.py; Frida captures of s2c_navlink, tools/re/capture_navgen.py.)
-     - The collector takes each CMapEntity of the root (then each sub-map's) whose classname or targetname
+     - The collector takes each CMapEntity of the root (then each sub-map's) whose classname
        V_CompareNameWithWildcards("ai_nav_link_area", name, 0) matches, case-blind (the oracle: AI_NAV_LINK_AREA
-       matches with flag 0, not 1; a longer or shorter name never), and that IsA CMapNavLink. No visibility test
-       (the search's flags argument is 0). Per instance path: start = the translation of step matrix x the
-       node's, end = start + locatoroffset, unrotated and unscaled (s2c_navlink link0 at yaw 90 ends at (300,
-       1000, 272), Valve's record).
+       matches with flag 0, not 1; a longer or shorter name never), and that IsA CMapNavLink. Corrected by ledger
+       177: the wrapper 180fc6f40 passes mode 2 (the classname test 180f2ddc0 only; the targetname test is
+       180fefbc0, mode 1) and the caller's 3 as flags (bit 1: the visibility state +0x370 must be on). Per instance
+       path: start = the translation of step matrix x the node's, end = start + locatoroffset (s2c_navlink link0 at
+       yaw 90 ends at (300, 1000, 272), Valve's record).
      - The .vmap attribute is `locatoroffset`, the tool attribute's lower-case name: a probe with `locatorOffset`
        (the change-tracking name in 18106b4f0) gave Valve's default (128, 0, 0) on all three links
        (%TEMP%/navgen_capture/s2c_navlink_camelkey). Factory defaults: width 128, locatorangles (0, 180, 0), type 0.
@@ -4787,6 +4788,41 @@ game can answer is raised with the user first, and runs with -insecure.
      - Exact on s2c_navlink2 (six links): the records, 029, the six link entities and every compile_source_id,
        and the whole .nav from the .vmap (40 areas, bytes 0..5216 and all 3292 custom data lines).
      - A key in another DMX type than the above refuses (MapEntities.NavLinkFields).
+
+177. **The world's entity list after the bake, and nav links in instances** (2026-10-28: decompile of
+     resourcecompiler 0923 180fc6f40, 180fc7220, 180f2ddc0, 180fefbc0, 180fca3d0, 180fca010, 180fcb150, 180f60740,
+     180f5ff40, 180f6d410, 180f684c0, 181017820, 180f7a350, 180f8f920, 181064ab0, 181065610, 181065720, 181064300
+     and the locator vtable 182362db0; Frida on the 1023 build, tools/re/capture_entitylist.py: every add to and
+     remove from the list (180fcb1d0, 180fcc310) with the bake as markers, and the list at the collector
+     (180f21570); captures of s2c_navlink3 and s2c_navlink4, tools/coverage/nav_link_nest_probe.py.)
+     - The search (180fc7220) walks the CMapWorld's entity list (+0x1828 count, +0x1830 array) in stored order.
+       The collector's call (180fc6f40) is mode 2, the classname, with flags 3: a node whose visibility state
+       (+0x370, off for force_hidden, editorOnly or a visibility manager hide, inherited) is off is skipped
+       (s2c_navlink3's hidden and editorOnly links are in the list and not in the records).
+     - The list: at load the world (180fca3d0), then each CMapEntityIONode in tree preorder as it joins
+       (180fca010): every CMapGameDataNode, CMapInstance and CMapPrefab (the IsA chains); not groups, meshes or
+       the navlink locators. A prefab's map fills its own world's list. In the bake each collapse appends its
+       copy's listed nodes in preorder; when no other instance names the target (180f684c0) the target's subtree
+       is removed in postorder, then the instance; a prefab appends its map's nodes in preorder, then leaves.
+       Removal is FastRemove (180fcb150): the last entry moves into the slot. Read off s2c_navlink3's 203 edits;
+       MapEntityList simulates it, and the records' order on s2c_navlink4 (11 links, copies interleaved by the
+       swaps) is Valve's.
+     - A CMapNavLink's two CMapNavLinkLocators (181064ab0, at load, from the node factory) take ids: the load's
+       ids run two past each link and a copy of a link takes three slots (MapInstances.ClonedLocators,
+       SmartProps.NodesCreatedOnLoad).
+     - A copy: the link moves by TransformBy (181001820), its locators by CMapTransform's (vf 0xc8 181076410, the
+       step as a CTransform, SettleWorld.UnderDeformerStep); the locators' handler (181065720) gives the link
+       locator 0's origin and angles and sets locatoroffset and locatorangles to locator 1 minus locator 0
+       (Valve's yaw 90.0000076 for a copy turned 90, which the matrix path gives as 90). SetScales (181065610)
+       keeps a link at scale 1: an instance's scale moves neither its position nor its offset.
+     - Exact on s2c_navlink4: the 11 records (two instances of one target, a nested copy through a turned
+       instance, a plain group), 029, the whole lump (every copy's id, origin, angles, locatoroffset,
+       locatorangles) and the whole .nav from the .vmap.
+     - Not ported (refuses): a link inside a prefab. s2c_navlink3's three prefab copies are a few ulps from the
+       matrix placement; a float quaternion rotation, v + 2w(q x v) + 2q x (q x v), gives every value of them
+       tried, but the code doing it (the prefab clone 181102620 and what it hands the clone) is not read yet.
+       Also refused: a hidden instance or prefab, a prefab whose map has instances or prefabs, a prefab inside a
+       target, a target deleted with another, a hidden link inside an instance, a link under a group that moves.
 
 ## Resolved
 

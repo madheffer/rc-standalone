@@ -172,19 +172,19 @@
    "addr": "180f203b0",
    "name": "NavGen_CollectLinkAreas",
    "module": "s2c:baked/nav",
-   "note": "CNavGenInput +0xc0 (ledger 175): 180fc7220 for 'ai_nav_link_area' (flags 3, no visibility test), IsA CMapNavLink; per instance path start = (step matrix x node) translation, end = start + locatoroffset (+0x185c) unrotated"
+   "note": "CNavGenInput +0xc0 (ledgers 175, 177): 180fc6f40 for 'ai_nav_link_area' (mode 2 classname, flags 3 visible nodes and sub-worlds), IsA CMapNavLink; per instance path (one, the identity, after the bake) start = (step matrix x node) translation, end = start + locatoroffset (+0x185c)"
   },
   {
    "addr": "180f2ddc0",
-   "name": "MapEntity_TargetNameMatches",
+   "name": "MapEntity_ClassNameMatches",
    "module": "s2c:baked/nav",
-   "note": "V_CompareNameWithWildcards(pattern, targetname, 0); an empty name never matches"
+   "note": "the game class (handle +0x538) name +0x98, V_CompareNameWithWildcards(pattern, name, 0); an empty name never matches (search mode 2)"
   },
   {
    "addr": "180fefbc0",
-   "name": "MapEntity_ClassNameMatches",
+   "name": "MapEntity_TargetNameMatches",
    "module": "s2c:baked/nav",
-   "note": "vfn 0x7e0 classname, V_CompareNameWithWildcards(pattern, classname, 0)"
+   "note": "vfn 0x7e0 targetname (the name 180fca010 hashes into the world 200 name buckets), V_CompareNameWithWildcards(pattern, name, 0) (search mode 1)"
   },
   {
    "addr": "181063b90",
@@ -287,6 +287,60 @@
    "name": "CMapNavLink_SetPreviewReverse",
    "module": "s2c:baked/nav",
    "note": "nav_link_preview_reverse into +0x1898 (not exported)"
+  },
+  {
+   "addr": "181065610",
+   "name": "CMapNavLink_SetScales",
+   "module": "s2c:baked/nav",
+   "note": "vf 0x98: always (1, 1, 1)"
+  },
+  {
+   "addr": "181065720",
+   "name": "CMapNavLink_OnLocatorChanged",
+   "module": "s2c:baked/nav",
+   "note": "locator 0 differing: the link takes its origin and angles, locatoroffset kept in place; locator 1: locatoroffset and locatorangles = locator 1 - link"
+  },
+  {
+   "addr": "181064300",
+   "name": "CMapNavLinkLocator_IsA",
+   "module": "s2c:baked/nav",
+   "note": "CMapNavLinkLocator, CMapProceduralLocator, CMapLocator, CMapTransform (vtable 182362db0, vf 0xc8 181076410)"
+  },
+  {
+   "addr": "180fca3d0",
+   "name": "CMapWorld_PostLoad",
+   "module": "s2c:baked/nav",
+   "note": "the world itself into its entity list (+0x1828), then every node of the tree (180fc4e40)"
+  },
+  {
+   "addr": "180fca010",
+   "name": "CMapWorld_OnNodeAdded",
+   "module": "s2c:baked/nav",
+   "note": "a CMapEntityIONode not yet listed: AddToTail on +0x1828 (index on the node, 180fefb50) and its targetname into the 200 name buckets (+0x1840)"
+  },
+  {
+   "addr": "180fcb150",
+   "name": "CMapWorld_OnNodeRemoved",
+   "module": "s2c:baked/nav",
+   "note": "FastRemove from +0x1828: the last entry moves into the slot; then out of the name buckets"
+  },
+  {
+   "addr": "180f6d410",
+   "name": "MapDoc_DeleteNode",
+   "module": "s2c:baked/nav",
+   "note": "flags 3 from the bake; unregisters the subtree (180f684c0) and runs the queued deletes"
+  },
+  {
+   "addr": "180f684c0",
+   "name": "MapDoc_UnregisterSubtree",
+   "module": "s2c:baked/nav",
+   "note": "children first; a CMapInstance whose target no other instance names (180f8e9e0) has its target deleted too"
+  },
+  {
+   "addr": "180f7a350",
+   "name": "CMapNode_SetVisible",
+   "module": "s2c:baked/nav",
+   "note": "the visibility state byte +0x370 (180f8f920 starts it at 1)"
   },
   {
    "addr": "180fb15e0",

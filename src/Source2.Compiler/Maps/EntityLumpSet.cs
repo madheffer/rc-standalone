@@ -385,13 +385,19 @@ public static class EntityLumpSet
                                                   : template,
                                               copy.Through, copy.Prefabs, Maps.SettleWorld.IsUnderDeformer(node, parents, targets), node)
                 : null;
+            // A link's copy stands where its locators leave it (MapEntities.NavLinkFields.Copied).
+            var navLink = template.NavLink is not { } link ? ((Vector3, Vector3, MapEntities.NavLinkFields)?)null
+                : copy.Prefabs.Length > 0 || copy.Node is null
+                    ? throw new NotSupportedException("a CMapNavLink copied inside a prefab's map is not ported")
+                    : link.Copied(template.Origin, template.Angles, copy.Through);
             here.Add(new EntityLumpAuthor.Emission(
                 Settle(template with
                 {
                     NodeId = copy.NodeId,
-                    Origin = path?.Origin ?? copy.Origin,
-                    Angles = path?.Angles ?? copy.Angles,
+                    Origin = navLink?.Item1 ?? path?.Origin ?? copy.Origin,
+                    Angles = navLink?.Item2 ?? path?.Angles ?? copy.Angles,
                     PathNodes = path?.PathNodes ?? template.PathNodes,
+                    NavLink = navLink?.Item3 ?? template.NavLink,
                     Layer = copy.Layer,
                     Instanced = true,
                     // A copy made inside a prefab's map ships with a plain id (GROUND_TRUTH 46).

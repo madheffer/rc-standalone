@@ -361,6 +361,9 @@ public static partial class EntityLumpAuthor
     {
         if (entity.NavLink is not { } link)
             return;
+        // A prefab map's links are placed by the prefab's clone (181102620), not ported (s2c_navlink3).
+        if (entity.Prefabs.Any())
+            throw new NotSupportedException("a CMapNavLink inside a prefab's map is not ported");
         values.Add("width", new KVObject((double)link.Width));
         values.Add("locatoroffset", new KVObject(Fixed6(link.Offset)));
         values.Add("locatorangles", new KVObject(Fixed6(link.LocatorAngles)));
