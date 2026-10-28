@@ -1,0 +1,106 @@
+{
+ "functions": [
+  {
+   "addr": "1800635d0",
+   "name": "SteamAudio_ToSteamAudioAxes",
+   "module": "s2c:baked/steamaudio",
+   "note": "Source (x, y, z) to (-y, z, -x)"
+  },
+  {
+   "addr": "180063600",
+   "name": "SteamAudio_SourceToMeters",
+   "module": "s2c:baked/steamaudio",
+   "note": "x 0.0254, then the axes"
+  },
+  {
+   "addr": "1800636b0",
+   "name": "SteamAudio_ToSourceAxes",
+   "module": "s2c:baked/steamaudio",
+   "note": "(-z, -x, y)"
+  },
+  {
+   "addr": "180067dc0",
+   "name": "CSteamAudioScene_Create",
+   "module": "s2c:baked/steamaudio",
+   "note": "a 0x78-byte scene, then its build (180084d90)"
+  },
+  {
+   "addr": "18006b260",
+   "name": "SteamAudio_MetersToSource",
+   "module": "s2c:baked/steamaudio",
+   "note": "the axes, then x 39.37008"
+  },
+  {
+   "addr": "18006b2d0",
+   "name": "SteamAudio_BoxMatrix",
+   "module": "s2c:baked/steamaudio",
+   "note": "a box (quaternion, centre, size in inches) as phonon's row-major 4x4"
+  },
+  {
+   "addr": "18006bc60",
+   "name": "SteamAudio_ReadReverbSettings",
+   "module": "s2c:baked/steamaudio",
+   "note": "code defaults, gameinfo ReverbDefaults, then worldspawn"
+  },
+  {
+   "addr": "18006c1b0",
+   "name": "SteamAudio_ReadPathingSettings",
+   "module": "s2c:baked/steamaudio",
+   "note": ""
+  },
+  {
+   "addr": "180071240",
+   "name": "SteamAudio_WriteProbeBatchBlob",
+   "module": "s2c:baked/steamaudio",
+   "note": "the serialized batch into m_pProbeBatch"
+  },
+  {
+   "addr": "18007d0b0",
+   "name": "SteamAudio_SumBands",
+   "module": "s2c:baked/steamaudio",
+   "note": "a band array summed in order from 0"
+  },
+  {
+   "addr": "180084720",
+   "name": "CSteamAudioMaterial_ReadEntry",
+   "module": "s2c:baked/steamaudio",
+   "note": "a surfaceproperties_steamaudio.txt entry's coefficients; missing arrays keep theirs"
+  },
+  {
+   "addr": "180084910",
+   "name": "CSteamAudioMaterial_CopyBase",
+   "module": "s2c:baked/steamaudio",
+   "note": ""
+  },
+  {
+   "addr": "180084a40",
+   "name": "CSteamAudioMaterial_Default",
+   "module": "s2c:baked/steamaudio",
+   "note": "absorption 0.3, scattering 0.5, transmission 0, 11 bands"
+  },
+  {
+   "addr": "180084d90",
+   "name": "CSteamAudioScene_Build",
+   "module": "s2c:baked/steamaudio",
+   "note": "vertices as given through 180063600, each triangle reversed, materials reduced to bands 0, 7, 9 (scattering: 11 bands summed / 11); iplSceneCreate type 1, one static mesh"
+  },
+  {
+   "addr": "180087940",
+   "name": "CSteamAudioScene_GenerateProbes",
+   "module": "s2c:baked/steamaudio",
+   "note": ""
+  },
+  {
+   "addr": "180087e90",
+   "name": "CSteamAudioScene_BakeReverb",
+   "module": "s2c:baked/steamaudio",
+   "note": "iplReflectionsBakerBake with the 0x80-byte block"
+  },
+  {
+   "addr": "180128710",
+   "name": "CSurfacePropDataTable_CSteamAudioMaterial_Parse",
+   "module": "s2c:baked/steamaudio",
+   "note": "defaults, a base's entry copied in list order, then the txt entry by name"
+  }
+ ]
+}

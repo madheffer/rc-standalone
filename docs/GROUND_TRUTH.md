@@ -4646,6 +4646,32 @@ game can answer is raised with the user first, and runs with -insecure.
        180084a40, 180084d90 bands 0/7/9) = Valve's 164. Open: the acoustic geometry collector (180f53780 and its
        mesh builders), the probe filters (inside shapes 180fbe450 and the rest), the pathing bake.
 
+171. **Steam Audio's acoustic geometry from the .vmap** (2026-10-28: decompile of resourcecompiler 0923 180101690,
+     180100e40, 180f54950, 180f53f40, 180f53780, 180f4bb00, 180f519d0, 180f510d0, 180f50ed0, 180f54020, 1813a3370,
+     18139f930, 181057020, 1819cea20, 1801feb70, 1810e6fb0, 1810e3f50 and the SIMD 18125d1f0 behind 1812651a0;
+     steamaudio 1023 180067dc0, 180084d90; the s2c_saprobe capture's four scenes; SteamAudioSceneTests).
+     - Settled from the code: the scene is the map meshes' physics shapes, not their faces. 180f519d0 calls
+       PhysMesh_Shapes (the settle's own, ported) and turns each shape back into triangles (hull fan 1819589f0 at
+       scale 1, RnMesh vertices x (1, 1, 1) and its triangles 1819cea20), grouped by (surface index, InteractsAs,
+       collision group) in first-seen order, under the node's (translation, longest column, quaternion) rebuilt as a
+       matrix (1801feb70) and applied with 1812651a0. 180f510d0 appends the groups: group 1 never, otherwise kept when
+       the mask is 0, the group is 0 or InteractsAs meets the mask; a negative surface becomes material 1.
+     - Settled from the code: the two collections differ only in the mask. The bake's (180101690, first flag set)
+       is 0x1400 (blocksound, window), the probe generation's (180100e40, flag clear) 0x3400 (passbullets too); a
+       mesh in Force Static mode (2) takes mask 0. 180f53780's rules: owner solid 0 out; mode from the mesh's
+       embedded steamaudioGeometryMode (+0x3b70) else the owner's steamaudio_geometry_mode; 1 out; 3 goes to the
+       dynamic list, which neither collection keeps; a mesh under an entity needs solidity 2. The walk is depth first
+       in stored order (180f53f40). steamaudio's build (180084d90) takes the lists as they are: metres and axes
+       (180063600), each triangle reversed; nothing is welded anywhere (Valve's 206 vertices are the shapes' own).
+     - Exact: SteamAudioSceneTests: s2c_saprobe's scene from the .vmap equals all four captured scenes (206
+       vertices, 280 triangles, material indices) bit for bit; the probe box from our generation scene gives the
+       captured iplProbeArrayGenerateProbes matrix bit for bit, and the floor probes on our scene Valve's 73.
+     - Not ported, refused: instances and prefabs (the instance paths), hidden nodes (whether the compile drops them
+       before this walk is not read), a mesh's own steamaudioGeometryMode (its .vmap storage is not read), entity
+       models and smart props (180f52220), paths and cables, faces whose material sets tools.steamaudiogeometry
+       (180f54020), a default-group shape with no InteractsAs (the physics interface's layers, 180f519d0's vfn
+       0xd8 / 0x58). s2c_saprobe does not tell the two masks apart (it has no passbullets-only shape).
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

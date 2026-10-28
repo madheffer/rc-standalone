@@ -1,0 +1,82 @@
+{
+ "functions": [
+  {
+   "addr": "1801f50a0",
+   "name": "ispc_simulateEnergyField_Dispatch",
+   "module": "s2c:baked/steamaudio",
+   "note": "ISA level 4 picks the AVX2 kernel"
+  },
+  {
+   "addr": "180201a50",
+   "name": "ispc_simulateEnergyField_avx2",
+   "module": "s2c:baked/steamaudio",
+   "note": "8-lane gangs, gang-uniform RandomSampler seeded from rdtsc"
+  },
+  {
+   "addr": "180a58220",
+   "name": "generateSphereSamples",
+   "module": "s2c:baked/steamaudio",
+   "note": "Math::kPi 3.141592f, CRT cosf / sinf"
+  },
+  {
+   "addr": "180a71a30",
+   "name": "Matrix4x4_TransformColumnMajor",
+   "module": "s2c:baked/steamaudio",
+   "note": ""
+  },
+  {
+   "addr": "180a84df0",
+   "name": "ReverbEstimator_reverbTime",
+   "module": "s2c:baked/steamaudio",
+   "note": "no FMA"
+  },
+  {
+   "addr": "180a86090",
+   "name": "generateUniformFloorProbes",
+   "module": "s2c:baked/steamaudio",
+   "note": "inlined into the API"
+  },
+  {
+   "addr": "180ab3a20",
+   "name": "iplMatrix_Transpose",
+   "module": "s2c:baked/steamaudio",
+   "note": ""
+  },
+  {
+   "addr": "180afba80",
+   "name": "EmbreeScene_ClosestHitSingle",
+   "module": "s2c:baked/steamaudio",
+   "note": ""
+  },
+  {
+   "addr": "180afeff0",
+   "name": "ReflectionsBaker_JobLambda",
+   "module": "s2c:baked/steamaudio",
+   "note": "sums the threads' energy fields after the last job"
+  },
+  {
+   "addr": "182683c40",
+   "name": "crt_cosf",
+   "module": "s2c:baked/steamaudio",
+   "note": "FMA path"
+  },
+  {
+   "addr": "182685260",
+   "name": "crt_sinf",
+   "module": "s2c:baked/steamaudio",
+   "note": "FMA path; the cosine branch fuses 1 - x^2/2"
+  },
+  {
+   "addr": "1827a2450",
+   "name": "crt_expf",
+   "module": "s2c:baked/steamaudio",
+   "note": "FMA path, table driven"
+  },
+  {
+   "addr": "1827a2700",
+   "name": "crt_log10f",
+   "module": "s2c:baked/steamaudio",
+   "note": "FMA path, table driven"
+  }
+ ]
+}

@@ -1,7 +1,7 @@
 # Steam Audio
 
 What resourcecompiler's `-sareverb`, `-sapaths` and `-sacustomdata` write, how Valve's bake runs, and how far
-the port has got. Ledger: [GROUND_TRUTH.md](GROUND_TRUTH.md) 170. Started 2026-10-28.
+the port has got. Ledger: [GROUND_TRUTH.md](GROUND_TRUTH.md) 170, 171. Started 2026-10-28.
 
 ## The outputs
 
@@ -123,6 +123,15 @@ Ported and exact:
   over 11). SteamAudioMaterialTests: all 164 entries of Valve's scene. The surface order is surfaceproperties.vsurf's
   list order (a base later in the list is copied while still a default); that order is confirmed by the match,
   not yet read from the surface property system's code.
+- The acoustic geometry (`SteamAudio/AcousticScene.cs`, ledger 171): resourcecompiler's collector walks the map
+  depth first (180f53f40) and takes each map mesh's **physics shapes** (PhysMesh_Shapes, the settle's port, through
+  `SettleWorld.MeshShapes`), not its faces: hulls fanned (1819589f0), meshes as their vertices and triangles
+  (1819cea20), grouped by (surface index, InteractsAs, collision group), moved by the node's (translation, longest
+  column, quaternion) matrix (1801feb70, 1812651a0), appended under a layer mask (180f510d0): 0x1400 (blocksound,
+  window) for the bake's scene, 0x3400 (and passbullets) for the probe generation's. Owner rules (solid 0,
+  steamaudio_geometry_mode, solidity 2) as 180f53780 has them. steamaudio's build (180084d90) converts to metres
+  and reverses each triangle; nothing welds. SteamAudioSceneTests: s2c_saprobe's scene equals Valve's four captured
+  scenes bit for bit, and the probe box and the 73 probes follow from it with no capture input.
 - rcpps is the CPU's own approximation: Intel and AMD differ, so the bake is reproducible per CPU family (as
   Valve's is).
 
@@ -139,15 +148,12 @@ Valve references: `%TEMP%/steamaudio_refs` (`s2c_saprobe_api0`: seed 0, one thre
 
 In order of the plan (the user's call, 10-28: the rest of the pipeline first, Embree's tie order after):
 
-1. **The scene from the .vmap.** resourcecompiler's acoustic geometry collector (0923: 180f54950 picks the node
-   filter masks, 180f53f40 walks the map nodes, 180f53780 decides per node: CMapSmartProp and CMapPhysicsPin
-   skipped, an entity with `solid` 0 skipped, `steamaudio_geometry_mode` (1 exclude, 2 force static, 3 force
-   dynamic), a CMapMesh only with `solidity` 2, models through 180f4bb00; CMapMesh / CMapPath pieces from
-   180f519d0, others from 180f52220, each appended by 180f50ed0 / 180f510d0 transformed by the node's world
-   matrix (1812651a0) with its material index, 1 when negative). Then steamaudio's scene build (180084d90):
-   Source vertices to metres and axes (180063600), triangle winding reversed, the material table above. Check:
-   our vertices, triangles and material indices against Valve's captured mesh_0 / mesh_1 (s2c_saprobe: 206
-   vertices, 280 triangles, all on material 0); then more maps (displacements, models, overlapping meshes).
+1. **The rest of the scene from the .vmap** (map meshes in the world are done, ledger 171): instances and
+   prefabs (180f88460's instance paths), entity models and smart props (180f52220), paths and cables (180f519d0's
+   CMapPath branch, the settle's FromCable), faces with tools.steamaudiogeometry (180f54020: 18139f930's 3 points
+   per triangle, unwelded, grouped by surface), a mesh's own steamaudioGeometryMode (where the .vmap stores the
+   embedded property), hidden nodes, the physics interface's layers for a default-group shape with no
+   InteractsAs; then more maps, one with a passbullets-only shape to tell the two masks apart.
 2. **The probe filters** (resourcecompiler 180100e40, in this order): nav mesh (180fbea90, when
    `steamaudio_reverb_filter_navmesh`), ladders (180fbc630), missing nav areas (180fbcb10), exclusion volumes
    (180fbde60, when `..._filter_volumes`), citadel ziplines (180fbba50), inside shapes (180fbe450, against the

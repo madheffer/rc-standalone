@@ -253,6 +253,30 @@ public static partial class SettleWorld
             .ThenBy(t => t.i).Select(t => t.b)];
     }
 
+    /// <summary>
+    /// PhysMesh_Shapes (181057020) for one map mesh of the document where it stands, as <see cref="Build"/>'s walk
+    /// builds it: the body FromMesh makes at the node's world matrix, or null when the mesh makes none (physics
+    /// type "none"). The returned function shares one context, so it registers the layers <see cref="Build"/> would.
+    /// </summary>
+    internal static Func<DmxBinary.Element, DmxBinary.Element?, BodyBuild?> MeshShapes(DmxBinary.Document document, IModels models, FgdSchema schema)
+    {
+        var versions = new Dictionary<DmxBinary.Element, int>(ReferenceEqualityComparer.Instance);
+        foreach (var d in AllDocuments(document))
+            foreach (var e in d.Elements)
+                versions.TryAdd(e, d.FormatVersion);
+        var parents = new Dictionary<DmxBinary.Element, DmxBinary.Element>(ReferenceEqualityComparer.Instance);
+        foreach (var e in AllDocuments(document).SelectMany(d => d.Elements))
+            foreach (var child in e.GetElements("children"))
+                parents.TryAdd(child, e);
+        var context = new Context(models, new CollisionRules(), schema, []) { Versions = versions, Version = document.FormatVersion, Parents = parents };
+        return (mesh, owner) =>
+        {
+            var before = context.Bodies.Count;
+            FromMesh(mesh, NodeWorld(MapMeshes.Local(mesh)), mesh.GetValue<int>("nodeID") ?? -1, owner, context);
+            return context.Bodies.Count > before ? context.Bodies[^1] : null;
+        };
+    }
+
     /// <summary>The document and every prefab map loaded under it (<see cref="MapPrefabs"/>), at any depth.</summary>
     internal static IEnumerable<DmxBinary.Document> AllDocuments(DmxBinary.Document document)
     {

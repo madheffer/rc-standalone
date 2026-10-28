@@ -40,6 +40,7 @@ MU = "s2c:geometry/overlays"
 SP = "s2c:smartprops"
 MS = "s2c:physics/material-sampler"
 IO = "s2c:io"
+SA = "s2c:baked/steamaudio"
 
 RESOURCECOMPILER = [
     ('18023b500', 'WorldRendererBuilder_Construct', BAKE, "+0x2f8, the builder's requested lightmap side, 0x7fffffff; +0x2fc Engine2/LightmapQueries"),
@@ -1241,6 +1242,30 @@ RESOURCECOMPILER = [
     ("18024ee30", "LightVis_TestClustersJob", LIGHTS, "sample segments against cluster boxes, eps 0.001"),
     ("180f741a0", "CMapNodeDataProvider::vf35", LUMP, "legacy light description at identity; false for barn/rect/omni2"),
     ("180ef5870", "CBakeResourceHelper::vf2", LUMP, "Hammer preview scene keys, not the lump"),
+    ("180100e40", "SteamAudio_GenerateProbes", SA, "the generation collection (180f54950, first flag clear: mask 0x3400), its vertex bounds as the box (min / max on <=, centre (min + max) 0.5, size max - min, null rotation), steamaudio's generation (vfn 0x30), then the filters 180fbea90 .. 180fbd800 in order"),
+    ("180101690", "SteamAudio_PrepareReverbBake", SA, "worldspawn's reverb_* keys, the probes (180100e40), then the bake collection (180f54950 with flag 1: mask 0x1400) into steamaudio's CreateScene (vfn 0x70)"),
+    ("180f54950", "SteamAudio_CollectGeometry", SA, "clears the outputs; static mask 0x1400 with the first flag, 0x3400 without, 1 with the second; dynamic mask 0xc3001; the walk 180f53f40 from the given node"),
+    ("180f53f40", "SteamAudio_CollectWalk", SA, "skips a node in the exclude list, 180f53780 on it, then its children (+0x1f8 handles) in order"),
+    ("180f53780", "SteamAudio_CollectNode", SA, "CMapSmartProp (+0x688 == 0) and CMapPhysicsPin out; owner solid 0 out; mode from the mesh (+0x3b70) or the owner's steamaudio_geometry_mode: 1 out, 2 static with mask 0, 3 dynamic; else an owner's mesh needs solidity 2, an owner's other node a class with has_static_mesh; per instance path (180f88460) 180f519d0 / 180f52220 pieces through 180f50ed0, and a CMapMeshBase's face geometry (180f54020) through 180f510d0"),
+    ("180f4bb00", "MapNode_HasCollisionGeometry", SA, "a CMapMesh / CMapPath whose CollisionType (vf 0x680) is not 0, a CMapSmartProp, or a model child with physics"),
+    ("180f519d0", "SteamAudio_PhysicsPieces", SA, "PhysMesh_Shapes (181057020, no flags, the deformer 181022480); the node world matrix as (translation, longest unscaled column, quaternion); each shape as triangles (hull 1819589f0 at 1, mesh 1819cea20 at (1, 1, 1)) into 0x48-byte groups keyed (surface index: +0x10 of the surface found by name, -1 for none; InteractsAs; group byte +0x2e), first seen first"),
+    ("180f52220", "SteamAudio_ModelPieces", SA, "an entity model's pieces (not ported)"),
+    ("180f54020", "SteamAudio_FaceGeometryPieces", SA, "a mesh's faces whose material sets tools.steamaudiogeometry (vf 0x48), triangulated (18139f930) with 3 points per triangle, grouped by the material's surface (not ported)"),
+    ("180f50ed0", "SteamAudio_AddPiece", SA, "static: the piece's CTransform matrix (1801feb70) into 180f510d0 with the mask; dynamic: a 0x80-byte entry named <name>:<instance>"),
+    ("180f510d0", "SteamAudio_AppendGroups", SA, "each group with points, 3+ indices and group byte not 1, kept when the mask is 0, the group byte 0 or InteractsAs & mask: points through the matrix (1812651a0), indices offset, one material per triangle (1 for a negative surface)"),
+    ("1801feb70", "CTransform_ToMatrix", X, "QuaternionMatrix (181260150) with the position, the rotation columns times the scale when it is not 1"),
+    ("1819cea20", "RnMesh_Triangulate", SA, "the mesh's vertices (+0x30 count, +0x38) times a scale vector and its triangles (+0x48, +0x50) offset by the vertices before"),
+    ("1810e6fb0", "CMapMeshBase_GetSteamAudioGeometryMode", SA, "+0x3b70, the embedded property steamaudioGeometryMode (0 default, 1 exclude, 2 force static, 3 force dynamic; registered in 1810e3f50)"),
+    ("1813a3370", "HalfEdge_FacesWithMaterials", SA, "the faces whose material (face stream +0x2fbc) is in the mask; mode 0 also drops material flags & 5, mode != 2 faces whose stream +0x2fda value & 7"),
+    ("18139f930", "HalfEdge_TriangulateFaces", SA, "the faces triangulated, 3 points per triangle, the per-triangle face material, optional UV and attribute streams"),
+    ("180fbea90", "SteamAudio_FilterProbesByNavMesh", SA, "probes remaining after filtering by nav mesh"),
+    ("180fbc630", "SteamAudio_AppendLadderProbes", SA, "probes near ladders"),
+    ("180fbcb10", "SteamAudio_AppendMissingNavProbes", SA, "probes near missing navmesh areas"),
+    ("180fbde60", "SteamAudio_FilterProbesByVolumes", SA, "probes remaining after filtering by exclusion volumes"),
+    ("180fbba50", "SteamAudio_AppendZiplineProbes", SA, "citadel_zipline_path_node entities as probes"),
+    ("180fbe450", "SteamAudio_FilterProbesInsideShapes", SA, "probes remaining after filtering by inside shapes, against the physics world"),
+    ("180fbc2d0", "SteamAudio_AppendMapProbes", SA, "probes from the map"),
+    ("180fbd800", "SteamAudio_AppendOpvarProbes", SA, "sound_opvar_set_point entities and proxy probes"),
 ]
 
 BOMB = "s2c:baked/bomb"
@@ -3294,6 +3319,44 @@ ANIMATIONSYSTEM_1023 = [
     ("1804b5690", "AnimObjectList_Vfn38", ST, "each object at +0x368 (count +0x360) through its vfn 0x38, results ORed; called once in ctm_sas's update"),
 ]
 
+# steamaudio.dll (20261023): the bake's scene, probes and files (SteamAudio/, docs/STEAM_AUDIO.md, ledger 170).
+STEAMAUDIO_1023 = [
+    ("1800635d0", "SteamAudio_ToSteamAudioAxes", SA, "Source (x, y, z) to (-y, z, -x)"),
+    ("180063600", "SteamAudio_SourceToMeters", SA, "x 0.0254, then the axes"),
+    ("1800636b0", "SteamAudio_ToSourceAxes", SA, "(-z, -x, y)"),
+    ("180067dc0", "CSteamAudioScene_Create", SA, "a 0x78-byte scene, then its build (180084d90)"),
+    ("18006b260", "SteamAudio_MetersToSource", SA, "the axes, then x 39.37008"),
+    ("18006b2d0", "SteamAudio_BoxMatrix", SA, "a box (quaternion, centre, size in inches) as phonon's row-major 4x4"),
+    ("18006bc60", "SteamAudio_ReadReverbSettings", SA, "code defaults, gameinfo ReverbDefaults, then worldspawn"),
+    ("18006c1b0", "SteamAudio_ReadPathingSettings", SA, ""),
+    ("180071240", "SteamAudio_WriteProbeBatchBlob", SA, "the serialized batch into m_pProbeBatch"),
+    ("18007d0b0", "SteamAudio_SumBands", SA, "a band array summed in order from 0"),
+    ("180084720", "CSteamAudioMaterial_ReadEntry", SA, "a surfaceproperties_steamaudio.txt entry's coefficients; missing arrays keep theirs"),
+    ("180084910", "CSteamAudioMaterial_CopyBase", SA, ""),
+    ("180084a40", "CSteamAudioMaterial_Default", SA, "absorption 0.3, scattering 0.5, transmission 0, 11 bands"),
+    ("180084d90", "CSteamAudioScene_Build", SA, "vertices as given through 180063600, each triangle reversed, materials reduced to bands 0, 7, 9 (scattering: 11 bands summed / 11); iplSceneCreate type 1, one static mesh"),
+    ("180087940", "CSteamAudioScene_GenerateProbes", SA, ""),
+    ("180087e90", "CSteamAudioScene_BakeReverb", SA, "iplReflectionsBakerBake with the 0x80-byte block"),
+    ("180128710", "CSurfacePropDataTable_CSteamAudioMaterial_Parse", SA, "defaults, a base's entry copied in list order, then the txt entry by name"),
+]
+
+# phonon.dll (20260923, Steam Audio 4.9.0): the simulator the bake runs (SteamAudio/, ledger 170).
+PHONON_0923 = [
+    ("1801f50a0", "ispc_simulateEnergyField_Dispatch", SA, "ISA level 4 picks the AVX2 kernel"),
+    ("180201a50", "ispc_simulateEnergyField_avx2", SA, "8-lane gangs, gang-uniform RandomSampler seeded from rdtsc"),
+    ("180a58220", "generateSphereSamples", SA, "Math::kPi 3.141592f, CRT cosf / sinf"),
+    ("180a71a30", "Matrix4x4_TransformColumnMajor", SA, ""),
+    ("180a84df0", "ReverbEstimator_reverbTime", SA, "no FMA"),
+    ("180a86090", "generateUniformFloorProbes", SA, "inlined into the API"),
+    ("180ab3a20", "iplMatrix_Transpose", SA, ""),
+    ("180afba80", "EmbreeScene_ClosestHitSingle", SA, ""),
+    ("180afeff0", "ReflectionsBaker_JobLambda", SA, "sums the threads' energy fields after the last job"),
+    ("182683c40", "crt_cosf", SA, "FMA path"),
+    ("182685260", "crt_sinf", SA, "FMA path; the cosine branch fuses 1 - x^2/2"),
+    ("1827a2450", "crt_expf", SA, "FMA path, table driven"),
+    ("1827a2700", "crt_log10f", SA, "FMA path, table driven"),
+]
+
 # bc7e.dll as installed (PE time 2026-01-01; unchanged by the 10-15 update), copied as bc7e_20261015.dll.
 BC7E = [
     ("180001000", "bc7e_DetectTarget", BAKE, "cpuid / xgetbv: 5 AVX-512 SKX, 4 AVX-512 KNL, 3 AVX2, 2 AVX, 1 SSE4, 0 SSE2"),
@@ -3326,6 +3389,8 @@ if __name__ == "__main__":
     write("resourcecompiler_20261023.manual.json", RESOURCECOMPILER_1023)
     write("modtools_20261023.manual.json", MODTOOLS_1023)
     write("bc7e_20261015.manual.json", BC7E)
+    write("steamaudio_20261023.manual.json", STEAMAUDIO_1023)
+    write("phonon_20260923.manual.json", PHONON_0923)
     write("animationsystem_20261023.manual.json", ANIMATIONSYSTEM_1023)
     write("client_20261015.manual.json", CLIENT_1015)
     write("client_20261021.manual.json", CLIENT_1021)

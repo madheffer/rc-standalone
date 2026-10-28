@@ -7025,6 +7025,150 @@
    "name": "CBakeResourceHelper::vf2",
    "module": "s2c:entities/lump",
    "note": "Hammer preview scene keys, not the lump"
+  },
+  {
+   "addr": "180100e40",
+   "name": "SteamAudio_GenerateProbes",
+   "module": "s2c:baked/steamaudio",
+   "note": "the generation collection (180f54950, first flag clear: mask 0x3400), its vertex bounds as the box (min / max on <=, centre (min + max) 0.5, size max - min, null rotation), steamaudio's generation (vfn 0x30), then the filters 180fbea90 .. 180fbd800 in order"
+  },
+  {
+   "addr": "180101690",
+   "name": "SteamAudio_PrepareReverbBake",
+   "module": "s2c:baked/steamaudio",
+   "note": "worldspawn's reverb_* keys, the probes (180100e40), then the bake collection (180f54950 with flag 1: mask 0x1400) into steamaudio's CreateScene (vfn 0x70)"
+  },
+  {
+   "addr": "180f54950",
+   "name": "SteamAudio_CollectGeometry",
+   "module": "s2c:baked/steamaudio",
+   "note": "clears the outputs; static mask 0x1400 with the first flag, 0x3400 without, 1 with the second; dynamic mask 0xc3001; the walk 180f53f40 from the given node"
+  },
+  {
+   "addr": "180f53f40",
+   "name": "SteamAudio_CollectWalk",
+   "module": "s2c:baked/steamaudio",
+   "note": "skips a node in the exclude list, 180f53780 on it, then its children (+0x1f8 handles) in order"
+  },
+  {
+   "addr": "180f53780",
+   "name": "SteamAudio_CollectNode",
+   "module": "s2c:baked/steamaudio",
+   "note": "CMapSmartProp (+0x688 == 0) and CMapPhysicsPin out; owner solid 0 out; mode from the mesh (+0x3b70) or the owner's steamaudio_geometry_mode: 1 out, 2 static with mask 0, 3 dynamic; else an owner's mesh needs solidity 2, an owner's other node a class with has_static_mesh; per instance path (180f88460) 180f519d0 / 180f52220 pieces through 180f50ed0, and a CMapMeshBase's face geometry (180f54020) through 180f510d0"
+  },
+  {
+   "addr": "180f4bb00",
+   "name": "MapNode_HasCollisionGeometry",
+   "module": "s2c:baked/steamaudio",
+   "note": "a CMapMesh / CMapPath whose CollisionType (vf 0x680) is not 0, a CMapSmartProp, or a model child with physics"
+  },
+  {
+   "addr": "180f519d0",
+   "name": "SteamAudio_PhysicsPieces",
+   "module": "s2c:baked/steamaudio",
+   "note": "PhysMesh_Shapes (181057020, no flags, the deformer 181022480); the node world matrix as (translation, longest unscaled column, quaternion); each shape as triangles (hull 1819589f0 at 1, mesh 1819cea20 at (1, 1, 1)) into 0x48-byte groups keyed (surface index: +0x10 of the surface found by name, -1 for none; InteractsAs; group byte +0x2e), first seen first"
+  },
+  {
+   "addr": "180f52220",
+   "name": "SteamAudio_ModelPieces",
+   "module": "s2c:baked/steamaudio",
+   "note": "an entity model's pieces (not ported)"
+  },
+  {
+   "addr": "180f54020",
+   "name": "SteamAudio_FaceGeometryPieces",
+   "module": "s2c:baked/steamaudio",
+   "note": "a mesh's faces whose material sets tools.steamaudiogeometry (vf 0x48), triangulated (18139f930) with 3 points per triangle, grouped by the material's surface (not ported)"
+  },
+  {
+   "addr": "180f50ed0",
+   "name": "SteamAudio_AddPiece",
+   "module": "s2c:baked/steamaudio",
+   "note": "static: the piece's CTransform matrix (1801feb70) into 180f510d0 with the mask; dynamic: a 0x80-byte entry named <name>:<instance>"
+  },
+  {
+   "addr": "180f510d0",
+   "name": "SteamAudio_AppendGroups",
+   "module": "s2c:baked/steamaudio",
+   "note": "each group with points, 3+ indices and group byte not 1, kept when the mask is 0, the group byte 0 or InteractsAs & mask: points through the matrix (1812651a0), indices offset, one material per triangle (1 for a negative surface)"
+  },
+  {
+   "addr": "1801feb70",
+   "name": "CTransform_ToMatrix",
+   "module": "s2c:math",
+   "note": "QuaternionMatrix (181260150) with the position, the rotation columns times the scale when it is not 1"
+  },
+  {
+   "addr": "1819cea20",
+   "name": "RnMesh_Triangulate",
+   "module": "s2c:baked/steamaudio",
+   "note": "the mesh's vertices (+0x30 count, +0x38) times a scale vector and its triangles (+0x48, +0x50) offset by the vertices before"
+  },
+  {
+   "addr": "1810e6fb0",
+   "name": "CMapMeshBase_GetSteamAudioGeometryMode",
+   "module": "s2c:baked/steamaudio",
+   "note": "+0x3b70, the embedded property steamaudioGeometryMode (0 default, 1 exclude, 2 force static, 3 force dynamic; registered in 1810e3f50)"
+  },
+  {
+   "addr": "1813a3370",
+   "name": "HalfEdge_FacesWithMaterials",
+   "module": "s2c:baked/steamaudio",
+   "note": "the faces whose material (face stream +0x2fbc) is in the mask; mode 0 also drops material flags & 5, mode != 2 faces whose stream +0x2fda value & 7"
+  },
+  {
+   "addr": "18139f930",
+   "name": "HalfEdge_TriangulateFaces",
+   "module": "s2c:baked/steamaudio",
+   "note": "the faces triangulated, 3 points per triangle, the per-triangle face material, optional UV and attribute streams"
+  },
+  {
+   "addr": "180fbea90",
+   "name": "SteamAudio_FilterProbesByNavMesh",
+   "module": "s2c:baked/steamaudio",
+   "note": "probes remaining after filtering by nav mesh"
+  },
+  {
+   "addr": "180fbc630",
+   "name": "SteamAudio_AppendLadderProbes",
+   "module": "s2c:baked/steamaudio",
+   "note": "probes near ladders"
+  },
+  {
+   "addr": "180fbcb10",
+   "name": "SteamAudio_AppendMissingNavProbes",
+   "module": "s2c:baked/steamaudio",
+   "note": "probes near missing navmesh areas"
+  },
+  {
+   "addr": "180fbde60",
+   "name": "SteamAudio_FilterProbesByVolumes",
+   "module": "s2c:baked/steamaudio",
+   "note": "probes remaining after filtering by exclusion volumes"
+  },
+  {
+   "addr": "180fbba50",
+   "name": "SteamAudio_AppendZiplineProbes",
+   "module": "s2c:baked/steamaudio",
+   "note": "citadel_zipline_path_node entities as probes"
+  },
+  {
+   "addr": "180fbe450",
+   "name": "SteamAudio_FilterProbesInsideShapes",
+   "module": "s2c:baked/steamaudio",
+   "note": "probes remaining after filtering by inside shapes, against the physics world"
+  },
+  {
+   "addr": "180fbc2d0",
+   "name": "SteamAudio_AppendMapProbes",
+   "module": "s2c:baked/steamaudio",
+   "note": "probes from the map"
+  },
+  {
+   "addr": "180fbd800",
+   "name": "SteamAudio_AppendOpvarProbes",
+   "module": "s2c:baked/steamaudio",
+   "note": "sound_opvar_set_point entities and proxy probes"
   }
  ]
 }
