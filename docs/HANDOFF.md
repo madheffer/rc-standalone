@@ -226,9 +226,10 @@ Ledgers 179, 180; NAV.md collector 1 and "Order of work" 2. CS2 closed, Steam op
   NavCompileTests.NavWithLaddersMatchesValve (s2c_prefabprobe3, the nav from the .vmap) was running, at 8 to 10
   minutes, three runs out of three. Alone it does not crash (75 min, about 460 to 640 MB, stopped by hand before it
   finished; the analyze=true case is the hours-long CS analysis). Not settled whether the crash is that test under
-  the suite's parallel load or another test running beside it. The one failure is
-  MapRootFileTests.MapRootEqualsValves on s2c_navlink3: its reference package (10-28 21:11) predates
-  s2c_navlinkpf.vmap (21:27), so the root's m_nFileCRC differs; recompile the reference (compile_fresh.py).
+  the suite's parallel load or another test running beside it (a separate session is on it). The one failure was
+  MapRootFileTests.MapRootEqualsValves on s2c_navlink3: its reference package (10-28 21:11) predated
+  s2c_navlinkpf.vmap (21:27), so the root's m_nFileCRC differed. Recompiled 10-29 with `-world -phys -nav`
+  (compile_fresh.py; the old package is in %TEMP%/refresh_1029/old): the map root, link, nav and lump tests pass.
   Note: a Bash tool timeout kills the run at 10 min and looks like the same crash; run the suite detached.
 - The suite was not run in full.
 
