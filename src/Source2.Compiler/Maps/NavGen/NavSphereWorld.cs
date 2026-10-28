@@ -24,15 +24,19 @@ public sealed class NavSphereWorld
 {
     public const float MaxDelta = 16384f;
 
-    private readonly record struct Cast(RnMesh? Mesh, Vector3 Scale, Vector3[]? Hull, bool Static, float[] T);
+    private readonly record struct Cast(RnMesh? Mesh, Vector3 Scale, Vector3[]? Hull, bool Static, float[] T, ulong InteractsAs);
 
     private readonly List<Cast> _shapes = [];
 
     /// <summary>
     /// The world from <paramref name="bodies"/>: the nav PhysDoc's world, the bodies
     /// <paramref name="inNavWorld"/> keeps (<see cref="NavGenInput.NavWorldFilter"/>), as navsystem's.
+    /// The query is the analysis's (group 3, every body type) unless <paramref name="queryGroup"/> and
+    /// <paramref name="staticOnly"/> say otherwise: the mesh build's ladder traces (rc 1818d2c10) ask
+    /// group 4 and static bodies only (+0x2f = 1), with the same layers and flags.
     /// </summary>
-    public NavSphereWorld(IReadOnlyList<SettleWorld.BodyBuild> bodies, Func<SettleWorld.BodyBuild, bool>? inNavWorld = null)
+    public NavSphereWorld(IReadOnlyList<SettleWorld.BodyBuild> bodies, Func<SettleWorld.BodyBuild, bool>? inNavWorld = null,
+                          byte queryGroup = 3, bool staticOnly = false)
     {
         var table = CollisionGroupTable.Build();
         var kept = bodies.Where(b => inNavWorld?.Invoke(b) != false).ToList();
@@ -43,7 +47,7 @@ public sealed class NavSphereWorld
             var t = NavBoxWorld.Transform(state);
             foreach (var shape in kept[i].Shapes)
             {
-                if (!Passes(shape.Attributes, state.BodyType, table))
+                if ((staticOnly && state.BodyType != 0) || !Passes(shape.Attributes, queryGroup, table))
                     continue;
                 if (shape.Type == BroadphaseShape.HullType && shape.Hull is { } hull)
                 {
@@ -52,22 +56,21 @@ public sealed class NavSphereWorld
                         throw new NotSupportedException("a nav analysis sphere cast against a hull with a region SVM (180257420) is not ported");
                     if (shape.HullScale != 1f)
                         throw new NotSupportedException("a nav analysis sphere cast against a scaled hull (1802e2bd0) is not ported");
-                    _shapes.Add(new Cast(null, Vector3.One, hull.VertexPositions, state.BodyType == 0, t));
+                    _shapes.Add(new Cast(null, Vector3.One, hull.VertexPositions, state.BodyType == 0, t, shape.Attributes.InteractsAs));
                     continue;
                 }
                 if (shape.Mesh is not { } mesh)
                     throw new NotSupportedException($"a nav analysis sphere cast against a type {shape.Type} shape is not ported");
-                _shapes.Add(new Cast(mesh, shape.MeshScale, null, state.BodyType == 0, t));
+                _shapes.Add(new Cast(mesh, shape.MeshScale, null, state.BodyType == 0, t, shape.Attributes.InteractsAs));
             }
         }
     }
 
-    /// <summary>1802facf0 with the analysis query; NavGenInput.ShapePasses with no exclude or query-as layers.</summary>
-    private static bool Passes(in CollisionAttributes s, int bodyType, ushort[] groupTable)
+    /// <summary>1802facf0 with the nav query (layers 0x3021, flags 0x49); NavGenInput.ShapePasses with no exclude or query-as layers.</summary>
+    private static bool Passes(in CollisionAttributes s, byte queryGroup, ushort[] groupTable)
     {
         const ulong interactsWith = 0x3021;
-        const byte queryFlags = 0x49, queryGroup = 3;
-        _ = bodyType; // type mask 0xf: every body type
+        const byte queryFlags = 0x49;
         if ((s.Flags & 2) == 0 || ((0xffff >> (s.FunctionIndex & 0x1f)) & 1) == 0)
             return false;
         var mask = s.MaskIsDirect == 1 ? s.FunctionMask : (ushort)~s.FunctionMask;
@@ -127,5 +130,56 @@ public sealed class NavSphereWorld
                 break;
         }
         return (hits, least);
+    }
+
+    /// <summary>A static body's hit as the broadphase keeps it (1801c7c70): the world normal and the shape's layers.</summary>
+    public readonly record struct NearestHit(bool Hit, float Fraction, Vector3 Normal, ulong InteractsAs);
+
+    /// <summary>
+    /// The cast for a static-only query: the walk of <see cref="CastSphere"/> keeping the first hit and
+    /// replacing it only by a strictly nearer one (1801da640), ending on a hit at 0. The hit's normal
+    /// goes back to the world as 1801c7c70 turns it, n.x r0 + n.y r3 + n.z r6 per row; a hull's normal
+    /// (its sphere cast's) is not ported and comes back NaN.
+    /// </summary>
+    public NearestHit CastSphereNearest(Vector3 start, Vector3 delta, float radius = 0.1f)
+    {
+        if (delta.X * delta.X + delta.Y * delta.Y + delta.Z * delta.Z > MaxDelta * MaxDelta)
+            throw new NotSupportedException("a ray past the world's coordinate limit (1801c4370's clip) is not modelled");
+        var best = 1f;
+        var kept = default(NearestHit);
+        foreach (var s in _shapes)
+        {
+            if (!s.Static)
+                throw new InvalidOperationException("CastSphereNearest is for a static-only world");
+            var t = s.T;
+            float ox = start.X - t[9], oy = start.Y - t[10], oz = start.Z - t[11];
+            var ls = new Vector3(t[0] * ox + t[1] * oy + t[2] * oz, t[3] * ox + t[4] * oy + t[5] * oz, t[6] * ox + t[7] * oy + t[8] * oz);
+            var ld = new Vector3(delta.Y * t[1] + delta.X * t[0] + delta.Z * t[2], delta.Y * t[4] + delta.X * t[3] + delta.Z * t[5],
+                                 delta.Y * t[7] + delta.X * t[6] + delta.Z * t[8]);
+            bool found;
+            float fraction;
+            var local = new Vector3(float.NaN);
+            if (s.Hull is { } points)
+                (found, fraction) = HullCast.CastSphere(points, ls, ld, radius, best) is var h ? (h.Found, h.Fraction) : default;
+            else
+            {
+                var m = SphereCast.Mesh(s.Mesh!, s.Scale, ls, ld, radius, best);
+                (found, fraction, local) = (m.Found, m.Fraction, m.Normal);
+            }
+            if (!found)
+                continue;
+            if (!kept.Hit || fraction < kept.Fraction)
+            {
+                var n = new Vector3(local.X * t[0] + local.Y * t[3] + local.Z * t[6],
+                                    local.X * t[1] + local.Y * t[4] + local.Z * t[7],
+                                    local.X * t[2] + local.Y * t[5] + local.Z * t[8]);
+                kept = new NearestHit(true, fraction, n, s.InteractsAs);
+            }
+            if (fraction == 0f)
+                break;
+            if (fraction < best)
+                best = fraction;
+        }
+        return kept.Hit ? kept : new NearestHit(false, 1f, default, 0);
     }
 }

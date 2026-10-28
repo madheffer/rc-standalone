@@ -355,6 +355,12 @@
    "note": "query: interacts with the mask, +0x2f / +0x30 from the caller, flags 0x49; result fraction +0xac, normal +0x90, start-solid +0xbb, the hit attributes at +0x50 and their first qword | 1 at +0x28"
   },
   {
+   "addr": "18129b060",
+   "name": "ClosestPointOnTriangleF",
+   "module": "s2c:baked/nav",
+   "note": "Ericson's regions in floats (NavMeshLadders.ClosestPointOnTriangle; oracle-exact)"
+  },
+  {
    "addr": "1818d1fa0",
    "name": "CNavToolsPhysicsInterface_CastShape",
    "module": "s2c:baked/nav",

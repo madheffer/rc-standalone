@@ -23,10 +23,12 @@ public static partial class NavGenMapInput
     /// a non-zero mapbuilder.ladder int (material vfn 0x50) gives, per placement (180fb21f0; one per
     /// <see cref="MapMeshes.Mesh"/> copy, the node's matrix after the instance path's), the face using
     /// the first such material with the largest |top - bottom| times width (180fb1c10; the first face
-    /// wins a tie). Meshes under func_ladder entities are taken after all others, in the entities'
-    /// order (the map's flat node array, then each sub-map's): not ported, as the pipeline refuses
-    /// func_ladder. Unsettled: the order of several ladders (the walk against 180f88460's paths), and
-    /// that hidden meshes are left out as the compile leaves them out.
+    /// wins a tie). The walk skips func_ladder entities; each visible func_ladder's direct child
+    /// meshes go through the same 180fb21f0 after all the others (180fb1380: the map's flat node array,
+    /// the root document's nodes in pre-order, GROUND_TRUTH 107), so they too need a ladder material.
+    /// A func_ladder reached through an instance or a prefab (its place in the array and the
+    /// sub-maps, 180fc8c80) refuses. Unsettled: the order of several ladders (the walk against
+    /// 180f88460's paths), and that hidden meshes are left out as the compile leaves them out.
     /// </summary>
     public static List<NavLadder> Ladders(DmxBinary.Document document, Func<string, SettleWorld.MaterialInfo?> material)
     {
@@ -42,16 +44,24 @@ public static partial class NavGenMapInput
             }
             return yes;
         }
-        foreach (var mesh in MapMeshes.Read(document))
+        var meshes = MapMeshes.Read(document);
+        var underLadder = new HashSet<DmxBinary.Element>(ReferenceEqualityComparer.Instance);
+        foreach (var e in SettleWorld.AllDocuments(document).SelectMany(d => d.Elements))
+            if (e.Type == "CMapEntity"
+                && string.Equals(e.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname"), "func_ladder", StringComparison.OrdinalIgnoreCase))
+                foreach (var child in e.GetElements("children"))
+                    underLadder.Add(child);
+        bool InFuncLadder(MapMeshes.Mesh m) => m.Element is { } el && underLadder.Contains(el);
+        foreach (var mesh in meshes.Where(m => !InFuncLadder(m)).Concat(meshes.Where(InFuncLadder)))
         {
             if (mesh.Hidden || mesh.Element is not { } element)
                 continue;
+            if (InFuncLadder(mesh) && (mesh.Instances.Length > 0 || mesh.Prefabs.Length > 0))
+                throw new NotSupportedException("a func_ladder inside an instance or prefab (its place in the flat node array, 180fc8c80) is not ported");
             var (corners, faceMaterial, materials) = MapMeshes.LocalFaces(element);
             var index = Array.FindIndex(materials, IsLadder);
             if (index < 0)
                 continue;
-            if (string.Equals(mesh.ParentClass, "func_ladder", StringComparison.OrdinalIgnoreCase))
-                throw new NotSupportedException("ladder meshes under func_ladder are not ported");
             NavLadder? best = null;
             var bestScore = 0f;
             for (var f = 0; f < corners.Length; f++)

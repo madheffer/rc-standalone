@@ -162,8 +162,9 @@ the addon).
      UnlitMapRootsEqualValves passes. %TEMP%/preset_entities holds the new
      references; the wrong ones are in preset_entities_1023_withworld.
 4. **Nav** ([NAV.md](NAV.md), the inventory of every nav input and output the DLLs read and write, 2026-10-28; LIGHTING_ROADMAP L9): markups (L23), spheres and capsules (L22)
-   and the analysis' overlap removal (L24) done 10-25 (ledgers 142, 143, 146). Left: nav links, func_ladder
-   ladders, movable meshes, markups in instances or prefabs, the NONAV blocks
+   and the analysis' overlap removal (L24) done 10-25 (ledgers 142, 143, 146); ladders and AddJumps' cylinder
+   sweep done 10-28 (ledger 174: s2c_prefabprobe3's .nav Valve's up to the custom data). Left: nav links, a
+   func_ladder in an instance or prefab, movable meshes, markups in instances or prefabs, the NONAV blocks
    collector (180f1f830: prop_deformable, block_base_nav_mesh), the CS analysis' casts and
    LadderConnect's rays against round shapes, bomb damage over hull, sphere or
    capsule worlds (L10).
@@ -191,6 +192,11 @@ the addon).
     (new "Panorama Compiler Conditionals Fingerprint", every shipped `.vjs_c`
     rebuilt) and server.dll's script API; first get a pre-update `.vjs_c` to see
     what changed, and Valve's fresh `cs_script_demo` compile as the reference.
+12. **Speed, after parity (user, 2026-10-28):** nav and vis are the two big compile stages.
+    Vis: the PVS scan is about 90 of the 113 min on s2c_prefabprobe4. Nav: our nav from
+    s2c_prefabprobe3's .vmap (generation, ladders, the CS analysis) ran over an hour in a
+    Debug test build; time a Release build and Valve's own step before sizing it. Any change
+    that could alter bytes waits for the user's OK (parity before speed).
 
 ## Latest session (2026-10-28, the ragdoll pose and the first lockstep)
 

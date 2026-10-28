@@ -89,7 +89,7 @@ public sealed class NavGenPipelineTests(ITestOutputHelper output)
             if (diff is null && !NavWriterTests.Movable(dir).Any())
             {
                 // On through the mesh build and the save: every byte before the CS custom data.
-                var ours = NavWriter.Write(NavWriter.Build(g), result.Settings, ValveKeyValue.KVObject.Null());
+                var ours = NavWriter.Write(NavCompile.Mesh(document, schema, bodies, result), result.Settings, ValveKeyValue.KVObject.Null());
                 var valve = NavWriterTests.ValveNav(map);
                 // NAVGEN_NAVDUMP=<dir>: both .nav files, for tools/re/navfile.py.
                 if (Environment.GetEnvironmentVariable("NAVGEN_NAVDUMP") is { } dump)
@@ -109,10 +109,7 @@ public sealed class NavGenPipelineTests(ITestOutputHelper output)
                 failures.Add(map);
         }
         output.WriteLine($"{passed} exact, {refused} refused, {failures.Count} differ ({string.Join(", ", failures)})");
-        // s2c_prefabprobe3: the polygons are Valve's through 027 from the .vmap, but AddJumps (026) adds 532
-        // connections fewer than Valve's (our NavTriangleWorld's casts block more; NavGenJumpTests from Valve's
-        // 026 input shows it), so IslandRemoval (029) keeps 210 polygons fewer. Its ladder is Valve's and does
-        // not change 029 (NavGenLadderTests). prefabprobe4's input is open (ledger 100).
-        Assert.Empty(failures.Except(["s2c_prefabprobe3", "s2c_prefabprobe4"]));
+        // prefabprobe4's input is open (ledger 100).
+        Assert.Empty(failures.Except(["s2c_prefabprobe4"]));
     }
 }

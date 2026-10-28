@@ -244,9 +244,9 @@ public sealed class NavGenInputTests(ITestOutputHelper output)
         recast.SplitPolysWithMultipleConnections(NavGenStages.MultiConnectionTol);
         Blocks("025_SplitPolysWithMultipleConnections_out", false);
         var at25 = (recast.Polys.Count, recast.Polys.Sum(p => p.Links?.Count ?? 0));
-        // 026 AddJumps through the nav world's triangles (the cast is a stand-in, ledger 98), 027, then
-        // 028 (LadderConnect, not ported: these maps have no ladders) and 029 IslandRemoval.
-        recast.AddJumps(settings.Hulls[0], new NavTriangleWorld([.. verts], [.. indices]), new NavGenPolys.JumpSettings());
+        // 026 AddJumps swept through the nav world (NavJumpSweepWorld), 027, then 028 (LadderConnect:
+        // these maps have no ladders) and 029 IslandRemoval.
+        recast.AddJumps(settings.Hulls[0], new NavJumpSweepWorld(bodies, NavGenInput.NavWorldFilter(document, schema)), new NavGenPolys.JumpSettings());
         Blocks("026_AddJumps_out", false);
         recast.RemoveSmallAreasOnEdge(settings.SmallAreaOnEdgeRemovalSize, settings.Byte58 != 0);
         Blocks("027_RemoveSmallAreasOnEdge_out", true);

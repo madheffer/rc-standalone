@@ -62,8 +62,8 @@ The world step bakes when no builder is named or `-bakelighting` is given,
 unless `-nobakedlighting` is given; without `-s2cbake` or `-vrad3output` the
 bake is refused by name, as Steam Audio always is. The nav step generates the
 nav with its CS custom data, and the CS2 bomb damage post step runs after every
-build (ledger 109); a nav or bomb damage the port refuses (func_ladder, nav
-links, markups inside instances or prefabs, movable meshes, the analysis' casts
+build (ledger 109); a nav or bomb damage the port refuses (a func_ladder in an
+instance or prefab, nav links, markups inside instances or prefabs, movable meshes, the analysis' casts
 against spheres and capsules, bomb damage over hull, sphere or capsule worlds)
 refuses the build. `--skip-unported` runs the rest and leaves those parts as the
 package has them, for quick test builds. A lump whose lights or probe
@@ -120,7 +120,7 @@ says so.
 | `-nolightmaps` | no label found | no output: resourcecompiler has no such argument |
 | `-vis` | Build vis | compile-map: off without it (no vvis, grid clustering); byte-identical VXVS from the .vmap end to end on five maps incl. s2c_prefabprobe4 and split hints (ledger 127); `-oldvis` is not reproducible in Valve's own tool |
 | `-phys` | Build physics | compile-map: world_physics, exact against Valve's decoded trees on 9 maps |
-| `-nav` | Nav | compile-map: generated from the .vmap with the CS custom data and the bomb damage after it; probe01, cardtest and s2c_navmarkup (every markup kind) Valve's (the custom data's heap pointer fields aside), ledgers 109, 142; spheres and capsules in the nav world Valve's through stage 029 (s2c_navround, ledger 143); nav links, func_ladder, ladders in the .nav (any map with a mapbuilder.ladder mesh), movable meshes and the analysis' casts against round shapes refused; every input and output in [NAV.md](NAV.md) |
+| `-nav` | Nav | compile-map: generated from the .vmap with the CS custom data and the bomb damage after it; probe01, cardtest and s2c_navmarkup (every markup kind) Valve's (the custom data's heap pointer fields aside), ledgers 109, 142; spheres and capsules in the nav world Valve's through stage 029 (s2c_navround, ledger 143); ladders Valve's up to the custom data on s2c_prefabprobe3 (ledger 174); nav links, a func_ladder in an instance or prefab, movable meshes and the analysis' casts against round shapes refused; every input and output in [NAV.md](NAV.md) |
 | `-navdbg` | Save debug stages to file | not started |
 | `-gridnav` | Grid Nav, Build grid nav | not started |
 | `-lod` | Build LOD | not read |

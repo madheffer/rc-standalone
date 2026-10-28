@@ -478,6 +478,69 @@ public static class RnHullBuilder
         return hull;
     }
 
+    /// <summary>
+    /// RnHullCreateCylinder (vphysics2 1801ad370, no options): null below 1/32 long. The axis is
+    /// L = sqrt((dy^2 + dx^2) + dz^2), its unit direction turned from +z (180089a30). Each of 16
+    /// angles (0 then + pi/8 in float; tier0's V_cosf, V_sinf) puts (cos r, sin r, -L/2) and then
+    /// (cos r, sin r, L/2) through the turn as (q x t + (v + w t)) + c, t = 2 (q x v), c the
+    /// midpoint. The 32 points go to RnHullCreate; a vertical axis sets flag 4.
+    /// </summary>
+    public static RnHull? CreateCylinder(Vector3 a, Vector3 b, float radius)
+    {
+        float dx = b.X - a.X, dy = b.Y - a.Y, dz = b.Z - a.Z;
+        var length = ((dy * dy) + (dx * dx)) + (dz * dz);
+        length = length < 0f ? float.NaN : MathF.Sqrt(length);
+        if (0.03125f > length)
+            return null;
+        var inverse = 1f / length;
+        var direction = new Vector3(inverse * dx, inverse * dy, inverse * dz);
+        var q = RotationFromZ(direction);
+        float cx = (b.X + a.X) * 0.5f, cy = (b.Y + a.Y) * 0.5f, cz = (b.Z + a.Z) * 0.5f;
+        float bottom = length * -0.5f, top = length * 0.5f;
+        Vector3 Turn(float vx, float vy, float vz)
+        {
+            var tx = (q.Y * vz) - (q.Z * vy);
+            var ty = (q.Z * vx) - (q.X * vz);
+            var tz = (q.X * vy) - (q.Y * vx);
+            tx += tx;
+            ty += ty;
+            tz += tz;
+            return new(((q.Y * tz) - (q.Z * ty) + (vx + q.W * tx)) + cx, ((q.Z * tx) - (q.X * tz) + (vy + q.W * ty)) + cy,
+                       ((q.X * ty) - (q.Y * tx) + (vz + q.W * tz)) + cz);
+        }
+        var points = new Vector3[32];
+        var angle = 0f;
+        for (var k = 0; k < 16; k++)
+        {
+            var c = SteamAudio.CrtMath.Cos(angle) * radius;
+            var s = SteamAudio.CrtMath.Sin(angle) * radius;
+            points[2 * k] = Turn(c, s, bottom);
+            points[2 * k + 1] = Turn(c, s, top);
+            angle += BitConverter.Int32BitsToSingle(0x3ec90fdb);
+        }
+        var hull = Create(points, null, out _);
+        if (hull != null && direction.X == 0f && direction.Y == 0f)
+            hull.Flags |= 4;
+        return hull;
+    }
+
+    /// <summary>
+    /// 180089a30 from +z to <paramref name="d"/>: h = (z + d) / 2, then (z x h, (h.x z.x + h.y z.y) + h.z z.z)
+    /// normalised (DPPS: (xx + yy) + (zz + ww)). The opposite case (|h|^2 at most 2^-23) is not ported.
+    /// </summary>
+    internal static System.Numerics.Quaternion RotationFromZ(Vector3 d)
+    {
+        float hx = (0f + d.X) * 0.5f, hy = (0f + d.Y) * 0.5f, hz = (1f + d.Z) * 0.5f;
+        if (!((hx * hx + hy * hy) + hz * hz > 1.1920929e-07f))
+            throw new NotSupportedException("a cylinder pointing down (180089a30's opposite case) is not ported");
+        float x = (hz * 0f) - (hy * 1f), y = (hx * 1f) - (hz * 0f), z = (hy * 0f) - (hx * 0f);
+        var w = ((hx * 0f) + (hy * 0f)) + (hz * 1f);
+        var n = MathF.Sqrt(((x * x) + (y * y)) + ((z * z) + (w * w)));
+        if (n == 0f)
+            throw new NotSupportedException("a zero turn (180089a30's fallback constant) is not ported");
+        return new(x / n, y / n, z / n, w / n);
+    }
+
     private static readonly (byte, byte, byte, byte)[] BoxEdges =
     [
         (21, 1, 5, 0), (11, 0, 1, 5), (5, 3, 0, 0), (17, 2, 4, 3), (14, 5, 5, 1), (0, 4, 4, 0),

@@ -2328,8 +2328,9 @@ game can answer is raised with the user first, and runs with -insecure.
     through NavGenPolys.AddJumps gives Valve's polygons and connection
     blocks on probe01, cardtest, probe_classes, s2c_prefabprobe5 and 6
     (NavGenJumpTests; 8 and 16 connections added, 14 of 62 casts blocked
-    on prefabprobe5). Maps/NavGen NavGenJumps.cs, NavTriangleWorld.cs.)
-    - Capsules (the physics interface's vfn 0x1e8, 180071d70): from
+    on prefabprobe5). Maps/NavGen NavGenJumps.cs, NavJumpSweepWorld.cs.)
+    - Cylinders, not capsules (corrected 2026-10-28, ledger 174: the physics
+      interface's vfn 0x1e8, 180071d70, is RnHullCreateCylinder): from
       (0, 0, MaxClimb) to (0, 0, height / 2 + MaxClimb), the hull's radius;
       height, short height and crawl height for polygon kinds 0, 1, 2.
     - Candidates (18006fcf0): each edge of a polygon with a connection
@@ -2350,10 +2351,8 @@ game can answer is raised with the user first, and runs with -insecure.
       source overlap's midpoint, above the target's at the source's height,
       the target's midpoint; each leg both ways through world vfn 0x580
       (a type-4 shape cast, 180201b00), blocked when the fraction is below
-      1. Not ported: our NavTriangleWorld tests the swept axis against the
-      nav world's triangles within the radius, Valve's verdict on every
-      cast seen; vphysics2's hull (180251800) and mesh (180244dc0) casts
-      and their margins are open.
+      1. Ported 2026-10-28 (ledger 174); the earlier NavTriangleWorld was a
+      stand-in and blocked 532 jumps too many on s2c_prefabprobe3.
     - Order (18006b160): pairs sorted by squared midpoint distance (MSVC
       std::sort, 180073a20); each unmarked pair adds its connection
       (18004dd20): this side as found (kind 0) unless the polygon already
@@ -4720,6 +4719,32 @@ game can answer is raised with the user first, and runs with -insecure.
        keeps candidates no existing probe within the spacing can see, and clusters them (180fbb450). Porting it needs
        the global random stream's state at that point of the compile. On s2c_saprobe and s2c_sainside it appends
        nothing (73 = 73).
+
+174. **Nav ladders in the mesh build, and AddJumps' sweep** (2026-10-28: decompile and disassembly of resourcecompiler
+     0923 1818d63c0, 1818dc620, 1818e7300, 1818e69b0, 1818ea300, 1818eb970, 1818e4490, 18129b060, 1818e71b0,
+     1818d2b40, 1818d2c10, 1818d1fa0; navsystem 20261015 18006b160, 180072ef0; vphysics2 0924 180065410, 180202b00,
+     180201b00, 1802023d0, 1801dea00, 1801ecb30, 1801e23b0, 1801ebc00, 1801ee7b0, 1801e85a0, 1800092f0, 180128ff0,
+     1801ad370, 180089a30, 18012e550 / 600 / 650, 18024a4a0, 1801c6ae0, 1801c7c70, 18003f500.)
+     - Ladders (NavMeshLadders, NavWriter; docs/NAV.md "Ladders in the mesh build"): direction, the normal from a
+       0.1 sphere cast (static only, group 4, nearest strictly), the bottom and top stepped by 10, length, the seven
+       area links into the areas' two lists, the top raised to the top areas' closest point, and the save.
+     - AddJumps' cast is a sweep of the kind's cylinder: RnHullCreateCylinder, 16 angles of pi/8 in float through
+       tier0's V_cosf and V_sinf, the bottom ring point then the top, 32 points into RnHullCreate. World vfn 0x580
+       sweeps its vertices (scale 1, radius 1/16, no turn) by conservative advancement (RnTimeOfImpact to 1, 32
+       iterations) against each static shape that passes the query (layers 0x3021, group 4) and whose broadphase
+       leaf meets the swept box: hulls, spheres and capsules whole, meshes per triangle (RnMesh_QueryBox, radius
+       1/16). The call's overlap byte is 0, so any time below 1 blocks. A static body's two frames (1800092f0 and
+       1801ecb30's inline copy) sum the origin as P - ((k x q) + (c + w k)), unlike 1801d64a0.
+     - Exact: 18129b060 on 200000 random triangles (NavMeshLaddersOracleTests); RnHullCreateCylinder on 400
+       cylinders, and V_cosf / V_sinf against CrtMath at the 16 angles (NavJumpSweepOracleTests); AddJumps from
+       Valve's 026 input on probe01, cardtest, probe_classes and s2c_prefabprobe3, 5, 6 (prefabprobe3: 30606
+       connections, 16849 casts, 1453 blocked); from the .vmap, stage 029 and the .nav up to the custom data on
+       the 11 captured maps (NavGenPipelineTests), prefabprobe3 with its ladder (id 1, width 32, top (1712, -3219,
+       202.00002), bottom 64, length 134, direction 2, areas 4011 4009 4011 3694 3713 3713 3942).
+     - Argued, not measured: the mesh query box's sums can't change a verdict, since its 1/16 growth exceeds the
+       touching distance (1/32 + 1/128). The +0x8ac pass (1801c6ae0) only records the query.
+     - Not ported (refuses): 180202b00's types 1 and 3, compound shapes, a cylinder pointing down (180089a30's
+       opposite case), the closed-mesh normal of the ladder cast (18016f710), a func_ladder in an instance or prefab.
 
 ## Resolved
 

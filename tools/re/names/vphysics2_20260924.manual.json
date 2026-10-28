@@ -67,6 +67,18 @@
    "note": "a closed mesh (+0xb4 bit 0) holding the point (180248a30) hits, and with r 0 nothing else is tested; else the BVH (scaled boxes within r^2) and each leaf triangle's nearest point (18008b720) within r"
   },
   {
+   "addr": "1801c7c70",
+   "name": "Broadphase_MakeCastHit",
+   "module": "s2c:baked/navgen",
+   "note": "the 0x48-byte hit: +0 body +0x78, +8 shape +0x98, +0x10 point and +0x1c normal through the shape's matrix ((n.x r0 + n.y r3) + n.z r6), +0x34 fraction, +0x40 the cast's start-solid byte"
+  },
+  {
+   "addr": "18003f500",
+   "name": "CPhysicsShape::GetCollisionAttributes",
+   "module": "s2c:baked/navgen",
+   "note": "vfn 0x50: the RnShape's +0x50 block (InteractsAs first)"
+  },
+  {
    "addr": "180091a10",
    "name": "VPhysXBodyPart_t::SchemaFactory",
    "module": "s2c:entities/settle",
@@ -239,6 +251,102 @@
    "name": "CVPhys2World::CastShape",
    "module": "s2c:baked/navgen",
    "note": "world vfn 0x558 -> 1801f5080"
+  },
+  {
+   "addr": "180065410",
+   "name": "CVPhys2World::SweepShape",
+   "module": "s2c:baked/navgen",
+   "note": "world vfn 0x580 -> 180202b00 (AddJumps' cast, ledger 171)"
+  },
+  {
+   "addr": "180202b00",
+   "name": "CRnWorld::SweepShape",
+   "module": "s2c:baked/navgen",
+   "note": "by descriptor +0x28: 1 -> 180202e70, 3 -> 180201280, 4 (hull vertices +0x18, count +0x20) -> 180201b00; else fraction 1"
+  },
+  {
+   "addr": "180201b00",
+   "name": "CRnWorld::SweepHull",
+   "module": "s2c:baked/navgen",
+   "note": "180128ff0 at both frames joined (the swept box), the sweep 1801e85a0 (centre 0), proxy (count, vertices, scale 1, radius 1/16), result fraction 1, then 1802023d0"
+  },
+  {
+   "addr": "1802023d0",
+   "name": "CRnWorld::SweepWalk",
+   "module": "s2c:baked/navgen",
+   "note": "body mask from the query's +0x2f, 1801dea00 over the trees with 1801ecb30, then the +0x8ac bit 1 record (1801c6ae0)"
+  },
+  {
+   "addr": "1801dea00",
+   "name": "Broadphase_QueryBoxTrees",
+   "module": "s2c:baked/navgen",
+   "note": "each tree whose kind byte meets the mask: depth-first box overlap (touching counts), leaves to the callback"
+  },
+  {
+   "addr": "1801ecb30",
+   "name": "Sweep_Body",
+   "module": "s2c:baked/navgen",
+   "note": "body type against the mask, the pair filter 1802facf0, the body's sweep from 1800092f0 and the same terms inline, then 1801e23b0"
+  },
+  {
+   "addr": "1801e23b0",
+   "name": "Sweep_Shapes",
+   "module": "s2c:baked/navgen",
+   "note": "by shape type: 0 sphere (18012e650), 1 capsule (18012e600), 2 hull (18012e550, radius 1/16), 3 mesh (1801ee7b0), 4 compound"
+  },
+  {
+   "addr": "1801ebc00",
+   "name": "Sweep_Toi",
+   "module": "s2c:baked/navgen",
+   "note": "RnTimeOfImpact to 1, 32 iterations; with the overlap byte set a state 2 or time 0 is no hit; a time below 1 is kept as the hit"
+  },
+  {
+   "addr": "1801ee7b0",
+   "name": "Sweep_Mesh",
+   "module": "s2c:baked/navgen",
+   "note": "the swept box into the body frame grown by 1/16, RnMesh_QueryBox with the triangle test, each triangle at the shape scale (radius 1/16) into 1801ebc00"
+  },
+  {
+   "addr": "1801e85a0",
+   "name": "RnSweep_FromFrames",
+   "module": "s2c:baked/navgen",
+   "note": "two 3x4 frames: each turn by the trace (m4 + m0) + m8 or the largest diagonal, DPPS-normalised, the end flipped; centres ((c.y m3 + c.x m0) + c.z m6) + m9"
+  },
+  {
+   "addr": "180128ff0",
+   "name": "RnPoints_BoundsAtFrame",
+   "module": "s2c:baked/navgen",
+   "note": "points through a frame (position, quaternion), min and max kept with <="
+  },
+  {
+   "addr": "1801ad370",
+   "name": "RnHullCreateCylinder",
+   "module": "s2c:baked/navgen",
+   "note": "export: 16 angles of pi/8 (V_cosf, V_sinf), bottom then top ring through the axis turn (180089a30 from +z), RnHullCreate of 32, flag 4 when vertical"
+  },
+  {
+   "addr": "180071d70",
+   "name": "CPhysics2Interface::CreateCylinderHull",
+   "module": "s2c:baked/navgen",
+   "note": "interface vfn 0x1e8 -> RnHullCreateCylinder"
+  },
+  {
+   "addr": "18012e650",
+   "name": "RnGjkProxy_Sphere",
+   "module": "s2c:baked/navgen",
+   "note": "count 1, the centre, the scale, radius scale * r at least 1/16"
+  },
+  {
+   "addr": "18012e600",
+   "name": "RnGjkProxy_Capsule",
+   "module": "s2c:baked/navgen",
+   "note": "count 2, the centres, the scale, radius scale * r at least 1/16"
+  },
+  {
+   "addr": "1801c6ae0",
+   "name": "RnWorld_RecordQuery",
+   "module": "s2c:baked/navgen",
+   "note": "with world +0x8ac bit 1: appends the query to the list at +0x8b8 under the world lock (no effect on results)"
   },
   {
    "addr": "1801d64a0",

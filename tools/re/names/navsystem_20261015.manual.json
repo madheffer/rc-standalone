@@ -334,7 +334,7 @@
    "addr": "180072ef0",
    "name": "NavGen_JumpClear",
    "module": "s2c:baked/navgen",
-   "note": "the path (18004d540, 180077e40): a mid, above b mid at a height, b mid; each leg cast both ways through world vfn 0x580 (type 4 shape cast), blocked when the fraction is below 1"
+   "note": "the path (18004d540, 180077e40): a mid, above b mid at a height, b mid; each leg swept both ways through world vfn 0x580 (type 4: the kind cylinder hull, overlap byte 0), blocked when the fraction is below 1"
   },
   {
    "addr": "18006fcf0",

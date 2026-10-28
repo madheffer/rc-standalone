@@ -12,7 +12,13 @@ namespace Source2.Compiler.Simulation;
 /// </summary>
 public static class SphereCast
 {
-    public readonly record struct Hit(bool Found, float Fraction, bool StartSolid);
+    /// <summary>
+    /// The cast's result as 180247c30 writes it: the fraction (+0), the start-solid byte (+0x30) and
+    /// the hit's normal in the shape's frame (+0x10 .. +0x18: the best triangle's sweep normal, its
+    /// +0xc0). A start inside a closed mesh (18024ac40) gives fraction 0, start-solid and a normal from
+    /// 18016f710, which is not ported (NaN here).
+    /// </summary>
+    public readonly record struct Hit(bool Found, float Fraction, bool StartSolid, Vector3 Normal = default);
 
     private const float Eps = 1.1920929e-07f;
 
@@ -787,6 +793,7 @@ public static class SphereCast
     {
         var best = maxFraction;
         var startSolid = false;
+        var normal = Vector3.Zero;
         if (mesh.Nodes.Length == 0)
             return default;
         var dirLen = MathF.Sqrt(delta.Z * delta.Z + delta.Y * delta.Y + delta.X * delta.X);
@@ -882,6 +889,7 @@ public static class SphereCast
                     {
                         best = fr;
                         startSolid = tri.StartSolid;
+                        normal = new Vector3(tri.F[ON], tri.F[ON + 1], tri.F[ON + 2]);
                         if (fr == 0f && tri.StartSolid)
                             goto Done;
                         var at = new Vector3(fr * delta.X + start.X, fr * delta.Y + start.Y, fr * delta.Z + start.Z);
@@ -897,9 +905,9 @@ public static class SphereCast
         }
     Done:
         if ((mesh.Flags & 1) != 0 && best != 0f && BoxCast.InsideClosed(mesh, scale, start))
-            return new Hit(true, 0f, false);
+            return new Hit(true, 0f, true, new Vector3(float.NaN));
         if (!(best < maxFraction))
             return default;
-        return new Hit(true, best, startSolid);
+        return new Hit(true, best, startSolid, normal);
     }
 }

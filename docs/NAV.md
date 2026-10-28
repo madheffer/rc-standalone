@@ -45,7 +45,7 @@ In order:
 | 4 | 180f21ac0 | info_gravity_shift with `CreateProjectedNavMesh`, then every info_nav_oriented* entity (180f21930) | +0xa8 oriented volumes | not ported |
 | 5 | 180f203b0 | ai_nav_link_area nodes that are CMapNavLink objects: the node's position through each instance path, and that plus the link's vector at +0x185c | +0xc0 links (0x18 each: start, end) | not ported; IslandRemoval already takes links (NavIslandInput.Links) |
 | 6 | 180fb5440 | the compile context's AVOID list (filled by 180f4aed0 from `nav_attribute_avoid`) as NavGen AVOID markups | +0x90 | not ported |
-| 7 | 180fb15e0 | ladders: meshes with a `mapbuilder.ladder` material, then func_ladder children | +0x60 ladders | partial (below) |
+| 7 | 180fb15e0 | ladders: meshes with a `mapbuilder.ladder` material, then func_ladder children | +0x60 ladders | ported; a func_ladder in an instance or prefab refuses (below) |
 | 8 | 180f20f00 | info_nav_space (`DetailedGenerationForSmallNpcs`, `CoarseGenerationForLargeNpcs`); with one, info_node_air seeds and path_corner, info_node_hint, info_cover_hint, ai_flyer_flanking_route_hint, info_combine_gunship_bomb_target hints | +0x100 / +0x108 nav space | not ported |
 | 9 | 180f20e40 | whether any info_nav_oriented_mesh exists | +0x128 | ported (the pipeline's `oriented` flag) |
 | 10 | 180f20c70 | info_nav_oriented_mesh_debug_gen_clip and _render_clip (and their `[PR#]` forms) | | not ported |
@@ -55,8 +55,8 @@ mesh with a mapbuilder.ladder material gives its best face per placement (180fb2
 Then each func_ladder of the root's flat node array whose visibility (+0x370) is set, and each
 sub-map's (180fc8c80, recursing with flag 4), gives its direct children (node vfn 0x130) through the
 same 180fb21f0. 180fb21f0 still needs a mapbuilder.ladder material on the mesh: with none, its
-first-material index is -1 and no face is taken. Ported: the walk. Not ported: the func_ladder
-part (refuses).
+first-material index is -1 and no face is taken. Ported: both parts (NavGenLadders). Not ported: a
+func_ladder inside an instance or prefab (its place in the flat node array, 180fc8c80) refuses.
 
 Movable meshes (6) are marked while the settle world is built (180fb5ce0, called from 180fb5020):
 - func_movelinear with `CreateMovableNavMesh`: its mesh ("does not have a mesh" / "any associated
@@ -92,7 +92,7 @@ stages, for example 022 ClipPolysToHullClearance and 029 IslandRemoval, as the c
 | SplitPolysByMarkup, WeldVertices, RemoveDegens | ported |
 | ClipPolysToHullClearance | ported; casts against non-mesh shapes partly refused (below) |
 | GenerateConnections, SplitBottleneckPolys, SplitPolysWithMultipleConnections, SplitBoundaryPolysWithConnections | ported |
-| AddJumps, RemoveSmallAreasOnEdge | ported |
+| AddJumps, RemoveSmallAreasOnEdge | ported; AddJumps' cast is vphysics2's cylinder sweep (NavJumpSweepWorld, ledger 174) |
 | LadderConnect | ported (ledger 107); rays against spheres and capsules refuse |
 | IslandRemoval (twice: one hull, all hulls; nav_gen_island_removal / _all_hulls) | ported in the all-hulls form; links and several hulls not exercised |
 
@@ -106,14 +106,11 @@ with FlowMap_Enabled), the debug stages (NavGenRecastDebugStage_t, .navdbg). Non
 ## The mesh build and the .nav (navsystem, navlib)
 
 CNavMesh::BuildFromNavGenPolys (1818d63c0) and SaveNavMeshToBuffer (1818d1320), version 36.
-Ported for one hull with no ladders, links, movable meshes or place names. **Gap found 2026-10-28:**
-NavWriter writes zero ladders and empty per-area ladder lists without refusing, so a map with a
-mapbuilder.ladder mesh (s2c_prefabprobe3) passes 028 with Valve's connectivity but its .nav lacks the
-ladders. The ladder save (1818e71b0) and the build's ladder step are not ported.
+Ported for one hull with ladders (2026-10-28, ledger 174: s2c_prefabprobe3's .nav from the .vmap is
+Valve's up to the custom data, ladder included); no links, movable meshes or place names. NavCompile.Mesh
+runs the area build, then the ladders (NavMeshLadders), and NavWriter saves both.
 
-Since 2026-10-28 NavCompile refuses a nav with ladders instead of writing it.
-
-### Ladders in the mesh build (read 2026-10-28, not ported)
+### Ladders in the mesh build (ported 2026-10-28, NavMeshLadders)
 
 After the areas, the grid and vfn 0x60, BuildFromNavGenPolys makes one CNavLadder (0x78 bytes,
 1818e6970) per input ladder (1818c78a0: top, bottom, normal, width of CNavGenInput +0x68's 0x28-byte
@@ -142,9 +139,11 @@ The trace (CNavToolsPhysicsInterface, vtable 182771930; vfn 0x10 = 1818d2b40 -> 
 interacts with 0x3021 (DAT_183023858), +0x2f = 1, +0x30 = 4, flags 0x49, the same query bytes as
 LadderConnect's ray (GROUND_TRUTH 107) but a cast through vfn 0x560 like the analysis' sphere
 (NavSphereWorld). The result's +0xac fraction, +0x90 / +0x98 normal, +0xbb start-solid, +0x28 the
-hit's attribute qword with bit 0 set. What is still to read: the hit normal and start-solid of that
-cast (1817c6b60 and the shape vfn 0x20s), and 1818d1fa0's choice among its up to 128 hits (Ghidra
-prints the compare oddly; take it from the disassembly).
+hit's attribute qword with bit 0 set. 1818d1fa0 keeps the first hit and replaces it only by a strictly
+nearer one. The hit record (vphysics2 1801c7c70) takes the shape's normal through the body's turn as
+(n.x r0 + n.y r3) + n.z r6, and the attributes from CPhysicsShape vfn 0x50 (18003f500, RnShape +0x50).
+A cast starting inside a closed mesh reports fraction 0 and a normal from 18016f710, which is not
+ported: the ladder refuses when it would take that normal. Start-solid never changes a result here.
 
 The save (1818e71b0), per ladder after the areas: u32 id, f32 width, top, bottom, f32 length,
 u32 direction, then the ids (+0x60) of the seven areas (+0x20, +0x28, +0x30, +0x38, +0x40, +0x48,
@@ -195,8 +194,8 @@ What Hammer can put in a .vmap that the nav step reads:
 
 ## Order of work
 
-1. Ladders end to end: the func_ladder collector, the mesh build's ladders and the .nav ladder save,
-   area ladder lists, the analysis with ladders. Check: s2c_prefabprobe3 and c2m3_coaster_d.
+1. Ladders: done on s2c_prefabprobe3 (2026-10-28). Left: a func_ladder in an instance or prefab,
+   the closed-mesh normal (18016f710), and c2m3_coaster_d as a second check.
 2. Nav links: the CMapNavLink collector, IslandRemoval with links, whatever the mesh build and the
    analysis do with them. Needs a probe map with every link type.
 3. Movable meshes, every source above.

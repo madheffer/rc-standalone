@@ -23,10 +23,11 @@ public static class NavCompile
     /// info_player_terrorist and info_player_counterterrorist origins in entity order, hiding,
     /// encounter and approach data, sphere traces on the same world) and the save. The custom
     /// data's from / to / order ids are heap pointers in Valve's file; ours are the area and spot
-    /// ids. Movable meshes and the survival play area are refused.
+    /// ids. Movable meshes and the survival play area are refused. With <paramref name="analyze"/>
+    /// false the analysis is skipped and the custom data is the unanalysed mesh's (a mesh-only check).
     /// </summary>
     public static Nav Generate(DmxBinary.Document document, FgdSchema schema, GameContent assets, string gameinfo,
-                               IReadOnlyList<MapEntities.Entity> entities)
+                               IReadOnlyList<MapEntities.Entity> entities, bool analyze = true)
     {
         if (entities.Any(e => !e.Hidden && e.ClassName == "trigger_survival_playarea"))
             throw new NotSupportedException("the nav analysis of a map with trigger_survival_playarea is not ported");
@@ -37,14 +38,11 @@ public static class NavCompile
         var vdata = NavGenPipeline.HullVData(assets.Read);
         var settings = NavGenPipeline.Settings(document, vdata, NavGenPipeline.NavSystemBlock(gameinfo));
         var result = NavGenPipeline.Generate(document, bodies, rules, settings, schema, assets.Material);
-        // The mesh build's ladders (1818d63c0 -> 1818dc620: 10-unit steps traced through the nav
-        // physics interface 1818d2b40, the area links of 1818e69b0) and their save (1818e71b0) are not
-        // ported; docs/NAV.md "Ladders in the mesh build".
-        if (result.Ladders.Count > 0)
-            throw new NotSupportedException("a nav with ladders (the mesh build's ladders and their save) is not ported");
-        var mesh = NavWriter.Build(result.Polys);
+        var mesh = Mesh(document, schema, bodies, result);
         if (mesh.Movable.Count > 0)
             throw new NotSupportedException("a nav with movable meshes is not ported");
+        if (!analyze)
+            return new Nav(NavWriter.Write(mesh, result.Settings, new NavAnalysis(mesh).CustomData()), mesh);
         // The analysis traces the nav PhysDoc's world, the bodies navsystem's filter keeps (cardtest: all
         // 29,921 of its 29,924 casts before the save).
         var world = new NavSphereWorld(bodies, NavGenInput.NavWorldFilter(document, schema));
@@ -56,6 +54,22 @@ public static class NavCompile
             => [.. entities.Where(e => !e.Hidden && e.ClassName == cls).Select(e => new NavAnalysis.V(e.Origin.X, e.Origin.Y, e.Origin.Z))];
         analysis.Analyze(Spawns("info_player_terrorist"), Spawns("info_player_counterterrorist"));
         return new Nav(NavWriter.Write(mesh, result.Settings, analysis.CustomData()), mesh);
+    }
+
+    /// <summary>
+    /// The mesh build (rc 1818d63c0) from the generator's result: the areas, then the ladders, which
+    /// trace the nav world with the static-only group 4 query (1818d2c10).
+    /// </summary>
+    public static NavWriter.Mesh Mesh(DmxBinary.Document document, FgdSchema schema, IReadOnlyList<SettleWorld.BodyBuild> bodies,
+                                      NavGenPipeline.Result result)
+    {
+        var mesh = NavWriter.Build(result.Polys);
+        if (result.Ladders.Count > 0)
+        {
+            var ladderWorld = new NavSphereWorld(bodies, NavGenInput.NavWorldFilter(document, schema), queryGroup: 4, staticOnly: true);
+            NavMeshLadders.Build(mesh, result.Ladders, result.LadderAreas, (s, d) => ladderWorld.CastSphereNearest(s, d));
+        }
+        return mesh;
     }
 
     /// <summary>The nav mesh's areas as the bake samples them: each area's polygon corners, in the mesh's order.</summary>
