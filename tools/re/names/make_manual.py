@@ -3327,7 +3327,9 @@ SCENESYSTEM_CASCADES = [
     ("180047530", "AggregateDesc_OnBeginRenderingFrame", BAKE, "per aggregate: fragment draw slots +0x34/+0x38 to -1, +0x210/+0x214 from +0x1fc/+0x200, the transform block +500 to -1"),
     ("18003c2a0", "AggregateDesc_UploadDraws", BAKE, "vfunc 0x50: uploads the frame's indirect commands (desc +0x68, count +0x60, 20 bytes each) to the buffer at +0x80"),
     ("180498520", "Frustum_PlanesFromMatrix", BAKE, "scenesystem's copy of client 1817465f0; the cascade fit calls it with the zero-to-one flag"),
-    ("1801a5c28", "CSM_SetupForView", BAKE, "calls 180496ef0 with the frustum at view +0x10 (or vfunc 0x240's +0x10 under view flag bit 0xc), copied with +0x18 replaced by a view attribute when non-zero"),
+    ("180079700", "BaseObject_WriteInstanceRecords", BAKE, "the base scene object draw's g_instanceBuffer records (0x20 each), all eight words: w0 = element +4, w1 / w2 / w6 kept from 18007a540's loop, w3 = w4 = -1, w5 = (u16 element +0 << 20) | (u16 element +2 below 0x8000, else 0), w7 = element +8; the 12-byte elements filled at 18007ad74 / 18007af6d from the draw primitive (+0x64, +0x5c, +0x50, +0x54); found by a cubehost watchpoint (base_records.js), CUBEMAPS.md A.4"),
+    ("1800ed2d0", "InstanceBuffer_Allocate", BAKE, "(pool, count, out): an atomic counter at +0x2010 hands out count 0x20-byte records (capacity +0x2a54), stores the first's address in *out and returns its index, or -1 and NULL when full"),
+    ("1801a5c28", "CSM_SetupForView", BAKE,"calls 180496ef0 with the frustum at view +0x10 (or vfunc 0x240's +0x10 under view flag bit 0xc), copied with +0x18 replaced by a view attribute when non-zero"),
 ]
 
 # worldrenderer 20261023 (installed since 1.41.9.2; the captures ran the 10-15 build, not archived): aggregate creation.

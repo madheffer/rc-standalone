@@ -1032,8 +1032,18 @@ build varies run to run (ledger 144, item D).
      probably), w5 0x7 or 0x3 << 20, tint packed or -1. The colour programs are csgo_environment_blend's probe-lit
      combo (no D_BAKED_LIGHTING_*), the atlas ones csgo_depth_only static 0 as for aggregates.
    - 18007a540's loop writes w1 = object +0x60, w2 = +0x64, w6 = +0x90 (object at draw primitive +0x18, 0x70
-     primitives); 1800ed2d0 only hands out the records (an atomic counter). Where w0, w3, w4, w5 and w7 are
-     written is not found statically: a watchpoint on one record in cubehost would name it (CS2 closed).
+     primitives); 1800ed2d0 only hands out the records (an atomic counter).
+   - **The whole record, from a watchpoint (2026-10-30, cubehost, tools/cubehost/base_records.js, four write
+     watchpoints on a record 18007a540 had just allocated).** 180079700 (called at 18007ae06) rewrites every word:
+     w0 = element +4, w1 / w2 / w6 kept from 18007a540's loop, w3 = w4 = -1, w5 = (u16 element +0 << 20) |
+     (u16 element +2 if below 0x8000, else 0), w7 = element +8 (float). The elements are 12 bytes, one per
+     primitive, filled at 18007ad74 / 18007af6d from the draw primitive (0x70 stride, rsi = primitive + 0x5c,
+     object pointer at +8 in that loop): element +4 = primitive +0x50, +8 = +0x54, +2 = +0x5c, +0 = +0x64. The
+     watched record came back (-1, 0xa, -1, -1, -1, 7 << 20, 0, 1.0), the base-object shape above. Still to read:
+     what fills primitive +0x50 / +0x54 / +0x5c / +0x64 (tint, the 1.0, the low and high halves of w5), and the
+     object offset (+8 here, +0x18 from 18007a540's own r15, which may be a different base: check).
+     The other writer the run met, 18003cf80 .. 18003cfe4 (inside 18003c5a0, from 1800f042f on job threads), the aggregate
+     fragment record (all eight words), already ported.
    - 18003d380 is the generic per-object cull (fade distances +0x79 / +0x7a, the size metric 18004c390, the
      visible entry: position, size, fade byte, flags 1 / 3 / 0x10 / 0x20).
 5. **Shadowed lights' atlas tiles.** light_omni2-like lights render their own shadow views into atlas tiles that
