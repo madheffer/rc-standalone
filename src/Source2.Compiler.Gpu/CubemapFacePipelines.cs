@@ -76,15 +76,18 @@ public static class CubemapFacePipelines
                 throw new ArgumentException($"{pass} needs its pixel program's render state", nameof(pixel));
             return state with { Cull = CullModeFlags.BackBit, DepthTest = true, DepthWrite = true, DepthCompare = CompareOp.LessOrEqual };
         }
-        var r = pixel.RasterizerStateDesc ?? throw new InvalidDataException("no rasterizer state");
+        // A combo whose header has no rasterizer descriptor (csgo_foliage's alpha-tested depth pixel program) draws
+        // with D3D11's default one: back faces culled, no bias of its own. Measured, not read from the engine: all six
+        // of atixref face 0's draws with that module (five sun cascades at the pass's 2.13 slope, one prepass at 0).
+        var r = pixel.RasterizerStateDesc;
         var d = pixel.DepthStencilStateDesc ?? throw new InvalidDataException("no depth-stencil state");
         var b = pixel.BlendStateDesc ?? throw new InvalidDataException("no blend state");
         state = state with
         {
-            Cull = r.CullMode switch { RsCullMode.None => CullModeFlags.None, RsCullMode.Back => CullModeFlags.BackBit, RsCullMode.Front => CullModeFlags.FrontBit, var c => throw new NotSupportedException($"cull {c}") },
-            DepthBiasConstant = state.DepthBiasConstant + r.DepthBias,
-            DepthBiasSlope = state.DepthBiasSlope + r.SlopeScaledDepthBias,
-            DepthBiasClamp = r.DepthBiasClamp,
+            Cull = (r?.CullMode ?? RsCullMode.Back) switch { RsCullMode.None => CullModeFlags.None, RsCullMode.Back => CullModeFlags.BackBit, RsCullMode.Front => CullModeFlags.FrontBit, var c => throw new NotSupportedException($"cull {c}") },
+            DepthBiasConstant = state.DepthBiasConstant + (r?.DepthBias ?? 0),
+            DepthBiasSlope = state.DepthBiasSlope + (r?.SlopeScaledDepthBias ?? 0f),
+            DepthBiasClamp = r?.DepthBiasClamp ?? 0f,
             DepthTest = d.DepthTestEnable,
             DepthWrite = d.DepthWriteEnable,
             // RsComparison and RsStencilOp enumerate as Vulkan's CompareOp and StencilOp do.

@@ -484,7 +484,11 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
         if (Environment.GetEnvironmentVariable("S2C_CUBE_GLOBALS_OUT") is { Length: > 0 } dump)
         {
             Directory.CreateDirectory(dump);
-            File.WriteAllBytes(Path.Combine(dump, string.Concat(key.Select(c => char.IsLetterOrDigit(c) ? c : '_')) + ".bin"), block);
+            var file = Path.Combine(dump, string.Concat(key.Select(c => char.IsLetterOrDigit(c) ? c : '_')));
+            File.WriteAllBytes(file + ".bin", block);
+            // The program's SPIR-V hash and its constants (name, offset, type), to find the capture's draws of it.
+            File.WriteAllLines(file + ".txt", [Convert.ToHexStringLower(System.Security.Cryptography.SHA1.HashData(program.Spirv)),
+                .. program.Constants.Select(c => $"{c.Offset} {c.Name} {c.Variable.VfxType}")]);
         }
         return _globals[key] = block;
     }
@@ -671,7 +675,7 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
         if (CubemapFaceSamplers.Engine.TryGetValue(name, out var s))
         {
             if (!_bindlessSamplers.ContainsKey(s.Slot))
-                _bindlessSamplers[s.Slot] = SamplerOf(CubemapFaceSamplers.State(s.Filter, s.Address, s.Address, s.Address, null, null, null));
+                _bindlessSamplers[s.Slot] = SamplerOf(CubemapFaceSamplers.State(s.Filter, s.AddressU, s.AddressV, s.AddressW, s.Compare, null, null));
             return s.Slot;
         }
         if (!name.StartsWith("g_sUserConfig", StringComparison.Ordinal))

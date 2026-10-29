@@ -883,10 +883,22 @@ build varies run to run (ledger 144, item D).
      (CubemapBindlessTests, `CUBEBINDLESS=<face dump>`). `S2C_CUBE_GLOBALS_OUT=<dir>` writes every $Globals the
      renderer makes. The game's heap, for the record: 0 aniso wrap, 1 bilinear clamp, 2 trilinear wrap, 3 trilinear
      clamp, 4 point clamp, 5 bilinear border, 6 comparison, 7 aniso wrap (a material's).
-   - **Next stop: the alpha-tested foliage pixel program has no rasterizer state** in its render state header
-     (csgo_foliage ps static 66, CubemapFacePipelines.Apply refuses). Pipeline state, not bindless; the capture's draw
-     (eid 585) culls back faces with depth bias on. Then the wind's time (item D).
-   - Not unified: GpuMaterialSampler keeps its own sampler table (same names and slots 1 to 4).
+   - **Done: a pixel program with no rasterizer descriptor** (csgo_foliage's alpha-tested depth program, ps static
+     66) draws with D3D11's default one, back faces culled and no bias of its own, on top of the pass's state.
+     Measured, not read from the engine: all six of face 0's draws of that module (five cascades at the pass's 2.13
+     slope, one prepass at 0) cull back with no bias of their own.
+   - **Done: the engine's bindless samplers by name, and checked against the game's heap.** CubemapFaceSamplers.Engine
+     uses the game's own heap numbers: 1 g_sBilinearClamp, 2 g_sTrilinearWrap, 3 g_sTrilinearClamp (W wraps),
+     4 g_sPointClamp, 5 g_sCookieSampler (border, transparent black), 6 g_tShadowDepthBufferCmpSampler (less-or-equal
+     comparison, W wraps), each state as the capture's element holds it. tools/cubehost/cmp_globals.py compares every
+     $Globals the renderer makes (S2C_CUBE_GLOBALS_OUT) with the capture's draws of the same module: on atixref face
+     0 all 22 blocks are the capture's on every word but the texture indices, and csgo_lightmappedgeneric's pixel
+     block gives each of the six names the game's own index, so each name's element is confirmed. Material samplers
+     go from 32; the game put them at 0 (g_sUserConfigAllowGlobalMipBias) and 7 (g_sUserConfig), both anisotropic x 4
+     wrap, the state ours takes.
+   - **Next stop: `PerViewLightProbeVolumeConstantBuffer_t`**, csgo_lightmappedgeneric's pixel program (static 6177
+     dynamic 2) reading the light probe volumes: item 1 below. Then the wind's time (item D).
+   - Not unified: GpuMaterialSampler keeps its own sampler table (same names and slots 1 to 4; its 5 and 6 differ).
    - The renderer's "named by no variable" error now lists what the program's write sequence holds in that set.
      atixref's dump also trips BlockRoles (one downsample block at viewports 384 and 320); BlocksOfTheCapture finds
      blocks by binding instead.

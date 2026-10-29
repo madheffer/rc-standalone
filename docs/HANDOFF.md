@@ -203,7 +203,15 @@ the addon).
     Debug test build; time a Release build and Valve's own step before sizing it. Any change
     that could alter bytes waits for the user's OK (parity before speed).
 
-## Latest session (2026-10-29 night, the bindless set; CS2 open)
+## Latest session (2026-10-29 night, rasterizer and engine samplers; CS2 open)
+
+CUBEMAPS.md A.0. A pixel program with no rasterizer descriptor takes D3D11's default (measured on six draws). The
+engine's six bindless samplers are named in CubemapFaceSamplers.Engine at the game's own heap numbers, each confirmed
+by tools/cubehost/cmp_globals.py: all 22 of our $Globals on atixref face 0 equal the capture's but the texture
+indices. probe01 unchanged. atixref now stops at PerViewLightProbeVolumeConstantBuffer_t: item A.1, the probe-lit
+inputs.
+
+## Earlier session (2026-10-29 night, the bindless set; CS2 open)
 
 CUBEMAPS.md A.0 "The bindless set is built". CubemapFaceRenderer binds set 4's bindless arrays with our own
 indices, written where the programs read them ($Globals index variables). On atixref face 0 the foliage vertex

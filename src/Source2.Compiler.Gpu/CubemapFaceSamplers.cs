@@ -27,9 +27,14 @@ public static class CubemapFaceSamplers
     /// foliage draws bind element 2 as linear / linear / linear, wrap, LOD 0 to 15, no anisotropy (2026-10-29), and
     /// csgo_foliage's vertex program carries the same literals (Filter 21, AddressU / V 0).
     /// </summary>
-    public static readonly IReadOnlyDictionary<string, (int Slot, int Filter, int Address)> Engine = new Dictionary<string, (int, int, int)>
+    public static readonly IReadOnlyDictionary<string, (int Slot, int Filter, int AddressU, int AddressV, int AddressW, int Compare)> Engine = new Dictionary<string, (int, int, int, int, int, int)>
     {
-        ["g_sTrilinearWrap"] = (2, 0x15, 0),
+        ["g_sBilinearClamp"] = (1, 0x14, 2, 2, 2, 0),
+        ["g_sTrilinearWrap"] = (2, 0x15, 0, 0, 0, 0),
+        ["g_sTrilinearClamp"] = (3, 0x15, 2, 2, 0, 0),
+        ["g_sPointClamp"] = (4, 0x00, 2, 2, 2, 0),
+        ["g_sCookieSampler"] = (5, 0x14, 3, 3, 3, 0),
+        ["g_tShadowDepthBufferCmpSampler"] = (6, 0x95, 2, 2, 0, 3),
     };
 
     /// <summary>The program's sampler slots (set 1 slot numbers) and each one's state.</summary>
