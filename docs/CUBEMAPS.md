@@ -1079,8 +1079,14 @@ build varies run to run (ledger 144, item D).
    - cascades: one block per cascade has +64 .. +127 (g_matProjectionToWorld) empty on our side; the other blocks
      per tile are other lights' views (item 5).
    Next for the lights: the barn light's GPU record. scenesystem 1800cd8c0 creates barn light objects (as
-   1800cd300 does probe volumes); as with the probe record, one cubehost watchpoint run names the writer (CS2
-   closed).
+   1800cd300 does probe volumes; vfunc 0xb8 of CBarnLightObjectDescGPU, vftable 1805fe140, reached through
+   1800d5aa0). **Watch runs 2026-10-30 (tools/cubehost/barn_records.js), no answer yet:** atixref creates 29
+   such objects. Armed at creation, read/write watchpoints stopped the host 27 s in (a crash dump, as for the
+   probe volumes); armed later (after the 600th or 4000th base record batch), the host died during the build
+   before arming, twice, with no dump. base_records.js, with the same 1800ed2d0 hook and no 1800cd8c0 hook, ran to
+   the end, so the 1800cd8c0 hook is the suspect: next try arms from 1800d5aa0's return instead, or reads the
+   record statically. The desc's vfuncs (1800ce950 bounds, 1800ce7f0 silhouette, 1801c1e50) do not write it; the
+   writer is in CLightBinnerGPU (its per-view pass 1801a8150 also calls 1801ba530, the probe volumes).
 7. **Render face 0 and compare.** `CubeWithNoDumpMakesTheGamesExr` needs a per-face mode for a map whose other
    faces have no dump. Compare the colour against readback_0 (and the intermediate targets: atlas, face depth).
    Then faces 1 to 5 against readback_1..5 (no dumps needed), then cube 0's EXR (env_cubemap_245678519.exr).
