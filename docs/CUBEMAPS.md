@@ -983,6 +983,13 @@ build varies run to run (ledger 144, item D).
    client for `[reg + 0x10b8]` writes (180270020 is the constructor; check its FUN_18026faa0 at +0x10b4), the schema
    default in 18026d020, and whether env_cubemap_fog's cubemapfogsource 2 (atixref's, a sky material) sets it.
    Today the renderer draws 0. Check: the sky draw's pixel module equals the capture's (6856 on atixref).
+   **Found 2026-10-29 (by evidence, not yet by code):** atixref's skybox map (ze_atix_panic_new_skybox, loaded by
+   its skybox_reference) has its own env_sky, with `fog_type = 1` and the same sky_de_nuke material: it was
+   compiled with an FGD that still had the key, which csgo.fgd now comments out. probe01 has no skybox and no
+   key and draws 0, so the absent-key default is 0, and atixref's 1 is the skybox world's sky. In client the field
+   is written only by the constructor (installed 180270120; the copy to the sky object is installed 180282490 at
+   +0x10b8), so the value is networked from server.dll (CEnvSky m_nFogType, key "fog_type"; server is not in the
+   Ghidra project). Open: which env_sky the scene's sky object follows when both exist, read before porting.
 3. **env_cubemap_fog with a sky material.** atixref's fog has cubemapfogsource 2 (materials/skybox/sky_de_nuke.vmat)
    and no height fog. `CubemapFaceConstants.Csgo` was only checked on probe01's (source 1, sky entity): check
    PerViewConstantBufferCsgo_t's fog words (432 .. 548) and the fog cube texture binding against atixref's capture.
@@ -1041,8 +1048,14 @@ build varies run to run (ledger 144, item D).
    - the face view: 142 of 160 words; the rest is g_matProjectionToWorld (+64 .. +127, float noise in an inverse
      the draws do not read per the sensitivity run) and -0 against 0. World-to-projection, the camera offset and
      position are the capture's.
-   - a second world and sky per-view block, camera at (386.6, 612.0, 840.1): **a 3D skybox view** (atixref has a
-     sky camera; CSkyBoxObjectDesc draws in the inventory above). Not ported.
+   - a second world and sky per-view block: **the 3D skybox view** (near 2, far 56755.84, camera
+     (-773.323, -1224.058, -1680.191), depth range 0.95 .. 1 behind the world's 0 .. 0.95; 22 draws, the vertigo
+     skybox models). Not ported. Its world is another package: atixref's `skybox_reference` (worldGroupID
+     skyboxWorldGroup0) loads `maps/ze_atix_panic_new_skybox.vmap`, compiled at game/csgo/maps/
+     ze_atix_panic_new_skybox.vpk (its own n0.vwnod, sky_camera scale 16 at (-848.413, -1159.429, -2599.0), env_sky).
+     The documented position rule (sky_camera origin + probe / scale) gives (-882.8, -1175.6, -1702.4), not the
+     capture's: the world group's placement or another term enters, so read client 180acb130 and the
+     skybox_reference load before porting (not fitted).
    - light block: +80 / +84 g_vScreenSpaceDitherParams.xy (per-frame random, not a port gap); **+308 / +312
      g_vLightCullParams 16384 and 1** where ours is 8192 and 0, and +320 .. +340 (environment map and volume cull
      params) set: the face bins **one light and environment maps**, so BarnLightsNone and the empty binner are
