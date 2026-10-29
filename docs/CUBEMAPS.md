@@ -928,6 +928,25 @@ build varies run to run (ledger 144, item D).
      vftable has three slots, and client's 180282060 / 18026c130 / 1801fbdb0 are keyvalue tables. Next: the client
      side that hands scenesystem a CLightProbeVolumeObjectDesc, or a Frida probe on 1801baa00 in cubehost dumping each
      object's +0x130 block with its entity (cubehost, CS2 and Steam closed).
+   - **Found with cubehost (2026-10-29, tools/cubehost/lpv_records.js).** Records only (WATCHED 0): atixref makes 44
+     objects (scenesystem 1800cd300, 0x1d0 bytes; the tools scene's comes first) and all 44 reach 1801baa00. Each
+     object holds its world 3 x 4 at +0x30, its box at +0xd0 (box_mins, box_maxs), 32 at +0xec (edge_fade_dists y) and
+     the record at +0x130. A watch run (copy the agent with `%WATCHED%` replaced by 1; SKIP 1 passes the tools scene's
+     object, whose watchpoint stopped the load) caught the record's first write: **client.dll 1.41.9.3, the function
+     at 1802819e0** (the 1015 build's at 1802818e0; Ghidra's 1015 client splits it wrongly, read the installed
+     disassembly), the probe volume entity's update, called from client 18023399d in a scenesystem job.
+   - What that function writes, read from the disassembly (rbx = the record, rsi the entity's object, rdi its data):
+     +0x00 .. +0x2f the 3 x 4 `A x B` (181743d40 is a 3 x 4 concatenation; A from 18026fea0 on the box floats, B
+     from 181745ff0 on the entity's transform); +0x60 .. +0x68 and +0x70 .. +0x78 ratios of the probe texture's
+     dimensions (rendersystem vfn 0x2c8, three shorts) to the entity's probe counts (rdi +0x80 .. +0x88, the z one
+     times 6; rdi +0x8c .. +0x94 for the second set), 1 when there is no texture; +0x30 .. +0x48 half-texel borders
+     from those; +0x50 .. +0x58 rdi +0x70 .. +0x78, +0x5c a fade or 0 (rdi +0x69 / +0x6a); +0x4c, +0x6c, +0x7c the
+     bindless indices (vfn 0x650 with flags 3) of the textures at rsi +0x108, +0x128, +0x110. +0x80 .. +0x8f
+     (0.25, 0.75, two indices) is written after 1802822ba, not read yet. NOT PORTED: the next step is to read that
+     function whole (its branches and constants) and port it, then check every one of the 44 records against
+     the run's dump (%TEMP%/cubehost_run/atixref_lpv/frida.jsonl).
+   - The run changed atixref's package in the scratch addon (buildcubemaps); it was restored from a backup and
+     cmp-checked. Back it up before any rerun.
 2. **The sky's D_FOG_TYPE.** The sky object's +0xf4 (scenesystem 180154fb0, token 0x83cb90d6; type 2 also tests
    +0xf8 / +0xfc against -90) is copied from C_EnvSky's m_nFogType (+0x10b8) by client 180282390. Neither probe01's
    nor atixref's env_sky has the fog_type key, yet probe01 draws 0 and atixref 1. Find the other writer: dispscan

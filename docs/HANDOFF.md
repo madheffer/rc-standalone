@@ -203,7 +203,14 @@ the addon).
     Debug test build; time a Release build and Valve's own step before sizing it. Any change
     that could alter bytes waits for the user's OK (parity before speed).
 
-## Latest session (2026-10-29 night, A.1 started; CS2 closed, Steam open)
+## Latest session (2026-10-29 night, the probe record's writer found; CS2 and Steam closed)
+
+cubehost runs on atixref with tools/cubehost/lpv_records.js (CUBEMAPS.md A.1): the probe volume record is built in
+client.dll (1.41.9.3 1802819e0, the probe volume entity's update), not in scenesystem. The fields it writes are
+listed from the disassembly; NOT PORTED yet. All 44 objects' records are dumped for the check. atixref's package in
+the scratch addon was rewritten by the run and restored from a backup (cmp clean).
+
+## Earlier session (2026-10-29 night, A.1 started; CS2 closed, Steam open)
 
 No code changed; CUBEMAPS.md A.1 has what was read. csgo_lightmappedgeneric's probe-lit pixel program needs three
 bindless indices in our Csgo block (+72 a cube, +76 a colour target, +80 depth) and the probe-volume buffer
