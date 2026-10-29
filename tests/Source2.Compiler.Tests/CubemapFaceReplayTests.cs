@@ -238,6 +238,64 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// Every constant block of a face from a package, against the capture's by role (<see cref="BlockRoles"/>):
+    /// <c>CUBEBLOCKCMP=&lt;a face's dump&gt;</c>, <c>CUBEBLOCKCMP_VPK</c> the captured package, <c>CUBEBLOCKCMP_FACE</c>
+    /// and <c>CUBEBLOCKCMP_CUBE</c> (0 by default), <c>CUBEREPLAY_SCRIPTEDCAMERA=0</c> as elsewhere. For each role:
+    /// how many words are the capture's and the first differing offsets, so the gap of a new map is a list.
+    /// <c>CUBEBLOCKCMP_STRICT=1</c> fails on any difference.
+    /// </summary>
+    [Fact]
+    public void PackageBlocksAgainstTheCapture()
+    {
+        if (Environment.GetEnvironmentVariable("CUBEBLOCKCMP") is not { Length: > 0 } dir
+            || Environment.GetEnvironmentVariable("CUBEBLOCKCMP_VPK") is not { Length: > 0 } vpk)
+            return;
+        var face = int.Parse(Environment.GetEnvironmentVariable("CUBEBLOCKCMP_FACE") ?? "0", System.Globalization.CultureInfo.InvariantCulture);
+        var cube = int.Parse(Environment.GetEnvironmentVariable("CUBEBLOCKCMP_CUBE") ?? "0", System.Globalization.CultureInfo.InvariantCulture);
+        var game = Path.Combine(Environment.GetEnvironmentVariable("CS2_DIR") ?? @"D:\Steam\steamapps\common\Counter-Strike Global Offensive", "game");
+        List<Cubemaps.CubemapFaceBlocks.Cube> cubes;
+        using (var package = new ValvePak.Package())
+        {
+            package.Read(vpk);
+            cubes = Cubemaps.CubemapFaceBlocks.FromPackage(package, File.ReadAllText(Path.Combine(game, "csgo", "gameinfo.gi")),
+                Environment.GetEnvironmentVariable("CUBEREPLAY_SCRIPTEDCAMERA") != "0", out _);
+        }
+        var b = Cubemaps.CubemapFaceBlocks.Build(cubes[cube].Scene, face);
+        var ours = new Dictionary<string, byte[]>
+        {
+            ["world"] = b.WorldView, ["sky"] = b.SkyView, ["csgo"] = b.Csgo, ["baked"] = b.Baked, ["lights"] = b.Lights,
+            ["binner"] = b.BinnerParams, ["skyview"] = b.SkyWsToOs,
+        };
+        for (var k = 0; k < 4; k++)
+            ours[$"cascade{k}"] = b.CascadeViews[k];
+        var actions = File.ReadLines(Path.Combine(dir, "actions.jsonl")).Select(l => JsonNode.Parse(l)!)
+            .Where(r => r["contents"] is not null && (r["stages"]?["vs"] is not null || r["stages"]?["cs"] is not null)).ToList();
+        var roles = BlockRoles(actions, sha => File.ReadAllBytes(Path.Combine(dir, "blobs", sha + ".bin")));
+        var failures = new List<string>();
+        foreach (var (role, mine) in ours)
+        {
+            var shas = roles.Where(p => p.Value == role).Select(p => p.Key).ToList();
+            if (shas.Count == 0)
+            {
+                output.WriteLine($"{role}: not in the capture");
+                continue;
+            }
+            foreach (var sha in shas)
+            {
+                var theirs = File.ReadAllBytes(Path.Combine(dir, "blobs", sha + ".bin"));
+                var n = Math.Min(theirs.Length, mine.Length) / 4;
+                var differ = Enumerable.Range(0, n).Where(i => BitConverter.ToUInt32(theirs, i * 4) != BitConverter.ToUInt32(mine, i * 4)).ToList();
+                output.WriteLine($"{role} {sha[..8]}: {n - differ.Count} of {n} words the capture's ({mine.Length} / {theirs.Length} bytes)"
+                                 + (differ.Count > 0 ? "; first at " + string.Join(", ", differ.Take(12).Select(i => $"+{i * 4} ours {BitConverter.ToSingle(mine, i * 4).ToString("R", System.Globalization.CultureInfo.InvariantCulture)} theirs {BitConverter.ToSingle(theirs, i * 4).ToString("R", System.Globalization.CultureInfo.InvariantCulture)}")) : ""));
+                if (differ.Count > 0)
+                    failures.Add($"{role}: {differ.Count} words");
+            }
+        }
+        if (Environment.GetEnvironmentVariable("CUBEBLOCKCMP_STRICT") == "1")
+            Assert.Empty(failures);
+    }
+
+    /// <summary>
     /// Diagnosis (<c>CUBEBLOCKS=&lt;a face's dump&gt;</c>, <c>CUBEBLOCKS_BIND=set,binding,size</c>, 1,4,64 by default:
     /// BakedLightingConstantBuffer_t): each distinct captured block bound there, as floats and words, with how many
     /// draws read it, from <c>CUBEBLOCKS_FROM</c> (byte 0 by default). Found by binding, not <see cref="BlockRoles"/>, so
@@ -1131,8 +1189,10 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                         Add(sha, "skyview");
                     else if (sky && set == 1 && binding == 0)
                         Add(sha, "skyglobals");
-                    else if (set == 1 && binding == 0 && size == 16)
-                        Add(sha, (float)vp["width"]! == 512f ? "downsample_half" : (float)vp["width"]! == 256f ? "downsample_quarter" : $"downsample at {vp["width"]}");
+                    // Only the face's half and quarter viewports are depth downsamples: on atixref a material's own
+                    // 16-byte $Globals is drawn at 384 and 320 wide, and is no role of ours.
+                    else if (set == 1 && binding == 0 && size == 16 && (float)vp["width"]! is 512f or 256f)
+                        Add(sha, (float)vp["width"]! == 512f ? "downsample_half" : "downsample_quarter");
                 }
                 // Storage buffers the shaders only read are still declared read-write.
                 foreach (var rw in stage["readWrite"]!.AsArray().Concat(stage["readOnly"]!.AsArray()))

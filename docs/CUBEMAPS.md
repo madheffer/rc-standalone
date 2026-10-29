@@ -1013,12 +1013,48 @@ build varies run to run (ledger 144, item D).
    membership for the world node's scene objects (the colour and shadow lists), then the blocker shadow meshes,
    then overlays (a path of their own) and the prop models (entities). Each slice is checkable against the
    capture's direct draws by model name and index range.
+   **Read 2026-10-29 (scenesystem 1015, CS2 open: static only).**
+   - 18007d750 (slot 8) is only a dispatch: draw primitive flag +0x62 & 0x2000 to 180080c50, else 18007a540, the
+     generic material-system draw (render attribute hashing; too large to port as a block).
+   - A base object draws like an aggregate fragment, through g_instanceBuffer / g_transformBuffer (set 4,
+     read-write in the capture: Buffer 89762, 8192 x 0x20; Buffer 109119, 1024 x 0x30), selected by a per-instance
+     R32_UINT stream (binding 2 or 1, Buffer 1273 at the draw's offset), firstInstance 0, one instance. Face 0 has
+     71 direct draws: 50 atlas, 5 prepass, 16 colour, ids 291 .. 611, one record each.
+   - Records: (tint, transform, w2, -1, -1, w5, w6, 1.0). Atlas and prepass: tint mostly -1, w2 -1, w6 0, w5 0x7,
+     0x3 or 0x1 << 20. Colour: w2 0x121e .. 0x122d or -1 and w6 0x200 .. 0x5a6000 per object (vertex-stream offsets,
+     probably), w5 0x7 or 0x3 << 20, tint packed or -1. The colour programs are csgo_environment_blend's probe-lit
+     combo (no D_BAKED_LIGHTING_*), the atlas ones csgo_depth_only static 0 as for aggregates.
+   - 18007a540's loop writes w1 = object +0x60, w2 = +0x64, w6 = +0x90 (object at draw primitive +0x18, 0x70
+     primitives); 1800ed2d0 only hands out the records (an atomic counter). Where w0, w3, w4, w5 and w7 are
+     written is not found statically: a watchpoint on one record in cubehost would name it (CS2 closed).
+   - 18003d380 is the generic per-object cull (fade distances +0x79 / +0x7a, the size metric 18004c390, the
+     visible entry: position, size, fade byte, flags 1 / 3 / 0x10 / 0x20).
 5. **Shadowed lights' atlas tiles.** light_omni2-like lights render their own shadow views into atlas tiles that
    are no sun cascade (ledger 144: culled with the captured per-view block's frustum, 96 of 96). Port their view
    setup from the precomputed sub-frusta, their per-view blocks and their draws.
 6. **The light binner with lights.** The binner and light block bin no lights or environment maps in the cubemap
    view on probe01 and s2c_l5probe. Check atixref's CullParams_t and light block counts (g_nNumLights and the
    rest) against its capture before assuming the same.
+   **Checked 2026-10-29: atixref is not the same.** CubemapFaceReplayTests.PackageBlocksAgainstTheCapture
+   (`CUBEBLOCKCMP=<face dump>`, `CUBEBLOCKCMP_VPK`; BlockRoles no longer takes a material's 16-byte $Globals for a
+   downsample) compares every block of a face from the package with the capture by role. atixref face 0:
+   - the face view: 142 of 160 words; the rest is g_matProjectionToWorld (+64 .. +127, float noise in an inverse
+     the draws do not read per the sensitivity run) and -0 against 0. World-to-projection, the camera offset and
+     position are the capture's.
+   - a second world and sky per-view block, camera at (386.6, 612.0, 840.1): **a 3D skybox view** (atixref has a
+     sky camera; CSkyBoxObjectDesc draws in the inventory above). Not ported.
+   - light block: +80 / +84 g_vScreenSpaceDitherParams.xy (per-frame random, not a port gap); **+308 / +312
+     g_vLightCullParams 16384 and 1** where ours is 8192 and 0, and +320 .. +340 (environment map and volume cull
+     params) set: the face bins **one light and environment maps**, so BarnLightsNone and the empty binner are
+     wrong here. binner CullParams_t: 21 of 40 words (the light and env map counts). Also +31132 0.043 against our
+     0.04 and +31152 0 against our 1 (shadow terms, not read yet).
+   - Csgo: +64 .. +108 are bindless indices; of those only +68 (a 64 x 64 x 3 RGBA16F array, an LTC-like table:
+     slice 0 starts (1, 0, 0, ...)) and +72 / +76 / +80 are read in face 0; the table is not in the DLLs as halves.
+   - cascades: one block per cascade has +64 .. +127 (g_matProjectionToWorld) empty on our side; the other blocks
+     per tile are other lights' views (item 5).
+   Next for the lights: the barn light's GPU record. scenesystem 1800cd8c0 creates barn light objects (as
+   1800cd300 does probe volumes); as with the probe record, one cubehost watchpoint run names the writer (CS2
+   closed).
 7. **Render face 0 and compare.** `CubeWithNoDumpMakesTheGamesExr` needs a per-face mode for a map whose other
    faces have no dump. Compare the colour against readback_0 (and the intermediate targets: atlas, face depth).
    Then faces 1 to 5 against readback_1..5 (no dumps needed), then cube 0's EXR (env_cubemap_245678519.exr).
