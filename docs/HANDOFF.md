@@ -203,7 +203,14 @@ the addon).
     Debug test build; time a Release build and Valve's own step before sizing it. Any change
     that could alter bytes waits for the user's OK (parity before speed).
 
-## Latest session (2026-10-29 night, Csgo indices; the device fault)
+## Latest session (2026-10-29 night, A.4 inventory)
+
+No code changed. CUBEMAPS.md A.4 "Inventory": the base-object draws atixref's faces carry (world node scene
+objects, light blocker shadow meshes, prop models), the world node's 194 m_sceneObjects by type, and the entry
+points for the base object's draw (scenesystem 1015 CBaseSceneObjectDesc vftable 1805e5d70, slot 8 18007d750 by
+layout). Next: decompile that draw and its instance record.
+
+## Earlier session (2026-10-29 night, Csgo indices; the device fault)
 
 CUBEMAPS.md A.1 "Done: the three Csgo indices". The renderer writes our bindless indices at Csgo +72 / +76 / +80 and
 binds a zero texture at element 0 of every bindless array: unbound element-0 reads had been losing the Vulkan

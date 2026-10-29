@@ -994,6 +994,25 @@ build varies run to run (ledger 144, item D).
    nodes), their culling (the CPU draw path DrawArray 180042330, ledger 139), layers (CubemapLayerFlags applies to
    any object), transforms and instance records, and why some draw the error shader (a missing material or
    program). Start from the dump: rdc_actions.py's annotations (aggregate.model_name, material_name) name each draw.
+   **Inventory (2026-10-29).** `rdc_actions.py <capture.rdc>` (without modules.txt: atixref's is spvmatch's raw
+   output, not "id name" lines) lists 27,248 commands with the engine's annotations. Its first segment (before the
+   first vkCmdCopyImageToBuffer) carries no annotations, so read the face after the first readback: 124 draws, 66
+   aggregate (indirect), 56 base objects (`baseobject.model_name`), a skybox and a particle. The base objects:
+   - World node scene objects (`n0_lr0_c*_s_*`: the `tile_set_a` nomerge model in the colour and shadow lists).
+     atixref's n0.vwnod holds **194 m_sceneObjects** beside its 264 aggregates (m_vTransform, m_renderableModel,
+     m_nObjectTypeFlags: 65 x 0x408, 40 OVERLAY, 36 x 0x420, 19 x 0x410, 12 RENDER_TO_CUBEMAPS, 10 NONE, 8
+     RENDER_WITH_DYNAMIC, 4 x 132104; fade distances, lighting origin, cubemap / LPV handshakes). The renderer reads
+     only m_aggregateSceneObjects.
+   - Light blocker shadow meshes (`n0_lr0_c1x_s_cb_bl_mesh_blocklight1x_shadow`), in the shadow lists only
+     (USES_SHADOW_FAST_PATH batch lists), and an entity model (`unnamed_174`) with them.
+   - Skybox models placed as props (`de_vertigo_skybox01_*`, `citystreets`), BAKED_LIGHTING batch lists.
+   Entry points found, not read: scenesystem 1015 CBaseSceneObjectDesc's vftable 1805e5d70; by its position
+   against CAggregateSceneObjectDesc's (1805e4538, slot 8 DrawArray 180042330) its draw is slot 8, 18007d750
+   (inferred from the layout, check it); the annotators 180079cb0 / 180081cd0 (via 180083190 / 180083140).
+   Order of work: the base object's draw (18007d750) and its instance record, then its culling and layer
+   membership for the world node's scene objects (the colour and shadow lists), then the blocker shadow meshes,
+   then overlays (a path of their own) and the prop models (entities). Each slice is checkable against the
+   capture's direct draws by model name and index range.
 5. **Shadowed lights' atlas tiles.** light_omni2-like lights render their own shadow views into atlas tiles that
    are no sun cascade (ledger 144: culled with the captured per-view block's frustum, 96 of 96). Port their view
    setup from the precomputed sub-frusta, their per-view blocks and their draws.
