@@ -523,6 +523,30 @@
    "note": "desc vfunc 0x28: 1800d06f0 then the object's deleting destructor (vfunc 0, flag 1)"
   },
   {
+   "addr": "1801a9410",
+   "name": "LightBinnerGPU_MergeBarnLights",
+   "module": "s2c:baked/lighting",
+   "note": "CLightBinnerGPU vfunc 0x8 (vtable 1805fe688), per view: the four bucket lists into one (count +0xe3a8, 0x640-byte entries +0xe3b0), sorted (1801cc930), trimmed to min(convar 180923b68 when >= 0, 315); then 1801a3980 (shadows) and 1801a7fd0; CUBEMAPS.md A.6"
+  },
+  {
+   "addr": "1801b2450",
+   "name": "LightBinnerGPU_UploadBarnLights",
+   "module": "s2c:baked/lighting",
+   "note": "one 0x1e0-byte g_BarnLights record per merged entry through the binner's vfunc 0x70 (1801b14a0 -> 1801b14b0), then count x 0x1e0 bytes to the buffer at +0xe558 (render context vfunc 0x380); called from vfunc 0x28 (1801b4530)"
+  },
+  {
+   "addr": "1801b14b0",
+   "name": "LightBinnerGPU_WriteBarnLightRecord",
+   "module": "s2c:baked/lighting",
+   "note": "(binner, 0x640-byte entry, 0x1e0-byte record): the g_BarnLights record; transforms at +0 .. +0x7f, colour x intensity +0xa0 .. +0xa8, flags +0x108 (entry +0x1fc << 16 | type bits), falloff block +0x140 .. +0x18c (1 / +0x14c at +0x18c); not ported yet"
+  },
+  {
+   "addr": "1801c9a40",
+   "name": "LightEntry_CopyConstruct",
+   "module": "s2c:baked/lighting",
+   "note": "(dest, src) copy of a 0x640-byte CPU light entry; 17 call sites (the gather 1801a0f1c, the merge 1801a95cf, the sort 1801cc930)"
+  },
+  {
    "addr": "1801a5c28",
    "name": "CSM_SetupForView",
    "module": "s2c:baked/lighting",

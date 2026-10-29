@@ -1094,7 +1094,20 @@ build varies run to run (ledger 144, item D).
    & 8) or when the light's world (+0xb8) is not in the view's list (+0xca8); else fades (+0x260 - d) * +0x264
    and (+0x268 - d) * +0x26c clamped to [0, 1] (d = view +0x1c), copies +0x30 .. +0x5f and the oriented box
    (+0xf0) into a 0x640-byte CPU light entry and appends it to one of four hash-bucketed lists (1801c9a40). The
-   g_BarnLights words are packed from those entries later: next, the reader of those lists.
+   g_BarnLights words are packed from those entries later:
+   **The chain to the GPU record (2026-10-30, tools/cubehost/barn_entries.js + decompile).** A watchpoint on a
+   gathered entry saw 1801c9a40 copy it on at 1801a95d4 (two more traps found doing it: an entry copied to the
+   STACK, 1801a222f, must not be watched, the handler's own frames land on it; and the bucket arrays reallocate,
+   1801c80c7, which strands a watchpoint on freed heap). Then statically:
+   - 1801a9410 (binner vtable 1805fe688 slot 0x8, per view) moves the four buckets into one list (count binner
+     +0xe3a8, 0x640-byte entries at +0xe3b0), sorts it (1801cc930), trims it to min(convar at 180923b68 if
+     >= 0, 315), then 1801a3980 (shadows; drops entries) and 1801a7fd0 (moves one entry to +0xe590);
+   - 1801b2450 (from slot 0x28, 1801b4530) writes **one 0x1e0-byte record per entry** through the binner's own
+     vfunc 0x70 (1801b14a0 -> **1801b14b0**, ~500 lines) and uploads count x 0x1e0 bytes to the buffer at
+     binner +0xe558 (render context vfunc 0x380).
+   1801b14b0 is the record to port next: transforms (+0x00 .. +0x7f from the entry's matrices), colour times
+   intensity (+0xa0 .. +0xa8), the shadow and cookie terms, a falloff block (+0x140 .. +0x18c, 1 / +0x14c at
+   +0x18c) and the flags word at +0x108 (the entry's +0x1fc << 16 | type bits).
 7. **Render face 0 and compare.** `CubeWithNoDumpMakesTheGamesExr` needs a per-face mode for a map whose other
    faces have no dump. Compare the colour against readback_0 (and the intermediate targets: atlas, face depth).
    Then faces 1 to 5 against readback_1..5 (no dumps needed), then cube 0's EXR (env_cubemap_245678519.exr).
