@@ -900,10 +900,17 @@ build varies run to run (ledger 144, item D).
 
 ### C. Into the compile
 
-1. **Move the remaining inputs out of the tests.** The renderer's callers still use two test helpers:
-   `AggregateCullingCaptureTests.Aggregates` (fragments, LODs, OwnTransforms from the world nodes) and
-   `CubemapLayerFlagsCaptureTests.Memberships` (the layer and draw call flags, with the material attribute store).
-   Both read only the package and the game's content; move them into Source2.Compiler (Cubemaps).
+1. **Done 2026-10-29: the inputs left the tests.** `CubemapPackageAggregates` (Source2.Compiler, Cubemaps) reads
+   the world nodes' aggregates (`Read`: fragments, LODs, OwnTransforms) and their layer-selection inputs
+   (`LayerInputs` with a GameContent and a ShaderLibrary, then `Memberships`). The two test helpers wrap it. After
+   the move: probe01's cubes 0 and 1 from no dump (twelve faces, both EXRs, every program a module of the
+   capture), probe01's draw list and layer flags, and atixref's programs and instance records all pass.
+   **atixref's layer flags fail, and they failed the same way before the move** (checked on the old code). Against
+   atixref_members (captured 10-27 on 1.41.9.2): 255 objects matched, and on most of them object +0x80 differs by
+   bit 41 (0x200062d1.. captured, 0x200060d1.. ours), plus attributes 0x287bcc3c and 0x7efb34e8 at 4294967295
+   captured against -1 ours. The shader package the test reads changed with 1.41.9.3 (10-29), so it may be that
+   update; that is not checked. The -1 against 4294967295 may be only how the two values are compared (signed
+   against unsigned); also not checked.
 2. **compile-map renders the cubes.** For each `CubemapFaceBlocks.FromPackage` cube: six faces through the
    renderer, `CubemapFaceExr`, then `CubemapArrayVtex.Build` and the package's .vtex / .vtex_c, as Hammer's
    build cubemaps step. Check: probe01's whole package against Valve's (ParityReport), then the service's presets.

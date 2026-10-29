@@ -29,68 +29,12 @@ public sealed class AggregateCullingCaptureTests(ITestOutputHelper output)
     /// <summary>One aggregate and its model's first vertex buffer (size in bytes, stride), which tells its draws apart in a capture.</summary>
     internal sealed record Aggregate(string Name, List<AggregateCulling.Fragment> Fragments, bool OwnTransforms, long VertexBytes, uint VertexStride, List<string> Flags, List<AggregateCulling.LodSetup> Lods);
 
-    private static string SceneInfoTestsText(KVObject o, string key)
-        => o.Children.FirstOrDefault(c => c.Key == key) is { } c ? (c.Value.IsArray ? string.Join("|", c.Value.Values.Select(v => v.ToString(System.Globalization.CultureInfo.InvariantCulture))) : c.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)) : "";
-
+    /// <summary>The package's aggregates (<see cref="CubemapPackageAggregates.Read"/>), named "&lt;node file&gt; &lt;model&gt;".</summary>
     internal static List<Aggregate> Aggregates(string vpk)
     {
         using var package = new ValvePak.Package();
         package.Read(vpk);
-        var result = new List<Aggregate>();
-        foreach (var entry in package.Entries!.SelectMany(kv => kv.Value).Where(e => e.GetFullPath().EndsWith(".vwnod_c", StringComparison.Ordinal))
-                     .OrderBy(e => e.GetFullPath(), StringComparer.Ordinal))
-        {
-            package.ReadEntry(entry, out var nodeBytes);
-            using var nodeResource = new Resource();
-            nodeResource.Read(new MemoryStream(nodeBytes));
-            foreach (var o in ((WorldNode)nodeResource.DataBlock!).Data.GetArray("m_aggregateSceneObjects") ?? [])
-            {
-                var name = o.GetStringProperty("m_renderableModel") ?? "";
-                package.ReadEntry(package.FindEntry(Path.ChangeExtension(name, ".vmdl_c"))!, out var bytes);
-                using var resource = new Resource();
-                resource.Read(new MemoryStream(bytes));
-                var draws = new List<AggregateCulling.DrawCall>();
-                long vertexBytes = 0;
-                uint vertexStride = 0;
-                foreach (var (mesh, _, _, _) in ((Model)resource.DataBlock!).GetEmbeddedMeshesAndLoD())
-                {
-                    if (mesh.VBIB.VertexBuffers.Count > 0 && vertexBytes == 0)
-                        (vertexBytes, vertexStride) = (mesh.VBIB.VertexBuffers[0].Data.Length, mesh.VBIB.VertexBuffers[0].ElementSizeInBytes);
-                    foreach (var so in mesh.Data.GetArray("m_sceneObjects"))
-                    {
-                        var bounds = so.GetArray("m_drawBounds");
-                        var calls = so.GetArray("m_drawCalls");
-                        for (var i = 0; i < calls.Count; i++)
-                        {
-                            var dc = calls[i];
-                            var tint = dc.ContainsKey("m_vTintColor") ? dc.GetSubCollection("m_vTintColor").ToVector3() : Vector3.One;
-                            draws.Add(new AggregateCulling.DrawCall(dc.GetInt32Property("m_nStartIndex"), dc.GetInt32Property("m_nIndexCount"),
-                                dc.GetInt32Property("m_nBaseVertex"), bounds[i].GetSubCollection("m_vMinBounds").ToVector3(),
-                                bounds[i].GetSubCollection("m_vMaxBounds").ToVector3(), new Vector4(tint, dc.GetFloatProperty("m_flAlpha"))));
-                        }
-                    }
-                }
-                var transforms = o.GetArray("m_fragmentTransforms") ?? [];
-                var nextTransform = 0;
-                var meshes = new List<AggregateCulling.MeshInfo>();
-                var flags = new List<string>();
-                foreach (var m in o.GetArray("m_aggregateMeshes"))
-                {
-                    flags.Add(SceneInfoTestsText(m, "m_objectFlags") + $" lod {m.GetInt32Property("m_nLODSetupIndex")} mask {m.GetInt32Property("m_nLODGroupMask")}");
-                    float[]? transform = null;
-                    if (m.GetBooleanProperty("m_bHasTransform"))
-                        transform = [.. transforms[nextTransform++].Values.Select(v => (float)v.ToDouble(System.Globalization.CultureInfo.InvariantCulture))];
-                    var tint = m.GetArray<long>("m_vTintColor") is { } t ? (uint)(t[0] | t[1] << 8 | t[2] << 16) : 0xffffffu;
-                    meshes.Add(new AggregateCulling.MeshInfo(m.GetInt32Property("m_nDrawCallIndex"), transform, tint, m.GetInt32Property("m_nLODSetupIndex"), m.GetInt32Property("m_nLODGroupMask")));
-                }
-                var fragments = AggregateCulling.Fragments(meshes, draws);
-                var lods = (o.GetArray("m_lodSetups") ?? []).Select(l => new AggregateCulling.LodSetup(l.GetSubCollection("m_vLODOrigin").ToVector3(),
-                    l.GetFloatProperty("m_fMaxObjectScale"), [.. l.GetArray<double>("m_fSwitchDistances").Select(d => (float)d)])).ToList();
-                var slots = fragments.Count == 0 ? 0 : fragments[^1].TransformSlot + 1;
-                result.Add(new Aggregate($"{entry.FileName} {name}", fragments, slots == fragments.Count, vertexBytes, vertexStride, flags, lods));
-            }
-        }
-        return result;
+        return [.. CubemapPackageAggregates.Read(package).Select(a => new Aggregate($"{a.Node} {a.Model}", a.Fragments, a.OwnTransforms, a.VertexBytes, a.VertexStride, a.Flags, a.Lods))];
     }
 
     /// <summary>

@@ -203,7 +203,18 @@ the addon).
     Debug test build; time a Release build and Valve's own step before sizing it. Any change
     that could alter bytes waits for the user's OK (parity before speed).
 
-## Latest session (2026-10-29 night, the out-of-range normalise; CS2 open)
+## Latest session (2026-10-29 night, later: AVOID decompiled, cubemaps C.1; CS2 open)
+
+No compile and no capture.
+- Nav collector 6 (AVOID) decompiled, not ported (NAV.md "AVOID from models"). The key is a MODEL's
+  `nav_data.nav_attribute_avoid`, not a material's, and no CS2 FGD offers that block. The table the
+  records come from, and its slot order, need a probe model and a capture.
+- CUBEMAPS.md C.1 done: `Cubemaps/CubemapPackageAggregates.cs` holds the aggregate and layer-input readers
+  the tests had. probe01's two cubes are still the game's from no dump. atixref's FlagsEqualTheCapture
+  fails, and failed identically before the move (CUBEMAPS.md C.1 has the numbers). Next: C.2,
+  compile-map renders the cubes.
+
+## Earlier session (2026-10-29 night, the out-of-range normalise; CS2 open)
 
 No compile and no capture: static disassembly of archived DLLs only.
 
