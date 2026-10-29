@@ -237,7 +237,8 @@ public sealed class NavCompileTests(ITestOutputHelper output)
     /// A map with a mapbuilder.ladder mesh (s2c_prefabprobe3's ladder) or nav links (s2c_navlink): the .nav
     /// from the .vmap, with the mesh build's ladders and the areas' ladder lists, or the links' islands,
     /// against the package Valve compiled in the addon. The custom data is compared too, unless <paramref name="analyze"/> is false (the mesh
-    /// only, without the hours-long CS analysis).
+    /// only, without the hours-long CS analysis). s2c_prefabprobe3's analysis runs over two hours in a Release
+    /// suite, so it runs only with NAV_ANALYZE_BIG=1.
     /// </summary>
     [Theory]
     [InlineData("s2c_rc_probe", "s2c_prefabprobe3", false)]
@@ -252,6 +253,11 @@ public sealed class NavCompileTests(ITestOutputHelper output)
     [InlineData("s2c_rc_probe", "s2c_navlink3", true)]
     public void NavWithLaddersMatchesValve(string addon, string map, bool analyze)
     {
+        if (analyze && map == "s2c_prefabprobe3" && Environment.GetEnvironmentVariable("NAV_ANALYZE_BIG") != "1")
+        {
+            output.WriteLine($"{map}: set NAV_ANALYZE_BIG=1 to run the analysis (hours)");
+            return;
+        }
         if (CS2Fixtures.StockPak() is not { } pak || MapFixtures.GameSchema() is not { } schema)
         {
             output.WriteLine("skipped: no stock pak or schema");
