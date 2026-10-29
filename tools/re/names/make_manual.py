@@ -3274,6 +3274,7 @@ SERVER_1015 = [
     ("1814b2585", "CNavMesh_GetGroundHeight_StartSolid", NAV, "the retry point: the trace's start when its start-solid flag (+0x2b) is set, else its end position; a start-solid trace has fraction 0, so both are the start"),
     ("1814c43b0", "CNavArea::GetZ", NAV, "fan triangle (previous, nearest 1814c1ff0, next corner); the one two corners on when the first is degenerate or the point lies outside"),
     ("1814c5a00", "CNavArea::ContainsXY", NAV, "bounds and each edge's outward half-plane grown by the tolerance"),
+    ("18146bed0", "VectorNormalize_Slow", NAV, "server's copy of rc 18125d000, instruction for instruction (1.0 at 181799eb0, FLT_MAX at 181a26b90); returns the length; VectorNormalizeSlow"),
     ("1814c1ff0", "CNavArea::NearestCorner", NAV, "XY, the first of equals"),
     ("1814c2ee0", "Polygon_ClosestPoint", NAV, "fan triangles (v0, v[i], v[i-1]) from the last, 1814762f0"),
     ("1810f5f80", "CNavAreaSearch_Init", NAV, "origin, start area, range (+0x264), spacing (+0x260), the visit lambda 181a145a0 (181108dc0 -> 1810f6dd0: areas in the origin's box)"),

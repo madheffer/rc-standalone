@@ -247,6 +247,12 @@
    "note": "bounds and each edge's outward half-plane grown by the tolerance"
   },
   {
+   "addr": "18146bed0",
+   "name": "VectorNormalize_Slow",
+   "module": "s2c:baked/nav",
+   "note": "server's copy of rc 18125d000, instruction for instruction (1.0 at 181799eb0, FLT_MAX at 181a26b90); returns the length; VectorNormalizeSlow"
+  },
+  {
    "addr": "1814c1ff0",
    "name": "CNavArea::NearestCorner",
    "module": "s2c:baked/nav",

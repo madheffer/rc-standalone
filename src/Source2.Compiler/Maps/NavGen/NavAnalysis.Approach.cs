@@ -50,7 +50,11 @@ public sealed partial class NavAnalysis
         return null;
     }
 
-    /// <summary>The 1e-17 .. 1e17 normalisation (outside the range only zero is handled).</summary>
+    /// <summary>
+    /// The 1e-17 .. 1e17 normalisation: zero stays zero, any other length outside the range goes
+    /// through server 18146bed0, instruction for instruction rc's VectorNormalize_Slow (18125d000).
+    /// Its callers here (180398290 twice, 180391710's spot loop) read only the vector.
+    /// </summary>
     private static V Normalize(V v)
     {
         var len = MathF.Sqrt(v.Z * v.Z + v.Y * v.Y + v.X * v.X);
@@ -58,7 +62,8 @@ public sealed partial class NavAnalysis
         {
             if (len == 0f)
                 return new V(0f, 0f, 0f);
-            throw new NotSupportedException("normalising a vector outside 1e-17 .. 1e17 (18146bed0) is not ported");
+            var n = VectorNormalizeSlow.Normalise(new System.Numerics.Vector3(v.X, v.Y, v.Z));
+            return new V(n.X, n.Y, n.Z);
         }
         var inv = 1f / len;
         return new V(inv * v.X, inv * v.Y, inv * v.Z);

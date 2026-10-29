@@ -64,9 +64,16 @@ public sealed partial class NavAnalysis
         if (len < 1e-17f || 1e+17f < len)
         {
             if (len != 0f)
-                throw new NotSupportedException("normalising a path outside 1e-17 .. 1e17 (18146bed0) is not ported");
-            dir = new V(0f, 0f, 0f);
-            len = 0f;
+            {
+                // 18146bed0 (180391a0c): the length is its return value, which the walk below runs to.
+                var n = VectorNormalizeSlow.Normalise(new System.Numerics.Vector3(dx, dy, dz), out len);
+                dir = new V(n.X, n.Y, n.Z);
+            }
+            else
+            {
+                dir = new V(0f, 0f, 0f);
+                len = 0f;
+            }
         }
         else
         {

@@ -134,6 +134,34 @@ public sealed class NavAnalysisTests(ITestOutputHelper output)
         return list;
     }
 
+    /// <summary>
+    /// An edge shorter than 1e-17 takes 18146bed0 (VectorNormalize_Slow) in 1814c5a00 rather than
+    /// refusing. A corner 1e-20 along the bottom edge of a square leaves a collinear edge whose
+    /// slow-path normal is the bottom edge's, so every point answers as it does for the plain square.
+    /// </summary>
+    [Fact]
+    public void ContainsXYTakesTheSlowNormaliseOnATinyEdge()
+    {
+        static NavAnalysis.Area Square(params (float X, float Y)[] corners) => new()
+        {
+            Corners = [.. corners.Select(c => new NavAnalysis.V(c.X, c.Y, 0f))],
+            Min = new NavAnalysis.V(0f, 0f, 0f),
+            Max = new NavAnalysis.V(10f, 10f, 0f),
+        };
+        var plain = Square((0f, 0f), (10f, 0f), (10f, 10f), (0f, 10f));
+        var tiny = Square((0f, 0f), (1e-20f, 0f), (10f, 0f), (10f, 10f), (0f, 10f));
+        var n = VectorNormalizeSlow.Normalise(new System.Numerics.Vector3(0f, -1e-20f, 0f), out var len);
+        Assert.Equal(new System.Numerics.Vector3(0f, -1f, 0f), n);
+        Assert.Equal(1e-20f, len);
+        for (var x = -2f; x <= 12f; x += 0.5f)
+            for (var y = -2f; y <= 12f; y += 0.5f)
+                foreach (var tol in new[] { 0f, 1f })
+                {
+                    var p = new NavAnalysis.V(x, y, 0f);
+                    Assert.Equal(NavAnalysis.ContainsXY(plain, p, tol), NavAnalysis.ContainsXY(tiny, p, tol));
+                }
+    }
+
     [Fact]
     public void AreasMatchValve()
     {

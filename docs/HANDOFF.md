@@ -203,7 +203,21 @@ the addon).
     Debug test build; time a Release build and Valve's own step before sizing it. Any change
     that could alter bytes waits for the user's OK (parity before speed).
 
-## Latest session (2026-10-29 evening, the entity list's refusals)
+## Latest session (2026-10-29 night, the out-of-range normalise; CS2 open)
+
+No compile and no capture: static disassembly of archived DLLs only.
+
+- server 20261015 18146bed0 is rc's VectorNormalize_Slow (18125d000) instruction for instruction (constants 1.0
+  and FLT_MAX read from the binary), so `VectorNormalizeSlow` serves both. Registered in make_manual.
+- Lifted four refusals that only stood because that helper was unported: the nav analysis' Normalize
+  (180398290 twice, 180391710's spot loop; vector only), the encounter path (180391a0c; the length is its
+  return), ContainsXY's edge normal (1814c5cbe, on (ny, ex, 0)) and the ladder direction (rc 1818dc7cc; the
+  length is its return). Each caller's use of the result was read from its disassembly.
+- New: NavAnalysisTests.ContainsXYTakesTheSlowNormaliseOnATinyEdge. NavAnalysisTests (16) and the ladder
+  tests pass. No reference map reaches the slow path, so it is checked by construction, not against a .nav.
+- The suite was not run in full.
+
+## Earlier session (2026-10-29 evening, the entity list's refusals)
 
 Ledger 183; NAV.md "Order of work" 2. CS2 closed, Steam open (resourcecompiler captures only).
 

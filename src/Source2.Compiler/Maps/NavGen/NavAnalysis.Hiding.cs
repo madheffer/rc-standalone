@@ -89,9 +89,17 @@ public sealed partial class NavAnalysis
             if (len < 1e-17f || 1e+17f < len)
             {
                 if (len != 0f)
-                    throw new NotSupportedException("normalising an edge outside 1e-17 .. 1e17 (18146bed0) is not ported");
-                nx = 0f;
-                nyy = 0f;
+                {
+                    // 18146bed0 (1814c5cbe) on (ny, ex, 0); only the vector is read.
+                    var n = VectorNormalizeSlow.Normalise(new System.Numerics.Vector3(ny, ex, 0f));
+                    nx = n.X;
+                    nyy = n.Y;
+                }
+                else
+                {
+                    nx = 0f;
+                    nyy = 0f;
+                }
             }
             else
             {

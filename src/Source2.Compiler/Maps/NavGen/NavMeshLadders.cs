@@ -58,9 +58,15 @@ public static class NavMeshLadders
         if (len < 1e-17f || 1e17f < len)
         {
             if (len != 0f)
-                throw new NotSupportedException("a ladder whose length is outside 1e-17 .. 1e17 (18125d000) is not ported");
-            d = Vector3.Zero;
-            len = 0f;
+            {
+                // 18125d000 (1818dc7cc): the length is its return value.
+                d = VectorNormalizeSlow.Normalise(v, out len);
+            }
+            else
+            {
+                d = Vector3.Zero;
+                len = 0f;
+            }
         }
         else
         {
