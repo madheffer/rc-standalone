@@ -211,8 +211,10 @@ No compile and no capture.
   records come from, and its slot order, need a probe model and a capture.
 - CUBEMAPS.md C.1 done: `Cubemaps/CubemapPackageAggregates.cs` holds the aggregate and layer-input readers
   the tests had. probe01's two cubes are still the game's from no dump. atixref's FlagsEqualTheCapture
-  fails, and failed identically before the move (CUBEMAPS.md C.1 has the numbers). Next: C.2,
-  compile-map renders the cubes.
+  fails, and failed identically before the move (CUBEMAPS.md C.1 has the numbers).
+- CUBEMAPS.md C.2 done on probe01: `s2c build-cubemaps <package>` (Gpu/CubemapBuild.cs) renders every cube and
+  writes `maps/<map>/cubemaps/env_cubemap_array.vtex_c`. CubemapBuildTests: both EXRs, the .vtex and the array
+  are the game's byte for byte (10-26 intermediates). Next: C.3, or A (atixref) so a second map builds.
 
 ## Earlier session (2026-10-29 night, the out-of-range normalise; CS2 open)
 

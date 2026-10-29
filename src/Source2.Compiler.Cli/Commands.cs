@@ -506,6 +506,62 @@ internal static class Commands
         }
     }
 
+    /// <summary>
+    /// Hammer's build cubemaps step (<see cref="Gpu.CubemapBuild"/>) on a compiled package under
+    /// <c>game/csgo_addons/&lt;addon&gt;/maps</c>: the array replaces
+    /// <c>maps/&lt;map&gt;/cubemaps/env_cubemap_array.vtex_c</c>. The map root does not list the array (probe01's
+    /// .vmap_c from Valve's builds), so nothing else in the package changes.
+    /// </summary>
+    public static int BuildCubemaps(string[] a)
+    {
+        var vpk = a.Where((x, i) => !x.StartsWith("--", StringComparison.Ordinal) && (i == 0 || a[i - 1] is not ("--game" or "--intermediates"))).FirstOrDefault();
+        if (vpk is null || !File.Exists(vpk))
+        {
+            Console.Error.WriteLine("build-cubemaps: name a compiled map package (.vpk)");
+            return 2;
+        }
+        var full = Path.GetFullPath(vpk);
+        var parts = full.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var at = Array.FindIndex(parts, p => p.Equals("csgo_addons", StringComparison.OrdinalIgnoreCase));
+        if (at < 1 || at + 3 >= parts.Length || !parts[at + 2].Equals("maps", StringComparison.OrdinalIgnoreCase))
+        {
+            Console.Error.WriteLine("build-cubemaps: the package must sit under game/csgo_addons/<addon>/maps/");
+            return 2;
+        }
+        // --game: the install's game folder, when the package is a copy outside it.
+        var game = Array.IndexOf(a, "--game") is var g and >= 0 && g + 1 < a.Length ? a[g + 1] : string.Join(Path.DirectorySeparatorChar, parts[..at]);
+        var addon = parts[at + 1];
+        var map = string.Join('/', parts[(at + 3)..])[..^".vpk".Length].ToLowerInvariant();
+        var intermediates = Array.IndexOf(a, "--intermediates") is var k and >= 0 && k + 1 < a.Length ? a[k + 1] : null;
+        Console.WriteLine($"{map}: build cubemaps ({addon})");
+        var result = Gpu.CubemapBuild.Build(game, full, addon, scriptedCamera: !a.Contains("--no-scripted-camera"), Console.Out);
+        if (result is null)
+        {
+            Console.WriteLine("  no cubemap entities: nothing to build");
+            return 0;
+        }
+        if (intermediates is not null)
+        {
+            foreach (var (path, bytes) in result.Exrs)
+                WriteUnder(intermediates, path, bytes);
+            WriteUnder(intermediates, $"{Gpu.CubemapBuild.Folder}/env_cubemap_array.vtex", result.Vtex);
+        }
+        var entries = Io.VpkWriter.ReadAll(full);
+        entries[$"maps/{map}/cubemaps/env_cubemap_array.vtex_c"] = result.Array;
+        var written = full + ".s2c-tmp";
+        File.WriteAllBytes(written, Io.VpkWriter.Write(entries));
+        File.Move(written, full, overwrite: true);
+        Console.WriteLine($"  maps/{map}/cubemaps/env_cubemap_array.vtex_c: {result.Exrs.Count} cubes, {result.Array.Length:n0} bytes");
+        return 0;
+
+        static void WriteUnder(string root, string relative, byte[] bytes)
+        {
+            var path = Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllBytes(path, bytes);
+        }
+    }
+
     public static int MapDiff(string[] a)
     {
         var referencePath = Positional(a, "reference .vpk");

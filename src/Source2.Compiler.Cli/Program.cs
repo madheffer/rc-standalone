@@ -32,6 +32,7 @@ try
         "map-diff" => Commands.MapDiff(args[1..]),
         "map-physics" => Commands.MapPhysics(args[1..]),
         "compile-map" => Commands.CompileMap(args[1..]),
+        "build-cubemaps" => Commands.BuildCubemaps(args[1..]),
         "map-validate" => Commands.MapValidate(args[1..]),
         "entitylump" => Commands.Entitylump(args[1..]),
         "reauthor" => Commands.Reauthor(args[1..]),
@@ -104,6 +105,16 @@ static void Usage()
                     does. The lighting bake, nav and Steam Audio are refused by
                     name; --skip-unported runs the rest and leaves those as the
                     package has them.
+
+      s2c build-cubemaps <game/csgo_addons/<addon>/maps/<map>.vpk>
+                    [--no-scripted-camera] [--intermediates <dir>] [--game <dir>]
+                    Hammer's build cubemaps step on a compiled map, with no game:
+                    every cube rendered on our own Vulkan device, then the array
+                    compiled into maps/<map>/cubemaps/env_cubemap_array.vtex_c in
+                    the package. --intermediates also writes the step's EXRs and
+                    .vtex, which the game keeps under _buildcubemaps only while it
+                    builds. --game names the install's game folder for a package
+                    copied outside it. A map the renderer does not port yet is refused.
 
       s2c id        <resource/path.vtex>
                     Print the 64-bit RERL id the engine looks that path up by.

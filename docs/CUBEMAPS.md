@@ -911,9 +911,19 @@ build varies run to run (ledger 144, item D).
    captured against -1 ours. The shader package the test reads changed with 1.41.9.3 (10-29), so it may be that
    update; that is not checked. The -1 against 4294967295 may be only how the two values are compared (signed
    against unsigned); also not checked.
-2. **compile-map renders the cubes.** For each `CubemapFaceBlocks.FromPackage` cube: six faces through the
-   renderer, `CubemapFaceExr`, then `CubemapArrayVtex.Build` and the package's .vtex / .vtex_c, as Hammer's
-   build cubemaps step. Check: probe01's whole package against Valve's (ParityReport), then the service's presets.
+2. **Done 2026-10-29 on probe01: the CLI builds the cubes.** `Gpu/CubemapBuild.cs` renders every
+   `CubemapFaceBlocks.FromPackage` cube (six faces), writes each EXR at gameinfo's EnvironmentMapFaceSize (CS2's
+   gameinfo quotes that key), then the .vtex source and `CubemapArrayVtex.Build`. `s2c build-cubemaps <package>`
+   puts the array at `maps/<map>/cubemaps/env_cubemap_array.vtex_c`, Valve's path in probe01's package. It is a
+   command of its own, not part of compile-map, because resourcecompiler never builds cubemaps (Hammer's step runs
+   the game). Valve's probe01.vmap_c does not list the array, so the map root is left as it is.
+   - `CubemapBuildTests.BuildMakesTheGamesFiles` (`CUBEBUILD_VPK`, `CUBEBUILD_GAME` = the game's intermediates):
+     on probe01_cube1 (10-26, 1.41.9.2) both EXRs, the .vtex and the 945,838-byte array are the game's, byte for
+     byte, in 18 s with no dump read. Through the CLI on a copy of that package, all 26 entries keep their CRC and
+     size, and the --intermediates files equal the game's.
+   - Not read: the game's cube order in the .vtex. FromPackage's order is used; on probe01 it equals the EXRs' name
+     order, which is what the game's file shows. Not done: the service's presets, and the build state
+     (`--no-scripted-camera`; roadmap 0e) as a decision. The renderer still refuses what A, B and D list.
 3. **The parity matrix map** (memory parity-matrix-rule): every compile preset and switch, our everything-Hammer map.
 
 ### D. Animated maps
