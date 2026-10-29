@@ -44,7 +44,7 @@ In order:
 | 3 | 180f1f830 | prop_deformable and block_base_nav_mesh entities as NONAV blocks | +0x90 | not ported |
 | 4 | 180f21ac0 | info_gravity_shift with `CreateProjectedNavMesh`, then every info_nav_oriented* entity (180f21930) | +0xa8 oriented volumes | not ported |
 | 5 | 180f203b0 | visible CMapNavLink nodes whose classname is ai_nav_link_area (case-blind), in the world's entity list order after the bake (MapEntityList): the node's position, and that plus its `locatoroffset` (+0x185c); a copy's both as its locators leave them | +0xc0 links (0x18 each: start, end) | ported (ledgers 175, 177, 178, NavGenMapInput.Links): instances, nested copies, prefabs, plain groups, hidden links skipped |
-| 6 | 180fb5440 | the compile context's AVOID list (filled by 180f4aed0 from `nav_attribute_avoid`) as NavGen AVOID markups | +0x90 | not ported |
+| 6 | 180fb5440 | the compile context's AVOID list as NavGen AVOID markups, each record copied whole. 180f4aed0 fills it (below, "AVOID from models") | +0x90 | not ported |
 | 7 | 180fb15e0 | ladders: meshes with a `mapbuilder.ladder` material, then func_ladder children | +0x60 ladders | ported; a func_ladder in an instance or prefab refuses (below) |
 | 8 | 180f20f00 | info_nav_space (`DetailedGenerationForSmallNpcs`, `CoarseGenerationForLargeNpcs`); with one, info_node_air seeds and path_corner, info_node_hint, info_cover_hint, ai_flyer_flanking_route_hint, info_combine_gunship_bomb_target hints | +0x100 / +0x108 nav space | not ported |
 | 9 | 180f20e40 | whether any info_nav_oriented_mesh exists | +0x128 | ported (the pipeline's `oriented` flag) |
@@ -188,11 +188,30 @@ What Hammer can put in a .vmap that the nav step reads:
   the tool attributes' lower-case names (`locatoroffset` measured; `locatorOffset` is not read), and
   `navlink_type` is the MapNavLinkType_t name as a string, matched case-blind (ledger 176).
 - CMapNavData (the map's nav settings, `navData`): ported.
-- Materials: mapbuilder.ladder (tools/toolsinvisibleladder), mapbuilder.navclip,
-  nav_attribute_avoid.
+- Materials: mapbuilder.ladder (tools/toolsinvisibleladder), mapbuilder.navclip.
+- Models: a model whose KV3 has `nav_data { nav_attribute_avoid = true }` (collector 6). No CS2 FGD
+  offers a `nav_data` ModelGameData block, so only hand-written model key values reach it.
 - Hammer-only: the nav mesh polyclip tool (CToolNavMeshPolyclip, "Generate Nav Debug", "Load Nav From
   VPK") and grid nav (CMapDotaGridnavMarkup, `-gridnav`): whether either reaches a CS2 compile is
   not read.
+
+## AVOID from models (collector 6, decompiled 2026-10-29, rc 0923)
+
+Read from disassembly, not ported, no capture.
+- ResourceCompilerMap_CompileMap (1800fd550) calls 180fb6b80 at 1800fdd3b, after 180fb5020,
+  180fb5790 and 180fb6de0 set up the nav physics context at rbp - 0x60. It runs only when
+  180fb0670(.., 5) holds and the list at rbp + 0x948 exists; the list's +0x18 is then pointed at the context.
+- 180fb6b80 passes [ctx + 8] to 180f4aed0, which walks that object's table (slots of 0x28, a
+  negative first int is empty, nodes at +0x18 with the count at +0x10, each node at +0x40).
+- Per node: the first helper (+0x180 count, +0x188 array) that dynamic-casts from CBaseHelper to
+  CModelHelper. Its model's KV3 (helper +0xb8, then +0x38) needs a member `nav_data` holding a true
+  bool `nav_attribute_avoid`. Then the node's vfn 0xa0 writes its 3x4 transform, and the record is
+  the bounds at node +0x14c, min + (18, 18, 0) and max - (18, 18, 0), followed by that transform.
+  The record is 0x48 bytes.
+- 180fb5440 appends each record to the markups (+0x90) with the AVOID tag and the flag byte cleared.
+- Open before porting: what [ctx + 8] is and which nodes enter its table, and the table's slot order,
+  which decides the markups' order. Both need a capture on a probe model carrying the key, with CS2
+  closed.
 
 ## Order of work
 

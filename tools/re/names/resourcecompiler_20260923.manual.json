@@ -124,7 +124,7 @@
    "addr": "180fb5440",
    "name": "NavGen_CollectAvoidMarkups",
    "module": "s2c:baked/nav",
-   "note": "'NavGen' 'AVOID'"
+   "note": "'NavGen' 'AVOID': each 0x48-byte record copied whole into a 0x50 markup, then the AVOID tag and a cleared flag byte"
   },
   {
    "addr": "180f209f0",
@@ -416,9 +416,15 @@
   },
   {
    "addr": "180f4aed0",
-   "name": "NavGen_CollectAvoidMaterials",
+   "name": "NavGen_CollectAvoidModels",
    "module": "s2c:baked/nav",
-   "note": "'nav_attribute_avoid': the compile context's AVOID list that 180fb5440 turns into markups"
+   "note": "per node of the table at [ctx + 8] (0x28-byte slots, list +0x10 / +0x18; node at entry +0x40): the first CModelHelper (dynamic_cast from CBaseHelper), its model's KV3 (helper +0xb8, +0x38) member nav_data (18174cf40), bool nav_attribute_avoid (181eae3f0, hash 5bd259e0); a hit adds node bounds +0x14c with min + (18, 18, 0), max - (18, 18, 0), then the 3x4 node vfn 0xa0 writes (0x48 bytes); reached through 180fb6b80 from 1800fdd3b"
+  },
+  {
+   "addr": "180fb6b80",
+   "name": "NavGen_CollectAvoidModels_Thunk",
+   "module": "s2c:baked/nav",
+   "note": "rcx = [rcx + 8]; non-null jumps to 180f4aed0 with the AVOID list in rdx"
   },
   {
    "addr": "180fc8c80",

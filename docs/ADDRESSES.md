@@ -735,7 +735,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
 - against the installed build (20261029_1.41.9.3.md): 1331 tracked addresses: ambiguous 81, changed 22, identical 7, moved 1218, relocated 3
-- 1249 addresses
+- 1250 addresses
 
 ### s2c:baked/light-keys
 
@@ -1044,7 +1044,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180f2ddc0` | `MapEntity_ClassNameMatches` | the game class (handle +0x538) name +0x98, V_CompareNameWithWildcards(pattern, name, 0); an empty name never matches (search mode 2) | `src/Source2.Compiler/Maps/NavGen/NavGenMapInput.cs:64` |
 | `180f2de60` | `MapEntity_IsClass` | the class name or any FGD base (V_CompareNameWithWildcards over 180dd1fb0's list) | `src/Source2.Compiler/Maps/NavGen/NavGenMarkups.cs:52` |
 | `180f30580` | `EntityKeys_GetTagList` | a tag_list value's tokens, commas and white space between | `src/Source2.Compiler/Maps/NavGen/NavGenMarkups.cs:57`, `src/Source2.Compiler/Maps/NavGen/NavGenMarkups.cs:112` |
-| `180f4aed0` | `NavGen_CollectAvoidMaterials` | 'nav_attribute_avoid': the compile context's AVOID list that 180fb5440 turns into markups |  |
+| `180f4aed0` | `NavGen_CollectAvoidModels` | per node of the table at [ctx + 8] (0x28-byte slots, list +0x10 / +0x18; node at entry +0x40): the first CModelHelper (dynamic_cast from CBaseHelper), its model's KV3 (helper +0xb8, +0x38) member nav_data (18174cf40), bool nav_attribute_avoid (181eae3f0, hash 5bd259e0); a hit adds node bounds +0x14c with min + (18, 18, 0), max - (18, 18, 0), then the 3x4 node vfn 0xa0 writes (0x48 bytes); reached through 180fb6b80 from 1800fdd3b |  |
 | `180f4d220` | `PhysDoc_NodeFilter` | flags 0x16 for the nav world: GenerateNav (0x10); a smart prop with +0x688 0 and a physics pin out; flag 2: a mesh under an entity needs solidity 2 and no AlwaysSolidIgnoreNav, any other node its entity's FGD class (+0x550) with has_static_mesh (180dd2210); flag 4: solid 0 out; then 180f4bb00 (10-15: 180f4d790) | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:83`, `src/Source2.Compiler/Physics/EntityPhysicsModels.cs:243`, `src/Source2.Compiler/Physics/WorldCollision.cs:600` |
 | `180f684c0` | `MapDoc_UnregisterSubtree` | children first; a CMapInstance whose target no other instance names (180f8e9e0) has its target deleted too | `src/Source2.Compiler/Maps/MapEntityList.cs:18`, `src/Source2.Compiler/Maps/MapEntityList.cs:139` |
 | `180f6d410` | `MapDoc_DeleteNode` | flags 3 from the bake; unregisters the subtree (180f684c0) and runs the queued deletes | `src/Source2.Compiler/Maps/MapEntityList.cs:138` |
@@ -1057,8 +1057,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180fb1c10` | `NavGen_LadderFromFace` | bounds of the transformed corners (1810ce420), Newell normal (181384e40) rotated (18125d1b0); u = up x n, v = n x u; centre +- v \|v . extent\| / 2, width \|u . extent\| | `src/Source2.Compiler/Maps/NavGen/NavGenLadders.cs:25`, `src/Source2.Compiler/Maps/NavGen/NavGenLadders.cs:87` |
 | `180fb21f0` | `NavGen_LadderFromMesh` | per instance path (180f88460): the path's step matrix times the node's (vfn 0xa0); among faces of the first ladder material the one with the largest \|top - bottom\| x width (180fb1c10), first wins ties | `src/Source2.Compiler/Maps/NavGen/NavGenLadders.cs:23`, `src/Source2.Compiler/Maps/NavGen/NavGenLadders.cs:27` |
 | `180fb2830` | `NavGen_LadderWalk` | skips func_ladder entities; a mesh (vfn 0x138) with a ladder material goes to 180fb21f0, any other node recurses into its children | `src/Source2.Compiler/Maps/NavGen/NavGenLadders.cs:22` |
-| `180fb5440` | `NavGen_CollectAvoidMarkups` | 'NavGen' 'AVOID' |  |
+| `180fb5440` | `NavGen_CollectAvoidMarkups` | 'NavGen' 'AVOID': each 0x48-byte record copied whole into a 0x50 markup, then the AVOID tag and a cleared flag byte |  |
 | `180fb5ce0` | `NavGen_CollectMovableMeshes` | func_movelinear / func_mover CreateMovableNavMesh, point_nav_movable_mesh ref_ent / navgen_on_ref_ent / GravityFollowsRotation, prop_deformable enable_map_generated_navmesh; called from 180fb5020 |  |
+| `180fb6b80` | `NavGen_CollectAvoidModels_Thunk` | rcx = [rcx + 8]; non-null jumps to 180f4aed0 with the AVOID list in rdx |  |
 | `180fb6cf0` | `MapCompile_NavBodyEntry` | 0x78-byte entries from the 0x90 stride list at ctx + 0x18 |  |
 | `180fb6de0` | `MapCompile_NavPhysicsWorld` | *(*(ctx + 0x18) + 8) + 8: the settle world handed to navsystem | `src/Source2.Compiler/SteamAudio/ProbeFilters.cs:31` |
 | `180fc8c80` | `MapWorld_SubMaps` | a map's sub-maps (flag 3 / 7), as the func_ladder collector recurses into them | `src/Source2.Compiler/Maps/NavGen/NavGenLadders.cs:30`, `src/Source2.Compiler/Maps/NavGen/NavGenLadders.cs:60` |

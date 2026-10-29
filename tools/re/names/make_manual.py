@@ -63,7 +63,7 @@ RESOURCECOMPILER = [
     ('1800fb1c0', 'CNavGenInput_Construct', NAV, 'bounds FLT_MAX/-FLT_MAX, +0x120 15.0; +0x128 left to 180f20e40'),
     ('180fb6de0', 'MapCompile_NavPhysicsWorld', NAV, '*(*(ctx + 0x18) + 8) + 8: the settle world handed to navsystem'),
     ('180fb6cf0', 'MapCompile_NavBodyEntry', NAV, '0x78-byte entries from the 0x90 stride list at ctx + 0x18'),
-    ('180fb5440', 'NavGen_CollectAvoidMarkups', NAV, "'NavGen' 'AVOID'"),
+    ('180fb5440', 'NavGen_CollectAvoidMarkups', NAV, "'NavGen' 'AVOID': each 0x48-byte record copied whole into a 0x50 markup, then the AVOID tag and a cleared flag byte"),
     ('180f209f0', 'NavGen_CollectMarkupVolumes', NAV, 'func_nav_markup (180f1ef70): each navProperty_<tag> string key registers (tag, value) (1818c7010) and adds a markup (180f20720); else a navProperty_NavAttributes array (180f22330) adds one with index -1; CNavGenInput +0x90'),
     ('180f21d70', 'NavGen_MarkupProperties', NAV, 'string keys (type 5) named navProperty_*: the name past the prefix and the value'),
     ('180f20720', 'NavGen_AddMarkup', NAV, "the entity's geometry bounds and matrix per instance path (180f88460), a 0x50-byte markup"),
@@ -113,7 +113,8 @@ RESOURCECOMPILER = [
     ('180f20c70', 'NavGen_CollectOrientedMeshClips', NAV, 'debug gen/render clips'),
     # The nav inventory and the mesh build's ladders (docs/NAV.md, 2026-10-28).
     ('180fb5ce0', 'NavGen_CollectMovableMeshes', NAV, "func_movelinear / func_mover CreateMovableNavMesh, point_nav_movable_mesh ref_ent / navgen_on_ref_ent / GravityFollowsRotation, prop_deformable enable_map_generated_navmesh; called from 180fb5020"),
-    ('180f4aed0', 'NavGen_CollectAvoidMaterials', NAV, "'nav_attribute_avoid': the compile context's AVOID list that 180fb5440 turns into markups"),
+    ('180f4aed0', 'NavGen_CollectAvoidModels', NAV, "per node of the table at [ctx + 8] (0x28-byte slots, list +0x10 / +0x18; node at entry +0x40): the first CModelHelper (dynamic_cast from CBaseHelper), its model's KV3 (helper +0xb8, +0x38) member nav_data (18174cf40), bool nav_attribute_avoid (181eae3f0, hash 5bd259e0); a hit adds node bounds +0x14c with min + (18, 18, 0), max - (18, 18, 0), then the 3x4 node vfn 0xa0 writes (0x48 bytes); reached through 180fb6b80 from 1800fdd3b"),
+    ('180fb6b80', 'NavGen_CollectAvoidModels_Thunk', NAV, "rcx = [rcx + 8]; non-null jumps to 180f4aed0 with the AVOID list in rdx"),
     ('180fc8c80', 'MapWorld_SubMaps', NAV, "a map's sub-maps (flag 3 / 7), as the func_ladder collector recurses into them"),
     ('1818c78a0', 'CNavGenInput_GetLadder', NAV, 'top, bottom, normal, width of the 0x28-byte entry at +0x68'),
     ('1818e6970', 'CNavLadder_Construct', NAV, 'mesh +0x70, the seven area slots cleared, id +0x68 from the counter 183023cb0'),
