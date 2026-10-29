@@ -1080,13 +1080,21 @@ build varies run to run (ledger 144, item D).
      per tile are other lights' views (item 5).
    Next for the lights: the barn light's GPU record. scenesystem 1800cd8c0 creates barn light objects (as
    1800cd300 does probe volumes; vfunc 0xb8 of CBarnLightObjectDescGPU, vftable 1805fe140, reached through
-   1800d5aa0). **Watch runs 2026-10-30 (tools/cubehost/barn_records.js), no answer yet:** atixref creates 29
-   such objects. Armed at creation, read/write watchpoints stopped the host 27 s in (a crash dump, as for the
-   probe volumes); armed later (after the 600th or 4000th base record batch), the host died during the build
-   before arming, twice, with no dump. base_records.js, with the same 1800ed2d0 hook and no 1800cd8c0 hook, ran to
-   the end, so the 1800cd8c0 hook is the suspect: next try arms from 1800d5aa0's return instead, or reads the
-   record statically. The desc's vfuncs (1800ce950 bounds, 1800ce7f0 silhouette, 1801c1e50) do not write it; the
-   writer is in CLightBinnerGPU (its per-view pass 1801a8150 also calls 1801ba530, the probe volumes).
+   1800d5aa0). **Watch runs 2026-10-30 (tools/cubehost/barn_records.js).** The first six runs failed through the
+   agent, not the game: (1) it read words it had put read/write watchpoints on (to log the object), which traps
+   inside Frida and killed the host (runs 1 to 4: no "armed" message ever reached the log); (2) the objects it
+   watched were destroyed (atixref creates 29 at load and keeps creating and destroying them, 50 to 157 per run),
+   and a watchpoint left on freed memory traps on every allocation there, so the build stalled (run 5, 25 min).
+   The agent now never reads a watched word, tracks 1800cdae0 (the desc's destroy) to drop a dead object's
+   watchpoints, and gives up past 200,000 traps. Run 7 built all 42 cubes (run 6's post-quit crash is cubehost's
+   own shutdown crash, worldrenderer 1800205c6, in every dump since 10-27).
+   Watchpoints on +0x30 (the transform) of four live objects named the reader: **18019fe30**, called from the GPU
+   desc's vfunc 0x30 (1801c1e50) on job threads, per light and view. It returns early when +0x1a8 / +0x1ac are 0,
+   when +0x78 fails the view's layer masks (+0x490 all set, +0x498 none), on a byte table bit (180921fc8[+0x9b]
+   & 8) or when the light's world (+0xb8) is not in the view's list (+0xca8); else fades (+0x260 - d) * +0x264
+   and (+0x268 - d) * +0x26c clamped to [0, 1] (d = view +0x1c), copies +0x30 .. +0x5f and the oriented box
+   (+0xf0) into a 0x640-byte CPU light entry and appends it to one of four hash-bucketed lists (1801c9a40). The
+   g_BarnLights words are packed from those entries later: next, the reader of those lists.
 7. **Render face 0 and compare.** `CubeWithNoDumpMakesTheGamesExr` needs a per-face mode for a map whose other
    faces have no dump. Compare the colour against readback_0 (and the intermediate targets: atlas, face depth).
    Then faces 1 to 5 against readback_1..5 (no dumps needed), then cube 0's EXR (env_cubemap_245678519.exr).
