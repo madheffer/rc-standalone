@@ -203,7 +203,14 @@ the addon).
     Debug test build; time a Release build and Valve's own step before sizing it. Any change
     that could alter bytes waits for the user's OK (parity before speed).
 
-## Latest session (2026-10-29 night, the probe record ported; atixref renders whole)
+## Latest session (2026-10-29 night, Csgo indices; the device fault)
+
+CUBEMAPS.md A.1 "Done: the three Csgo indices". The renderer writes our bindless indices at Csgo +72 / +76 / +80 and
+binds a zero texture at element 0 of every bindless array: unbound element-0 reads had been losing the Vulkan
+device on atixref non-deterministically. atixref now renders the same twice; the remaining gap starts with item A.4
+(192 of 256 world draws on face 0). probe01 unchanged.
+
+## Earlier session (2026-10-29 night, the probe record ported; atixref renders whole)
 
 CUBEMAPS.md A.1, GROUND_TRUTH 185. Cubemaps/LightProbeVolumeRecords.cs ports client 1802819e0 for unbaked volumes:
 all 400 of atixref face 0's records are the capture's but the indices (LightProbeVolumeRecordsTests). The renderer

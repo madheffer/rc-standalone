@@ -703,12 +703,18 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
             return false;
         if (r.Kind == SpirvReflection.Kind.Sampler && r.Binding == BindlessSamplerBinding && Named(program, r.Set, r.Binding, r.Kind) == null)
         {
+            // Slot 0 (no sampler) holds one too: a read through an index we do not model must not fault the device.
+            bindings.Sampler(r.Set, r.Binding, 0, SamplerOf(CubemapFaceSamplers.State(0x15, 0, 0, 0, null, null, null)));
             foreach (var (slot, sampler) in _bindlessSamplers)
                 bindings.Sampler(r.Set, r.Binding, (uint)slot, sampler);
             return true;
         }
         if (r.Kind == SpirvReflection.Kind.SampledImage && Named(program, r.Set, r.Binding, r.Kind) is { } v && v.Name.StartsWith("g_bindless_", StringComparison.Ordinal))
         {
+            // Element 0 (no texture) is zeros of the array's dimension, for the same reason: an unbound element read
+            // by an index we leave 0 lost the device (atixref, non-deterministically, before 2026-10-29's fix).
+            var zeroType = r.Dim switch { "3D" => ImageViewType.Type3D, "Cube" => ImageViewType.TypeCube, "CubeArray" => ImageViewType.TypeCubeArray, "2DArray" => ImageViewType.Type2DArray, _ => ImageViewType.Type2D };
+            bindings.Image(r.Set, r.Binding, 0, Constant($"zero {zeroType}", Format.R8G8B8A8Unorm, zeroType, 0).View);
             foreach (var (_, (index, image, viewType)) in _bindlessTextures)
                 if (Dim(viewType) == r.Dim)
                     bindings.Image(r.Set, r.Binding, (uint)index, image.View);
@@ -758,6 +764,36 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
             _bindlessTextures[key] = entry = (_bindlessTextures.Count + 1, image, ImageViewType.Type3D);
         }
         return entry.Index;
+    }
+
+    /// <summary>
+    /// A live resource in the bindless set under a fixed key: its index stays, the image is the current one (the
+    /// face's targets are made again per face). Null when the target does not exist yet (index 0).
+    /// </summary>
+    private int BindlessLive(string key, SceneDrawRunner.SceneImage? image, ImageViewType viewType)
+    {
+        if (image is not { } live)
+            return 0;
+        var index = _bindlessTextures.TryGetValue(key, out var had) ? had.Index : _bindlessTextures.Count + 1;
+        _bindlessTextures[key] = (index, live, viewType);
+        return index;
+    }
+
+    /// <summary>
+    /// PerViewConstantBufferCsgo_t for a program that reads the bindless set: +72, +76 and +80 index what the named
+    /// path binds as EnvironmentMap (a cube of zeros: no environment map is binned in the cubemap view),
+    /// DynamicAmbientOcclusion (the AO target, R8G8B8A8 UNORM) and DynamicAmbientOcclusionDepth (the half depth).
+    /// Matched in atixref face 0's capture: a 256 BC6 cube, a 1280 x 720 R8G8B8A8 target no draw of the face
+    /// writes, and the D24S8 that the half depth downsample writes. The block's writer (client
+    /// CreatePerViewConstantBufferCsgo) is not read for these three words.
+    /// </summary>
+    private byte[] CsgoWithIndices(byte[] csgo)
+    {
+        var b = (byte[])csgo.Clone();
+        BitConverter.TryWriteBytes(b.AsSpan(72), BindlessLive("environment map", Constant("zero Cube", Format.R8G8B8A8Unorm, ImageViewType.TypeCube, 0), ImageViewType.TypeCube));
+        BitConverter.TryWriteBytes(b.AsSpan(76), BindlessLive("ambient occlusion", _live.ContainsKey(AmbientOcclusion) ? Viewed(AmbientOcclusion, Format.R8G8B8A8Unorm) : null, ImageViewType.Type2D));
+        BitConverter.TryWriteBytes(b.AsSpan(80), BindlessLive("ambient occlusion depth", _live.GetValueOrDefault(HalfDepth), ImageViewType.Type2D));
+        return b;
     }
 
     /// <summary>The error for a binding <see cref="Named"/> cannot place, with what the write sequence does list in that set.</summary>
@@ -812,6 +848,8 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
         var globals = new[] { vs, ps }.Select((program, stage) => program == null || !program.Reflection.Resources.Any(r => r.Kind == SpirvReflection.Kind.UniformBuffer && r.Binding == 0 && r.Set == stage) ? null : Globals(call.Material + " " + program.Name, program, material,
             new() { ["g_bRenderingToCubemaps"] = VfxExpression.Value.Of(1f) }, ShaderIdColor(material),
             (name, v) => BindlessTexture(program, name, v, material), name => BindlessSampler(program, name, material))).ToArray();
+        // The Csgo block's bindless indices are registered here too, before set 4's arrays are bound.
+        var csgo = new[] { vs, ps }.Any(p => p != null && BindlessArrays(p).Any()) ? CsgoWithIndices(blocks.Csgo) : blocks.Csgo;
         foreach (var (program, stage) in new[] { (vs, 0), (ps, 1) })
         {
             if (program == null)
@@ -832,7 +870,7 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
                         bindings.Buffer(r.Set, r.Binding, 0, Buffer(v.Name switch
                         {
                             "PerViewConstantBuffer_t" => perView,
-                            "PerViewConstantBufferCsgo_t" => blocks.Csgo,
+                            "PerViewConstantBufferCsgo_t" => csgo,
                             "BakedLightingConstantBuffer_t" => blocks.Baked,
                             "PerViewLightProbeVolumeConstantBuffer_t" => ProbeVolumeBuffer(),
                             "PerViewLightingConstantBufferGpu_t" => blocks.Lights,

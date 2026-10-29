@@ -964,6 +964,19 @@ build varies run to run (ledger 144, item D).
      checked: PerViewConstantBufferCsgo_t +72 / +76 / +80, the environment cube, a colour target and the depth,
      which csgo_lightmappedgeneric reads through the bindless set and our Csgo block leaves 0. Then the wind's
      time (item D).
+   - **Done (2026-10-29): the three Csgo indices, and no unbound bindless element.** For a program with a bindless
+     array, CubemapFaceRenderer writes our indices at Csgo +72 / +76 / +80 for what the named path binds as
+     EnvironmentMap (a zero cube), DynamicAmbientOcclusion (the AO target, UNORM) and DynamicAmbientOcclusionDepth
+     (the half depth). Matched by resource in atixref face 0's capture (a 256 BC6 cube; a 1280 x 720 R8G8B8A8 no
+     draw of the face writes; the D24S8 the half depth downsample writes); the writer of these words is not read.
+     Live targets keep their index and take the face's current image.
+   - **The variance was a device fault in waiting.** Re-running then lost the Vulkan device (driver event 153)
+     non-deterministically, on the committed code too, from reads of bindless element 0, which nothing bound
+     (partially bound arrays). Element 0 of every bindless array is now a zero texture of its dimension and
+     sampler slot 0 a trilinear wrap: ours, not Valve's, so a read through an index we leave 0 gives zeros. Two
+     runs are now identical: face 0 2,127,238, 1 2,152,488, 2 1,417,485, 3 1,222,252, 4 286,688, 5 3,147,685
+     halves differ. The indices barely move those, so the gap is elsewhere: item 4 first (192 of 256 world draws
+     on face 0). probe01 unchanged.
 2. **The sky's D_FOG_TYPE.** The sky object's +0xf4 (scenesystem 180154fb0, token 0x83cb90d6; type 2 also tests
    +0xf8 / +0xfc against -90) is copied from C_EnvSky's m_nFogType (+0x10b8) by client 180282390. Neither probe01's
    nor atixref's env_sky has the fog_type key, yet probe01 draws 0 and atixref 1. Find the other writer: dispscan
