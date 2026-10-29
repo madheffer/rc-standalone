@@ -1053,9 +1053,12 @@ build varies run to run (ledger 144, item D).
      skybox models). Not ported. Its world is another package: atixref's `skybox_reference` (worldGroupID
      skyboxWorldGroup0) loads `maps/ze_atix_panic_new_skybox.vmap`, compiled at game/csgo/maps/
      ze_atix_panic_new_skybox.vpk (its own n0.vwnod, sky_camera scale 16 at (-848.413, -1159.429, -2599.0), env_sky).
-     The documented position rule (sky_camera origin + probe / scale) gives (-882.8, -1175.6, -1702.4), not the
-     capture's: the world group's placement or another term enters, so read client 180acb130 and the
-     skybox_reference load before porting (not fitted).
+     The position rule is confirmed in code (installed client 18020edff .. 18020ee7c, in the face render: the sky
+     camera from 180acc890; scale the short at +0x13d0, skipped when not > 0; position = (1 / scale) * face position
+     + sky camera +0x13d4 .. +0x13dc). But with the lump's sky_camera origin it gives (-882.8, -1175.6, -1702.4), not
+     the capture's; the capture implies a runtime sky camera origin of (-738.94, -1207.84, -2576.78), (109.47,
+     -48.41, 22.22) off the lump's, and no entity sits at the other reading. So the skybox world group's placement
+     (skybox_reference's load) moves it: read that before porting (not fitted).
    - light block: +80 / +84 g_vScreenSpaceDitherParams.xy (per-frame random, not a port gap); **+308 / +312
      g_vLightCullParams 16384 and 1** where ours is 8192 and 0, and +320 .. +340 (environment map and volume cull
      params) set: the face bins **one light and environment maps**, so BarnLightsNone and the empty binner are

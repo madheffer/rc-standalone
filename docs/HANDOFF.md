@@ -203,7 +203,19 @@ the addon).
     Debug test build; time a Release build and Valve's own step before sizing it. Any change
     that could alter bytes waits for the user's OK (parity before speed).
 
-## Latest session (2026-10-29 night, A.4 inventory)
+## Latest session (2026-10-29 night, atixref's gap mapped; CS2 open)
+
+CUBEMAPS.md A.2, A.4, A.6 and the skybox view. Code: CubemapFaceReplayTests.PackageBlocksAgainstTheCapture (every
+face block from the package against the capture, by role; BlockRoles fixed for atixref), MaterialProbe. Found:
+- base objects draw through g_instanceBuffer like fragments (records decoded, w1 / w2 / w6 from 18007a540; the
+  other words' writer needs a cubehost watchpoint, CS2 closed);
+- atixref face 0 bins one barn light and environment maps (light block +308 .. +340, binner counts);
+- the 3D skybox view comes from skybox_reference's map (game/csgo/maps/ze_atix_panic_new_skybox.vpk); its
+  position rule is confirmed in client but the sky camera's runtime origin is not its lump origin;
+- A.2: atixref's sky fog type 1 is the skybox map's env_sky fog_type (absent-key default 0).
+Next with CS2 closed: watchpoint runs for the base object record and the barn light record.
+
+## Earlier session (2026-10-29 night, A.4 inventory)
 
 No code changed. CUBEMAPS.md A.4 "Inventory": the base-object draws atixref's faces carry (world node scene
 objects, light blocker shadow meshes, prop models), the world node's 194 m_sceneObjects by type, and the entry
