@@ -203,7 +203,15 @@ the addon).
     Debug test build; time a Release build and Valve's own step before sizing it. Any change
     that could alter bytes waits for the user's OK (parity before speed).
 
-## Latest session (2026-10-29 night, rasterizer and engine samplers; CS2 open)
+## Latest session (2026-10-29 night, A.1 started; CS2 closed, Steam open)
+
+No code changed; CUBEMAPS.md A.1 has what was read. csgo_lightmappedgeneric's probe-lit pixel program needs three
+bindless indices in our Csgo block (+72 a cube, +76 a colour target, +80 depth) and the probe-volume buffer
+(scenesystem 1801ba530: 400 records of 0x90, defaults from 1801ba3e0, one per scene object copied from its +0x130).
+Where that per-object block is built is not found statically; a Frida probe on 1801baa00 in cubehost would settle it
+(Steam must be closed for cubehost).
+
+## Earlier session (2026-10-29 night, rasterizer and engine samplers; CS2 open)
 
 CUBEMAPS.md A.0. A pixel program with no rasterizer descriptor takes D3D11's default (measured on six draws). The
 engine's six bindless samplers are named in CubemapFaceSamplers.Engine at the game's own heap numbers, each confirmed

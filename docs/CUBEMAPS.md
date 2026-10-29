@@ -911,6 +911,23 @@ build varies run to run (ledger 144, item D).
    has 42 volumes, so check the light block's volume words against the capture first (the replay test's check of
    18832 .. and 31960). Check: a test like the replay's TextureInputs comparing every colour draw's bound
    subresources with the capture's.
+   **Read 2026-10-29 (csgo_lightmappedgeneric ps static 6177 dynamic 2, atixref face 0 eid 2517):**
+   - Its eight bindless textures: four material maps through $Globals (g_tColor +36, g_tLayer1NormalRoughness +40,
+     g_tLayer1AmbientOcclusion +44, g_tLayer1Detail +68; already bound), three through PerViewConstantBufferCsgo_t
+     (+72 a BC6 cube, 6 slices, 7 mips; +76 a colour attachment; +80 the D24S8 depth / stencil: our Csgo block writes
+     none of them yet), and one through PerViewLightProbeVolumeConstantBuffer_t (set 1 binding 2, 57600 bytes).
+   - That buffer is scenesystem 1015 1801ba530 ("UploadLightProbeVolumeConstants"): 400 records of 0x90, every slot
+     first filled by 1801ba3e0 (zeros, then bindless indices of engine default textures at +0x4c, +0x6c, +0x88 (type
+     0xd: 208 in the capture) and +0x8c (type 0x15: 200)), then one record per scene probe-volume object in the
+     list 1801ba530 walks (lambda vtable 1805fdd18, slot 2 -> 1801baa00), each the object's own 0x90 bytes at
+     +0x130 copied whole. The capture: 42 such records (atixref's volumes), the rest the default.
+   - A record: a world-to-volume 3 x 4 (1 / size on the diagonal, translation), +48 (0.25, 0.25, 0.25), +64
+     (0.75, 0.75, -1/12) and a texture index, +80 (1, 1, 1), +96 (1, 1, 1) and an index, +112 zeros and an index, +128
+     (0.25, 0.75) and two indices. Where the object's +0x130 block is built is NOT found: no scenesystem function
+     writing +0x130 .. +0x1b0 carries these constants (ten candidates checked), CSceneLightProbeVolumeObject's
+     vftable has three slots, and client's 180282060 / 18026c130 / 1801fbdb0 are keyvalue tables. Next: the client
+     side that hands scenesystem a CLightProbeVolumeObjectDesc, or a Frida probe on 1801baa00 in cubehost dumping each
+     object's +0x130 block with its entity (cubehost, CS2 and Steam closed).
 2. **The sky's D_FOG_TYPE.** The sky object's +0xf4 (scenesystem 180154fb0, token 0x83cb90d6; type 2 also tests
    +0xf8 / +0xfc against -90) is copied from C_EnvSky's m_nFogType (+0x10b8) by client 180282390. Neither probe01's
    nor atixref's env_sky has the fog_type key, yet probe01 draws 0 and atixref 1. Find the other writer: dispscan
