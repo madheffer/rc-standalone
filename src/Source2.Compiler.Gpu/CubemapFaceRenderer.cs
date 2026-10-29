@@ -600,12 +600,18 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
         return null;
     }
 
+    /// <summary>The error for a binding <see cref="Named"/> cannot place, with what the write sequence does list in that set.</summary>
+    private static string Unnamed(ValveProgram program, int set, int binding, SpirvReflection.Kind kind)
+        => $"{program.Name}: set {set} binding {binding} ({kind}) is named by no variable; the sequence lists in set {set}: "
+           + string.Join(", ", program.Sequence.RenderState.Where(f => f.LayoutSet == set).Select(f =>
+               $"{program.Program.VariableDescriptions[f.VariableIndex].Name} {program.Program.VariableDescriptions[f.VariableIndex].RegisterType} slot {f.BindingSlot}"));
+
     private void Dispatch(ValveProgram program, uint x, uint y, uint z, Func<string, (GpuDevice.GpuBuffer Buffer, bool Written)> input)
     {
         var bindings = new SceneDrawRunner.Bindings();
         foreach (var r in program.Reflection.Resources)
         {
-            var v = Named(program, r.Set, r.Binding, r.Kind) ?? throw new InvalidDataException($"{program.Name}: set {r.Set} binding {r.Binding} is named by no variable");
+            var v = Named(program, r.Set, r.Binding, r.Kind) ?? throw new InvalidDataException(Unnamed(program, r.Set, r.Binding, r.Kind));
             var name = v.RegisterType == VfxRegisterType.ConstantBuffer ? v.Name : v.SourceString;
             bindings.Buffer(r.Set, r.Binding, 0, input(name).Buffer, 0, Vk.WholeSize);
         }
@@ -654,7 +660,7 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
                         new() { ["g_bRenderingToCubemaps"] = VfxExpression.Value.Of(1f) }, ShaderIdColor(material))), 0, Vk.WholeSize);
                     continue;
                 }
-                var v = Named(program, r.Set, r.Binding, r.Kind) ?? throw new InvalidDataException($"{program.Name}: set {r.Set} binding {r.Binding} is named by no variable");
+                var v = Named(program, r.Set, r.Binding, r.Kind) ?? throw new InvalidDataException(Unnamed(program, r.Set, r.Binding, r.Kind));
                 switch (r.Kind)
                 {
                     case SpirvReflection.Kind.UniformBuffer:
@@ -887,7 +893,7 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
                         : Globals("sky " + _skyMaterial, ps, material, new() { ["SkyTint"] = VfxExpression.Value.Of(1f, 1f, 1f, 0f) })), 0, Vk.WholeSize);
                     continue;
                 }
-                var v = Named(program, r.Set, r.Binding, r.Kind) ?? throw new InvalidDataException($"{program.Name}: set {r.Set} binding {r.Binding} is named by no variable");
+                var v = Named(program, r.Set, r.Binding, r.Kind) ?? throw new InvalidDataException(Unnamed(program, r.Set, r.Binding, r.Kind));
                 switch (r.Kind)
                 {
                     case SpirvReflection.Kind.UniformBuffer when v.Name == "PerViewConstantBuffer_t":

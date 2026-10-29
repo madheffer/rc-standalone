@@ -854,6 +854,24 @@ atixref's capture (%TEMP%/cubehost_run/atixref) has face 0's dump, cube 0's six 
 that run. The readbacks are this run's frames, so they are a valid reference for the face even though atixref's
 build varies run to run (ledger 144, item D).
 
+0. **Where atixref's no-dump render stops (2026-10-29).** With `CubeWithNoDumpMakesTheGamesExr` on atixref
+   (`CUBENODUMP_VPK` = the capture's package, `CUBEREADBACK_EXR` = env_cubemap_245678519.exr):
+   - Done: the scene from an unbaked package (atixref's has no lightmaps: the lightmap block's measured 256 x 256)
+     and from a light_environment with no fade keys (CS2's FGD removes them; 0.1 and 0.05 measured). GROUND_TRUTH 184.
+     It now builds all 42 cubes' scenes (sky sky_de_nuke).
+   - **It stops in the cascades, on foliage, before any probe-lit colour draw (item 1).** csgo_foliage's vertex
+     program reads set 4 binding 29, a sampler from the global late-bound bindless set (g_globalLateBoundBindlessSet,
+     set 4 slot 4; the capture binds array element 2), with g_bindless_Texture3D_float4 at binding 46. It samples
+     `NoiseMap` (Sampler3D, default materials/default/effects/noise/perlin_a_z000.tga) for its wind: g_flSwayAmount,
+     g_flFlutterSpeed, g_flBranchAnimSpeed and the rest. The renderer has no bindless set at all.
+   - So foliage needs, in order: the bindless set (which slots the engine's heap gives, or our own indices written
+     where the program reads them: read which constant carries the index), the sampler heap's element 2 (from code,
+     not the capture's state), the noise texture, and the TIME the wind is evaluated at. The last is item D: atixref's
+     run-to-run difference (ledger 144) is plausibly this wind, and pinning it needs a capture with CS2 closed.
+   - The renderer's "named by no variable" error now lists what the program's write sequence holds in that set.
+     atixref's dump also trips BlockRoles (one downsample block at viewports 384 and 320); BlocksOfTheCapture finds
+     blocks by binding instead.
+
 1. **The probe-lit colour programs' inputs.** Props and vertex-painted brush blends draw with
    D_BAKED_LIGHTING_FROM_PROBE (ledger 163). Their pixel programs read texture and buffer attributes the renderer
    does not bind yet: `CubemapFaceRenderer.Texture` throws "no input for attribute <name>", which lists them. Expected

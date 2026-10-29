@@ -203,7 +203,18 @@ the addon).
     Debug test build; time a Release build and Valve's own step before sizing it. Any change
     that could alter bytes waits for the user's OK (parity before speed).
 
-## Latest session (2026-10-29 night, later: AVOID decompiled, cubemaps C.1; CS2 open)
+## Latest session (2026-10-29 night, last: atixref's cube from no dump; CS2 open)
+
+No compile and no capture. CUBEMAPS.md A.0 has the detail, GROUND_TRUTH 184 the measured values.
+- FromPackage reads an unbaked package (lightmap block 256 x 256, measured) and a light_environment without fade
+  keys, which every Hammer-made CS2 map is (csgo.fgd remove_key; 0.1 / 0.05 measured). probe01 unchanged.
+- atixref then stops on foliage in the cascades: csgo_foliage's vertex program samples a 3D noise texture through
+  the bindless set (set 4 binding 29 sampler, binding 46 Texture3D), and the renderer has no bindless set. Its wind
+  is time-driven, which ties A to D: pinning the time needs a capture with CS2 closed.
+- Diagnostics: CubemapFaceReplayTests.BlocksOfTheCapture (blocks of a dump by binding), ShaderVariableProbe
+  (a shader's variables with every field VRF parses).
+
+## Earlier session (2026-10-29 night, later: AVOID decompiled, cubemaps C.1; CS2 open)
 
 No compile and no capture.
 - Nav collector 6 (AVOID) decompiled, not ported (NAV.md "AVOID from models"). The key is a MODEL's

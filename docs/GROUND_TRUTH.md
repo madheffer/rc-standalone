@@ -4933,6 +4933,21 @@ game can answer is raised with the user first, and runs with -insecure.
        world's children (only its list entries and removal depend on it), and the entity lump of a prefab inside a
        target (EntityLumpSet takes its own copy chains).
 
+184. **An unbaked world's lightmap block, and light_environment's fades with no key** (2026-10-29: RenderDoc dump of
+     atixref's cube 0 face 0 (%TEMP%/cubehost_run/atixref/replay_face0, 1.41.9.2) read with
+     CubemapFaceReplayTests.BlocksOfTheCapture; decompile of worldrenderer 1023 180015740.) MEASURED, writers not read.
+     - atixref's world has m_bHasLightmaps false and no lightmaps. worldrenderer's loader (180015740) returns before it
+       builds BakedLightingConstantBuffer_t (a 0x34-byte buffer through the render system's vfn 0x218; the only such
+       creation in worldrenderer), yet the game bound one: uv scale (1, 1), size 256 x 256, live bindless slots at
+       +16. Its writer is not found (no 0x34 creation in scenesystem, engine2, materialsystem2 or client; no "default
+       lightmap" string). CubemapFaceBlocks takes 256 for an unbaked world (UnbakedLightmapSize).
+     - Words past +0x34 are junk in both maps (0x3e3e3e3e on probe01), and probe01's faces are exact with ours at 0:
+       the programs do not read them.
+     - csgo.fgd removes cascadecrossfade and cascadedistancefade from light_environment (remove_key), so a Hammer-made
+       CS2 map carries neither; probe01 has them only because its .vmap was written by hand. With both absent the
+       game's light block holds 1 / crossfade = 10 and the same distance-fade words as probe01's 0.05: 0.1 and 0.05,
+       which equal lights_base.fgd's defaults. Where the game takes them from (the schema default) is not read.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

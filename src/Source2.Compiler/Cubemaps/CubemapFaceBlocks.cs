@@ -55,6 +55,15 @@ public static class CubemapFaceBlocks
         byte[] SkyWsToOs,
         int BinnerMaskWords);
 
+    /// <summary>BakedLightingConstantBuffer_t's lightmap size for a world with no lightmaps: measured (GROUND_TRUTH 184).</summary>
+    public const int UnbakedLightmapSize = 256;
+
+    /// <summary>
+    /// light_environment's cascade cross fade and distance fade when the lump has no key, as csgo.fgd's remove_key
+    /// leaves every Hammer-made CS2 map: measured in atixref's light block (GROUND_TRUTH 184), not read from the game.
+    /// </summary>
+    public const float AbsentCrossFade = 0.1f, AbsentDistanceFade = 0.05f;
+
     /// <summary>The view's near and far planes (the buildcubemaps record's, client 1801ea0a0; ledger 118).</summary>
     public const float Near = 1f, Far = 10000f;
 
@@ -131,18 +140,31 @@ public static class CubemapFaceBlocks
             throw new NotSupportedException("a tinted env_sky: SkyTint from the entity is not read");
         skyMaterial = sky("skyname") ?? throw new InvalidDataException("env_sky has no skyname");
         using var worldResource = Read(package, package.Entries!.GetValueOrDefault("vwrld_c")!.Single());
-        var uvScale = ((World)worldResource.DataBlock!).Data.GetSubCollection("m_worldLightingInfo").GetSubCollection("m_vLightmapUvScale").ToVector2();
-        var irradiance = (package.Entries!.GetValueOrDefault("vtex_c") ?? []).Single(e => e.DirectoryName.EndsWith("lightmaps", StringComparison.Ordinal) && e.FileName == "irradiance");
-        using var lightmap = Read(package, irradiance);
-        var tex = (Texture)lightmap.DataBlock!;
+        var lightingInfo = ((World)worldResource.DataBlock!).Data.GetSubCollection("m_worldLightingInfo");
+        var uvScale = lightingInfo.GetSubCollection("m_vLightmapUvScale").ToVector2();
+        int lightmapWidth, lightmapHeight;
+        if (!lightingInfo.GetBooleanProperty("m_bHasLightmaps"))
+        {
+            // An unbaked world (m_bHasLightmaps false): worldrenderer's loader (180015740) returns before it builds the
+            // block, and the game's block measured 256 x 256 (atixref's capture, GROUND_TRUTH 184; its writer is not read).
+            (lightmapWidth, lightmapHeight) = (UnbakedLightmapSize, UnbakedLightmapSize);
+        }
+        else
+        {
+            var irradiance = (package.Entries!.GetValueOrDefault("vtex_c") ?? []).Single(e => e.DirectoryName.EndsWith("lightmaps", StringComparison.Ordinal) && e.FileName == "irradiance");
+            using var lightmap = Read(package, irradiance);
+            var tex = (Texture)lightmap.DataBlock!;
+            (lightmapWidth, lightmapHeight) = (tex.Width, tex.Height);
+        }
         var minSpec = Regex.Match(gameinfo, @"BakedLighting\s*\{[^}]*?MinSpecLightmapSize\s+(\d+)") is { Success: true } m
             ? float.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture) : 0f;
         var cubes = new List<Cube>();
         foreach (var cls in new[] { "env_cubemap", "env_cubemap_box", "env_combined_light_probe_volume" })
             foreach (var (_, key) in entities.Where(e => e.Class == cls))
                 cubes.Add(new Cube(new Scene(V(key("origin")), volumes, fog, V(sun("angles")), Colour(sun("color")) * F(sun("brightness")),
-                    F(sun("cascadecrossfade")), F(sun("cascadedistancefade")), Colour(sun("skycolor")), F(sun("skyintensity")),
-                    uvScale, tex.Width, tex.Height, V(sky("angles")), V(sky("origin")), scriptedCamera, minSpec),
+                    sun("cascadecrossfade") is { } crossFade ? F(crossFade) : AbsentCrossFade,
+                    sun("cascadedistancefade") is { } distanceFade ? F(distanceFade) : AbsentDistanceFade, Colour(sun("skycolor")), F(sun("skyintensity")),
+                    uvScale, lightmapWidth, lightmapHeight, V(sky("angles")), V(sky("origin")), scriptedCamera, minSpec),
                     uint.Parse(key("handshake") ?? throw new InvalidDataException($"{cls} has no handshake"), CultureInfo.InvariantCulture), cls));
         return cubes;
     }

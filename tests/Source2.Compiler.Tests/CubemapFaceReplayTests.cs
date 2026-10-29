@@ -238,6 +238,37 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// Diagnosis (<c>CUBEBLOCKS=&lt;a face's dump&gt;</c>, <c>CUBEBLOCKS_BIND=set,binding,size</c>, 1,4,64 by default:
+    /// BakedLightingConstantBuffer_t): each distinct captured block bound there, as floats and words, with how many
+    /// draws read it, from <c>CUBEBLOCKS_FROM</c> (byte 0 by default). Found by binding, not <see cref="BlockRoles"/>, so
+    /// a dump BlockRoles refuses can still be read.
+    /// </summary>
+    [Fact]
+    public void BlocksOfTheCapture()
+    {
+        if (Environment.GetEnvironmentVariable("CUBEBLOCKS") is not { Length: > 0 } dir)
+            return;
+        var bind = (Environment.GetEnvironmentVariable("CUBEBLOCKS_BIND") ?? "1,4,64").Split(',').Select(long.Parse).ToArray();
+        var actions = File.ReadLines(Path.Combine(dir, "actions.jsonl")).Select(l => JsonNode.Parse(l)!)
+            .Where(a => a["contents"] is not null && (a["stages"]?["vs"] is not null || a["stages"]?["cs"] is not null)).ToList();
+        var found = actions.SelectMany(a => new[] { a["stages"]?["vs"], a["stages"]?["ps"], a["stages"]?["cs"] }.Where(s => s != null)
+                .SelectMany(s => s!["constantBlocks"]!.AsArray()))
+            .Where(cb => cb!["bytes"] is { } b && (int)cb["block"]!["fixedBindSetOrSpace"]! == bind[0] && (int)cb["block"]!["fixedBindNumber"]! == bind[1]
+                         && (long)b["size"]! == bind[2])
+            .GroupBy(cb => (string)cb!["bytes"]!["sha1"]!);
+        foreach (var g in found)
+        {
+            var b = File.ReadAllBytes(Path.Combine(dir, "blobs", g.Key + ".bin"));
+            output.WriteLine($"block {g.Key} ({b.Length} bytes, {g.Count()} reads)");
+            // CUBEBLOCKS_FROM: the first byte printed (1024 bytes from there).
+            var from = int.TryParse(Environment.GetEnvironmentVariable("CUBEBLOCKS_FROM"), out var start) ? start : 0;
+            for (var i = from; i < Math.Min(b.Length, from + 1024); i += 16)
+                output.WriteLine($"  +{i,4}: " + string.Join("  ", Enumerable.Range(0, Math.Min(4, (b.Length - i) / 4))
+                    .Select(k => $"{BitConverter.ToSingle(b, i + k * 4).ToString("R", System.Globalization.CultureInfo.InvariantCulture)} ({BitConverter.ToUInt32(b, i + k * 4):x8})")));
+        }
+    }
+
+    /// <summary>
     /// A whole cube of probe01 (<c>CUBEREPLAY_CUBE</c>, 0 by default): each face's dump (<c>CUBEFACES=&lt;dir&gt;</c> holding replay_face0 .. 5, each
     /// rdc_replay.py with RDC_DUMP=1 over that face's events) chained from cleared targets with our blocks for that
     /// face, found by role (<see cref="BlockRoles"/>). The colour target after the face's last draw must equal the
