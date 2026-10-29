@@ -868,6 +868,25 @@ build varies run to run (ledger 144, item D).
      where the program reads them: read which constant carries the index), the sampler heap's element 2 (from code,
      not the capture's state), the noise texture, and the TIME the wind is evaluated at. The last is item D: atixref's
      run-to-run difference (ledger 144) is plausibly this wind, and pinning it needs a capture with CS2 closed.
+   - **The bindless set is built (2026-10-29, later).** The indices travel in the program's own $Globals: a
+     TextureNDIndex variable (csgo_foliage's g_tNoiseMap, at +0) and a SamplerStateIndex variable
+     (g_sTrilinearWrap, at +48), which ProgramGlobals.Fill already wrote through two callbacks. CubemapFaceRenderer
+     now gives them our own indices and binds the resources there: textures (the material's texture under the
+     variable's name) from 1 in the g_bindless_* array of their dimension (set 4, 30 + slot), samplers in set 4
+     binding 29, engine samplers by name (CubemapFaceSamplers.Engine; only g_sTrilinearWrap listed, checked) and a
+     g_sUserConfig* sampler from the program's material-filter state group (Filter 255 or absent), one slot per
+     distinct state from 32. A program with no bindless array keeps -1, as before; probe01's cubes and array are
+     unchanged.
+   - Checked on atixref face 0: our foliage vertex $Globals equal the capture's word for word on both foliage
+     materials but word 0 (our index 1 against the game's 1764); the sampler index is 2 in both. The noise texture
+     (perlin_a_z000_tga_8c53a467.vtex, 64 x 64 x 256 RGBA8) equals the capture's 3D Image 20400 in all nine mips
+     (CubemapBindlessTests, `CUBEBINDLESS=<face dump>`). `S2C_CUBE_GLOBALS_OUT=<dir>` writes every $Globals the
+     renderer makes. The game's heap, for the record: 0 aniso wrap, 1 bilinear clamp, 2 trilinear wrap, 3 trilinear
+     clamp, 4 point clamp, 5 bilinear border, 6 comparison, 7 aniso wrap (a material's).
+   - **Next stop: the alpha-tested foliage pixel program has no rasterizer state** in its render state header
+     (csgo_foliage ps static 66, CubemapFacePipelines.Apply refuses). Pipeline state, not bindless; the capture's draw
+     (eid 585) culls back faces with depth bias on. Then the wind's time (item D).
+   - Not unified: GpuMaterialSampler keeps its own sampler table (same names and slots 1 to 4).
    - The renderer's "named by no variable" error now lists what the program's write sequence holds in that set.
      atixref's dump also trips BlockRoles (one downsample block at viewports 384 and 320); BlocksOfTheCapture finds
      blocks by binding instead.

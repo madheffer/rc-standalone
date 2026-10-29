@@ -20,24 +20,44 @@ public static class CubemapFaceSamplers
     /// <summary>The samplers' LOD range: 0 to 15 on every captured sampler.</summary>
     public const float MaxLod = 15f;
 
+    /// <summary>
+    /// The engine's named samplers a program reaches through the bindless set (a SamplerStateIndex variable, set 4
+    /// binding 29), by name: our slot in that array (GpuMaterialSampler's numbers) and the state as Filter / address
+    /// codes for <see cref="State"/>. Only names a capture has checked are listed. g_sTrilinearWrap: atixref face 0's
+    /// foliage draws bind element 2 as linear / linear / linear, wrap, LOD 0 to 15, no anisotropy (2026-10-29), and
+    /// csgo_foliage's vertex program carries the same literals (Filter 21, AddressU / V 0).
+    /// </summary>
+    public static readonly IReadOnlyDictionary<string, (int Slot, int Filter, int Address)> Engine = new Dictionary<string, (int, int, int)>
+    {
+        ["g_sTrilinearWrap"] = (2, 0x15, 0),
+    };
+
     /// <summary>The program's sampler slots (set 1 slot numbers) and each one's state.</summary>
     public static Dictionary<int, SamplerCreateInfo> Samplers(ValveProgram program, VfxExpression.IScope? material = null)
+        => Groups(program, material).Where(g => g.Set == 1).ToDictionary(g => g.Slot, g => g.State);
+
+    /// <summary>
+    /// Every sampler state group of the program's write sequence, in any set: its set, slot, Filter value (null when
+    /// it has none) and state.
+    /// </summary>
+    public static List<(int Set, int Slot, int? Filter, SamplerCreateInfo State)> Groups(ValveProgram program, VfxExpression.IScope? material = null)
     {
         var states = program.Sequence.RenderState.Select(f => (f.LayoutSet, f.BindingSlot, Variable: program.Program.VariableDescriptions[f.VariableIndex]))
-            .Where(f => f.Variable.RegisterType == VfxRegisterType.SamplerState && f.LayoutSet == 1).ToList();
-        var result = new Dictionary<int, SamplerCreateInfo>();
-        foreach (var slot in states.Select(s => s.BindingSlot).Distinct())
+            .Where(f => f.Variable.RegisterType == VfxRegisterType.SamplerState).ToList();
+        var result = new List<(int, int, int?, SamplerCreateInfo)>();
+        foreach (var (set, slot) in states.Select(s => (s.LayoutSet, s.BindingSlot)).Distinct())
         {
             int? Value(string name)
             {
-                var v = states.FirstOrDefault(s => s.BindingSlot == slot && s.Variable.Name == name).Variable;
+                var v = states.FirstOrDefault(s => s.LayoutSet == set && s.BindingSlot == slot && s.Variable.Name == name).Variable;
                 if (v == null)
                     return null;
                 return v.CompiledExpression.Length > 0
                     ? (int)VfxExpression.Evaluate(v.CompiledExpression, material ?? throw new ArgumentException($"{name} needs the material", nameof(material)))[0]
                     : v.IntDefs[0];
             }
-            result[slot] = State(Value("Filter"), Value("AddressU"), Value("AddressV"), Value("AddressW"), Value("ComparisonFunc"), Value("BorderColor"), Value("MaxAniso"));
+            var filter = Value("Filter");
+            result.Add((set, slot, filter, State(filter, Value("AddressU"), Value("AddressV"), Value("AddressW"), Value("ComparisonFunc"), Value("BorderColor"), Value("MaxAniso"))));
         }
         return result;
     }

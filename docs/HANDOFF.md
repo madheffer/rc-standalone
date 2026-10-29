@@ -203,7 +203,15 @@ the addon).
     Debug test build; time a Release build and Valve's own step before sizing it. Any change
     that could alter bytes waits for the user's OK (parity before speed).
 
-## Latest session (2026-10-29 night, last: atixref's cube from no dump; CS2 open)
+## Latest session (2026-10-29 night, the bindless set; CS2 open)
+
+CUBEMAPS.md A.0 "The bindless set is built". CubemapFaceRenderer binds set 4's bindless arrays with our own
+indices, written where the programs read them ($Globals index variables). On atixref face 0 the foliage vertex
+$Globals equal the capture's but the index itself, and the noise texture equals the capture's in all nine mips
+(CubemapBindlessTests). probe01 unchanged. The render now stops on the alpha-tested foliage pixel program's missing
+rasterizer state (pipeline state), then the wind's time (item D, needs CS2 closed).
+
+## Earlier session (2026-10-29 night, last: atixref's cube from no dump; CS2 open)
 
 No compile and no capture. CUBEMAPS.md A.0 has the detail, GROUND_TRUTH 184 the measured values.
 - FromPackage reads an unbaked package (lightmap block 256 x 256, measured) and a light_environment without fade
