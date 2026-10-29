@@ -58,6 +58,9 @@ public sealed class MapEntityListTests(ITestOutputHelper output)
     [InlineData("s2c_deformpath4")]
     [InlineData("ze_ffvii_mako_reactor_v6_p")]
     [InlineData("c2m3_coaster_d_d")]
+    [InlineData("s2c_hidepf")]
+    [InlineData("s2c_pfintarget")]
+    [InlineData("s2c_aheadprobe")]
     public void ListIsValves(string map)
     {
         if (CS2Fixtures.StockPak() is null || Valve(map) is not { } valve)
@@ -91,7 +94,7 @@ public sealed class MapEntityListTests(ITestOutputHelper output)
                 continue;
             var origin = item.Node.GetValue<Vector3>("origin") ?? Vector3.Zero;
             var angles = item.Node.GetValue<Vector3>("angles") ?? Vector3.Zero;
-            var placed = item.Node.Type == "CMapWorld" ? Vector3.Zero : SettleWorld.Placed(origin, angles, item.Through, item.Prefabs).Origin;
+            var placed = item.Node.Type == "CMapWorld" ? Vector3.Zero : SettleWorld.Placed(origin, angles, item.Chain).Origin;
             var typeOk = !types.TryGetValue(valve[i].Vt, out var t) || t == item.Node.Type;
             types.TryAdd(valve[i].Vt, item.Node.Type);
             // A node of the map's own tree keeps its id (a deformer may move it in the bake); a copy or a prefab map's
@@ -109,7 +112,7 @@ public sealed class MapEntityListTests(ITestOutputHelper output)
         if (Environment.GetEnvironmentVariable("ENTITYLIST_DUMP") is { Length: > 0 } dump)
             File.WriteAllLines(dump, ours.Select((item, i) =>
             {
-                var o = item.Node.Type == "CMapWorld" ? Vector3.Zero : SettleWorld.Placed(item.Node.GetValue<Vector3>("origin") ?? Vector3.Zero, item.Node.GetValue<Vector3>("angles") ?? Vector3.Zero, item.Through, item.Prefabs).Origin;
+                var o = item.Node.Type == "CMapWorld" ? Vector3.Zero : SettleWorld.Placed(item.Node.GetValue<Vector3>("origin") ?? Vector3.Zero, item.Node.GetValue<Vector3>("angles") ?? Vector3.Zero, item.Chain).Origin;
                 return $"{i} {item.Node.Type} {item.Node.GetValue<int>("nodeID")} t{item.Through.Count} p{item.Prefabs.Count} {o.X} {o.Y} {o.Z} {(i < valve.Count ? $"{valve[i].Vt:x} {valve[i].O.X} {valve[i].O.Y} {valve[i].O.Z}" : "")}";
             }));
         output.WriteLine($"{map}: ours {ours.Count} entries, Valve's {valve.Count}; {first ?? "every entry matches"}");

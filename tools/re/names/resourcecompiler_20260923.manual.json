@@ -4606,7 +4606,7 @@
    "addr": "180f5ff40",
    "name": "MapDoc_CollapseInstance",
    "module": "s2c:entities/lump",
-   "note": "the copy from vf 0x860 (CMapInstance::vf268), then the id remap 180f90cb0"
+   "note": "visibility state off (+0x370): deleted (180f6d410, flags 3); else the copy from vf 0x860 (CMapInstance::vf268; CMapPrefab_Collapse for a prefab), then the id remap 180f90cb0; no copy and vf 0x868 false: deleted (ledgers 181, 183)"
   },
   {
    "addr": "180f60740",
@@ -4636,7 +4636,7 @@
    "addr": "181019590",
    "name": "CMapInstance_ResolveTarget",
    "module": "s2c:entities/lump",
-   "note": "a target in another world (not the instance's, not null, vf 0x888 false) with two or more referrers (180f8ba70 kind 0), or in another document, is cloned (180f86a90) into the instance's world (180f5f230) and the handle moved to the clone (181017400); with fewer it is moved into the instance's world (vf 0x1c8); then SetTarget (ledger 180)"
+   "note": "a target in another world (not the instance's, not null, vf 0x888 false) with two or more referrers (180f8ba70 kind 0), or in another document, is cloned (180f86a90) into the instance's world (180f5f230) and the handle moved to the clone (181017400); with fewer it is moved into the instance's world (vf 0x1c8), its listed nodes joining right after the instance (s2c_aheadprobe: 0 and 1 other referrers); then SetTarget (ledgers 180, 183)"
   },
   {
    "addr": "1810197f0",
@@ -4721,6 +4721,18 @@
    "name": "ReturnFalse",
    "module": "s2c:entities/lump",
    "note": "CMapInstance vf 0x868 and vf 0x870"
+  },
+  {
+   "addr": "18234a700",
+   "name": "CMapPrefab::vftable",
+   "module": "s2c:entities/lump",
+   "note": "vf 0x860 CMapPrefab_Collapse (180f96d40), vf 0x868 1800de990 (false): a prefab whose collapse makes no group is deleted (ledger 183)"
+  },
+  {
+   "addr": "181018a30",
+   "name": "CMapPrefab_LoadedWorld",
+   "module": "s2c:entities/lump",
+   "note": "the prefab's map world (+0x550); with 1 and none loaded, looks the handle +0x558 up; CMapPrefab_Collapse returns nothing without it (ledger 183)"
   },
   {
    "addr": "180f7aa30",

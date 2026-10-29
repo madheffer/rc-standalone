@@ -204,8 +204,9 @@ What Hammer can put in a .vmap that the nav step reads:
    and hidden links on s2c_navlink4 (ledger 177, the entity list after the bake), prefabs on
    s2c_navlink3 (ledger 178). Prefabs whose map has instances or prefabs: ledgers 179, 180 (whole
    lists of s2c_prefabprobe3, 4, 5, 7, 9, s2c_deformpath3, 4); hidden instances: ledger 181 (mako,
-   c2m3_coaster_d_d whole). Left: what MapEntityList still refuses (a hidden prefab, prefabs in
-   targets, a target moved rather than cloned).
+   c2m3_coaster_d_d whole); hidden prefabs, prefabs in targets and a target moved rather than
+   cloned: ledger 183 (s2c_hidepf, s2c_pfintarget, s2c_aheadprobe whole). Left: what MapEntityList
+   still refuses (a moved or cloned target holding instances or prefabs, a target deleted with another).
 3. Movable meshes, every source above.
 4. AVOID from materials (6) and NONAV blocks (3).
 5. Oriented and projected generation (4, 10, stages 005 / 007, JoinNonZup).

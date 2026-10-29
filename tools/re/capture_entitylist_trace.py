@@ -26,11 +26,15 @@ import threading
 import frida
 
 from capture_navgen import BIN, CS2, running
+from rva_map import installed
 
 # 1023 addresses (tools/re/port_addr.py from 0923).
 BAKE, COLLAPSE, ADD, REMOVE, REFS = 0xf61900, 0xf61100, 0xfcb1d0, 0xfcc310, 0xf8cc30
 SETTARGET, CLEARTARGET = 0x101a9b0, 0x101a160
 LINKS = 0xf21570
+# Mapped to the installed build (the 1.41.9.3 build moved them all by 0x40).
+BAKE, COLLAPSE, ADD, REMOVE, REFS = (installed("resourcecompiler", a, "20261023") for a in (BAKE, COLLAPSE, ADD, REMOVE, REFS))
+SETTARGET, CLEARTARGET, LINKS = (installed("resourcecompiler", a, "20261023") for a in (SETTARGET, CLEARTARGET, LINKS))
 
 AGENT = r"""
 'use strict';

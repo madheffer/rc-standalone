@@ -23,8 +23,11 @@ import threading
 import frida
 
 from capture_navgen import BIN, CS2, running
+from rva_map import installed
 
 BAKE, LINKS, ADD, REMOVE = 0xf61900, 0xf21570, 0xfcb1d0, 0xfcc310
+# Mapped to the installed build (the 1.41.9.3 build moved them all by 0x40).
+BAKE, LINKS, ADD, REMOVE = (installed("resourcecompiler", a, "20261023") for a in (BAKE, LINKS, ADD, REMOVE))
 
 AGENT = r"""
 'use strict';

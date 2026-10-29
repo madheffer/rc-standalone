@@ -4894,7 +4894,7 @@ game can answer is raised with the user first, and runs with -insecure.
        33733, 33735) are those of instance-first, then the target's nodes.
      - Exact: ze_ffvii_mako_reactor_v6_p's whole list after the bake (5753 entries) and c2m3_coaster_d_d's (1884)
        (MapEntityListTests).
-     - Refused: a hidden CMapPrefab (none on disk once flag 4 is read right).
+     - Refused: a hidden CMapPrefab (none on disk once flag 4 is read right; ledger 183).
 182. **CS2 1.41.9.3's VData strip rule** (2026-10-29: disassembly of csgo modtools 20261023 and 20261029 at
      18002e1ef; resourcecompiler 1.41.9.3's own compile of the RcReference probes through tools/rc-oracle.ps1.)
      - CModTools_VDataStripRules (18002e190, unmoved) builds the same one-rule list, now
@@ -4905,6 +4905,33 @@ game can answer is raised with the user first, and runs with -insecure.
        compile (the .vsndevts_c and .vpcf_c references were from 09-07, their RED2 now RC's current one).
      - Every .vdata_c and map root with a .vdata child (baked_bomb_damage) compiled by Valve before 10-29 holds the
        old value: refresh such references before comparing.
+183. **Hidden prefabs, prefabs inside instance targets, and a target moved ahead** (2026-10-29: decompile of
+     resourcecompiler 0923 180f5ff40, 180f96d40, 181018a30, 181019590 and the CMapPrefab vftable 18234a700;
+     capture_entitylist_trace.py --bake-only on the 1.41.9.3 build (its addresses now mapped through rva_map: the build
+     moved them all by 0x40) on s2c_hidepf, s2c_pfintarget and s2c_aheadprobe, written by
+     tools/entities/entitylist_refusal_probes.py.)
+     - A hidden prefab (force_hidden or editorOnly; with or without instances in its map) is deleted as a hidden
+       instance is (MapDoc_CollapseInstance, +0x370 off: 180f6d410 with flags 3): it leaves the list alone and its
+       map's nodes never join. Measured: s2c_hidepf's three hidden prefabs each take the count down by one.
+     - CMapPrefab's vf 0x860 is CMapPrefab_Collapse, vf 0x868 1800de990 (false): a prefab whose collapse makes no
+       group (no loaded map world, 181018a30's +0x550) is deleted. A prefab never in the world tree (a target group
+       kept outside it) has no map loaded and so leaves alone; Hammer keeps targets in the world, so the probe has its
+       groups there.
+     - A prefab inside an instance target collapses in the round after the instance, from the copy: its map joins
+       like any prefab's (s2c_pfintarget, 238 entries). Its placement is the instance's step, then the prefab's
+       placed by it: SettleWorld.Step over the chain in nesting order (MapEntityList.Item.Chain), which the two
+       separate lists (every prefab before every instance) could not give (off by 256 x sqrt 2 at yaw 90).
+     - A prefab map's instance that joins the world ahead of its target, with fewer than two other referrers
+       (MapNode_ReferrerCount after the instance dropped its own link), moves the target itself into the instance's
+       world (the world's vf 0x1c8): the target's listed nodes join right after the instance, under the same pointer,
+       and are not added again where the walk meets them. Measured: s2c_aheadprobe with 0 and 1 other referrers;
+       ledger 180's 79 others clone.
+     - Exact: whole lists of s2c_hidepf (168), s2c_pfintarget (238) and s2c_aheadprobe (165), and every earlier
+       MapEntityListTests map unchanged; NavSeed and NavLink tests unchanged.
+     - Refused: a target holding instances or prefabs that such an instance clones or moves, a copied prefab whose map
+       has instances (Valve crashes), a target deleted with another. Not checked: the moved target's place among the
+       world's children (only its list entries and removal depend on it), and the entity lump of a prefab inside a
+       target (EntityLumpSet takes its own copy chains).
 
 ## Resolved
 

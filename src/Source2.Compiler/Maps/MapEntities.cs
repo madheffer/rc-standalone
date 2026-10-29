@@ -149,11 +149,16 @@ public static class MapEntities
         /// </summary>
         internal (Vector3 Origin, Vector3 Angles, NavLinkFields Link) Copied(Vector3 origin, Vector3 angles, IReadOnlyList<DmxBinary.Element> through,
                                                                              IReadOnlyList<DmxBinary.Element> prefabs)
+            => Copied(origin, angles, [.. prefabs, .. through]);
+
+        /// <summary><see cref="Copied(Vector3, Vector3, IReadOnlyList{DmxBinary.Element}, IReadOnlyList{DmxBinary.Element})"/>
+        /// through a chain of instances and prefabs in nesting order, outermost first.</summary>
+        internal (Vector3 Origin, Vector3 Angles, NavLinkFields Link) Copied(Vector3 origin, Vector3 angles, IReadOnlyList<DmxBinary.Element> chain)
         {
-            var (o, a) = Maps.SettleWorld.UnderDeformerStep(origin, angles, through, prefabs);
+            var (o, a) = Maps.SettleWorld.UnderDeformerStep(origin, angles, chain);
             var (l, la) = Maps.SettleWorld.UnderDeformerStep(
                 new Vector3(Offset.X + origin.X, Offset.Y + origin.Y, Offset.Z + origin.Z),
-                new Vector3(LocatorAngles.X + angles.X, LocatorAngles.Y + angles.Y, LocatorAngles.Z + angles.Z), through, prefabs);
+                new Vector3(LocatorAngles.X + angles.X, LocatorAngles.Y + angles.Y, LocatorAngles.Z + angles.Z), chain);
             return (o, a, this with
             {
                 Offset = new Vector3(l.X - o.X, l.Y - o.Y, l.Z - o.Z),

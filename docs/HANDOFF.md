@@ -203,7 +203,26 @@ the addon).
     Debug test build; time a Release build and Valve's own step before sizing it. Any change
     that could alter bytes waits for the user's OK (parity before speed).
 
-## Latest session (2026-10-29, the 1.41.9.3 update)
+## Latest session (2026-10-29 evening, the entity list's refusals)
+
+Ledger 183; NAV.md "Order of work" 2. CS2 closed, Steam open (resourcecompiler captures only).
+
+- capture_entitylist.py and capture_entitylist_trace.py hooked 10-23 addresses: the 1.41.9.3 build moved all of
+  them by 0x40. Both now map them through rva_map.installed.
+- tools/entities/entitylist_refusal_probes.py writes s2c_plainpf, s2c_aheadpf1, s2c_aheadpf2 (prefab maps) and
+  s2c_hidepf, s2c_pfintarget, s2c_aheadprobe (captured with `--bake-only`; no packages built).
+- Ported: a hidden prefab leaves alone; a prefab map's instance ahead of a target with fewer than two other
+  referrers moves the target (181019590), its nodes joining right after the instance; a prefab inside an instance
+  target collapses from the copy. MapEntityList.Item.Chain gives instances and prefabs in nesting order, and
+  SettleWorld.Step / Placed / UnderDeformerStep and NavLinkFields.Copied take it (NavGenMapInput uses it).
+  The three lists are Valve's whole.
+- Probe layout lesson: a target group outside the world tree (as s2c_prefabprobe10 has it) never loads its
+  prefabs' maps, so its copied prefabs collapse to nothing. Hammer keeps targets in the world; probe10's crash may
+  come from that layout rather than from instances in the copied prefab's map (not checked).
+- Not done: the entity lump of a prefab inside a target (EntityLumpSet's copy chains; needs a Valve package of
+  s2c_pfintarget), a moved or cloned target holding instances or prefabs, the delete cascade's order.
+
+## Earlier session (2026-10-29, the 1.41.9.3 update)
 
 Ledger 182; tools/re/patch_reports/20261029_1.41.9.3.md. CS2 1.41.9.3 (Oct 28 build, SourceRevision 11181008)
 rebuilt every toolchain DLL but tier0.

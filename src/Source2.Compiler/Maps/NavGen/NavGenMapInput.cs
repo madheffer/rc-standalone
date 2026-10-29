@@ -28,7 +28,7 @@ public static partial class NavGenMapInput
         {
             if (copied && SettleWorld.IsUnderDeformer(item.Node, parents, Targets(item)))
                 throw new NotSupportedException("a point_nav_walkable under a deformer is not measured");
-            var o = copied ? SettleWorld.Placed(entity.Origin, entity.Angles, item.Through, item.Prefabs).Origin : entity.Origin;
+            var o = copied ? SettleWorld.Placed(entity.Origin, entity.Angles, item.Chain).Origin : entity.Origin;
             seeds.Add((o.X, o.Y, o.Z));
         }
         return seeds;
@@ -51,7 +51,7 @@ public static partial class NavGenMapInput
         {
             if (item.Node.Type != "CMapNavLink" || entity.NavLink is not { } link)
                 continue;
-            var (o, offset) = copied && link.Copied(entity.Origin, entity.Angles, item.Through, item.Prefabs) is var (co, _, cl)
+            var (o, offset) = copied && link.Copied(entity.Origin, entity.Angles, item.Chain) is var (co, _, cl)
                 ? (co, cl.Offset)
                 : (entity.Origin, link.Offset);
             links.Add(((o.X, o.Y, o.Z), (o.X + offset.X, o.Y + offset.Y, o.Z + offset.Z)));
@@ -124,9 +124,10 @@ public static partial class NavGenMapInput
         return targets;
     }
 
-    // The group a copy was made from (the innermost instance's target) or the prefab's map world: where the copy's
-    // placement starts.
+    // The group a copy was made from (the innermost instance's target) or the prefab's map world (the innermost
+    // prefab's): where the copy's placement starts.
     private static bool IsTarget(DmxBinary.Element at, MapEntityList.Item item)
-        => (item.Through.Count > 0 && ReferenceEquals(at, item.Through[^1].Get<DmxBinary.Element>("target")))
-           || (item.Through.Count == 0 && item.Prefabs.Count > 0 && ReferenceEquals(at, item.Prefabs[^1].Get<DmxBinary.Element>(MapPrefabs.WorldKey)));
+        => item.Chain.Count > 0 && ReferenceEquals(at, item.Chain[^1].Type == "CMapPrefab"
+               ? item.Chain[^1].Get<DmxBinary.Element>(MapPrefabs.WorldKey)
+               : item.Chain[^1].Get<DmxBinary.Element>("target"));
 }
