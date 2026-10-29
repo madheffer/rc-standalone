@@ -947,6 +947,23 @@ build varies run to run (ledger 144, item D).
      the run's dump (%TEMP%/cubehost_run/atixref_lpv/frida.jsonl).
    - The run changed atixref's package in the scratch addon (buildcubemaps); it was restored from a backup and
      cmp-checked. Back it up before any rerun.
+   - **Ported 2026-10-29 for unbaked volumes (Cubemaps/LightProbeVolumeRecords.cs).** The whole of 1802819e0 read:
+     the record is `BoxToUvw x InvertRigid(world)` (18026fea0 stores its twelve floats as given; 181745ff0 transposes
+     and takes -(((ty o1) + (tz o2)) + (tx o0)); 181743d40 adds ((a2 b2 + a1 b1) + a0 b0) + (0, 0, 0, a3)), and the
+     rest from the probe textures, which on an unbaked map are all the engine's default (a 2 x 2 x 2 R8G8B8A8 of
+     zeros): borders 0.25 / 0.75 / 1/6 - 0.25, residency 0, count ratios 1, +0x80 (0.25, 0.75). The box is
+     box_mins / box_maxs (1802755e0 grows it by edge_fade_dists only with WorldRenderer/LPVEdgeBlending). Refused:
+     a baked volume (its texture in the package), a rotated one (atixref has none), counts below the texture.
+     Measured, not mapped to keys (GROUND_TRUTH 185): the entity's +0x70 .. +0x78 (1, 1, 1) and the SDF fade (0).
+   - LightProbeVolumeRecordsTests (`CUBELPV=<face dump>`, `CUBELPV_VPK`): all 400 of atixref face 0's records are
+     the capture's on every word but the bindless indices, volumes in lump order. CubemapFaceRenderer binds the
+     buffer (set 1 binding 2) with the default probe texture in the bindless set.
+   - **atixref now renders all six faces from no dump**, with nothing refused. Not yet the game's: face 0 differs
+     in 2,127,217 of 4,194,304 halves (192 world draws to the capture's 256: item 4's non-aggregate objects), and
+     the count moved by 22 halves between two runs, which points at an unbound read. The likely one, not
+     checked: PerViewConstantBufferCsgo_t +72 / +76 / +80, the environment cube, a colour target and the depth,
+     which csgo_lightmappedgeneric reads through the bindless set and our Csgo block leaves 0. Then the wind's
+     time (item D).
 2. **The sky's D_FOG_TYPE.** The sky object's +0xf4 (scenesystem 180154fb0, token 0x83cb90d6; type 2 also tests
    +0xf8 / +0xfc against -90) is copied from C_EnvSky's m_nFogType (+0x10b8) by client 180282390. Neither probe01's
    nor atixref's env_sky has the fog_type key, yet probe01 draws 0 and atixref 1. Find the other writer: dispscan

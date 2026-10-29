@@ -203,7 +203,14 @@ the addon).
     Debug test build; time a Release build and Valve's own step before sizing it. Any change
     that could alter bytes waits for the user's OK (parity before speed).
 
-## Latest session (2026-10-29 night, the probe record's writer found; CS2 and Steam closed)
+## Latest session (2026-10-29 night, the probe record ported; atixref renders whole)
+
+CUBEMAPS.md A.1, GROUND_TRUTH 185. Cubemaps/LightProbeVolumeRecords.cs ports client 1802819e0 for unbaked volumes:
+all 400 of atixref face 0's records are the capture's but the indices (LightProbeVolumeRecordsTests). The renderer
+binds the buffer, and atixref renders all six faces from no dump for the first time (not yet the game's: face 0
+2.1 M of 4.2 M halves differ). probe01 unchanged. Next: the Csgo block's three bindless indices, then item A.4.
+
+## Earlier session (2026-10-29 night, the probe record's writer found; CS2 and Steam closed)
 
 cubehost runs on atixref with tools/cubehost/lpv_records.js (CUBEMAPS.md A.1): the probe volume record is built in
 client.dll (1.41.9.3 1802819e0, the probe volume entity's update), not in scenesystem. The fields it writes are

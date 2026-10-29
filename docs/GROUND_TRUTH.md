@@ -4948,6 +4948,15 @@ game can answer is raised with the user first, and runs with -insecure.
        game's light block holds 1 / crossfade = 10 and the same distance-fade words as probe01's 0.05: 0.1 and 0.05,
        which equal lights_base.fgd's defaults. Where the game takes them from (the schema default) is not read.
 
+185. **An unbaked light probe volume's record: the measured parts** (2026-10-29: cubehost on atixref with
+     tools/cubehost/lpv_records.js, records of all 44 probe volume objects; client 1.41.9.3 1802819e0 disassembled;
+     atixref face 0's RenderDoc dump.) The code is read (CUBEMAPS.md A.1); three inputs are measured, not read:
+     - The engine's default probe texture (rendersystem vfn 0x198, type 6) is 2 x 2 x 2 R8G8B8A8_SRGB (viewed UNORM)
+       of zeros: the capture's 3D Image 1330, 32 bytes all 0, which every unbaked record and default slot indexes.
+     - The entity data's +0x70 .. +0x78, copied to record +0x50, is (1, 1, 1) on all 42 of atixref's volumes.
+     - Record +0x5c, 1 only when +0x69 is set and +0x6a is not (the SDF path), is 0 on all 42.
+     None of the three is mapped to a key or a schema field; a map whose values differ would need that first.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

@@ -717,6 +717,49 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
         return false;
     }
 
+    private byte[]? _probeVolumeBuffer;
+
+    /// <summary>
+    /// PerViewLightProbeVolumeConstantBuffer_t from the map's env_combined_light_probe_volume entities in lump order
+    /// (<see cref="LightProbeVolumeRecords"/>), the default probe texture registered in the bindless set. The +0x8c
+    /// default (type 0x15) gets no texture: no program reads it on atixref, and its image is not read.
+    /// </summary>
+    private byte[] ProbeVolumeBuffer()
+    {
+        if (_probeVolumeBuffer != null)
+            return _probeVolumeBuffer;
+        var volumes = new List<LightProbeVolumeRecords.Volume>();
+        foreach (var entry in (_map.Entries!.GetValueOrDefault("vents_c") ?? []).OrderBy(e => e.GetFullPath(), StringComparer.Ordinal))
+        {
+            _map.ReadEntry(entry, out var bytes);
+            foreach (var (_, key) in Source2.Compiler.Lighting.Vrad3Job.LumpEntities(bytes, entry.GetFullPath()).Where(e => e.Class == "env_combined_light_probe_volume"))
+            {
+                static System.Numerics.Vector3 V(string? t) => t!.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(x => float.Parse(x, System.Globalization.CultureInfo.InvariantCulture)).ToArray() is var a ? new(a[0], a[1], a[2]) : default;
+                static int N(string? t) => int.Parse(t ?? "0", System.Globalization.CultureInfo.InvariantCulture);
+                if (key("lightprobetexture") is { Length: > 0 } texture && _map.FindEntry(texture + "_c") != null)
+                    throw new NotSupportedException("a baked light probe volume: only the default probe texture's record is ported");
+                volumes.Add(new(V(key("origin")), V(key("angles")), V(key("box_mins")), V(key("box_maxs")),
+                    N(key("light_probe_size_x")), N(key("light_probe_size_y")), N(key("light_probe_size_z"))));
+            }
+        }
+        return _probeVolumeBuffer = LightProbeVolumeRecords.Buffer(volumes, DefaultProbeTexture(), 0);
+    }
+
+    /// <summary>The engine's default probe texture (vfn 0x198 type 6): 2 x 2 x 2 R8G8B8A8 zeros, measured; our bindless index.</summary>
+    private int DefaultProbeTexture()
+    {
+        const string key = "engine default probe texture";
+        if (!_bindlessTextures.TryGetValue(key, out var entry))
+        {
+            const uint side = LightProbeVolumeRecords.DefaultTextureSide;
+            var image = _runner.CreateImage(Format.R8G8B8A8Unorm, side, side, side, 1, 1, ImageViewType.Type3D, ImageUsageFlags.SampledBit);
+            _runner.Write(image, 0, 0, new byte[side * side * side * 4]);
+            _textures[key] = image;
+            _bindlessTextures[key] = entry = (_bindlessTextures.Count + 1, image, ImageViewType.Type3D);
+        }
+        return entry.Index;
+    }
+
     /// <summary>The error for a binding <see cref="Named"/> cannot place, with what the write sequence does list in that set.</summary>
     private static string Unnamed(ValveProgram program, int set, int binding, SpirvReflection.Kind kind)
         => $"{program.Name}: set {set} binding {binding} ({kind}) is named by no variable; the sequence lists in set {set}: "
@@ -791,6 +834,7 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
                             "PerViewConstantBuffer_t" => perView,
                             "PerViewConstantBufferCsgo_t" => blocks.Csgo,
                             "BakedLightingConstantBuffer_t" => blocks.Baked,
+                            "PerViewLightProbeVolumeConstantBuffer_t" => ProbeVolumeBuffer(),
                             "PerViewLightingConstantBufferGpu_t" => blocks.Lights,
                             _ => throw Unbound(program, v.Name),
                         }), 0, Vk.WholeSize);
