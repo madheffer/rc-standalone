@@ -223,7 +223,17 @@ rebuilt every toolchain DLL but tier0.
 - Capture scripts with literal RVAs map them to the installed build (rva_map.rebase(agent, build) or installed());
   rva_map.installed hands zero-filled .bss to installed_data (capture_propmeshes' pointer had moved unseen).
 - cubehost knows client 10-29's buildcubemaps_renderdoc_capture global (182382858).
-- Not done: Valve recompiles of the corpus references on 1.41.9.3 (only the RcReference probes were redone).
+- References refreshed on 1.41.9.3 (10-29 afternoon): every package holding the old fingerprint (B3B3D287) rebuilt
+  as it was built: full (-f) deformerprobe, deformerprobe2, s2c_l5farfield128, s2c_l5probe, s2c_pinst, s2c_pinst7,
+  s2c_prefabprobe4-9, 11, 12; `-world -phys -nav` the seven nav probes (navangles, navlink 1-4, navmarkup, navround);
+  %TEMP%/vrad3_refs (cardtest and probe01 --full, navmarkup and navround -world -phys -nav), nolight_1023,
+  preset_fast and preset_entities (--over) with MapSubassetsTests' switches. atixref back to world-only (553
+  entries) from an empty slot: a -world build over the full package keeps its phys, vis and nav. Old packages in
+  %TEMP%/refresh_1029b/old. Full suite 1148/1148 (7 m 39 s). Not refreshed: s2c_cubeprobe's probe01 and
+  s2c_l5probe (cubemap builds; no test failed on them).
+- The suite rebuilt atixref FULL on its own after the update: MapFixtures.CompileWithRc compiled every stale
+  package with -f, and its 10-minute timeout left resourcecompiler running (it wrote the package 26 min later).
+  CompileWithRc now builds atixref world-only from an empty slot and kills the compile at the timeout.
 
 ## Earlier session (2026-10-28 late and 10-29, walkable seeds and prefabs with instances)
 
@@ -252,7 +262,9 @@ Ledgers 179, 180; NAV.md collector 1 and "Order of work" 2. CS2 closed, Steam op
   NavCompileTests.NavWithLaddersMatchesValve (s2c_prefabprobe3, the nav from the .vmap) was running, at 8 to 10
   minutes, three runs out of three. Alone it does not crash (75 min, about 460 to 640 MB, stopped by hand before it
   finished; the analyze=true case is the hours-long CS analysis). Not settled whether the crash is that test under
-  the suite's parallel load or another test running beside it (a separate session is on it). The one failure was
+  the suite's parallel load or another test running beside it. Settled: no fault (no dump, no WER or .NET Runtime
+  event); every other test is done about 9.5 min in and that case (analyze=true) runs for hours until a timeout kills
+  the host. It now runs only with NAV_ANALYZE_BIG=1 (e78c28a). The one failure was
   MapRootFileTests.MapRootEqualsValves on s2c_navlink3: its reference package (10-28 21:11) predated
   s2c_navlinkpf.vmap (21:27), so the root's m_nFileCRC differed. Recompiled 10-29 with `-world -phys -nav`
   (compile_fresh.py; the old package is in %TEMP%/refresh_1029/old): the map root, link, nav and lump tests pass.

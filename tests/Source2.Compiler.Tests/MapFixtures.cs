@@ -459,18 +459,37 @@ internal static class MapFixtures
             File.Copy(sourcePath, staged, overwrite: true);
 
         var started = DateTime.UtcNow;
-        var run = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(rc)
+        var start = new System.Diagnostics.ProcessStartInfo(rc)
         {
-            ArgumentList = { "-nop4", "-f", "-game", Path.Combine(root, "game", "csgo"), "-i", staged },
+            ArgumentList = { "-nop4", "-game", Path.Combine(root, "game", "csgo"), "-i", staged },
             RedirectStandardOutput = true,
             RedirectStandardError = true,
-        })!;
+        };
+        // atixref's package stays world-only (cs2_closed_session's UNBAKED): BakedShadowAssignmentTests reads it
+        // unbaked, and a full build replaced it on 2026-10-29 when the suite found it older than the compiler.
+        // A world-only build over a full package keeps its physics, vis and nav, so the old one goes aside first.
+        foreach (var s in name == "atixref" ? new[] { "-world", "-fshallow" } : ["-f"])
+            start.ArgumentList.Add(s);
+        if (name == "atixref" && File.Exists(compiled))
+        {
+            var aside = Path.Combine(Path.GetTempPath(), "fixture_backups");
+            Directory.CreateDirectory(aside);
+            File.Move(compiled, Path.Combine(aside, "s2c_rc_probe__atixref_replaced.vpk"), overwrite: true);
+        }
+        var run = System.Diagnostics.Process.Start(start)!;
         // Drain both pipes. A map compile writes plenty, and a redirected stream
         // nobody reads fills its buffer and deadlocks the compiler - which looks
         // exactly like a slow map.
         var stdout = run.StandardOutput.ReadToEndAsync();
         var stderr = run.StandardError.ReadToEndAsync();
-        run.WaitForExit(milliseconds: 10 * 60 * 1000);
+        // A compile past the timeout is stopped: left running, it wrote atixref's package 26 minutes
+        // later, beside the rest of the suite (2026-10-29).
+        if (!run.WaitForExit(milliseconds: 10 * 60 * 1000))
+        {
+            run.Kill(entireProcessTree: true);
+            run.WaitForExit();
+            return null;
+        }
         Task.WaitAll([stdout, stderr], TimeSpan.FromSeconds(10));
         // A package the run did not write is an OLDER compile's, and caching it
         // under this compiler's stamp passed untitled_1's pre-2026-09-23 lump off
