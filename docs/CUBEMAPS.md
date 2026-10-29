@@ -1108,6 +1108,17 @@ build varies run to run (ledger 144, item D).
    1801b14b0 is the record to port next: transforms (+0x00 .. +0x7f from the entry's matrices), colour times
    intensity (+0xa0 .. +0xa8), the shadow and cookie terms, a falloff block (+0x140 .. +0x18c, 1 / +0x14c at
    +0x18c) and the flags word at +0x108 (the entry's +0x1fc << 16 | type bits).
+   **Ported 2026-10-30: Cubemaps/BarnLightRecords.cs**, bit for bit on 64 (entry, record) pairs captured with
+   tools/cubehost/barn_record_io.js (a plain hook on 1801b14b0, no watchpoints; atixref, the cube view's camera;
+   BarnLightRecordsTests, `CUBEBARN=%TEMP%/cubehost_run/atixref_barn_io1/frida.jsonl`). 1804a65f0 copies the
+   description at entry +0x18 and moves only its spatial fields into camera-relative space (helpers read from
+   the disassembly: 18049b3b0 rigid inverse, 180499080 4 x 4, 180499f90 3 x 4, 18049c360 rotate, 18049d420
+   matrix to quaternion), so most of the record is that block's other fields copied. Covered: shape types 0, 1, 2,
+   with and without an illumination volume. Refused: types 3 to 5 (18049d390), a shadow-mapped light, entry +0x207
+   and a cookie (a bindless index), none captured. One trap: the illumination translation is
+   cross(q, t) + (v + w t) (vectorised, 1801b1a94); the decompile prints (cross + v) + w t, one ulp off on 8 pairs.
+   Still to do: the entry itself (18019fe30 from the light object, which client.dll fills from the entity), the
+   merge's sort and trim, and the binner's CullParams for the light count.
 7. **Render face 0 and compare.** `CubeWithNoDumpMakesTheGamesExr` needs a per-face mode for a map whose other
    faces have no dump. Compare the colour against readback_0 (and the intermediate targets: atlas, face depth).
    Then faces 1 to 5 against readback_1..5 (no dumps needed), then cube 0's EXR (env_cubemap_245678519.exr).

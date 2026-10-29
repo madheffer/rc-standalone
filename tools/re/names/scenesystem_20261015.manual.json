@@ -538,7 +538,49 @@
    "addr": "1801b14b0",
    "name": "LightBinnerGPU_WriteBarnLightRecord",
    "module": "s2c:baked/lighting",
-   "note": "(binner, 0x640-byte entry, 0x1e0-byte record): the g_BarnLights record; transforms at +0 .. +0x7f, colour x intensity +0xa0 .. +0xa8, flags +0x108 (entry +0x1fc << 16 | type bits), falloff block +0x140 .. +0x18c (1 / +0x14c at +0x18c); not ported yet"
+   "note": "(binner, 0x640-byte entry, 0x1e0-byte record): the g_BarnLights record; transforms at +0 .. +0x7f, colour x intensity +0xa0 .. +0xa8, flags +0x108 (entry +0x1fc << 16 | type bits), falloff block +0x140 .. +0x18c (1 / +0x14c at +0x18c); Cubemaps/BarnLightRecords.Record (types 0 to 2, bit for bit on 64 captured pairs)"
+  },
+  {
+   "addr": "1804a65f0",
+   "name": "LightDesc_ToCameraSpace",
+   "module": "s2c:baked/lighting",
+   "note": "(desc, out, camera-relative 3 x 4): out = a copy of desc (18008beb0) with +0x00 = desc 4 x 4 x rigid inverse (18049b3b0, 180499080), +0x40 = transform x desc +0x40, +0x80 (1804a32f0), +0x90 a point (translation dropped when +0x9c is 0), the shape points / vectors by type (+0xec), +0xd0 the rotation; BarnLightRecords.Block"
+  },
+  {
+   "addr": "18049b3b0",
+   "name": "Matrix3x4_InvertRigid",
+   "module": "s2c:baked/lighting",
+   "note": "rotation transposed, translation -((t2 r2 + t1 r1) + t0 r0); BarnLightRecords.InvertRigid"
+  },
+  {
+   "addr": "180499080",
+   "name": "Matrix4_Mul",
+   "module": "s2c:baked/lighting",
+   "note": "a b, each element ((a0 b0 + a1 b1) + a2 b2) + a3 b3; BarnLightRecords.Mul4"
+  },
+  {
+   "addr": "180499f90",
+   "name": "Matrix3x4_Concat",
+   "module": "s2c:baked/lighting",
+   "note": "a b, row ((a2 b2 + a1 b1) + a0 b0) + (0, 0, 0, a3); BarnLightRecords.Concat"
+  },
+  {
+   "addr": "18049c360",
+   "name": "Matrix3x4_RotateVector",
+   "module": "s2c:baked/lighting",
+   "note": "z r2 + (y r1 + x r0) per row; BarnLightRecords.Rotate"
+  },
+  {
+   "addr": "18049d420",
+   "name": "Matrix3x4_ToQuaternion",
+   "module": "s2c:baked/lighting",
+   "note": "trace branch (trace >= 0) else the largest diagonal; s = sqrt(... + 1), f = 0.5 / s; BarnLightRecords.Quaternion"
+  },
+  {
+   "addr": "1804a6570",
+   "name": "Light_Falloff",
+   "module": "s2c:baked/lighting",
+   "note": "(point, k): (sqrt(w) + k)^2 / w as 1 / (w / (s s)), 1 unless w > 0; k = 100 from 1801b14b0; BarnLightRecords.Falloff"
   },
   {
    "addr": "1801c9a40",

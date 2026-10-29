@@ -203,7 +203,19 @@ the addon).
     Debug test build; time a Release build and Valve's own step before sizing it. Any change
     that could alter bytes waits for the user's OK (parity before speed).
 
-## Latest session (2026-10-29 night, atixref's gap mapped; CS2 open)
+## Latest session (2026-10-30, the barn light record; CS2 and Steam closed)
+
+Cubehost watch runs, each run's agent in tools/cubehost (CUBEMAPS.md A.4, A.6):
+- base_records.js: the base scene object's instance record, all eight words (180079700).
+- barn_records.js / barn_entries.js: why the first watch runs died (reading words under the agent's own
+  read / write watchpoints; watchpoints left on destroyed lights, on a stack copy, on reallocated arrays) and the
+  chain light -> gather 18019fe30 -> merge 1801a9410 -> upload 1801b2450 -> record 1801b14b0.
+- barn_record_io.js: 64 (entry, record) pairs; Cubemaps/BarnLightRecords.cs reproduces all 64 bit for bit
+  (BarnLightRecordsTests, CUBEBARN). Types 3 to 5, shadows and cookies are refused (none captured).
+ReVa was down for the end of the session: the record's helpers were read with tools/re/disasm.py.
+Next: the light entry from the package (18019fe30's fields, filled by client.dll from the entity).
+
+## Earlier session (2026-10-29 night, atixref's gap mapped; CS2 open)
 
 CUBEMAPS.md A.2, A.4, A.6 and the skybox view. Code: CubemapFaceReplayTests.PackageBlocksAgainstTheCapture (every
 face block from the package against the capture, by role; BlockRoles fixed for atixref), MaterialProbe. Found:
