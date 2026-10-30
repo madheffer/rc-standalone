@@ -5001,6 +5001,19 @@ game can answer is raised with the user first, and runs with -insecure.
        per-view words do not carry. Next: find where the client evaluates a light style's intensity and pin that
        clock (or the style's value) at the build. The dither-pinned host did not exit after the build (both runs
        hit the 900 s timeout; the EXRs were written within 2 minutes).
+     - Measured, the strobe found: the wall's red level (cube 245678521, a 40 x 40 patch) is 0.45, 0.44, 0.25,
+       0.40, 0.42 and 0.07 across six unpinned or partly pinned runs, a strobe at six phases. Not moved by: the
+       client light component's style evaluation (client 1801e4880, the per-frame path at 1801e4a68 never runs in
+       cubehost: it is gated on the byte 180223ed0 returns and on r_light_flickering_enabled), the client's game
+       time getter 18075e820 frozen for EVERY caller (0.21 / 0.44), r_light_flickering_enabled 0 (worse, 3.87M
+       pixels). Moved: scenesystem FinishRenderingViews (1800fc550) called with a fixed time instead of FLT_MAX
+       makes the wall 0.33994964 in both runs. So the fast_strobe styles run on scenesystem's real time
+       (g_flRealTime = Plat_FloatTime per view), which ledger 177's face 0 never showed because no strobe lights
+       it. time_pin.js pins it.
+     - Still varying with everything above pinned: 2 of 42 identical, 519,884 pixels (settle 20); 1 of 42,
+       608,659 (settle 60). The rest is lit patches present in one run only (values to 24) and fine edges on
+       distant buildings: candidates glows / particles drawing their own random numbers, and texture residency.
+       Not yet measured.
      - Also: the 10-29 engine2's frame-state forwarder (10-22 180242680) ports to 1802426c0 but its prologue
        changed, so time_inputs.js logs no engine_frame on this build.
 

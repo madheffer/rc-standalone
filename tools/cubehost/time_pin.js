@@ -6,6 +6,12 @@
 // *_20261029.dll); each hook checks its prologue first. Records: pinned (counts per input), mismatch.
 // Also the light block's dither pair: tier0's global RandomFloat (time-seeded, ledger 186) called from scenesystem
 // returns a constant per call site (the 10-28 run's first two draws), since the call count varies run to run.
+// And the light styles' phase: the light component's style evaluation (client 1801e4880 .. 1801e5460) reads the
+// game time through 18075e820 (writes a float to its out pointer, rcx) and subtracts the style's start time (the
+// component's +0x1a0, set at spawn, so it varies too); the time it gets is forced to start + GAME, so every
+// style is evaluated at the same phase. rdi is the component in the caller and the accessor does not touch it.
+// And scenesystem's real time: FinishRenderingViews (1800fc550) is passed FLT_MAX, which makes g_flRealTime a fresh
+// Plat_FloatTime per view (ledger 177); it is called with REAL instead.
 'use strict';
 
 const IMAGE = ptr('0x180000000');
@@ -39,6 +45,32 @@ function hookClient(cl) {
       count('attr');
     } });
 }
+function hookStyles(cl) {
+  const get = expect(cl, '0x18075e820', '40534883ec20488b');
+  if (!get) return;
+  const lo = at(cl, '0x1801e4880'), hi = at(cl, '0x1801e5460'), f = new DataView(new ArrayBuffer(4));
+  f.setUint32(0, GAME, true);
+  const k = f.getFloat32(0, true);
+  Interceptor.attach(get, {
+    onEnter(args) { this.out = args[0]; this.mine = this.returnAddress.compare(lo) >= 0 && this.returnAddress.compare(hi) < 0; },
+    onLeave() {
+      if (!this.mine) return;
+      this.out.writeFloat(this.context.rdi.add(0x1a0).readFloat() + k);
+      count('style');
+    } });
+}
+function hookFinish(ss) {
+  const finish = expect(ss, '0x1800fc550', '488bc44889581048');
+  if (!finish) return;
+  const original = new NativeFunction(finish, 'void', ['pointer', 'float'], 'win64');
+  const f = new DataView(new ArrayBuffer(4));
+  f.setUint32(0, REAL, true);
+  const real = f.getFloat32(0, true);
+  Interceptor.replace(finish, new NativeCallback(function (sys, time) {
+    count('finish');
+    original(sys, real);
+  }, 'void', ['pointer', 'float'], 'win64'));
+}
 function hookScene(ss) {
   const perview = expect(ss, '0x1800e8e40', '488bc44889582055');
   if (perview)
@@ -63,8 +95,8 @@ function hookTier0(t0, ss) {
 }
 function poll() {
   const cl = Process.findModuleByName('client.dll'), ss = Process.findModuleByName('scenesystem.dll');
-  if (cl && !(done & 1)) { done |= 1; hookClient(cl); }
-  if (ss && !(done & 2)) { done |= 2; hookScene(ss); hookTier0(Process.findModuleByName('tier0.dll'), ss); }
+  if (cl && !(done & 1)) { done |= 1; hookClient(cl); hookStyles(cl); }
+  if (ss && !(done & 2)) { done |= 2; hookScene(ss); hookFinish(ss); hookTier0(Process.findModuleByName('tier0.dll'), ss); }
   if (done !== 3) setTimeout(poll, 5); else send({ kind: 'hooked' });
 }
 poll();
