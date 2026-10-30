@@ -4957,6 +4957,30 @@ game can answer is raised with the user first, and runs with -insecure.
      - Record +0x5c, 1 only when +0x69 is set and +0x6a is not (the SDF path), is 0 on all 42.
      None of the three is mapped to a key or a schema field; a map whose values differ would need that first.
 
+186. **tier0's global random stream, and the nav coverage appender's randomness** (2026-10-30: disassembly of tier0
+     20261023 18015d160, 18015d220, 18015e1b0, 18015e780, 1800057e0, 18017bd20, 18017c72e; resourcecompiler 0923
+     180fbcb10 decompiled, 20261029 180fbdd10 / 1818e5f60 (ported with port_addr.py); Frida captures of 20261029,
+     tools/steamaudio/capture_randomstream.py, on s2c_saprobe twice and s2c_sanavcover three times.)
+     - Settled from the code: the generator (GenerateRandomNumber_Locked, 18015e1b0) is Numerical Recipes' ran1:
+       Park-Miller (16807, 2147483647, Schrage 127773 / 2836) with a 32-entry Bays-Durham shuffle, warmed with 8
+       extra steps when idum <= 0 or iy is 0. RandomFloat (18015d220) is (float)draw x a constant, min'd with a
+       second constant, times (hi - lo) plus lo. The global stream is at tier0 +0x3cc328 (idum, iy, iv[32]).
+     - Settled from the code: every seed tier0 gives the global stream is time-based. Its static initialiser
+       (1800057e0) mixes QueryPerformanceCounter, a QPC-derived double and another value; 18017bd20 and 18017c72e
+       seed elapsed milliseconds. RandomSeed (18015d160) writes idum = -|seed|, iy = 0 inline, not through SetSeed.
+     - Measured: the stream differs from its first draw between two compiles of s2c_saprobe, and the number of
+       draws before the appender differs too (3267 / 3268: other users of the global stream). So Valve's appender
+       is not reproducible run to run; it falls under the variance rule (HANDOFF, "What passing means").
+     - Measured: the appender's draws are contiguous on its own thread, three per CNavArea_RandomPoint (52 calls on
+       s2c_saprobe, 31 on s2c_sanavcover). Reseeding the global stream at its entry (RandomSeed(1)) made two
+       compiles' draws equal (93 of 93); RandomSeed(2) changed them.
+     - Measured: s2c_saprobe's 73 automatic probes all sit within 2 units of one plane (59-61) and its 42 areas at
+       floor level, so every candidate is seen (appends 0). s2c_sanavcover (tools/coverage/steamaudio_navcover_
+       specimen.py: a closed room over the floor plus a nav seed in it; IslandRemoval drops an unseeded island)
+       appends 2, at (98.5, -439.5, 211.06) and (936.17, -312.0, 211.06), and the SAME 2 under seeds 1 and 2: its
+       random points never decide the result there. The appender's non-random half (centre, corners, the
+       sight test, clustering) can be checked on it; a specimen where a random point survives is still needed.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

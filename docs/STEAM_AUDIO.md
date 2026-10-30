@@ -178,7 +178,7 @@ recapture with `tools/steamaudio/capture_phonon_api.py s2c_rc_probe <map> <dir> 
 (s2c_saprobe from probe01), `steamaudio_inside_specimen.py` (s2c_sainside).
 
 Nothing runs in compile-map yet: `-sareverb` / `-sapaths` are still refused there. Recommended order for what is
-left: the nav coverage appender (item 2: capture tier0's RandomFloat state first, it runs on every map with a nav),
+left: the nav coverage appender (item 2: the stream's state is captured and pinnable, ledger 186),
 the entity-driven filters and scene refusals (items 1, 2), compile-map (item 4), then Embree's tie order (item 5).
 
 ## What is left
@@ -196,8 +196,9 @@ In order of the plan (the user's call, 10-28: the rest of the pipeline first, Em
    (180fbde60, when `..._filter_volumes`), citadel ziplines (180fbba50), inside shapes (180fbe450, **ported**,
    ledger 173), probes placed in the map (180fbc2d0), snd_opvar_set_point probes (180fbd800). The missing nav areas
    appender runs on every compile with a nav mesh (its convar registers on) and samples big areas with tier0's
-   global RandomFloat: porting it needs that random stream's state at this point of the compile (pin it in a
-   capture first, as the reverb seeds were). Also the other generation types (probe generation volumes, manual) and
+   global RandomFloat. That stream is time-seeded, so Valve's appender varies run to run (ledger 186);
+   capture_randomstream.py --pin SEED reseeds it at the appender's entry and gives a reproducible reference.
+   s2c_sanavcover appends 2 (the same under any seed); a specimen where a random point survives is still needed. Also the other generation types (probe generation volumes, manual) and
    the height-layer variant of 180087940 (the convar at 18035cd30), the max-probes limits and clustering.
 3. **Pathing's remaining cases**: sampled visibility (numSamples > 1 with a radius; the sphere volume samples), the
    4.9 flag at +0x40, coincident probes, and the KV3 conversion of worldspawn choices keys (generation type, rebake option). The
