@@ -5025,6 +5025,10 @@ game can answer is raised with the user first, and runs with -insecure.
        map unloaded, so only game modules are pinned.
      - Measured: `+phys_timescale 0` on the command line with every pin above: 0 of 42, 417,055 pixels, worse than
        without it (210,040); not the lever.
+     - Measured: `+lb_dynamic_shadow_resolution 0 +lb_time_sliced_shadow_map_rendering_enable 0` with every pin:
+       1,433,824 pixels; not the lever either. Best so far stays time_pin.js with RANDOMS: 3 of 42, 210,040.
+       Next: RenderDoc captures of two pinned runs and a diff of the light and shadow blocks of one face that
+       differs, which says what differs instead of guessing a convar.
      - atixref's cubehost runs crash on shutdown (20 access-violation dumps today, all at worldrenderer 20261029
        +0x205c6, 1800205c6): a fast-remove in a list at a manager's +0x258 with the not-found index -1, while the
        map unloads (after "LoopDeactivateAllSystems"), after all 42 EXRs are written. Not Frida: a run with an agent
