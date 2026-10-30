@@ -1172,6 +1172,13 @@ build varies run to run (ledger 144, item D).
    +0x1dc (shadow-pass values from 1801a3980, view dependent), +0x206 / +0x208 (record flag bits 1 and 4; +0x208
    is 1 on atixref's rectangle lights). None of these needs a capture yet: the 64 pairs already hold every
    field's value for 9 lights in 8 views, so each can be checked statically as it is ported.
+   **d is the light's screen size, from integer-snapped bounds.** The light's bounds (desc vfunc 0x10, 1800ce950)
+   are the world AABB of its frustum (1804a2480: the transform x the description's +0x40 over the clip box),
+   intersected with the illumination OBB (18049e080) when there is one; CSceneSystem vfunc 0xe0 (1800d5410)
+   snaps every new box outward to whole units ((x + 2^23) - 2^23, then mins down, maxs up). d =
+   AggregateCulling.ScreenSize(camera, 1, the snapped box's centre, its half diagonal): within 2.2e-4 relative on
+   all 64 captured entries, rsqrtss's own error (measured in numpy without the illumination clip, which none of
+   atixref's lights is small enough to trigger). So both fades are portable without a capture.
 7. **Render face 0 and compare.** `CubeWithNoDumpMakesTheGamesExr` needs a per-face mode for a map whose other
    faces have no dump. Compare the colour against readback_0 (and the intermediate targets: atlas, face depth).
    Then faces 1 to 5 against readback_1..5 (no dumps needed), then cube 0's EXR (env_cubemap_245678519.exr).

@@ -203,7 +203,20 @@ the addon).
     Debug test build; time a Release build and Valve's own step before sizing it. Any change
     that could alter bytes waits for the user's OK (parity before speed).
 
-## Latest session (2026-10-30, the barn light record; CS2 and Steam closed)
+## Latest session (2026-10-30 later, the barn light entry from the keys; CS2 open, static only)
+
+- Cubemaps/BarnLightDescriptions.cs: a light_barn's 0x12c-byte description and transform from its entity keys
+  (client 10-15 C_BarnLight vfunc 0x7d8, 180d81100), bit for bit on all 7 captured lights
+  (BarnLightDescriptionsTests, CUBEBARN + CUBEBARN_VPK). The networked fields are the keys.
+- client.dll's schema read statically (field entries {name, type, offset}); C_BarnLight's table in CUBEMAPS A.6.
+- tools/re/token_names.py names attribute hashes; the entry's other fields are mapped (A.6); d (the fades' input)
+  is the snapped bounds' screen size, checked numerically on all 64 entries.
+- Ghidra: use /client_20261015.dll for the 10-15 build. /client.dll is another build: a script of mine rebuilt
+  functions there by mistake around 180d8c0f0, then removed them and recreated the pdata-start functions.
+- Captures queued for when CS2 and Steam are closed: none needed yet for the entry. Still open statically: the
+  entry's shadow-pass fields (+0x174 .. +0x183, +0x1dc), +0x206 / +0x208, light_omni2's description.
+
+## Earlier session (2026-10-30, the barn light record; CS2 and Steam closed)
 
 Cubehost watch runs, each run's agent in tools/cubehost (CUBEMAPS.md A.4, A.6):
 - base_records.js: the base scene object's instance record, all eight words (180079700).
