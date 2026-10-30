@@ -4993,6 +4993,14 @@ game can answer is raised with the user first, and runs with -insecure.
        and 1,125 attribute writes pinned): 0 of 42, 642,147. So the game time and the wind are NOT what makes
        Valve's atixref build vary: something else does (candidates not yet measured: the eight fast_strobe light
        styles and particles, evaluated per frame on the CPU; physics settle; texture residency).
+     - Measured, the per-pixel diff of the worst cube (245678521) under the pin: every differing pixel is on the
+       red walls, as a stipple whose phase moves; the rest of the cube is equal. With the light block's dither pair
+       pinned too (scenesystem's two tier0 RandomFloat calls return constants): 1 of 42 identical, 1,495,482
+       pixels, and the walls are DARK in one run and bright in the other. So the variance is the red fast_strobe
+       light styles' phase at the build: a light style is evaluated on the CPU from the client's clock, which the
+       per-view words do not carry. Next: find where the client evaluates a light style's intensity and pin that
+       clock (or the style's value) at the build. The dither-pinned host did not exit after the build (both runs
+       hit the 900 s timeout; the EXRs were written within 2 minutes).
      - Also: the 10-29 engine2's frame-state forwarder (10-22 180242680) ports to 1802426c0 but its prologue
        changed, so time_inputs.js logs no engine_frame on this build.
 

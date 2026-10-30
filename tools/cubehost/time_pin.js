@@ -4,6 +4,8 @@
 // the third wind word (client 18016af20, hash at arg 1, four floats at arg 2), written with the values atixref's
 // 10-28 run (cubehost_run/atixref_time1) built with. Builds: the installed 10-29 DLLs (tools/re/binaries/
 // *_20261029.dll); each hook checks its prologue first. Records: pinned (counts per input), mismatch.
+// Also the light block's dither pair: tier0's global RandomFloat (time-seeded, ledger 186) called from scenesystem
+// returns a constant per call site (the 10-28 run's first two draws), since the call count varies run to run.
 'use strict';
 
 const IMAGE = ptr('0x180000000');
@@ -14,6 +16,7 @@ const ATTRS = {
   0xeb0d997e: [996509919, 1022739087, 994352038, 1048576000],             // WindStrength
   0xcde54581: [1087753403, 1090537380, 1084951087, 0],                    // the third wind word
 };
+const DITHER = [1058042080, 1063685580];  // 0.5855, 0.9216 (10-28 draws 1 and 2)
 const counts = {};
 let done = 0;
 
@@ -43,10 +46,25 @@ function hookScene(ss) {
       onEnter(args) { this.block = args[1]; },
       onLeave() { this.block.add(296).writeU32(REAL); this.block.add(300).writeU32(GAME); count('perview'); } });
 }
+function hookTier0(t0, ss) {
+  const rf = t0.getExportByName('RandomFloat');
+  const original = new NativeFunction(rf, 'float', ['float', 'float'], 'win64');
+  const lo = ss.base, hi = ss.base.add(ss.size), sites = {};
+  const f = new DataView(new ArrayBuffer(4));
+  Interceptor.replace(rf, new NativeCallback(function (a, b) {
+    const r = this.returnAddress;
+    if (!(r && r.compare(lo) >= 0 && r.compare(hi) < 0)) return original(a, b);
+    const k = r.toString();
+    if (sites[k] === undefined) sites[k] = Object.keys(sites).length % 2;
+    f.setUint32(0, DITHER[sites[k]], true);
+    count('dither');
+    return a + (b - a) * f.getFloat32(0, true);
+  }, 'float', ['float', 'float'], 'win64'));
+}
 function poll() {
   const cl = Process.findModuleByName('client.dll'), ss = Process.findModuleByName('scenesystem.dll');
   if (cl && !(done & 1)) { done |= 1; hookClient(cl); }
-  if (ss && !(done & 2)) { done |= 2; hookScene(ss); }
+  if (ss && !(done & 2)) { done |= 2; hookScene(ss); hookTier0(Process.findModuleByName('tier0.dll'), ss); }
   if (done !== 3) setTimeout(poll, 5); else send({ kind: 'hooked' });
 }
 poll();
