@@ -4981,6 +4981,21 @@ game can answer is raised with the user first, and runs with -insecure.
        random points never decide the result there. The appender's non-random half (centre, corners, the
        sight test, clustering) can be checked on it; a specimen where a random point survives is still needed.
 
+187. **atixref's build run to run, with the clock pinned** (2026-10-30: cubehost on the installed 10-29 DLLs, CS2 and
+     Steam closed, settle 20; tools/cubehost/time_inputs.js (from feat/cube-nodump a2ecbce, ported with port_addr.py)
+     and tools/cubehost/time_pin.js; 42 EXRs compared byte for byte and per pixel.)
+     - Measured: every view of a build renders at ONE game time, and it differs per run: 26.72 (10-28), 33.89 and
+       86.75 (two runs today, 27,948 views each); env_wind's start time (10, 2.44) and the last SetWind differ with
+       it. They follow the load and settle's wall-clock time.
+     - Measured: two unpinned settled builds: 0 of 42 cubes identical, 651,642 pixels differ. `host_framerate
+       0.015625` sent before the build: 0 of 42, 1,567,108. time_pin.js (every per-view block's real and game time
+       words and the client's GameTime and three wind attributes forced to the 10-28 build's values; 25,001 views
+       and 1,125 attribute writes pinned): 0 of 42, 642,147. So the game time and the wind are NOT what makes
+       Valve's atixref build vary: something else does (candidates not yet measured: the eight fast_strobe light
+       styles and particles, evaluated per frame on the CPU; physics settle; texture residency).
+     - Also: the 10-29 engine2's frame-state forwarder (10-22 180242680) ports to 1802426c0 but its prologue
+       changed, so time_inputs.js logs no engine_frame on this build.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).
