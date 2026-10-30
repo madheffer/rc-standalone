@@ -5029,6 +5029,14 @@ game can answer is raised with the user first, and runs with -insecure.
        1,433,824 pixels; not the lever either. Best so far stays time_pin.js with RANDOMS: 3 of 42, 210,040.
        Next: RenderDoc captures of two pinned runs and a diff of the light and shadow blocks of one face that
        differs, which says what differs instead of guessing a convar.
+     - Done (cubehost_run/atixref_rdc37_1 and _2: cube 245678556, RenderDoc index 37, every pin on; faces 0 and 2
+       differ, 1 and 3 are equal): rdc_replay dumps of both, 11,147 actions each. The draw ORDER differs (draws 9 on
+       have other index counts at the same position), and 409 constant blobs exist in one dump only. Read word by
+       word on one draw (action 646): the differing words are small integers in texture index slots (0x45e vs
+       0x3fa: bindless indices handed out in another order, harmless if the textures match), uninitialised tail
+       words, and ONE flag per block that is 1.0 in one run and 0.0 in the other (VS block 0 +0x110, PS block 0
+       +0x10c). That flag is the candidate for what reaches the pixels: it reads like a per-draw texture or
+       streaming state, which is roadmap 0c (texture residency). Not yet traced to its writer.
      - atixref's cubehost runs crash on shutdown (20 access-violation dumps today, all at worldrenderer 20261029
        +0x205c6, 1800205c6): a fast-remove in a list at a manager's +0x258 with the not-found index -1, while the
        map unloads (after "LoopDeactivateAllSystems"), after all 42 EXRs are written. Not Frida: a run with an agent
