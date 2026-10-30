@@ -1129,6 +1129,23 @@ build varies run to run (ledger 144, item D).
    0xdee74b50, 0xc8c4099d, 0xdf408d62, 0xedc61ed4, 0xf4cb136, 0xebbff45a, 0x1776771, 0x6076c0ed, 0xbc725fcf,
    0xd59b1248, 0xf69dd08a, ...), past what was decompiled (ReVa went down). Next, statically: the rest of
    18019fe30, then client.dll's light entity update that fills the object and its attributes from the keys.
+   **The attributes are entity keys, and client.dll writes them (2026-10-30, static).** The hashes are
+   MurmurHash2 (seed 0x31415926) of lowercase names; hashing every key of atixref's lights and every identifier in
+   the game's DLLs names: 0x1776771 fog, 0xe615a6e8 fogscale, 0x266c41fb bouncescale, 0xbc725fcf shadowpriority,
+   0xc8c4099d contactshadow, 0xd59b1248 bakedshadowindex, 0xdf408d62 forceshadowsenabled, 0xf69dd08a
+   shadowmapsize, 0x4211a56 precomputed_shadowmap, 0x29c8655f precomputed_depth_pyramid. Not named (no plain
+   identifier hashes to them): 0xfd982dcb, 0xdee74b50, 0xedc61ed4, 0xf4cb136, 0xebbff45a, 0x6076c0ed, 0x3d81da66,
+   0x69a26332. The installed client.dll uses nine of them in ONE place, 180d8ee3e .. 180d8f0e9 (a pdata fragment
+   starting 180d8e74f, beside the 180d80b63 / 180d8e7f8 that touched barn objects in watch run 6), per scene
+   object of the light entity (rsi; count +0x1340): attributes at object +0x110 through 18016aaf0 (int) /
+   18016af20 (vector): fog (+0x7a8 frame byte), contactshadow (+0x11e0 != 0), forceshadowsenabled (+0x11e1),
+   bouncescale (+0x11e8, when +0x11e4 is 2, with 0xedc61ed4 = 1), bakedshadowindex (+0x10b4 unless -1),
+   shadowpriority (+0x11dc unless -1), shadowmapsize (a local, when > 0), 0xfd982dcb (+0x1340), 0x230dbc02
+   (+0x11ec), 0x64ea448f (+0x11fc times +0x11f0 .. +0x11f8, when +0x11fc is not 0); and the fades the gather
+   reads: object +0x260 = entity +0x1210, +0x264 = 1 / max(0.0001, +0x1210 - +0x1214) (1801b9d30 is maxss),
+   +0x268 / +0x26c the same from +0x1218 / +0x121c, object +0xd0 = entity +0x10b8 / +0x10bc. Next: the entity
+   fields' names (the schema: fade_size_start / end and shadowfade_size_start / end by their use), the rest of
+   this function (the description at object +0xf0), and 18019fe30's remaining attribute reads.
 7. **Render face 0 and compare.** `CubeWithNoDumpMakesTheGamesExr` needs a per-face mode for a map whose other
    faces have no dump. Compare the colour against readback_0 (and the intermediate targets: atlas, face depth).
    Then faces 1 to 5 against readback_1..5 (no dumps needed), then cube 0's EXR (env_cubemap_245678519.exr).
