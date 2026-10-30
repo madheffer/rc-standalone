@@ -12,6 +12,10 @@
 // style is evaluated at the same phase. rdi is the component in the caller and the accessor does not touch it.
 // And scenesystem's real time: FinishRenderingViews (1800fc550) is passed FLT_MAX, which makes g_flRealTime a fresh
 // Plat_FloatTime per view (ledger 177); it is called with REAL instead.
+// With RANDOMS, every other caller of tier0's global RandomFloat / RandomInt (time-seeded, ledger 186) gets a fixed
+// sequence of its own: a counter per call site (module + RVA of the return address, so ASLR does not move it)
+// hashed with splitmix32; `randoms` records tally the calls per module. Only GAME_MODULES: a fixed sequence for
+// networksystem (16,691 calls a run: connection challenges) left the next run's map unloaded.
 'use strict';
 
 const IMAGE = ptr('0x180000000');
@@ -23,6 +27,8 @@ const ATTRS = {
   0xcde54581: [1087753403, 1090537380, 1084951087, 0],                    // the third wind word
 };
 const DITHER = [1058042080, 1063685580];  // 0.5855, 0.9216 (10-28 draws 1 and 2)
+const RANDOMS = true;
+const GAME_MODULES = ['client.dll', 'server.dll', 'particles.dll', 'scenesystem.dll', 'worldrenderer.dll'];
 const counts = {};
 let done = 0;
 
@@ -78,14 +84,44 @@ function hookScene(ss) {
       onEnter(args) { this.block = args[1]; },
       onLeave() { this.block.add(296).writeU32(REAL); this.block.add(300).writeU32(GAME); count('perview'); } });
 }
+const siteN = {}, perModule = {};
+function siteOf(r) {
+  const m = Process.findModuleByAddress(r);
+  return m === null ? r.toString() : m.name + '+' + r.sub(m.base).toString(16);
+}
+function unit(site) {  // the next value of this call site's own sequence, in [0, 1)
+  const n = siteN[site] = (siteN[site] || 0) + 1;
+  let h = 0x9e3779b9;
+  for (let i = 0; i < site.length; i++) h = Math.imul(h ^ site.charCodeAt(i), 0x85ebca6b) >>> 0;
+  let z = (h + Math.imul(n, 0x9e3779b9)) >>> 0;
+  z = Math.imul(z ^ (z >>> 16), 0x85ebca6b) >>> 0;
+  z = Math.imul(z ^ (z >>> 13), 0xc2b2ae35) >>> 0;
+  z = (z ^ (z >>> 16)) >>> 0;
+  const mod = site.split('+')[0];
+  perModule[mod] = (perModule[mod] || 0) + 1;
+  if ((counts.random = (counts.random || 0) + 1) % 2000 === 1) send({ kind: 'randoms', perModule });
+  return z / 4294967296;
+}
 function hookTier0(t0, ss) {
   const rf = t0.getExportByName('RandomFloat');
   const original = new NativeFunction(rf, 'float', ['float', 'float'], 'win64');
   const lo = ss.base, hi = ss.base.add(ss.size), sites = {};
   const f = new DataView(new ArrayBuffer(4));
+  if (RANDOMS) {
+    const ri = t0.getExportByName('RandomInt');
+    const riOriginal = new NativeFunction(ri, 'int', ['int', 'int'], 'win64');
+    Interceptor.replace(ri, new NativeCallback(function (a, b) {
+      const site = siteOf(this.returnAddress);
+      if (GAME_MODULES.indexOf(site.split('+')[0]) < 0) return riOriginal(a, b);
+      return b <= a ? a : a + Math.min(b - a, Math.floor(unit(site) * (b - a + 1)));
+    }, 'int', ['int', 'int'], 'win64'));
+  }
   Interceptor.replace(rf, new NativeCallback(function (a, b) {
     const r = this.returnAddress;
-    if (!(r && r.compare(lo) >= 0 && r.compare(hi) < 0)) return original(a, b);
+    if (!(r && r.compare(lo) >= 0 && r.compare(hi) < 0)) {
+      const site = RANDOMS ? siteOf(r) : null;
+      return site && GAME_MODULES.indexOf(site.split('+')[0]) >= 0 ? a + (b - a) * unit(site) : original(a, b);
+    }
     const k = r.toString();
     if (sites[k] === undefined) sites[k] = Object.keys(sites).length % 2;
     f.setUint32(0, DITHER[sites[k]], true);
