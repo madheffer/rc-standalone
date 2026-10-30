@@ -5025,12 +5025,12 @@ game can answer is raised with the user first, and runs with -insecure.
        map unloaded, so only game modules are pinned.
      - Measured: `+phys_timescale 0` on the command line with every pin above: 0 of 42, 417,055 pixels, worse than
        without it (210,040); not the lever.
-     - Every cubehost run with a Frida agent crashed at the end of the build (20 access-violation dumps today, all at
-       worldrenderer 20261029 +0x205c6): a fast-remove in a list at a manager's +0x258 with the not-found index
-       -1 (1800205c6). It comes after the EXRs are written, before the "Finished" line, so the captures are good but
-       the run's result reads None; runs without an agent (host_framerate, the cube 1 RenderDoc run) left none.
-       What is being removed is not traced. run_probe.py now unloads the agent before `quit`, which does not reach
-       it (the crash is earlier). The next run after a crash sometimes stalled in start-up.
+     - atixref's cubehost runs crash on shutdown (20 access-violation dumps today, all at worldrenderer 20261029
+       +0x205c6, 1800205c6): a fast-remove in a list at a manager's +0x258 with the not-found index -1, while the
+       map unloads (after "LoopDeactivateAllSystems"), after all 42 EXRs are written. Not Frida: a run with an agent
+       that hooks nothing and a run with no agent crashed the same way; one run shut down cleanly. The captures
+       are good; the run's result just reads None. What is being removed is not traced. run_probe.py now unloads
+       the agent before `quit` anyway. The run after a crash sometimes stalled in start-up.
      - Also: the 10-29 engine2's frame-state forwarder (10-22 180242680) ports to 1802426c0 but its prologue
        changed, so time_inputs.js logs no engine_frame on this build.
 
