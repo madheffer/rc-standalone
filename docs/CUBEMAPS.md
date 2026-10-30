@@ -1119,6 +1119,16 @@ build varies run to run (ledger 144, item D).
    cross(q, t) + (v + w t) (vectorised, 1801b1a94); the decompile prints (cross + v) + w t, one ulp off on 8 pairs.
    Still to do: the entry itself (18019fe30 from the light object, which client.dll fills from the entity), the
    merge's sort and trim, and the binner's CullParams for the light count.
+   **The entry, static reading so far (2026-10-30, CS2 open).** The 64 captured entries are 9 of atixref's lights,
+   matched to entities by the entry's +0x144 translation at distance 0 (EntityKeyDump, `ENTDUMP=<vpk>|^light_`):
+   7 light_barn and 2 light_omni2, the omni lights as shape-0 barn records. In 18019fe30 the entry is
+   +0x18 the object's +0xf0 description (18008d010), +0x144 the object's +0x30 .. +0x5f, +0x1b8 a distance fade
+   1 - clamp((obj +0x260 - d) obj +0x264) and +0x1e0 / +0x1e4 the shadow fade from +0x268 / +0x26c (d = the
+   view's +0x1c): so the entry depends on the VIEW (one light's +0x1e0 is 0.99382 in one view, 1 in another).
+   The rest comes from the light's render attributes by hash (18004d390 on 18008bb20(object): 0xfd982dcb,
+   0xdee74b50, 0xc8c4099d, 0xdf408d62, 0xedc61ed4, 0xf4cb136, 0xebbff45a, 0x1776771, 0x6076c0ed, 0xbc725fcf,
+   0xd59b1248, 0xf69dd08a, ...), past what was decompiled (ReVa went down). Next, statically: the rest of
+   18019fe30, then client.dll's light entity update that fills the object and its attributes from the keys.
 7. **Render face 0 and compare.** `CubeWithNoDumpMakesTheGamesExr` needs a per-face mode for a map whose other
    faces have no dump. Compare the colour against readback_0 (and the intermediate targets: atlas, face depth).
    Then faces 1 to 5 against readback_1..5 (no dumps needed), then cube 0's EXR (env_cubemap_245678519.exr).
