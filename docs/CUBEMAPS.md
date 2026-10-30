@@ -1146,6 +1146,20 @@ build varies run to run (ledger 144, item D).
    +0x268 / +0x26c the same from +0x1218 / +0x121c, object +0xd0 = entity +0x10b8 / +0x10bc. Next: the entity
    fields' names (the schema: fade_size_start / end and shadowfade_size_start / end by their use), the rest of
    this function (the description at object +0xf0), and 18019fe30's remaining attribute reads.
+   **The description from the keys: ported (2026-10-30, static, CS2 open).** client.dll's schema (field entries
+   {name, type, offset at +0x10}, 0x20 apart) names C_BarnLight's fields: +0x1210 m_flFadeSizeStart, +0x1214
+   m_flFadeSizeEnd, +0x1218 / +0x121c m_flShadowFadeSize*, +0x10b4 m_nBakedShadowIndex, +0x11dc m_nShadowPriority,
+   +0x11e0 m_bContactShadow, ... (the whole table from 1098 m_bEnabled to 13b0). The update above is 10-15
+   180d8c0f0 (Ghidra's /client_20261015.dll; NOT /client.dll, another build); it copies one description per
+   scene object from C_BarnLight vfunc 0x7d8 (180d81100) into object +0xf0. Cubemaps/BarnLightDescriptions.cs
+   ports 180d81100 and its helpers (1817658a0, 181747480, 181747070, 181763bf0, 181764b10, 181765700,
+   181765730, 181765820, 181764c90, 181764480, 1817642b0, vfunc 0x7f0 180d87da0 with V_exp2f / V_powf / V_tanf
+   from the existing CrtMath / LightPow / LightCrt ports) and the transform (AngleMatrix of angles, origin):
+   BarnLightDescriptionsTests (CUBEBARN, CUBEBARN_VPK) finds every light_barn of the 64 captured entries by its
+   transform and matches all 7 descriptions bit for bit (every word but the +0xed flags byte, whose writer is not
+   this function). The keys ARE the networked fields (no server conversion on any of them). Refused: cookies,
+   light styles, colormode 1, disabled lights. Next: the entry's other fields (the gather 18019fe30 and the
+   attributes) and light_omni2's description (C_OmniLight's vfunc 0x7d8).
 7. **Render face 0 and compare.** `CubeWithNoDumpMakesTheGamesExr` needs a per-face mode for a map whose other
    faces have no dump. Compare the colour against readback_0 (and the intermediate targets: atlas, face depth).
    Then faces 1 to 5 against readback_1..5 (no dumps needed), then cube 0's EXR (env_cubemap_245678519.exr).
