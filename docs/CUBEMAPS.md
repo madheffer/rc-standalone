@@ -1160,6 +1160,18 @@ build varies run to run (ledger 144, item D).
    this function). The keys ARE the networked fields (no server conversion on any of them). Refused: cookies,
    light styles, colormode 1, disabled lights. Next: the entry's other fields (the gather 18019fe30 and the
    attributes) and light_omni2's description (C_OmniLight's vfunc 0x7d8).
+   **The entry's other fields, mapped (entry +X is 18019fe30's local_(0xab8 - X)).** Vector attributes are
+   looked up by broadcast hashes: 0x89af0fd4 `scale`, 0x230dbc02 `minroughness`, 0x64ea448f `altcolor`.
+   +0x1b8 the distance fade and +0x1e0 / +0x1e4 the shadow fade (object +0x260 .. +0x26c, i.e. the keys
+   fade_size_* / shadowfade_size_*, against d), +0x1bc d itself (the view's +0x1c), +0x1c0 `scale` (default 1),
+   +0x1c4 `fogscale`, +0x1e8 `shadowpriority`, +0x1ea `bakedshadowindex` clamped to -1 .. 4, +0x1ec .. +0x1f4
+   `altcolor` (m_vAlternateColor x m_fAlternateColorBrightness), +0x1f8 0xdee74b50 (client: castshadows),
+   +0x1fc 0x3d81da66, +0x201 18044a4ee0 of the description, +0x210 `minroughness` (m_flMinRoughness),
+   +0x214 bit 8 when the illumination volume is used (object +0x220 .. +0x24f, client from the precomputed OBB
+   fields at entity +0x123c ..). Not yet traced: d (the view's metric for the light), +0x174 .. +0x183 and
+   +0x1dc (shadow-pass values from 1801a3980, view dependent), +0x206 / +0x208 (record flag bits 1 and 4; +0x208
+   is 1 on atixref's rectangle lights). None of these needs a capture yet: the 64 pairs already hold every
+   field's value for 9 lights in 8 views, so each can be checked statically as it is ported.
 7. **Render face 0 and compare.** `CubeWithNoDumpMakesTheGamesExr` needs a per-face mode for a map whose other
    faces have no dump. Compare the colour against readback_0 (and the intermediate targets: atlas, face depth).
    Then faces 1 to 5 against readback_1..5 (no dumps needed), then cube 0's EXR (env_cubemap_245678519.exr).
