@@ -16,6 +16,13 @@
 // sequence of its own: a counter per call site (module + RVA of the return address, so ASLR does not move it)
 // hashed with splitmix32; `randoms` records tally the calls per module. Only GAME_MODULES: a fixed sequence for
 // networksystem (16,691 calls a run: connection challenges) left the next run's map unloaded.
+// With SORT, every scene layer sort (scenesystem 1800ed4c0: layer, items, count; CMeshDrawPrimitive_t 0x70 bytes)
+// is redone on leave with the comparator's priorities (GROUND_TRUTH 156) but no address in it: the object (+0x18)
+// becomes its world transform (+0x30, 3x4), the material (+0x20) its name (the CUtlString at the CMaterial2's
+// +0x10, which materialsystem2 18000dc00 sets; read directly, since many are named before the agent attaches and
+// a hook on the naming call missed 540 of 7,384 sorts), the per-object material (+0x28) and +0x48 are left out; ties fall to the draw's index count and then
+// the input position. Valve breaks those ties by heap address, which changes run to run (ledger 187). Layers with
+// +0x48 bit 1 are not sorted by Valve and are left alone.
 'use strict';
 
 const IMAGE = ptr('0x180000000');
@@ -28,6 +35,7 @@ const ATTRS = {
 };
 const DITHER = [1058042080, 1063685580];  // 0.5855, 0.9216 (10-28 draws 1 and 2)
 const RANDOMS = true;
+const SORT = true;
 const GAME_MODULES = ['client.dll', 'server.dll', 'particles.dll', 'scenesystem.dll', 'worldrenderer.dll'];
 const counts = {};
 let done = 0;
@@ -141,11 +149,53 @@ function hookTier0(t0, ss) {
     return a + (b - a) * f.getFloat32(0, true);
   }, 'float', ['float', 'float'], 'win64'));
 }
+const materialNames = {};
+function hookMaterialNames(ms) {
+  for (const [va, bytes, utl] of [['0x18000cb40', '48895424104889', true], ['0x18000dc00', '48895c24104c89', false]]) {
+    const p = expect(ms, va, bytes);
+    if (p)
+      Interceptor.attach(p, { onEnter(args) {
+        try { materialNames[args[0].toString()] = utl ? args[1].readPointer().readCString() : args[1].readCString(); } catch (e) {}
+      } });
+  }
+}
+function hookSort(ss) {
+  const sort = expect(ss, '0x1800ed4c0', '4585c9');
+  if (!sort) return;
+  Interceptor.attach(sort, {
+    onEnter(args) { this.layer = args[1]; this.items = args[2]; this.n = args[3].toUInt32(); },
+    onLeave() {
+      const n = this.n;
+      if (n < 2) return;
+      const flags = this.layer.add(0x48).readU32();
+      if (flags & 2) return;
+      const full = (flags & 1) !== 0, recs = [];
+      for (let i = 0; i < n; i++) {
+        const p = this.items.add(i * 0x70), draw = p.add(0x08).readPointer(), obj = p.add(0x18).readPointer();
+        const k62 = p.add(0x62).readU16(), k58 = p.add(0x58).readS32();
+        const xf = obj.isNull() ? '' : Array.from(new Uint32Array(obj.add(0x30).readByteArray(48))).map(x => x.toString(16)).join(',');
+        const matp = p.add(0x20).readPointer();
+        let mat;
+        try { mat = matp.isNull() ? '' : matp.add(0x10).readPointer().readCString(); } catch (e) { mat = null; }
+        recs.push({ i, bytes: p.readByteArray(0x70), key: [full ? k58 : 0, xf, (k62 >> 3) & 1, (k62 >> 10) & 1,
+          draw.isNull() ? 0 : (draw.add(0x14).readU32() >> 6) & 1, k62 & 0x1344, mat === null ? '~' + matp : mat, k62 & 0xecbb,
+          draw.isNull() ? 0 : draw.add(100).readU32(), k58, draw.isNull() ? 0 : draw.add(0x60).readU32(), i] });
+      }
+      recs.sort((a, b) => { for (let k = 0; k < a.key.length; k++) if (a.key[k] !== b.key[k]) return a.key[k] < b.key[k] ? -1 : 1; return 0; });
+      for (let i = 0; i < n; i++) this.items.add(i * 0x70).writeByteArray(recs[i].bytes);
+      count('sort');
+      if (recs.some(r => r.key[6][0] === '~')) count('unnamed');
+    } });
+}
 function poll() {
   const cl = Process.findModuleByName('client.dll'), ss = Process.findModuleByName('scenesystem.dll');
   if (cl && !(done & 1)) { done |= 1; hookClient(cl); hookStyles(cl); }
-  if (ss && !(done & 2)) { done |= 2; hookScene(ss); hookFinish(ss); hookTier0(Process.findModuleByName('tier0.dll'), ss); }
-  if (done !== 3) setTimeout(poll, 5); else send({ kind: 'hooked' });
+  const ms = Process.findModuleByName('materialsystem2.dll');
+  if (ms && !(done & 4)) { done |= 4; if (SORT) hookMaterialNames(ms); }
+  // tier0's RandomFloat / RandomInt are replaced only once client.dll is up: replacing them as scenesystem loads,
+  // while start-up threads call them, stalled about half the runs at the asset system's start.
+  if (ss && cl && !(done & 2)) { done |= 2; if (SORT) hookSort(ss); hookScene(ss); hookFinish(ss); hookTier0(Process.findModuleByName('tier0.dll'), ss); }
+  if (done !== 7) setTimeout(poll, 5); else send({ kind: 'hooked' });
 }
 refreshRanges();
 poll();

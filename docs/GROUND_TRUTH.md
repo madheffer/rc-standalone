@@ -5042,6 +5042,15 @@ game can answer is raised with the user first, and runs with -insecure.
        created as their loads complete. Coplanar surfaces of two materials then show whichever drew last.
        CubemapFaceDrawList.MaterialOrder is the port's rule; pinning Valve's build to it (a hook that breaks the
        layer sort's address tie by the same key) is the next step for a reproducible atixref reference.
+     - Measured (2026-10-31): `-threads 1 +fs_async_threads 1` stops the map loading at all (two runs). time_pin.js
+       SORT redoes every layer sort on leave without addresses (objects by their world transform at +0x30,
+       materials by the name at the CMaterial2's +0x10; the two other pointer keys left out; ties to the index
+       count, then the input position): 6,411 sorts a run, none with an unread name, both runs 68 s: 3 of 42
+       identical, 135,760 pixels (from 210,040). Not zero: what is left is not yet localised (the input order of
+       the sorts, the dropped +0x28 / +0x48 keys, and other passes are the candidates).
+     - The start-up stalls: replacing tier0's RandomFloat / RandomInt as scenesystem loaded stalled about half the
+       time_pin.js runs at the asset system's start; installing them once client.dll is up, both runs loaded.
+       run_probe does not clear its output folder, so a stalled run keeps an earlier run's EXRs: clear it first.
      - atixref's cubehost runs crash on shutdown (20 access-violation dumps today, all at worldrenderer 20261029
        +0x205c6, 1800205c6): a fast-remove in a list at a manager's +0x258 with the not-found index -1, while the
        map unloads (after "LoopDeactivateAllSystems"), after all 42 EXRs are written. Not Frida: a run with an agent
