@@ -61,6 +61,26 @@ if (args[0] == "--bytecode")
     return;
 }
 
+// --glsl <vpk> <vcs path> <static id> <dynamic id> <out file>: one Vulkan combo decompiled to GLSL by VRF's
+// ShaderSpirvReflection, which names the uniform blocks and their members from the program's own reflection, so
+// a word of a captured block can be read as a variable.
+if (args[0] == "--glsl")
+{
+    using var pak = new Package();
+    pak.Read(args[1]);
+    pak.ReadEntry(pak.FindEntry(args[2])!, out var bytes);
+    using var p = new VfxProgramData();
+    p.Read(Path.GetFileName(args[2]), new MemoryStream(bytes));
+    var combo = p.GetStaticCombo(long.Parse(args[3]));
+    var index = combo.GetDynamicComboIndex(long.Parse(args[4]));
+    var fileId = combo.DynamicComboRenderStates[index].ShaderFileId;
+    var file = fileId >= 0 && fileId < combo.ShaderFiles.Length ? combo.ShaderFiles[fileId] : combo.ShaderFiles[index];
+    var ok = ShaderSpirvReflection.ReflectSpirv((VfxShaderFileVulkan)file, Vortice.SpirvCross.Backend.GLSL, out var code);
+    File.WriteAllText(args[5], code);
+    Console.WriteLine($"{args[2]} static {args[3]} dynamic {args[4]}: {(ok ? "decompiled" : "FAILED")}, {code.Length} chars");
+    return;
+}
+
 // --allbytecode <vpk> <out dir>: the first shader file of every program in the vpk, as <program>.dxbc, for a
 // sweep of the reflection (rdef) the files that keep it carry.
 if (args[0] == "--allbytecode")
