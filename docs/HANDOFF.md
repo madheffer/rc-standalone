@@ -23,8 +23,9 @@ remote `box`.
   - where they disagree, ours must be a value Valve's own runs produce
     (for a pose or an order: equal to one of the runs; for a cubemap
     pixel: inside the range the runs span).
-  Everything Valve reproduces stays bit for bit. A part with no Valve
-  reference at all (Steam Audio today) has not passed until one exists.
+  Everything Valve reproduces stays bit for bit. Steam Audio's reverb seed
+  is rdtsc in Valve's build, so its references are captured with the seed
+  pinned (docs/STEAM_AUDIO.md) and ours must equal those.
 - **VAC safety.** Never attach to or read cs2.exe. Game tests use `-insecure`,
   and only after asking the user.
 - **Compiles and captures only while CS2 is closed.**
@@ -183,7 +184,14 @@ the addon).
 5. **Own lighting:** OIDN for quality 1 and 2 end to end, more maps through
    `-s2cbake` (L16), the prefab world order (L20), AMD.
 6. **Smaller baked outputs:** precomputed shadows, occlusion data (de_ maps;
-   where it is made is not traced), Steam Audio (no workshop map has it).
+   where it is made is not traced). Steam Audio is well along (docs/STEAM_AUDIO.md,
+   ledgers 170-173): scene, materials, automatic probes, the inside-shapes filter,
+   the pathing bake and the whole `.sapaths` are exact on s2c_saprobe; `.sareverb`
+   is exact but for one Embree tie (probe 65). Left: the scene from instances,
+   prefabs, entity models, cables and steamaudiogeometry faces; the other probe
+   filters (the nav coverage appender needs tier0's RandomFloat state captured);
+   compile-map's `-sareverb` / `-sapaths` steps (still refused there); Embree's
+   tie order; `-sacustomdata`.
 7. **Geometry:** heap-ordered prop aggregate parts (Valve varies run to run),
    subdivided entries' tangents, overlay tangents, detail grass.
 8. **Visibility:** done for parity (2026-10-23, ledger 127): s2c_prefabprobe4 byte-identical

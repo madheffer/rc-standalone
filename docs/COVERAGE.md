@@ -124,8 +124,8 @@ says so.
 | `-navdbg` | Save debug stages to file | not started |
 | `-gridnav` | Grid Nav, Build grid nav | not started |
 | `-lod` | Build LOD | not read |
-| `-sareverb -sareverb_threads N` | Steam Audio: Bake Reverb, Threads | not started |
-| `-sapaths` | Bake Paths | not started |
+| `-sareverb -sareverb_threads N` | Steam Audio: Bake Reverb, Threads | ported outside compile-map (s2c_saprobe exact but for one Embree tie; refused in compile-map, docs/STEAM_AUDIO.md) |
+| `-sapaths` | Bake Paths | ported outside compile-map (s2c_saprobe exact; refused in compile-map) |
 | `-sacustomdata -sacustomdata_threads N` | Bake Custom Data | not started |
 | `-sabakestrictmode` | Strict Bake Mode | not started |
 | `-steamaudio_gpu` | no label found | not started |
@@ -153,7 +153,7 @@ these; a few are only reachable from resourcecompiler's command line.
 | `tileMeshBaseGeometry`, `deformables` | not read |
 | `bakelighting`, `nobakedlighting` | read: decide whether the world step bakes (GROUND_TRUTH 55) |
 | `lightmapMaxResolution` | ported (with `lightmapMipCount`, `lightmapVRadQuality`, `lightmapChartPackIterations`, `lightmapNoWeld` and `lightmapCompressionDisabled`, read from the command line over the world's keys) |
-| `steamaudio`, `sareverb_*`, `sapaths_*`, `sacustomdata_*`, `sacustombake_*` | not started |
+| `steamaudio`, `sareverb_*`, `sapaths_*`, `sacustomdata_*`, `sacustombake_*` | pathing settings read (`PathingSettings.From`); the rest not read |
 | `meshletMaxTriangles`, `meshletMaxVertices` | not read (render geometry) |
 | `keep_vertices` | written into world_physics' compile arguments as Valve does; the option itself not read |
 | `entity_lump_params` | not read |
