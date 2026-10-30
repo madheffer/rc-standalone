@@ -138,8 +138,9 @@ the addon).
    - s2c_l5probe's cube 1: CAPTURED 2026-10-30 (`%TEMP%/cubehost_run/s2c_l5probe_cube1b`, settle 20, 1.39 GB
      .rdc, 78 passes, summary.txt beside it); not yet compared against our render. decide the build state our compile renders at (scripted camera, spawned pawn and viewmodel:
      roadmap 0e, ledger 149).
-   - Animated maps (roadmap 0a-0e, ledger 144): atixref differs run to run in Valve's own build; pin its time in
-     cubehost first. Scope is 1:1 there too.
+   - Animated maps (roadmap 0a-0e, ledgers 144, 187): pinning is mostly done (CUBEMAPS.md D: time_pin.js takes
+     two runs from 651,642 differing pixels to 135,760). Next: localise the last 135,760 (a pixel diff of
+     cubehost_run/atixref_srt_1 against _srt_2), then port the pinned inputs. Scope is 1:1 there too.
    - Smaller: the binner's light and environment-map items, the viewmodel's draws, shadowed lights' views,
      non-aggregate scene objects (194 atixref calls), atixref draw 2305's one-ulp pipeline-library issue,
      probe_classes' engine crash on load.
@@ -222,7 +223,24 @@ the addon).
     Debug test build; time a Release build and Valve's own step before sizing it. Any change
     that could alter bytes waits for the user's OK (parity before speed).
 
-## Latest session (2026-10-30 later, the barn light entry from the keys; CS2 open, static only)
+## Latest session (2026-10-30 / 31, captures: Steam Audio's random stream, cube 1, atixref pinned; CS2 and Steam closed)
+
+- HANDOFF "What passing means where Valve varies" (the user's rule) and Steam Audio's real state in HANDOFF and
+  COVERAGE (it is well along on this branch, ledgers 170-173; it had been listed as not started).
+- Steam Audio (ledger 186): tier0's global random stream is ran1 and time-seeded, so Valve's nav coverage
+  appender varies run to run. tools/steamaudio/capture_randomstream.py logs every draw and `--pin SEED` reseeds
+  the stream at the appender (two runs equal). tools/coverage/steamaudio_navcover_specimen.py makes s2c_sanavcover
+  (a closed room plus a nav seed), which appends 2 probes, the same under any seed: the random points are still
+  untested there.
+- Cubemaps: s2c_l5probe's cube 1 captured (cubehost_run/s2c_l5probe_cube1b). cubehost.exe had to be rebuilt:
+  the 10-29 client entry was in the source but not the exe (README note added).
+- Cubemaps D (ledger 187, CUBEMAPS.md D): atixref's variance taken apart and mostly pinned by time_pin.js.
+  RenderDoc captures and replay dumps of the pinned cube 37 are in cubehost_run/atixref_rdc37_1 and _2 (2 GB each).
+- Tools: spvmatch `--glsl` (one combo decompiled with its blocks' members named, through VRF's
+  ShaderSpirvReflection), ShaderPropsProbe, run_probe.py unloads the agent before quit.
+- Crash dumps: every one this session was mine and deleted (D:/cs2dumps).
+
+## Earlier session (2026-10-30 later, the barn light entry from the keys; CS2 open, static only)
 
 - Cubemaps/BarnLightDescriptions.cs: a light_barn's 0x12c-byte description and transform from its entity keys
   (client 10-15 C_BarnLight vfunc 0x7d8, 180d81100), bit for bit on all 7 captured lights

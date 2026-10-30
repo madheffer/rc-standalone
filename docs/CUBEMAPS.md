@@ -1226,6 +1226,33 @@ atixref's build differs run to run in Valve's own tool (ledger 144). Before atix
 roadmap below, 0a to 0e (what the build's state depends on, pin it in cubehost, then port the time-dependent
 inputs and choose the time our compile renders at).
 
+**0a / 0b, 2026-10-30 / 31 (GROUND_TRUTH 187): the variance taken apart, input by input.** `tools/cubehost/
+time_pin.js` (run_probe.py --frida) pins, each measured by comparing two runs' 42 EXRs:
+
+| pinned | identical | differing pixels |
+|---|---|---|
+| nothing (settle 20) | 0 | 651,642 |
+| game time, wind attributes, light block dither | 0 | 642,147 |
+| + scenesystem real time (FinishRenderingViews given a fixed time, not FLT_MAX): the fast_strobe styles | 2 | 519,884 |
+| + tier0 RandomFloat / RandomInt fixed per call site for client.dll and server.dll | 3 | 210,040 |
+| + every layer sort redone without addresses (objects by transform, materials by name) | 3 | 135,760 |
+
+- The strobes run on scenesystem's real time, not the client's game time: freezing the client's getter
+  (18075e820) for every caller moved nothing, and the client light component's per-frame style path (1801e4880)
+  never runs in cubehost.
+- With everything above pinned, two RenderDoc captures of one cube (index 37) issue the same 11,058 draws in a
+  different order: the material heap order (156). The re-sort pin takes that out; the last 135,760 pixels are
+  not localised (candidates: the sorts' input order, the dropped +0x28 / +0x48 keys, other passes).
+- Not the lever (each measured worse): `host_framerate`, `r_light_flickering_enabled 0`, `+phys_timescale 0`,
+  `lb_dynamic_shadow_resolution 0` / `lb_time_sliced_shadow_map_rendering_enable 0`; `-threads 1` stops the map
+  loading.
+- Traps, each cost runs: a Frida callback on a tier0 random function must not call Process.findModuleByAddress
+  (loader lock, the run stalls at start-up); install those replacements once client.dll is up; atixref's host
+  crashes on shutdown (worldrenderer +0x205c6) with or without Frida, after the EXRs are written; run_probe does
+  not clear its output folder.
+- The wind port (`CubemapWind`, ledger 177's) is on the unmerged branch feat/cube-nodump (a2ecbce); its logging
+  agent time_inputs.js is ported here to the 10-29 DLLs.
+
 ### E. Measured, not read (GROUND_TRUTH 162, 163)
 
 Rules that hold on every capture but whose engine code is not read; each wants its decompile before calling the
