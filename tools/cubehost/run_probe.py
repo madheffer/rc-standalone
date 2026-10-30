@@ -115,6 +115,11 @@ def drive(host, a, seen):
     console.send("buildcubemaps")
     done = wait_for(["Finished building cubemaps", "Failed to compile cubemaps", "Finished ("], a.timeout)
     wait_for(["Finished building cubemaps"], 20)
+    # Unload the agent before quitting: a hook that replaces a function (Interceptor.replace) torn down while the
+    # engine shuts down crashed every Frida run on quit (an access violation dump each, 2026-10-30), and the run
+    # after such a crash often stalled in start-up. Unloading reverts every hook while the engine is idle.
+    if getattr(a, "agent", None):
+        a.agent.unload()
     try:
         console.send("quit")
     except OSError:
@@ -142,6 +147,18 @@ def attach_agent(pid, path, out):
     script.load()
 
     class Agent:
+        def unload(self):
+            try:
+                log.write(json.dumps({"kind": "counts", "counts": script.exports_sync.counts()}) + "\n")
+            except Exception:
+                pass
+            try:
+                script.unload()
+                log.write(json.dumps({"kind": "unloaded"}) + "\n")
+            except Exception as e:
+                log.write(json.dumps({"kind": "unload_failed", "error": str(e)}) + "\n")
+            log.flush()
+
         def close(self):
             try:
                 log.write(json.dumps({"kind": "counts", "counts": script.exports_sync.counts()}) + "\n")
@@ -220,6 +237,7 @@ def main():
     with open(os.path.join(out, "host.log"), "wb") as log:
         host = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT)
         agent = attach_agent(host.pid, a.frida, out) if a.frida else None
+        a.agent = agent
         import threading
         stop = threading.Event()
         keeper = keep_intermediates([game, content], out, stop, seen) if a.keep_intermediates else None
