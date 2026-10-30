@@ -190,7 +190,8 @@ the addon).
    the pathing bake and the whole `.sapaths` are exact on s2c_saprobe; `.sareverb`
    is exact but for one Embree tie (probe 65). Left: the scene from instances,
    prefabs, entity models, cables and steamaudiogeometry faces; the other probe
-   filters (the nav coverage appender needs tier0's RandomFloat state captured);
+   filters (the nav coverage appender's random stream is time-seeded in Valve's build; capture_randomstream.py --pin
+   gives a pinned reference, ledger 186; a specimen where a random point survives is still needed);
    compile-map's `-sareverb` / `-sapaths` steps (still refused there); Embree's
    tie order; `-sacustomdata`.
 7. **Geometry:** heap-ordered prop aggregate parts (Valve varies run to run),
