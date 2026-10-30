@@ -73,6 +73,9 @@ host, which sets the development-only convar `buildcubemaps_renderdoc_capture`
 in its own process (release builds hide it from the console and command
 line). BuildCubemaps captures that cube's six faces; the runner closes the
 qrenderdoc window the engine opens and moves the .rdc next to the run's logs.
+After a CS2 update, add client.dll's time stamp to `ClientConvarGlobals` in Program.cs AND rebuild
+(`dotnet build tools/cubehost/cubehost.csproj`): host.log saying "has no known buildcubemaps_renderdoc_capture
+global" means the exe is older than the table, and the build then runs with no capture.
 `rdc_summary.py` lists a capture's passes from RenderDoc's own Python:
 
 ```

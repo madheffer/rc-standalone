@@ -135,8 +135,8 @@ the addon).
      conditions (culling box +0xc18, object size against the split, LOD fade), CPVS's octree walk (engine2
      180238170 -> 180237ce0 / 1802378f0) for the fragment's 0x20 bit on worlds with vis data, the cull's +0xc fade
      bit's writer, the layer +0x6dc branch.
-   - s2c_l5probe's cube 1 (needs a capture: `run_probe.py --renderdoc 1 --settle 20`, CS2 and Steam closed, ask
-     the user); decide the build state our compile renders at (scripted camera, spawned pawn and viewmodel:
+   - s2c_l5probe's cube 1: CAPTURED 2026-10-30 (`%TEMP%/cubehost_run/s2c_l5probe_cube1b`, settle 20, 1.39 GB
+     .rdc, 78 passes, summary.txt beside it); not yet compared against our render. decide the build state our compile renders at (scripted camera, spawned pawn and viewmodel:
      roadmap 0e, ledger 149).
    - Animated maps (roadmap 0a-0e, ledger 144): atixref differs run to run in Valve's own build; pin its time in
      cubehost first. Scope is 1:1 there too.

@@ -4048,7 +4048,7 @@ game can answer is raised with the user first, and runs with -insecure.
       CubemapFaceConstants.VisibleVolumes ports the order; probe01's "volume 1 before volume 0" is the smaller box.
     - Not read: the scene's generic object cull that decides which volumes reach 1801c1f70 (VisibleVolumes uses the
       world box against the face frustum, which every face of both maps confirms; roadmap 2), the map's int.
-    - Open: s2c_l5probe's cube 1 (needs a capture, CS2 and Steam closed) for its whole array; the viewmodel's own
+    - Open: s2c_l5probe's cube 1 for its whole array (captured 2026-10-30: cubehost_run/s2c_l5probe_cube1b); the viewmodel's own
       draws (models, skinning, per-view and light blocks); a map whose volumes have other priorities or equal boxes.
 
 150. **The cubemap face's fixed-function state from the programs** (2026-10-26: Valve's .vcs render state through
