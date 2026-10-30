@@ -5014,6 +5014,15 @@ game can answer is raised with the user first, and runs with -insecure.
        608,659 (settle 60). The rest is lit patches present in one run only (values to 24) and fine edges on
        distant buildings: candidates glows / particles drawing their own random numbers, and texture residency.
        Not yet measured.
+     - Measured: tier0's global RandomFloat / RandomInt given a fixed sequence per call site for client.dll and
+       server.dll callers (about 4,700 and 5,300 calls a run; time_pin.js RANDOMS): 3 of 42 identical, 210,040
+       pixels (from about 520k). What is left: lit patches with ragged edges present in one run only, and one-pixel
+       edges of fixtures and frames, which look like objects placed slightly differently (server simulation).
+     - Trap: a Frida callback on RandomInt / RandomFloat must not call Process.findModuleByAddress. Engine threads
+       call them during start-up while holding the loader lock, and three runs in a row stalled before the map
+       loaded (right after "Initialized Embree"). Module ranges are cached by a timer instead.
+     - Also: networksystem draws about 16,700 random numbers a run (connection challenges); fixing those left the
+       map unloaded, so only game modules are pinned.
      - Also: the 10-29 engine2's frame-state forwarder (10-22 180242680) ports to 1802426c0 but its prologue
        changed, so time_inputs.js logs no engine_frame on this build.
 

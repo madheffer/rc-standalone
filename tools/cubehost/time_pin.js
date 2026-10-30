@@ -85,9 +85,21 @@ function hookScene(ss) {
       onLeave() { this.block.add(296).writeU32(REAL); this.block.add(300).writeU32(GAME); count('perview'); } });
 }
 const siteN = {}, perModule = {};
-function siteOf(r) {
-  const m = Process.findModuleByAddress(r);
-  return m === null ? r.toString() : m.name + '+' + r.sub(m.base).toString(16);
+// Module ranges are cached by a timer, never looked up inside the callback: Process.findModuleByAddress there
+// takes the loader lock from engine threads during start-up and stalled three runs in a row before the map loaded.
+const ranges = [];
+function refreshRanges() {
+  for (const name of GAME_MODULES) {
+    if (ranges.some(x => x.name === name)) continue;
+    const m = Process.findModuleByName(name);
+    if (m) ranges.push({ name, base: m.base, end: m.base.add(m.size) });
+  }
+  if (ranges.length < GAME_MODULES.length) setTimeout(refreshRanges, 200);
+}
+function siteOf(r) {  // 'module+rva' for a game module, null for anything else
+  for (const x of ranges)
+    if (r.compare(x.base) >= 0 && r.compare(x.end) < 0) return x.name + '+' + r.sub(x.base).toString(16);
+  return null;
 }
 function unit(site) {  // the next value of this call site's own sequence, in [0, 1)
   const n = siteN[site] = (siteN[site] || 0) + 1;
@@ -112,7 +124,7 @@ function hookTier0(t0, ss) {
     const riOriginal = new NativeFunction(ri, 'int', ['int', 'int'], 'win64');
     Interceptor.replace(ri, new NativeCallback(function (a, b) {
       const site = siteOf(this.returnAddress);
-      if (GAME_MODULES.indexOf(site.split('+')[0]) < 0) return riOriginal(a, b);
+      if (site === null) return riOriginal(a, b);
       return b <= a ? a : a + Math.min(b - a, Math.floor(unit(site) * (b - a + 1)));
     }, 'int', ['int', 'int'], 'win64'));
   }
@@ -120,7 +132,7 @@ function hookTier0(t0, ss) {
     const r = this.returnAddress;
     if (!(r && r.compare(lo) >= 0 && r.compare(hi) < 0)) {
       const site = RANDOMS ? siteOf(r) : null;
-      return site && GAME_MODULES.indexOf(site.split('+')[0]) >= 0 ? a + (b - a) * unit(site) : original(a, b);
+      return site !== null ? a + (b - a) * unit(site) : original(a, b);
     }
     const k = r.toString();
     if (sites[k] === undefined) sites[k] = Object.keys(sites).length % 2;
@@ -135,4 +147,5 @@ function poll() {
   if (ss && !(done & 2)) { done |= 2; hookScene(ss); hookFinish(ss); hookTier0(Process.findModuleByName('tier0.dll'), ss); }
   if (done !== 3) setTimeout(poll, 5); else send({ kind: 'hooked' });
 }
+refreshRanges();
 poll();
