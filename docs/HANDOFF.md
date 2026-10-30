@@ -14,6 +14,17 @@ remote `box`.
 - **Full coverage.** Every entity class Hammer offers and every compile
   option Hammer or resourcecompiler offers is in scope
   ([COVERAGE.md](COVERAGE.md)).
+- **What passing means where Valve varies (user, 2026-10-30).** Where Valve's
+  own tool gives different bytes run to run (settle poses, animated maps'
+  cubemaps, prop aggregate part order, `-oldvis`, `.vwrld`'s stamp and
+  fingerprint), our output passes when it is within Valve's variance:
+  - compile the map with Valve's tool at least twice, the same switches;
+  - every byte the Valve runs agree on must be ours exactly;
+  - where they disagree, ours must be a value Valve's own runs produce
+    (for a pose or an order: equal to one of the runs; for a cubemap
+    pixel: inside the range the runs span).
+  Everything Valve reproduces stays bit for bit. A part with no Valve
+  reference at all (Steam Audio today) has not passed until one exists.
 - **VAC safety.** Never attach to or read cs2.exe. Game tests use `-insecure`,
   and only after asking the user.
 - **Compiles and captures only while CS2 is closed.**
