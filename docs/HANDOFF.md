@@ -239,8 +239,10 @@ the addon).
   snapped bounds (37 boxes), the screen size (measured, 218) and fades (218); the sort, trim and binner item read.
   Then: each face's light list reproduced (all six), entries and records from the keys (every record the game's
   but shadow terms that reach no pixel), and the lights in the render (0db0f68): ze cube 0 pixels over 1/256 fell
-  to 195,611 / 126,101 / 22,899 / 21,588 / 945 / 367,762. Next: the light items' depth range and bounds
-  (CUBEMAPS.md F.1 "Next"), then entity models as scene objects (F.2) and the AO proxies (F.3).
+  to 195,611 / 126,101 / 22,899 / 21,588 / 945 / 367,762. Later: the light items exact (6946e08), and the main
+  remaining cause found: texture residency (ledger 194, the game's maps resident at 512 in this build; capped,
+  faces 4 / 5 are within 1/256). Next: the residency rule (needs Steam closed for a probe01 re-capture), the
+  Csgo block's bindless indices, entity models as scene objects (F.2), the AO proxies (F.3).
 
 ## Earlier session (2026-10-30 / 31, captures: Steam Audio's random stream, cube 1, atixref pinned; CS2 and Steam closed)
 

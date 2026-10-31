@@ -5140,6 +5140,27 @@ game can answer is raised with the user first, and runs with -insecure.
        six faces, the edges too; the light items differ in their depth range (face 4: ours -68.12, the game's
        -76.0001, the light frustum's far plane) and in the bounds of lights not containing the eye (BinnerItemsProbe,
        CUBEITEMS). Open: 1801abf30 / 1801aac90 on a light frustum (the probe volumes' box path is exact).
+       Settled 2026-11-01 later: 1801b2850 uses the box footprint only when its +0x1c (the silhouette point count
+       1801aac90 writes: 0 when the eye is inside or a 4-point silhouette covers the screen) is not 0. Every item
+       and edge of all six faces is now the game's.
+
+194. **Texture residency in ze_hold_em_p's cube build** (2026-11-01: the RenderDoc capture of ledger 192, its
+     resources.json; draw-by-draw comparison of our colour target with the capture's after-images.) MEASURED, the
+     rule NOT read.
+     - On face 5 the first colour draw (csgo_lightmappedgeneric) is the game's bit for bit and the floor draw
+       (csgo_simple_2way_blend, concrete_slabs_wet_1) carries every differing pixel, with programs, constant blocks,
+       $Globals, vertex layout and vertex data all the game's. Its material maps are 2048 x 2048 (10 mips) in the
+       .vtex and 512 x 512 (8 mips) on the GPU; every material map above 512 in this capture is resident at 512
+       (1024 and 2048 alike, so not a fixed mip bias). probe01's, atixref's and s2c_l5probe's captures (10-21 ..
+       10-28, before 1.41.9.4) keep 2048 maps whole.
+     - Uploading at most 512 (S2C_CUBE_MAXTEXTURE=512, diagnosis only): faces 4 and 5 have no pixel over 1/256
+       (largest 0.0039, 0.0020), faces 2 / 3 301 / 85, faces 0 / 1 100,981 / 85,873 (largest 0.015, 0.027).
+     - Candidates to read: rendersystemvulkan's r_texture_budget_dynamic, r_texture_budget_threshold,
+       r_texture_stream_mip_bias, client's videocfg_texture_detail (cs2_video_tools.txt 2, cs2_video.txt 0 on this
+       PC). Settle with a cubehost run of probe01 on 1.41.9.4 (are its 2048 maps capped now?) and the code.
+     - The lightmaps stay whole (4096, 1 mip) in both.
+     - Ruled out by experiment on this capture (no pixel changes): the light block's dither, lightmappedgeneric's
+       $Globals +4, simple_2way_blend's g_vShaderIDColor, BC1 alpha (now uploaded as BC1 RGB, the captures' views).
 
 ## Resolved
 

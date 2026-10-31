@@ -1307,9 +1307,14 @@ darker than the game's. Next, in order:
    neither reaches a pixel (swapping the captured terms in changes no face). In the renderer since 0db0f68:
    g_BarnLights, the light items ahead of the volumes, the counts, the shadow atlas index; CullParams_t and the
    edges are the game's on all six faces, pixels over 1/256 now 195,611 / 126,101 / 22,899 / 21,588 / 945 /
-   367,762. **Next:** the light items' depth range and non-inside bounds (BinnerItemsProbe, CUBEITEMS: face 4's
-   light ours -68.12, the game's -76.0001 = the frustum's far plane), i.e. 1801abf30 / 1801aac90 on a light
-   frustum; then light_omni2 and cookie lights, which are not gathered yet (no s2c_l5probe face bins one). Captures: holdem_barn_io (pairs),
+   367,762. The light items are exact since 6946e08 (the box footprint only with a silhouette; ledger 193).
+   **Next: texture residency** (ledger 194). The game's material maps in this build are resident at 512 at most;
+   with S2C_CUBE_MAXTEXTURE=512 faces 4 and 5 are within 1/256 everywhere and faces 0 / 1 / 2 / 3 are left with
+   100,981 / 85,873 / 301 / 85 pixels over 1/256. Read the rule (rendersystemvulkan's texture budget convars, the
+   video config's texture detail) and re-capture probe01 on 1.41.9.4 to see whether its 2048 maps are now capped.
+   Then the tiny rest everywhere (all halves differ by up to 1/256 even on faces 4 and 5: the Csgo block's
+   bindless indices +64 .. +128, which we leave 0, are the first suspect), face 0's entity model (F.2) and face 1's
+   AO splat (F.3). light_omni2 and cookie lights are not gathered yet (no s2c_l5probe face bins one). Captures: holdem_barn_io (pairs),
    holdem_radius (boxes); tests BarnLightRecordsTests, BarnLightDescriptionsTests, BarnLightBoundsTests,
    BarnLightSizeProbe (CUBEBARN, CUBEBARN_VPK, CUBELIGHTBOX). The shadow atlas has no draw here (baked shadows:
    direct_light_shadows), so no shadow views are needed for this map.
