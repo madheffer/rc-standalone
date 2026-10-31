@@ -16,8 +16,10 @@ namespace Source2.Compiler.Cubemaps;
 /// <item>1801b14b0 then lays the record out from that block and the entry's own fields.</item>
 /// </list>
 /// Checked byte for byte against 64 (entry, record) pairs captured in cubehost (tools/cubehost/barn_record_io.js):
-/// shape types 0, 1 and 2, with and without an illumination volume. Types 3 to 5 (18049d390), a shadow-mapped light
-/// (entry +0xc4 + 0x18 >= 0, +0x1ea) and a cookie (+0x5a0, a bindless texture index) are refused: none was captured.
+/// shape types 0, 1 and 2, with and without an illumination volume (atixref), and 218 more on ze_hold_em_p with baked
+/// shadow slots 0 and 1 (+0x1ea: the record's +0xf0 row and flag 8; ledger 193). Types 3 to 5 (18049d390), a
+/// shadow-mapped light (entry +0xc4 + 0x18 >= 0, +0x203), slot 4 and a cookie (+0x5a0, a bindless texture index) are
+/// refused: none was captured.
 /// </summary>
 public static class BarnLightRecords
 {
@@ -38,8 +40,13 @@ public static class BarnLightRecords
         var shape = entry[0x18 + 0xec];
         if (shape is >= 3 and <= 5)
             throw new NotSupportedException($"1801b14b0: shape type {shape} (18049d390) is not ported");
-        if (BinaryPrimitives.ReadInt32LittleEndian(entry[(0x18 + 0xc4)..]) >= 0 || (sbyte)entry[0x1ea] != -1 || entry[0x203] != 0)
+        if (BinaryPrimitives.ReadInt32LittleEndian(entry[(0x18 + 0xc4)..]) >= 0 || entry[0x203] != 0)
             throw new NotSupportedException("1801b14b0: a shadow-mapped barn light is not ported");
+        // The baked shadow slot (+0x1ea) clamped to -1 .. 4 picks a row of 1805fe770; slot 4 reads the 16 bytes after
+        // the table's last row (the next .rdata constant), which no captured light has.
+        var slot = Math.Clamp((int)(sbyte)entry[0x1ea], -1, 4);
+        if (slot == 4)
+            throw new NotSupportedException("1801b14b0: baked shadow slot 4 reads past 1805fe770's rows");
         if (entry[0x207] != 0)
             throw new NotSupportedException("1801b14b0: entry +0x207 (flag 0x10, with binner +0xf3e8 +0x6c) is not ported");
         if (BinaryPrimitives.ReadInt64LittleEndian(entry[0x5a0..]) != 0)
@@ -67,11 +74,14 @@ public static class BarnLightRecords
             for (var j = 0; j < 4; j++)
                 Put(0x40 + 4 * (i * 4 + j), CubemapFaceViews.Dot4(m40[i * 4], m40[i * 4 + 1], m40[i * 4 + 2], m40[i * 4 + 3], table[j], table[4 + j], table[8 + j], table[12 + j]));
         o.AsSpan(0x90, 0x10).CopyTo(r.AsSpan(0x80));
+        // +0xf0: the slot's row of 1805fe770, the light's channel in direct_light_shadows ((0, 0, 0, 0) for -1, then the
+        // unit rows for 0 .. 3).
+        if (slot >= 0)
+            Put(0xf0 + 4 * slot, 1f);
         Put(0x90, O(0xc8));
         Put(0x94, O(0xcc));
         Put(0x98, O(0xac));
         Put(0x9c, O(0xb0));
-        // +0xf0: the shadow slot's row of 1805fe770 (entry +0x1ea, -1 here: the zero row).
         entry.AsSpan(0x174, 0x10).CopyTo(r.AsSpan(0xd0));
         entry.AsSpan(0x1dc, 4).CopyTo(r.AsSpan(0x19c));
         var second = (view.Flags >> 25 & 1) != 0;
@@ -106,6 +116,8 @@ public static class BarnLightRecords
             bits |= 1;
         if (entry[0x208] != 0)
             bits |= 4;
+        if ((sbyte)entry[0x1ea] != -1)
+            bits |= 8;
         PutU(0x108, (uint)BinaryPrimitives.ReadUInt16LittleEndian(entry[0x1fc..]) << 16 | bits);
         PutU(0x10c, 0xffffffff);
         o.AsSpan(0xd0, 0x1c).CopyTo(r.AsSpan(0xb0));
