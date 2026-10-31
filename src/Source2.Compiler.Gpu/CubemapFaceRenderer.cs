@@ -481,6 +481,11 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
         var block = new byte[(size + 15) & ~15];
         var tokens = new Dictionary<string, VfxExpression.Value>(attributes, StringComparer.OrdinalIgnoreCase);
         ProgramGlobals.Fill(program, block, new ProgramGlobals.MaterialScope(material, program, tokens, shaderIdColor), textureSlot ?? ((_, _) => -1), samplerSlot ?? (_ => -1));
+        // S2C_CUBE_GLOBALS_PATCH=<program name part>:<offset>=<int>[;...] (diagnosis): a word written over the block.
+        if (Environment.GetEnvironmentVariable("S2C_CUBE_GLOBALS_PATCH") is { Length: > 0 } patches)
+            foreach (var patch in patches.Split(';'))
+                if (patch.Split(':', '=') is [var name, var offset, var value] && program.Name.Contains(name, StringComparison.Ordinal))
+                    BitConverter.TryWriteBytes(block.AsSpan(int.Parse(offset, System.Globalization.CultureInfo.InvariantCulture)), int.Parse(value, System.Globalization.CultureInfo.InvariantCulture));
         // S2C_CUBE_GLOBALS_OUT=<dir>: each block as made, to compare with a capture's (diagnosis).
         if (Environment.GetEnvironmentVariable("S2C_CUBE_GLOBALS_OUT") is { Length: > 0 } dump)
         {
@@ -950,7 +955,8 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
         // S2C_CUBE_TRACE=1: each colour draw's programs and pipeline state (diagnosis).
         if (pass == CubemapFacePipelines.Pass.Colour && Environment.GetEnvironmentVariable("S2C_CUBE_TRACE") == "1")
             Console.Error.WriteLine($"cube trace {model.Model} {command}: {vs.Name} / {ps?.Name}; write mask {state.ColorWriteMask}, depth {state.DepthTest} {state.DepthWrite} {state.DepthCompare}, "
-                + $"stencil {state.StencilTest} {state.StencilFront.CompareOp}, cull {state.Cull}, blend {state.Blend}, streams {string.Join("+", streams.Select(x => x.Stride))}");
+                + $"stencil {state.StencilTest} {state.StencilFront.CompareOp}, cull {state.Cull}, blend {state.Blend}, streams {string.Join("+", streams.Select(x => x.Stride))}, "
+                + $"attributes {string.Join(" ", state.Attributes.Select(x => $"{x.Location}:{x.Binding}/{x.Format}+{x.Offset}"))}");
         (GpuDevice.GpuBuffer, ulong)[] vertexBuffers = [.. streams.Select(s => (Buffer(s.Data), 0ul)), (Buffer(instanceIds), 0ul), (Buffer(Zero16), 0ul)];
         _runner.Draw(state, bindings, vertexBuffers, (Buffer(model.Indices), 0ul, model.IndexType),
             new SceneDrawArgs(true, (uint)command.IndexCount, (uint)command.InstanceCount, (uint)command.FirstIndex, command.VertexOffset, (uint)command.FirstInstance),
@@ -1059,16 +1065,31 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
         resource.Read(new MemoryStream(vtex));
         var tex = (Texture)resource.DataBlock!;
         var format = GpuTextures.VulkanFormat(tex.Format, srgb) ?? throw new NotSupportedException($"{key}: {tex.Format}");
+        // The game views every BC1 texture with alpha forced to one (the captures' view swizzles: ze_hold_em_p's BC1
+        // material maps and lightmaps), which is Vulkan's BC1 RGB format; BC1 RGBA would read a punch-through block's
+        // alpha as 0.
+        if (tex.Format == VTexFormat.DXT1)
+            format = srgb ? Format.BC1RgbSrgbBlock : Format.BC1RgbUnormBlock;
         var layers = tex.Depth > 1 && viewType != ImageViewType.Type3D ? tex.Depth : (tex.Flags & VTexFlags.CUBE_TEXTURE) != 0 ? 6 : 1;
         var metrics = tex.GetEveryMipLevelMetrics().ToList();
-        var image = _runner.CreateImage(format, (uint)tex.Width, (uint)tex.Height, viewType == ImageViewType.Type3D ? (uint)tex.Depth : 1u, (uint)metrics.Count, (uint)layers, viewType, ImageUsageFlags.SampledBit);
+        // S2C_CUBE_MAXTEXTURE=<side> (diagnosis): drop top mips above that side, as a texture budget would.
+        var first = 0;
+        if (int.TryParse(Environment.GetEnvironmentVariable("S2C_CUBE_MAXTEXTURE"), out var cap) && !key.StartsWith("lightmap", StringComparison.Ordinal))
+            while (first < metrics.Count - 1 && Math.Max(tex.Width, tex.Height) >> first > cap)
+                first++;
+        if (Environment.GetEnvironmentVariable("S2C_CUBE_TRACE") == "1")
+            Console.Error.WriteLine($"cube upload {key}: {tex.Width} x {tex.Height} x {tex.Depth} {tex.Format}, {metrics.Count} mips");
+        var image = _runner.CreateImage(format, (uint)Math.Max(1, tex.Width >> first), (uint)Math.Max(1, tex.Height >> first), viewType == ImageViewType.Type3D ? (uint)tex.Depth : 1u,
+            (uint)(metrics.Count - first), (uint)layers, viewType, ImageUsageFlags.SampledBit);
         foreach (var (level, _, _, _, size) in metrics)
         {
+            if (level < first)
+                continue;
             var data = new byte[size];
             tex.ReadTextureMipLevel(data, level);
             var per = data.Length / layers;
             for (var l = 0; l < layers; l++)
-                _runner.Write(image, level, (uint)l, data.AsSpan(l * per, per));
+                _runner.Write(image, (uint)(level - first), (uint)l, data.AsSpan(l * per, per));
         }
         return _textures[key] = image;
     }

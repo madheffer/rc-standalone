@@ -110,8 +110,24 @@ public sealed class CubemapFaceRendererTests(ITestOutputHelper output)
                         captured!.AsSpan(i * 0x1e0 + o, n).CopyTo(patched.AsSpan(i * 0x1e0 + o));
                 blocks = blocks with { BarnLights = patched };
             }
+            // CUBENODUMP_DITHER=<capture dir with replay_face0 .. 5> (diagnosis only): the captured light block's dither
+            // (g_vScreenSpaceDitherParams.xy, +80 / +84, per-frame randoms) put into ours.
+            if (Environment.GetEnvironmentVariable("CUBENODUMP_DITHER") is { Length: > 0 } ditherDir)
+            {
+                var faceDir = Path.Combine(ditherDir, $"replay_face{f}");
+                byte[]? capturedLights = null;
+                foreach (var a in File.ReadLines(Path.Combine(faceDir, "actions.jsonl")).Select(l => System.Text.Json.Nodes.JsonNode.Parse(l)!))
+                    if (a["stages"]?["ps"] is { } ps)
+                        foreach (var cb in ps["constantBlocks"]!.AsArray())
+                            if (cb!["bytes"] is { } bb && (int)cb["block"]!["fixedBindSetOrSpace"]! == 3 && (int)cb["block"]!["fixedBindNumber"]! == 0 && (long)bb["size"]! == 32256)
+                                capturedLights ??= File.ReadAllBytes(Path.Combine(faceDir, "blobs", (string)bb["sha1"]! + ".bin"));
+                var lightsBlock = (byte[])blocks.Lights.Clone();
+                capturedLights!.AsSpan(80, 8).CopyTo(lightsBlock.AsSpan(80));
+                blocks = blocks with { Lights = lightsBlock };
+            }
             var (draws, instances) = CubemapFaceDrawList.Face(blocks.View, toSun, listAggregates, scene.ScriptedCamera, materialOrder: order);
             var actions = 0;
+            var colourDraws = 0;
             // CUBENODUMP_TRACE=1: after each action, how much of the face's colour and depth it has touched.
             var trace = Environment.GetEnvironmentVariable("CUBENODUMP_TRACE") == "1";
             var face = renderer.RenderFace(blocks, draws, instances, a =>
@@ -122,6 +138,13 @@ public sealed class CubemapFaceRendererTests(ITestOutputHelper output)
                 {
                     Directory.CreateDirectory(depthOut);
                     File.WriteAllBytes(Path.Combine(depthOut, $"prepass_depth_{f}.bin"), renderer.ReadTarget(CubemapFaceRenderer.FaceDepth));
+                }
+                // CUBENODUMP_DRAWS_OUT=<dir>: the face colour after each colour draw (face<f>_draw<k>.bin), to set beside the
+                // capture's after-images draw by draw.
+                if (a.Pass == CubemapFacePipelines.Pass.Colour && a.Colour != null && Environment.GetEnvironmentVariable("CUBENODUMP_DRAWS_OUT") is { Length: > 0 } drawsOut)
+                {
+                    Directory.CreateDirectory(drawsOut);
+                    File.WriteAllBytes(Path.Combine(drawsOut, $"face{f}_draw{colourDraws++}.bin"), renderer.ReadTarget(a.Colour));
                 }
                 if (!trace || a.Colour is null && a.Depth is null)
                     return;
@@ -148,6 +171,13 @@ public sealed class CubemapFaceRendererTests(ITestOutputHelper output)
                 File.WriteAllBytes(Path.Combine(facesOut, $"instances_{f}.bin"), instanceBuffer);
                 File.WriteAllBytes(Path.Combine(facesOut, $"transforms_{f}.bin"), transformBuffer);
                 File.WriteAllLines(Path.Combine(facesOut, $"draws_{f}.txt"), draws.SelectMany(d => d.Commands.Select(c => $"{d.Layer} view {d.View} aggregate {d.Aggregate} {models[d.Aggregate].Model} {c}")));
+                if (f == 0)
+                    for (var mi = 0; mi < models.Count; mi++)
+                    {
+                        for (var si = 0; si < models[mi].Streams.Count; si++)
+                            File.WriteAllBytes(Path.Combine(facesOut, $"model{mi}_s{si}.bin"), models[mi].Streams[si].Data);
+                        File.WriteAllBytes(Path.Combine(facesOut, $"model{mi}_ib.bin"), models[mi].Indices);
+                    }
                 if (f == 0)
                     File.WriteAllLines(Path.Combine(facesOut, "models.txt"), models.Select((m, i) => $"{i} {m.Model}: streams "
                         + string.Join(" | ", m.Streams.Select(st => $"stride {st.Stride} [{string.Join(", ", st.Fields.Select(x => x.ToString()))}]"))

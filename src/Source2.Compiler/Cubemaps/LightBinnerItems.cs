@@ -392,9 +392,10 @@ public static class LightBinnerItems
 
     /// <summary>
     /// 1801b2850's item records for barn lights (the binner's first items): per light the edges of its frustum's
-    /// footprint, then of its illumination box's when it has one (counts at words 2 and 3), the inside flags ANDed,
-    /// the depth range and screen bounds of the two intersected (the larger minimum, the smaller maximum), the bounds
-    /// widened by a tile; the items padded to a multiple of 32 with records of bounds -100.
+    /// footprint, then of its illumination box's when that footprint has silhouette points (the record's +0x1c, which
+    /// 1801aac90 leaves 0 when the eye is inside the box or a 4-point silhouette covers the screen; counts at words 2
+    /// and 3), the inside flags ANDed, the depth range and screen bounds of the two intersected (the larger minimum,
+    /// the smaller maximum), the bounds widened by a tile; the items padded to 32 with records of bounds -100.
     /// </summary>
     public static (byte[] Records, byte[] Edges) PackLights(View view, IReadOnlyList<(Footprint Frustum, Footprint? Box)> lights)
     {
@@ -414,7 +415,7 @@ public static class LightBinnerItems
             edges.AddRange(frustumEdges);
             BinaryPrimitives.WriteInt32LittleEndian(r[8..], frustumEdges.Count);
             float minDepth = f.MinDepth, maxDepth = f.MaxDepth, minX = f.MinX, minY = f.MinY, maxX = f.MaxX, maxY = f.MaxY;
-            if (box != null)
+            if (box is { Silhouette.Count: > 0 })
             {
                 minDepth = minDepth <= box.MinDepth ? box.MinDepth : minDepth;
                 maxDepth = box.MaxDepth <= maxDepth ? box.MaxDepth : maxDepth;
