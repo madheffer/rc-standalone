@@ -535,6 +535,54 @@
    "note": "CLightBinnerGPU vfunc 0x8 (vtable 1805fe688), per view: the four bucket lists into one (count +0xe3a8, 0x640-byte entries +0xe3b0), sorted (1801cc930), trimmed to min(convar 180923b68 when >= 0, 315); then 1801a3980 (shadows) and 1801a7fd0; CUBEMAPS.md A.6"
   },
   {
+   "addr": "1801cc930",
+   "name": "LightEntries_Sort",
+   "module": "s2c:baked/lighting",
+   "note": "MSVC std::sort of the 0x640-byte entries (insertion below 33, heap fallback), comparator 1801a9e70 with the view's camera (+0x10) and direction (+0x194 .. +0x19c); ledger 193"
+  },
+  {
+   "addr": "1801a9e70",
+   "name": "LightEntry_Less",
+   "module": "s2c:baked/lighting",
+   "note": "a before b: +0x1bc (the screen size) descending, then ((dy dy + dx dx) + dz dz) from the camera to +0x150 / +0x160 / +0x170 ascending, then colour luminance (+0xcc .. +0xd4, 0.2126 / 0.7152 / 0.0722) descending, then the view direction against +0x144 / +0x154 / +0x164 ascending, then 1804a2230 on the descriptions; ledger 193"
+  },
+  {
+   "addr": "1801aa3f0",
+   "name": "LightEntry_BinnerFootprints",
+   "module": "s2c:baked/lighting",
+   "note": "the light's binner item: the 8 clip-box corners (1805fe3a0) through the description's +0x40 with a divide, 6 planes (corner triples 1805fe340, VectorNormalize), 1801abf30 into +0x370; with the illumination box (+0x214 bit 8 and a convar) a second footprint of the box (+0x340 quaternion, +0x350 position, +0x35c half extents) into +0x474; false (the light dropped) when either is rejected; ledger 193"
+  },
+  {
+   "addr": "1801a1030",
+   "name": "LightEntry_ShadowSizeRequest",
+   "module": "s2c:baked/lighting",
+   "note": "the shadow map size (+0x1d0, capped by binner +0xef98) smoothed over time per light object (+0xe0 block, the binner clock +0xef48): runtime state; ledger 193"
+  },
+  {
+   "addr": "1801a2720",
+   "name": "LightEntry_ShadowTexel",
+   "module": "s2c:baked/lighting",
+   "note": "+0x1dc: 1 / size without the convar, else sqrt(max(1, sqrt(luminaire area + 0.01))) / 512 corrected by the frustum's corner directions, ceil(size x) clamped to 6 into +0x1cc; ledger 193"
+  },
+  {
+   "addr": "1800ce950",
+   "name": "BarnLightDesc_Bounds",
+   "module": "s2c:baked/lighting",
+   "note": "desc vfunc 0x10: 1804a2480's world box of the light, clipped by the illumination box (18049e080 on object +0x220) when +0x251 is set (the clip's empty result keeps the box's own), then CSceneSystem vf 0xe0 (1800d5410); ledger 193"
+  },
+  {
+   "addr": "1804a2480",
+   "name": "LightShape_WorldBounds",
+   "module": "s2c:baked/lighting",
+   "note": "the light's world box: (transform x description +0x40) on the 8 clip-box corners with a divide each, min and max"
+  },
+  {
+   "addr": "1800d5410",
+   "name": "SceneObject_SetBoundsSnapped",
+   "module": "s2c:baked/lighting",
+   "note": "CSceneSystem vf 0xe0: mins rounded by +-2^23 then down 1 where above, maxs up; stored at object +0x20's block (min +0, max +0x10; +0x1c the cull radius, written elsewhere) when changed"
+  },
+  {
    "addr": "1801b2450",
    "name": "LightBinnerGPU_UploadBarnLights",
    "module": "s2c:baked/lighting",
