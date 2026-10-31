@@ -196,3 +196,83 @@ public sealed class BarnLightFacesProbe(ITestOutputHelper output)
         }
     }
 }
+
+/// <summary>
+/// <see cref="BarnLightEntries"/> into <see cref="BarnLightRecords"/> against each face's captured g_BarnLights
+/// (<c>CUBEBARNFACES=&lt;capture dir with replay_face0 .. 5&gt;</c>, <c>CUBEBARNFACES_VPK</c>,
+/// <c>CUBEBARNFACES_PAIRS=&lt;barn_record_io.js frida.jsonl&gt;</c> for the view's flags and the global 180922570 of
+/// a pair from the same camera): the first count records (the light block's +31952) word for word, except the
+/// shadow terms the unported +0x174 / +0x1dc drive (+0xd0 .. +0xdf, +0x104, +0x19c).
+/// </summary>
+public sealed class BarnLightFaceRecordsTests(ITestOutputHelper output)
+{
+    [Fact]
+    public void RecordsEqualTheCapture()
+    {
+        if (Environment.GetEnvironmentVariable("CUBEBARNFACES") is not { Length: > 0 } dir
+            || Environment.GetEnvironmentVariable("CUBEBARNFACES_VPK") is not { Length: > 0 } vpk
+            || Environment.GetEnvironmentVariable("CUBEBARNFACES_PAIRS") is not { Length: > 0 } pairsPath)
+            return;
+        var game = Path.Combine(Environment.GetEnvironmentVariable("CS2_DIR") ?? @"D:\Steam\steamapps\common\Counter-Strike Global Offensive", "game");
+        List<BarnLightEntries.Light> lights;
+        List<CubemapFaceBlocks.Cube> cubes;
+        using (var package = new ValvePak.Package())
+        {
+            package.Read(vpk);
+            var entities = new List<(string, LightPrecompute.KeyReader)>();
+            foreach (var entry in (package.Entries!.GetValueOrDefault("vents_c") ?? []).OrderBy(e => e.GetFullPath(), StringComparer.Ordinal))
+            {
+                package.ReadEntry(entry, out var bytes);
+                entities.AddRange(Lighting.Vrad3Job.LumpEntities(bytes, entry.GetFullPath()));
+            }
+            lights = BarnLightEntries.Lights(entities);
+            cubes = CubemapFaceBlocks.FromPackage(package, File.ReadAllText(Path.Combine(game, "csgo", "gameinfo.gi")), true, out _);
+        }
+        var origin = cubes[0].Scene.Origin;
+        var pair = File.ReadLines(pairsPath).Select(l => JsonNode.Parse(l)!).First(n => (string?)n["kind"] == "pair"
+            && Convert.FromHexString((string)n["e540"]!) is var c && BitConverter.ToSingle(c, 0) == origin.X && BitConverter.ToSingle(c, 4) == origin.Y);
+        var viewWords = Convert.FromHexString((string)pair["view"]!);
+        var context = new BarnLightRecords.Context(origin, new Vector3(BitConverter.ToSingle(viewWords, 0x10), BitConverter.ToSingle(viewWords, 0x14), BitConverter.ToSingle(viewWords, 0x18)),
+            BitConverter.ToUInt32(Convert.FromHexString((string)pair["flags"]!)), Convert.FromHexString((string)pair["g922570"]!)[0] != 0);
+        var skip = new HashSet<int> { 0xd0, 0xd4, 0xd8, 0xdc, 0x104, 0x19c };
+        var failures = new List<string>();
+        for (var f = 0; f < 6; f++)
+        {
+            var faceDir = Path.Combine(dir, $"replay_face{f}");
+            var actions = File.ReadLines(Path.Combine(faceDir, "actions.jsonl")).Select(l => JsonNode.Parse(l)!).ToList();
+            byte[]? captured = null, block = null;
+            foreach (var a in actions)
+            {
+                if (a["stages"]?["ps"] is not { } ps)
+                    continue;
+                foreach (var x in ps["readWrite"]!.AsArray())
+                    if ((int)x!["bind"]!["set"]! == 3 && (int)x["bind"]!["binding"]! == 31)
+                        captured = File.ReadAllBytes(Path.Combine(faceDir, "blobs", (string)a["contents"]!["before"]![(string)x["descriptor"]!["resource"]!]!["sha1"]! + ".bin"));
+                foreach (var cb in ps["constantBlocks"]!.AsArray())
+                    if (cb!["bytes"] is { } b && (int)cb["block"]!["fixedBindSetOrSpace"]! == 3 && (int)cb["block"]!["fixedBindNumber"]! == 0 && (long)b["size"]! == 32256)
+                        block = File.ReadAllBytes(Path.Combine(faceDir, "blobs", (string)b["sha1"]! + ".bin"));
+                if (captured != null && block != null)
+                    break;
+            }
+            Assert.NotNull(captured);
+            Assert.NotNull(block);
+            var count = BitConverter.ToInt32(block!, 31952);
+            var view = CubemapFaceViews.Face(origin, Vector3.Zero, 1f, 10000f, f);
+            var bin = new LightBinnerItems.View(view.Origin, new Vector3(view.CameraToWorld[0], view.CameraToWorld[4], view.CameraToWorld[8]),
+                AggregateCulling.WorldToProjection(view), CubemapFaceDrawList.FaceSize, CubemapFaceDrawList.FaceSize, CubemapFaceBlocks.BinnerTilePixels);
+            var entries = BarnLightEntries.Face(lights, view, bin);
+            var wrong = new Dictionary<int, int>();
+            for (var i = 0; i < Math.Min(count, entries.Count); i++)
+            {
+                var ours = BarnLightRecords.Record(entries[i], context);
+                for (var o = 0; o < BarnLightRecords.RecordSize; o += 4)
+                    if (!skip.Contains(o) && BitConverter.ToUInt32(ours, o) != BitConverter.ToUInt32(captured!, i * BarnLightRecords.RecordSize + o))
+                        wrong[o] = wrong.GetValueOrDefault(o) + 1;
+            }
+            output.WriteLine($"face {f}: {entries.Count} lights ours, {count} the game's; words differing: {string.Join(", ", wrong.OrderBy(w => w.Key).Select(w => $"+0x{w.Key:x}: {w.Value}"))}");
+            if (entries.Count != count || wrong.Count > 0)
+                failures.Add($"face {f}");
+        }
+        Assert.Empty(failures);
+    }
+}
