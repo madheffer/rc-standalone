@@ -264,7 +264,7 @@ public sealed class BarnLightFaceRecordsTests(ITestOutputHelper output)
             var wrong = new Dictionary<int, int>();
             for (var i = 0; i < Math.Min(count, entries.Count); i++)
             {
-                var ours = BarnLightRecords.Record(entries[i], context);
+                var ours = BarnLightRecords.Record(entries[i].Entry, context);
                 for (var o = 0; o < BarnLightRecords.RecordSize; o += 4)
                     if (!skip.Contains(o) && BitConverter.ToUInt32(ours, o) != BitConverter.ToUInt32(captured!, i * BarnLightRecords.RecordSize + o))
                         wrong[o] = wrong.GetValueOrDefault(o) + 1;
@@ -274,5 +274,48 @@ public sealed class BarnLightFaceRecordsTests(ITestOutputHelper output)
                 failures.Add($"face {f}");
         }
         Assert.Empty(failures);
+    }
+}
+
+/// <summary>
+/// The binner's item records and edge lines of a face (<see cref="CubemapFaceBlocks.Build"/>, lights then volumes)
+/// against the capture's (<c>CUBEITEMS=&lt;capture dir with replay_face0 .. 5&gt;</c>, <c>CUBEITEMS_VPK</c>): the
+/// depth-bin dispatch's CullItems (set 0 binding 30) and the tile dispatch's CullPlanes (set 0 binding 30), over our
+/// length, word for word.
+/// </summary>
+public sealed class BinnerItemsProbe(ITestOutputHelper output)
+{
+    [Fact]
+    public void ItemsAgainstTheCapture()
+    {
+        if (Environment.GetEnvironmentVariable("CUBEITEMS") is not { Length: > 0 } dir
+            || Environment.GetEnvironmentVariable("CUBEITEMS_VPK") is not { Length: > 0 } vpk)
+            return;
+        var game = Path.Combine(Environment.GetEnvironmentVariable("CS2_DIR") ?? @"D:\Steam\steamapps\common\Counter-Strike Global Offensive", "game");
+        List<CubemapFaceBlocks.Cube> cubes;
+        using (var package = new ValvePak.Package())
+        {
+            package.Read(vpk);
+            cubes = CubemapFaceBlocks.FromPackage(package, File.ReadAllText(Path.Combine(game, "csgo", "gameinfo.gi")), true, out _);
+        }
+        for (var f = 0; f < 6; f++)
+        {
+            var faceDir = Path.Combine(dir, $"replay_face{f}");
+            var dispatches = File.ReadLines(Path.Combine(faceDir, "actions.jsonl")).Select(l => JsonNode.Parse(l)!).Where(a => a["stages"]?["cs"] is not null).TakeLast(2).ToList();
+            byte[] Read(JsonNode a, int binding)
+            {
+                var x = a["stages"]!["cs"]!["readWrite"]!.AsArray().Concat(a["stages"]!["cs"]!["readOnly"]!.AsArray())
+                    .First(x => (int)x!["bind"]!["set"]! == 0 && (int)x["bind"]!["binding"]! == binding)!;
+                return File.ReadAllBytes(Path.Combine(faceDir, "blobs", (string)a["contents"]!["before"]![(string)x["descriptor"]!["resource"]!]!["sha1"]! + ".bin"));
+            }
+            var b = CubemapFaceBlocks.Build(cubes[0].Scene, f);
+            foreach (var (name, ours, theirs) in new[] { ("items", b.BinnerRecords, Read(dispatches[0], 30)), ("edges", b.BinnerEdges, Read(dispatches[1], 30)) })
+            {
+                var n = Math.Min(ours.Length, theirs.Length) / 4;
+                var wrong = Enumerable.Range(0, n).Where(i => BitConverter.ToUInt32(ours, i * 4) != BitConverter.ToUInt32(theirs, i * 4)).ToList();
+                output.WriteLine($"face {f} {name}: {n - wrong.Count} of {n} words the capture's ({ours.Length} bytes ours)"
+                    + (wrong.Count > 0 ? "; first " + string.Join(", ", wrong.Take(8).Select(i => $"+{i * 4} {BitConverter.ToSingle(ours, i * 4):G6}/{BitConverter.ToSingle(theirs, i * 4):G6}")) : ""));
+            }
+        }
     }
 }

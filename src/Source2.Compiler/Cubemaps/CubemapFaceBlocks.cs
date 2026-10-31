@@ -40,7 +40,8 @@ public static class CubemapFaceBlocks
         Vector3 SkyOrigin,
         bool ScriptedCamera,
         float MinSpecLightmapSize = 4096f,
-        bool HasSun = true);
+        bool HasSun = true,
+        IReadOnlyList<BarnLightEntries.Light>? Lights = null);
 
     /// <summary>One face's blocks.</summary>
     public sealed record Face(
@@ -55,7 +56,8 @@ public static class CubemapFaceBlocks
         byte[] BinnerRecords,
         byte[] BinnerEdges,
         byte[] SkyWsToOs,
-        int BinnerMaskWords);
+        int BinnerMaskWords,
+        byte[]? BarnLights = null);
 
     /// <summary>BakedLightingConstantBuffer_t's lightmap size for a world with no lightmaps: measured (GROUND_TRUTH 184).</summary>
     public const int UnbakedLightmapSize = 256;
@@ -119,6 +121,9 @@ public static class CubemapFaceBlocks
         foreach (var unread in new[] { "func_combined_light_probe_volume", "env_light_probe_volume" })
             if (entities.Any(e => e.Class == unread))
                 throw new NotSupportedException($"{unread} in the light block is not read");
+        // The binner's barn lights: light_barn is ported (BarnLightEntries). light_omni2 and the other dynamic classes are
+        // not gathered yet (CUBEMAPS.md F.1): s2c_l5probe's omni2 reaches none of its cube's faces (the capture), atixref's do.
+        var lights = entities.Any(e => e.Class == "light_barn") ? BarnLightEntries.Lights(entities) : null;
         var volumes = new List<CubemapFaceConstants.LightProbeVolume>();
         foreach (var (_, key) in entities.Where(e => e.Class == "env_combined_light_probe_volume"))
         {
@@ -172,7 +177,7 @@ public static class CubemapFaceBlocks
                     sun?.Invoke("cascadedistancefade") is { } distanceFade ? F(distanceFade) : AbsentDistanceFade,
                     sun == null ? Vector3.Zero : Colour(sun("skycolor")), sun == null ? 0f : F(sun("skyintensity")),
                     uvScale, lightmapWidth, lightmapHeight, sky == null ? Vector3.Zero : V(sky("angles")), sky == null ? Vector3.Zero : V(sky("origin")),
-                    scriptedCamera, minSpec, sun != null),
+                    scriptedCamera, minSpec, sun != null, lights),
                     uint.Parse(key("handshake") ?? throw new InvalidDataException($"{cls} has no handshake"), CultureInfo.InvariantCulture), cls));
         return cubes;
     }
@@ -211,7 +216,14 @@ public static class CubemapFaceBlocks
             AggregateCulling.WorldToProjection(view), CubemapFaceDrawList.FaceSize, CubemapFaceDrawList.FaceSize, BinnerTilePixels);
         var footprints = volumes.Select(v => LightBinnerItems.Bounds(bin, v.BoxMins, v.BoxMaxs, [1f, 0f, 0f, v.Origin.X, 0f, 1f, 0f, v.Origin.Y, 0f, 0f, 1f, v.Origin.Z])
             ?? throw new InvalidOperationException("a visible volume rejected by the binner")).ToList();
-        var (records, edges) = LightBinnerItems.Pack(bin, footprints);
+        // The barn lights first (items 0 .., padded to 32), then the volumes (ledger 193). The records' context is the
+        // cube view's: camera and view origin the cube's, view flags bit 25 clear and 180922570 0 (measured, 218 pairs).
+        var gathered = scene.Lights is { Count: > 0 } sceneLights ? BarnLightEntries.Face(sceneLights, view, bin) : [];
+        var (lightRecords, lightEdges) = LightBinnerItems.PackLights(bin, [.. gathered.Select(g => (g.Frustum, (LightBinnerItems.Footprint?)g.Box))]);
+        var (volumeRecords, volumeEdges) = LightBinnerItems.Pack(bin, footprints, (gathered.Count + 31) / 32 * 32, lightEdges.Length / 16);
+        byte[] records = [.. lightRecords, .. volumeRecords], edges = [.. lightEdges, .. volumeEdges];
+        var context = new BarnLightRecords.Context(scene.Origin, scene.Origin, 0, false);
+        byte[] barnLights = [.. gathered.SelectMany(g => BarnLightRecords.Record(g.Entry, context))];
         static int Words(int count) => count != 0 ? (count + 31) / 32 : 0;
         return new Face(
             view,
@@ -221,11 +233,12 @@ public static class CubemapFaceBlocks
             CubemapFaceConstants.BakedLighting(scene.LightmapUvScale, scene.LightmapWidth, scene.LightmapHeight, false),
             cascadeViews,
             CubemapFaceConstants.LightBlock(sun, volumes, cascades, tiles, CubemapShadowCascades.Inputs.Resolution, CubemapShadowCascades.Inputs.AtlasWidth,
-                CubemapShadowCascades.Inputs.AtlasHeight, scene.Origin, stretched),
-            CubemapFaceConstants.LightBinnerCullParams(CubemapFaceDrawList.FaceSize, CubemapFaceDrawList.FaceSize, Far, 0, 0, volumes.Count, BinnerTilePixels, BinnerBinSlices),
+                CubemapShadowCascades.Inputs.AtlasHeight, scene.Origin, stretched, lights: gathered.Count),
+            CubemapFaceConstants.LightBinnerCullParams(CubemapFaceDrawList.FaceSize, CubemapFaceDrawList.FaceSize, Far, gathered.Count, 0, volumes.Count, BinnerTilePixels, BinnerBinSlices),
             records,
             edges,
             CubemapFaceConstants.SkyWsToOs(CubemapFaceViews.AngleMatrix(scene.SkyAngles, scene.SkyOrigin)),
-            Words(0) + Words(0) + Words(volumes.Count));
+            Words(gathered.Count) + Words(0) + Words(volumes.Count),
+            barnLights);
     }
 }

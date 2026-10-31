@@ -391,6 +391,65 @@ public static class LightBinnerItems
     }
 
     /// <summary>
+    /// 1801b2850's item records for barn lights (the binner's first items): per light the edges of its frustum's
+    /// footprint, then of its illumination box's when it has one (counts at words 2 and 3), the inside flags ANDed,
+    /// the depth range and screen bounds of the two intersected (the larger minimum, the smaller maximum), the bounds
+    /// widened by a tile; the items padded to a multiple of 32 with records of bounds -100.
+    /// </summary>
+    public static (byte[] Records, byte[] Edges) PackLights(View view, IReadOnlyList<(Footprint Frustum, Footprint? Box)> lights)
+    {
+        float iw = 1f / view.Width, ih = 1f / view.Height;
+        var diagonal = MathF.Sqrt(iw * iw + ih * ih);
+        float tileX = (float)(uint)view.TilePixels / view.Width, tileY = (float)(uint)view.TilePixels / view.Height;
+        var padded = (lights.Count + 31) / 32 * 32;
+        var records = new byte[padded * 80];
+        var edges = new List<Vector4>();
+        for (var i = 0; i < lights.Count; i++)
+        {
+            var (f, box) = lights[i];
+            var r = records.AsSpan(i * 80);
+            BinaryPrimitives.WriteInt32LittleEndian(r, edges.Count);
+            var inside = f.Inside;
+            var frustumEdges = Edges(f.Hull, diagonal);
+            edges.AddRange(frustumEdges);
+            BinaryPrimitives.WriteInt32LittleEndian(r[8..], frustumEdges.Count);
+            float minDepth = f.MinDepth, maxDepth = f.MaxDepth, minX = f.MinX, minY = f.MinY, maxX = f.MaxX, maxY = f.MaxY;
+            if (box != null)
+            {
+                minDepth = minDepth <= box.MinDepth ? box.MinDepth : minDepth;
+                maxDepth = box.MaxDepth <= maxDepth ? box.MaxDepth : maxDepth;
+                inside &= box.Inside;
+                var boxEdges = Edges(box.Hull, diagonal);
+                edges.AddRange(boxEdges);
+                BinaryPrimitives.WriteInt32LittleEndian(r[12..], boxEdges.Count);
+                minX = minX <= box.MinX ? box.MinX : minX;
+                minY = minY <= box.MinY ? box.MinY : minY;
+                maxX = box.MaxX <= maxX ? box.MaxX : maxX;
+                maxY = box.MaxY <= maxY ? box.MaxY : maxY;
+            }
+            BinaryPrimitives.WriteInt32LittleEndian(r[4..], inside ? 1 : 0);
+            BinaryPrimitives.WriteSingleLittleEndian(r[16..], minX - tileX);
+            BinaryPrimitives.WriteSingleLittleEndian(r[20..], minY - tileY);
+            BinaryPrimitives.WriteSingleLittleEndian(r[24..], tileX + maxX);
+            BinaryPrimitives.WriteSingleLittleEndian(r[28..], tileY + maxY);
+            BinaryPrimitives.WriteSingleLittleEndian(r[32..], minDepth);
+            BinaryPrimitives.WriteSingleLittleEndian(r[36..], maxDepth);
+        }
+        for (var i = lights.Count; i < padded; i++)
+            for (var k = 0; k < 4; k++)
+                BinaryPrimitives.WriteSingleLittleEndian(records.AsSpan(i * 80 + 16 + k * 4), -100f);
+        var edgeBytes = new byte[edges.Count * 16];
+        for (var i = 0; i < edges.Count; i++)
+        {
+            BinaryPrimitives.WriteSingleLittleEndian(edgeBytes.AsSpan(i * 16), edges[i].X);
+            BinaryPrimitives.WriteSingleLittleEndian(edgeBytes.AsSpan(i * 16 + 4), edges[i].Y);
+            BinaryPrimitives.WriteSingleLittleEndian(edgeBytes.AsSpan(i * 16 + 8), edges[i].Z);
+            BinaryPrimitives.WriteSingleLittleEndian(edgeBytes.AsSpan(i * 16 + 12), edges[i].W);
+        }
+        return (records, edgeBytes);
+    }
+
+    /// <summary>
     /// 1801b2850's item records (80 bytes each) and edge lines (16 bytes each) for the light probe volumes, after
     /// <paramref name="itemsBefore"/> items (lights, environment maps) with <paramref name="edgesBefore"/> edges:
     /// first edge, inside flag, edge count, 0, the bounds widened by a tile, the depth range, the rest 0; the items

@@ -24,13 +24,14 @@ namespace Source2.Compiler.Cubemaps;
 /// <item>Not ported, left 0: the shadow atlas tile rect +0x174 .. +0x183 and +0x1dc (1801a2720, from 1801a1030's
 /// time-smoothed size). With the rect 0 the record clears its shadow terms (1801b14b0).</item>
 /// </list>
-/// Refused: a light whose description has a shadow map, a cookie or a light style; a light with no illumination box.
+/// Refused, when such a light passes a face's box test: a light style, no illumination box. Not gathered at all: a
+/// light whose description is refused (a cookie), and every other light class (CUBEMAPS.md F.1).
 /// </summary>
 public static class BarnLightEntries
 {
     /// <summary>A light_barn as the binner reads it.</summary>
     public sealed record Light(LightPrecompute.KeyReader Key, byte[] Description, float[] Transform, Vector3 Min, Vector3 Max,
-                               Vector4 BoxRotation, Vector3 BoxPosition, Vector3 BoxHalf);
+                               Vector4 BoxRotation, Vector3 BoxPosition, Vector3 BoxHalf, string? Refused = null);
 
     /// <summary>Every light_barn of the lumps, in lump order.</summary>
     public static List<Light> Lights(IEnumerable<(string Class, LightPrecompute.KeyReader Key)> entities)
@@ -38,45 +39,59 @@ public static class BarnLightEntries
         var lights = new List<Light>();
         foreach (var (_, key) in entities.Where(e => e.Class == "light_barn"))
         {
-            if (key("precomputedfieldsvalid") != "1")
-                throw new NotSupportedException("a light_barn with no illumination box (precomputedfieldsvalid): the entry's +0x214 is not read");
-            if (key("lightcookie") is { Length: > 0 } || key("light_style") is { Length: > 0 })
-                throw new NotSupportedException("a light_barn with a cookie or a light style is not ported");
-            var description = BarnLightDescriptions.Description(key);
+            var refused = key("precomputedfieldsvalid") != "1" ? "a light_barn with no illumination box (precomputedfieldsvalid): the entry's +0x214 is not read"
+                : key("lightcookie") is { Length: > 0 } || key("light_style") is { Length: > 0 } ? "a light_barn with a cookie or a light style is not ported" : null;
+            byte[] description;
+            try
+            {
+                description = BarnLightDescriptions.Description(key);
+            }
+            catch (NotSupportedException)
+            {
+                // A light the description port refuses (a cookie): not gathered, like light_omni2 (CUBEMAPS.md F.1; no
+                // such light reaches a cube face in s2c_l5probe's capture).
+                continue;
+            }
             var transform = BarnLightDescriptions.Transform(key);
             var (min, max) = BarnLightBounds.Frustum(description, transform);
             (min, max) = BarnLightBounds.Snap(min, max);
-            lights.Add(new Light(key, description, transform, min, max, CubemapFaceViews.AngleQuaternion(V(key("precomputedobbangles"))),
-                V(key("precomputedobborigin")), V(key("precomputedobbextent"))));
+            lights.Add(refused != null ? new Light(key, description, transform, min, max, default, default, default, refused)
+                : new Light(key, description, transform, min, max, CubemapFaceViews.AngleQuaternion(V(key("precomputedobbangles"))),
+                    V(key("precomputedobborigin")), V(key("precomputedobbextent"))));
         }
         return lights;
     }
 
+    /// <summary>A gathered light: its entry and its two binner footprints (1801aa3f0's +0x370 and +0x474).</summary>
+    public sealed record Gathered(byte[] Entry, LightBinnerItems.Footprint Frustum, LightBinnerItems.Footprint Box);
+
     /// <summary>The face's entries in the binner's order (CullItems, g_BarnLights).</summary>
-    public static List<byte[]> Face(IReadOnlyList<Light> lights, CubemapFaceViews.View view, LightBinnerItems.View bin)
+    public static List<Gathered> Face(IReadOnlyList<Light> lights, CubemapFaceViews.View view, LightBinnerItems.View bin)
     {
         var frustum = AggregateCulling.FaceFrustum(view);
         var forward = new Vector3(view.CameraToWorld[0], view.CameraToWorld[4], view.CameraToWorld[8]);
-        var kept = new List<(byte[] Entry, float D, float Distance, float Luminance, float Axis)>();
+        var kept = new List<(Gathered Light, float D, float Distance, float Luminance, float Axis)>();
         foreach (var light in lights)
         {
             if (AggregateCulling.Outside(frustum, light.Min, light.Max))
                 continue;
+            if (light.Refused != null)
+                throw new NotSupportedException(light.Refused);
             var d = Size(light, view.Origin);
             var key = light.Key;
             var fade = Fade(F(key("fade_size_start")), F(key("fade_size_end")), d);
             if (fade <= 0f)
                 continue;
             var (planes, corners) = BarnLightBounds.FrustumPlanes(light.Description);
-            if (LightBinnerItems.Bounds(bin, planes, corners, light.Transform) == null)
+            if (LightBinnerItems.Bounds(bin, planes, corners, light.Transform) is not { } frustumPrint)
                 continue;
-            if (LightBinnerItems.Bounds(bin, -light.BoxHalf, light.BoxHalf, BarnLightBounds.QuaternionMatrix(light.BoxRotation, light.BoxPosition)) == null)
+            if (LightBinnerItems.Bounds(bin, -light.BoxHalf, light.BoxHalf, BarnLightBounds.QuaternionMatrix(light.BoxRotation, light.BoxPosition)) is not { } boxPrint)
                 continue;
             var e = Entry(light, d, fade, Fade(F(key("shadowfade_size_start")), F(key("shadowfade_size_end")), d));
             var t = light.Transform;
             var (px, py, pz) = (t[3] - view.Origin.X, t[7] - view.Origin.Y, t[11] - view.Origin.Z);
             float E(int o) => BinaryPrimitives.ReadSingleLittleEndian(e.AsSpan(o));
-            kept.Add((e, d, (py * py + px * px) + pz * pz, E(0xd0) * 0.7152f + E(0xcc) * 0.2126f + E(0xd4) * 0.0722f,
+            kept.Add((new Gathered(e, frustumPrint, boxPrint), d, (py * py + px * px) + pz * pz, E(0xd0) * 0.7152f + E(0xcc) * 0.2126f + E(0xd4) * 0.0722f,
                 (forward.Z * t[8] + forward.Y * t[4]) + forward.X * t[0]));
         }
         if (kept.Count > 315)
@@ -85,7 +100,7 @@ public static class BarnLightEntries
         kept.Sort((a, b) => a.D != b.D ? b.D.CompareTo(a.D) : a.Distance != b.Distance ? a.Distance.CompareTo(b.Distance)
             : a.Luminance != b.Luminance ? b.Luminance.CompareTo(a.Luminance) : a.Axis != b.Axis ? a.Axis.CompareTo(b.Axis)
             : throw new NotSupportedException("two barn lights tie down to 1804a2230's description compare, which is not ported"));
-        return [.. kept.Select(k => k.Entry)];
+        return [.. kept.Select(k => k.Light)];
     }
 
     /// <summary>The entry's screen size from a camera (measured, ledger 193).</summary>

@@ -73,7 +73,7 @@ public sealed class CubemapFaceRendererTests(ITestOutputHelper output)
         if (Path.GetFileName(vpk).Contains("probe01", StringComparison.Ordinal) || Path.GetFileName(vpk).Contains("l5probe", StringComparison.Ordinal))
         {
             var typed = Probe01(cube) with { ScriptedCamera = scripted };
-            Assert.Equal(typed with { Volumes = scene.Volumes }, scene);
+            Assert.Equal(typed with { Volumes = scene.Volumes, Lights = scene.Lights }, scene);
             Assert.Equal(typed.Volumes, scene.Volumes);
         }
         var memberships = CubemapLayerFlagsCaptureTests.Memberships(vpk);
@@ -93,6 +93,23 @@ public sealed class CubemapFaceRendererTests(ITestOutputHelper output)
         for (var f = 0; f < 6; f++)
         {
             var blocks = CubemapFaceBlocks.Build(scene, f);
+            // CUBENODUMP_BARN_SHADOWS=<capture dir with replay_face0 .. 5> (diagnosis only): the captured g_BarnLights'
+            // shadow terms (+0xd0 .. +0xdf, +0x104, +0x19c) put into our records, to see what the unported atlas rect drives.
+            if (Environment.GetEnvironmentVariable("CUBENODUMP_BARN_SHADOWS") is { Length: > 0 } shadowDir && blocks.BarnLights is { Length: > 0 } barn)
+            {
+                var faceDir = Path.Combine(shadowDir, $"replay_face{f}");
+                byte[]? captured = null;
+                foreach (var a in File.ReadLines(Path.Combine(faceDir, "actions.jsonl")).Select(l => System.Text.Json.Nodes.JsonNode.Parse(l)!))
+                    if (a["stages"]?["ps"] is { } ps)
+                        foreach (var x in ps["readWrite"]!.AsArray())
+                            if ((int)x!["bind"]!["set"]! == 3 && (int)x["bind"]!["binding"]! == 31)
+                                captured ??= File.ReadAllBytes(Path.Combine(faceDir, "blobs", (string)a["contents"]!["before"]![(string)x["descriptor"]!["resource"]!]!["sha1"]! + ".bin"));
+                var patched = (byte[])barn.Clone();
+                for (var i = 0; i < patched.Length / 0x1e0; i++)
+                    foreach (var (o, n) in new[] { (0xd0, 16), (0x104, 4), (0x19c, 4) })
+                        captured!.AsSpan(i * 0x1e0 + o, n).CopyTo(patched.AsSpan(i * 0x1e0 + o));
+                blocks = blocks with { BarnLights = patched };
+            }
             var (draws, instances) = CubemapFaceDrawList.Face(blocks.View, toSun, listAggregates, scene.ScriptedCamera, materialOrder: order);
             var actions = 0;
             // CUBENODUMP_TRACE=1: after each action, how much of the face's colour and depth it has touched.

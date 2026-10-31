@@ -815,6 +815,18 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
         return b;
     }
 
+    /// <summary>
+    /// PerViewLightingConstantBufferGpu_t for a program that reads the bindless set: +31936 indexes the shadow atlas
+    /// (1801af7b0's first index, the binner's +0xef80 texture: the D16 atlas the face's first pass clears; element 384
+    /// in ze_hold_em_p face 0's capture). The other three indices there (+31940 .. +31948) stay 0: not read.
+    /// </summary>
+    private byte[] LightsWithIndices(byte[] lights)
+    {
+        var b = (byte[])lights.Clone();
+        BitConverter.TryWriteBytes(b.AsSpan(31936), BindlessLive("shadow atlas", _live.GetValueOrDefault(ShadowAtlas), ImageViewType.Type2D));
+        return b;
+    }
+
     /// <summary>The error for a binding <see cref="Named"/> cannot place, with what the write sequence does list in that set.</summary>
     private static string Unnamed(ValveProgram program, int set, int binding, SpirvReflection.Kind kind)
         => $"{program.Name}: set {set} binding {binding} ({kind}) is named by no variable; the sequence lists in set {set}: "
@@ -871,6 +883,7 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
         var bindless = new[] { vs, ps }.Any(p => p != null && BindlessArrays(p).Any());
         var csgo = bindless ? CsgoWithIndices(blocks.Csgo) : blocks.Csgo;
         var baked = bindless ? BakedWithIndices(blocks.Baked) : blocks.Baked;
+        var lightBlock = bindless ? LightsWithIndices(blocks.Lights) : blocks.Lights;
         foreach (var (program, stage) in new[] { (vs, 0), (ps, 1) })
         {
             if (program == null)
@@ -894,7 +907,7 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
                             "PerViewConstantBufferCsgo_t" => csgo,
                             "BakedLightingConstantBuffer_t" => baked,
                             "PerViewLightProbeVolumeConstantBuffer_t" => ProbeVolumeBuffer(),
-                            "PerViewLightingConstantBufferGpu_t" => blocks.Lights,
+                            "PerViewLightingConstantBufferGpu_t" => lightBlock,
                             _ => throw Unbound(program, v.Name),
                         }), 0, Vk.WholeSize);
                         break;
@@ -905,7 +918,7 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
                             "InstanceBuffer" => Buffer(instanceRecords),
                             "CullBits" => cullBits ?? throw Unbound(program, v.SourceString),
                             // No barn light is binned in the cubemap view (the light block lists none): no thread reads it.
-                            "BarnLights" => Buffer(BarnLightsNone),
+                            "BarnLights" => Buffer(blocks.BarnLights is { Length: > 0 } barn ? Pad(barn, BarnLightsNone.Length) : BarnLightsNone),
                             _ => throw Unbound(program, v.SourceString),
                         }, 0, Vk.WholeSize);
                         break;
