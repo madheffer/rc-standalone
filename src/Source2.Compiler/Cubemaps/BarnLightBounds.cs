@@ -49,6 +49,44 @@ public static class BarnLightBounds
         return (min, max);
     }
 
+    /// <summary>1805fe340: each frustum plane's corners (the first three of four), in 1801aa3f0's order.</summary>
+    private static readonly int[][] PlaneCorners = [[3, 1, 5], [0, 2, 6], [2, 3, 7], [1, 0, 4], [0, 1, 3], [4, 6, 7]];
+
+    /// <summary>
+    /// 1801aa3f0's light frustum in the light's own frame, for its binner footprint: the clip-box corners through the
+    /// description's +0x40 with a divide each (as in <see cref="Frustum"/>, without the transform), then per plane
+    /// from corners (a, b, c) the normal ((c.y - a.y)(b.z - a.z) - (b.y - a.y)(c.z - a.z), (b.x - a.x)(c.z - a.z) -
+    /// (c.x - a.x)(b.z - a.z), (c.x - a.x)(b.y - a.y) - (b.x - a.x)(c.y - a.y)) through 180053800 and d = (a.z n.z +
+    /// n.y a.y) + a.x n.x (the disassembly's order).
+    /// </summary>
+    public static (float[] Planes, Vector3[] Corners) FrustumPlanes(byte[] description)
+    {
+        var m = new float[16];
+        for (var i = 0; i < 16; i++)
+            m[i] = BitConverter.ToSingle(description, 0x40 + 4 * i);
+        var corners = new Vector3[8];
+        for (var k = 0; k < 8; k++)
+        {
+            var c = ClipCorners[k];
+            float Row(int r) => ((m[r * 4] * c.X + m[r * 4 + 1] * c.Y) + m[r * 4 + 2] * c.Z) + m[r * 4 + 3];
+            var inverse = 1f / Row(3);
+            corners[k] = new Vector3(Row(0) * inverse, Row(1) * inverse, Row(2) * inverse);
+        }
+        var planes = new float[24];
+        for (var p = 0; p < 6; p++)
+        {
+            var (a, b, c) = (corners[PlaneCorners[p][0]], corners[PlaneCorners[p][1]], corners[PlaneCorners[p][2]]);
+            var (bx, by, bz) = (b.X - a.X, b.Y - a.Y, b.Z - a.Z);
+            var (cx, cy, cz) = (c.X - a.X, c.Y - a.Y, c.Z - a.Z);
+            var n = CubemapShadowCascades.Normalize(new Vector3(cy * bz - by * cz, bx * cz - cx * bz, cx * by - bx * cy));
+            planes[p * 4] = n.X;
+            planes[p * 4 + 1] = n.Y;
+            planes[p * 4 + 2] = n.Z;
+            planes[p * 4 + 3] = (a.Z * n.Z + n.Y * a.Y) + a.X * n.X;
+        }
+        return (planes, corners);
+    }
+
     /// <summary>
     /// 18049d6d0: a quaternion (x, y, z, w) and a position as a row-major 3 x 4, lane for lane as its SIMD code
     /// computes them (2a = a + a; products with the doubled factor second).

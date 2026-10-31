@@ -5125,6 +5125,11 @@ game can answer is raised with the user first, and runs with -insecure.
        probe volumes' screen bounds) and, with the illumination box, the box's footprint too; the item's edges are
        both runs (counts at words 2 and 3), the inside flags ANDed, bounds and depth intersected. A rejected
        footprint drops the light.
+     - Which lights reach a face: the snapped box against the face frustum (the box test AggregateCulling.Outside
+       ports; MEASURED for lights: the function that culls light objects is not identified), the distance fade
+       above 0, then 1801aa3f0's two footprints through 1801abf30 (BarnLightBounds.FrustumPlanes in the light's
+       frame, then the illumination box from precomputedobb*), sorted by 1801a9e70: all six faces of ze_hold_em_p's
+       cube 0 give the capture's lists, lights and order (BarnLightFacesProbe).
      - Not ported yet: +0x174 .. +0x183, a shadow atlas tile rect (x / 4352, y / 5248 in 64-pixel units; written
        outside the gather, not found), +0x1d0 (1801a1030's size request, smoothed over the binner clock: runtime
        state) and +0x1dc (1801a2720 from it). Nothing draws into the atlas in the cube view (cleared to 1), so the

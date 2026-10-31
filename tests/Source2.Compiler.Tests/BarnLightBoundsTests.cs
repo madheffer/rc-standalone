@@ -126,3 +126,73 @@ public sealed class BarnLightSizeProbe(ITestOutputHelper output)
         output.WriteLine($"{total} entries: {xyFirst} equal with (x x + y y) + z z, {zFirst} with (z z + y y) + x x; fades {fades}, shadow fades {shadows}");
     }
 }
+
+/// <summary>
+/// Diagnosis for which barn lights a cube face gathers (<c>CUBELIGHTFACES_VPK</c>, cube <c>CUBELIGHTFACES_CUBE</c>):
+/// per face, the light_barns whose snapped bounds pass the face frustum (<see cref="AggregateCulling.Outside"/>) and
+/// whose distance fade is above 0, in the order 1801a9e70 sorts them (size descending, then squared distance), as
+/// light origins x, to set beside the capture's per-face lists.
+/// </summary>
+public sealed class BarnLightFacesProbe(ITestOutputHelper output)
+{
+    [Fact]
+    public void LightsPerFace()
+    {
+        if (Environment.GetEnvironmentVariable("CUBELIGHTFACES_VPK") is not { Length: > 0 } vpk)
+            return;
+        var cube = int.Parse(Environment.GetEnvironmentVariable("CUBELIGHTFACES_CUBE") ?? "0", System.Globalization.CultureInfo.InvariantCulture);
+        var game = Path.Combine(Environment.GetEnvironmentVariable("CS2_DIR") ?? @"D:\Steam\steamapps\common\Counter-Strike Global Offensive", "game");
+        var lights = new List<(LightPrecompute.KeyReader Key, float[] Transform)>();
+        List<CubemapFaceBlocks.Cube> cubes;
+        using (var package = new ValvePak.Package())
+        {
+            package.Read(vpk);
+            foreach (var entry in (package.Entries!.GetValueOrDefault("vents_c") ?? []).OrderBy(e => e.GetFullPath(), StringComparer.Ordinal))
+            {
+                package.ReadEntry(entry, out var bytes);
+                foreach (var (_, key) in Lighting.Vrad3Job.LumpEntities(bytes, entry.GetFullPath()).Where(e => e.Class == "light_barn"))
+                    lights.Add((key, BarnLightDescriptions.Transform(key)));
+            }
+            cubes = CubemapFaceBlocks.FromPackage(package, File.ReadAllText(Path.Combine(game, "csgo", "gameinfo.gi")), true, out _);
+        }
+        static float F(string? t) => float.Parse(t ?? "0", System.Globalization.CultureInfo.InvariantCulture);
+        for (var f = 0; f < 6; f++)
+        {
+            var view = CubemapFaceViews.Face(cubes[cube].Scene.Origin, Vector3.Zero, 1f, 10000f, f);
+            var frustum = AggregateCulling.FaceFrustum(view);
+            var camera = view.Origin;
+            var kept = new List<(float D, float Dist, float X)>();
+            foreach (var (key, xf) in lights)
+            {
+                var (min, max) = BarnLightBounds.Snap(BarnLightBounds.Frustum(BarnLightDescriptions.Description(key), xf).Min, BarnLightBounds.Frustum(BarnLightDescriptions.Description(key), xf).Max);
+                if (AggregateCulling.Outside(frustum, min, max))
+                    continue;
+                var centre = new Vector3((max.X + min.X) * 0.5f, (max.Y + min.Y) * 0.5f, (max.Z + min.Z) * 0.5f);
+                var (dx, dy, dz) = (min.X - max.X, min.Y - max.Y, min.Z - max.Z);
+                var d = AggregateCulling.ScreenSize(camera, 1f, centre, MathF.Sqrt((dx * dx + dy * dy) + dz * dz) * 0.5f);
+                var (start, end) = (F(key("fade_size_start")), F(key("fade_size_end")));
+                var fade = 1f - Math.Clamp((start - d) * (1f / MathF.Max(0.0001f, start - end)), 0f, 1f);
+                if (fade <= 0f)
+                    continue;
+                // 1801aa3f0: the frustum's footprint in the light's frame, then the illumination box's (precomputedobb*).
+                var bin = new LightBinnerItems.View(view.Origin, new Vector3(view.CameraToWorld[0], view.CameraToWorld[4], view.CameraToWorld[8]),
+                    AggregateCulling.WorldToProjection(view), CubemapFaceDrawList.FaceSize, CubemapFaceDrawList.FaceSize, CubemapFaceBlocks.BinnerTilePixels);
+                var (planes, corners) = BarnLightBounds.FrustumPlanes(BarnLightDescriptions.Description(key));
+                if (LightBinnerItems.Bounds(bin, planes, corners, xf) == null)
+                    continue;
+                static Vector3 V(string? t) => t!.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(x => float.Parse(x, System.Globalization.CultureInfo.InvariantCulture)).ToArray() is var a ? new(a[0], a[1], a[2]) : default;
+                if (key("precomputedfieldsvalid") == "1")
+                {
+                    var half = V(key("precomputedobbextent"));
+                    var box = BarnLightBounds.QuaternionMatrix(CubemapFaceViews.AngleQuaternion(V(key("precomputedobbangles"))), V(key("precomputedobborigin")));
+                    if (LightBinnerItems.Bounds(bin, -half, half, box) == null)
+                        continue;
+                }
+                var (px, py, pz) = (xf[3] - camera.X, xf[7] - camera.Y, xf[11] - camera.Z);
+                kept.Add((d, (py * py + px * px) + pz * pz, xf[3]));
+            }
+            var order = kept.OrderByDescending(k => k.D).ThenBy(k => k.Dist).ToList();
+            output.WriteLine($"face {f}: {order.Count} lights: {string.Join(", ", order.Select(k => k.X))}");
+        }
+    }
+}

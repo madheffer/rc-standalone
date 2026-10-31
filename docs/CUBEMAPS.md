@@ -1300,9 +1300,9 @@ darker than the game's. Next, in order:
    Done and checked against cubehost captures: records (the baked shadow slot; 218 pairs byte for byte), the
    lights' bounds (BarnLightBounds, 37 boxes), the screen size d (measured formula, 218 values) and both fades
    (218). Read, not ported: the sort's comparator, the trim, the binner item (frustum and illumination-box
-   footprints through 1801abf30; LightBinnerItems.Pack needs the two-run light record). Still open: which lights
-   reach a face (the cull path of light objects is not 18003d380: find it, then reproduce 22 / 4 / 3 / 3 / 1 / 2),
-   the entry's other fields (the illumination box at +0x340 from precomputedobb*, +0x214, the constants),
+   footprints through 1801abf30; LightBinnerItems.Pack needs the two-run light record). Which lights reach a face
+   is reproduced on all six faces (BarnLightFacesProbe, CUBELIGHTFACES_VPK: box test, fade, both footprints, sort;
+   the box test's function for lights is measured, not identified). Still open: the entry's other fields (the illumination box at +0x340 from precomputedobb*, +0x214, the constants),
    +0x174 (a shadow atlas tile rect, writer not found) and +0x1dc (1801a2720, from a time-smoothed shadow size):
    swap zeros into the capture's g_BarnLights first to see whether either reaches a pixel. Then g_BarnLights,
    the items and edges, and the light block's counts in the renderer. Captures: holdem_barn_io (pairs),

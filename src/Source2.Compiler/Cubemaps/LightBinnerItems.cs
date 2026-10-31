@@ -110,13 +110,22 @@ public static class LightBinnerItems
     /// </summary>
     public static Footprint? Bounds(View view, Vector3 mins, Vector3 maxs, float[] transform)
     {
+        var (planes, corners) = Box(mins, maxs);
+        return Bounds(view, planes, corners, transform);
+    }
+
+    /// <summary>
+    /// 1801abf30 then 1801aac90 for any convex item given as six planes (n, d) and eight corners in its frame: a light
+    /// probe volume's box (<see cref="Box"/>), a barn light's frustum or its illumination box (1801aa3f0).
+    /// </summary>
+    public static Footprint? Bounds(View view, float[] planes, Vector3[] corners, float[] transform)
+    {
         var t = transform;
         float dx = view.Camera.X - t[3], dy = view.Camera.Y - t[7], dz = view.Camera.Z - t[11];
         var camera = new Vector3((dz * t[8] + dy * t[4]) + dx * t[0], (dz * t[9] + dy * t[5]) + dx * t[1], (dz * t[10] + dy * t[6]) + dx * t[2]);
         var f = view.Forward;
         var direction = new Vector3((f.X * t[0] + f.Y * t[4]) + f.Z * t[8], (f.X * t[1] + f.Y * t[5]) + f.Z * t[9], (f.X * t[2] + f.Y * t[6]) + f.Z * t[10]);
         var m = Mul(view.WorldToProjection, [t[0], t[1], t[2], t[3], t[4], t[5], t[6], t[7], t[8], t[9], t[10], t[11], 0f, 0f, 0f, 1f]);
-        var (planes, corners) = Box(mins, maxs);
         float tileX = (float)(uint)view.TilePixels / view.Width, tileY = (float)(uint)view.TilePixels / view.Height;
         return Footprint1801aac90(view.Mirrored, tileX, tileY, camera, direction, m, view.Orthographic, view.DepthOffset, planes, corners);
     }
