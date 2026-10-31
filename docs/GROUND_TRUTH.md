@@ -5096,6 +5096,40 @@ game can answer is raised with the user first, and runs with -insecure.
      - Left on ze_hold_em_p (CUBEMAPS.md F): the 22 barn light entries in the binner and their records, the entity
        models drawn as their own scene objects (CAnimatableSceneObjectDesc, CBaseSceneObjectDesc), the AO proxies.
 
+193. **The barn lights a cube face bins, on ze_hold_em_p** (2026-11-01: decompile of scenesystem 20261015
+     1801a9410, 1801cc930, 1801a9e70, 18019fe30, 1801aa3f0, 1801b2850, 1801a1030, 1801a2720, 1801b14b0, 1800ce950,
+     1804a2480, 18049e080, 1800d5410, disassembly of 1804a2480, 18049d6d0, 18003d380; cubehost on 1.41.9.4 with
+     barn_record_io.js (218 entry / record pairs, %TEMP%/cubehost_run/holdem_barn_io), light_radius.js (the boxes
+     1800ce950 stores, holdem_radius); the RenderDoc dumps of ledger 192.) Code read unless marked measured.
+     - Per face the binner lists 22, 4, 3, 3, 1 and 2 lights (light block +31952) of the map's 37 stationary
+       light_barns; g_BarnLights keeps stale slots past the count (later faces overwrite only theirs).
+     - Records: 1801b14b0 takes row clamp(+0x1ea, -1, 4) of 1805fe770 for +0xf0 (the light's direct_light_shadows
+       channel; -1 zero, 0 .. 3 unit rows, 4 past the table) and sets flag 8 when +0x1ea is not -1. With that,
+       BarnLightRecords gives all 218 pairs byte for byte (slots 0 and 1, illumination boxes, no shadow map).
+     - Descriptions from the keys equal the entries' +0x18 on all 37 lights but +0xee (6 on lights 34 and 35, a byte
+       no record reads; its writer is not this function).
+     - Bounds (BarnLightBounds): 1800ce950's box of the light's frustum, the clip by the illumination box (when
+       +0x251, clear on every light when the box was made here) and 1800d5410's outward snap: all 37 boxes 1800ce950
+       stores are ours bit for bit.
+     - The entry's screen size +0x1bc: 18004c390 (AggregateCulling.ScreenSize, cot 1) over the snapped box's centre
+       and half diagonal from the view's camera equals all 218 captured values bit for bit. MEASURED, not read: the
+       cull record whose +0x1c holds that radius is not 18003d380's (a hook there never met a light), and its
+       writer is not found (the stored bounds block leaves +0x1c 0).
+     - The fades (18019fe30, convar 180923bf8 off): +0x1b8 = 1 - clamp((fade_size_start - d) k, 0, 1), k = 1 /
+       max(0.0001, start - end); +0x1e0 = +0x1e4 the same from shadowfade_size_*: all 218 bit for bit. The gather
+       drops a light whose +0x1b8 is not above 0.
+     - Sort (1801cc930, MSVC std::sort) with 1801a9e70: +0x1bc descending, squared distance to the camera ascending,
+       colour luminance descending, the view direction against the light's x axis, then 1804a2230. Trim to
+       min(convar 180923b68, 315), then 1801a3980 (shadows) and 1801a7fd0.
+     - The binner item (1801aa3f0, 1801b2850): the light frustum's 8 corners and 6 planes through 1801abf30 (the
+       probe volumes' screen bounds) and, with the illumination box, the box's footprint too; the item's edges are
+       both runs (counts at words 2 and 3), the inside flags ANDed, bounds and depth intersected. A rejected
+       footprint drops the light.
+     - Not ported yet: +0x174 .. +0x183, a shadow atlas tile rect (x / 4352, y / 5248 in 64-pixel units; written
+       outside the gather, not found), +0x1d0 (1801a1030's size request, smoothed over the binner clock: runtime
+       state) and +0x1dc (1801a2720 from it). Nothing draws into the atlas in the cube view (cleared to 1), so the
+       rect may not reach a pixel: check by swapping before porting.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

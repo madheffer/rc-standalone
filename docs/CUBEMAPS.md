@@ -1296,12 +1296,19 @@ Done (ledger 192):
 Where the dump-free render stands (CubeWithNoDumpMakesTheGamesExr on cube 0): face 4 within 0.0072 of the readback
 (945 pixels over 1/256); faces 2 and 3 about 350k pixels over 1/256 (largest 0.12); faces 0, 1 and 5 lit areas much
 darker than the game's. Next, in order:
-1. **The barn lights.** Face 0 bins 22 light entries (light block +31952; one mask word). Needed: which of the 37
-   lights the view gathers (18019fe30's early returns and fades, item A.6), the merge, sort and trim (1801a9410,
-   1801cc930), each entry from the light (BarnLightDescriptions, the attributes; A.6) into its record
-   (BarnLightRecords), the lights' binner items and edges, and g_BarnLights bound. Check against the capture's
-   g_BarnLights, CullItems and edges per face (all six dumps hold them). The shadow atlas has no draw here (baked
-   shadows: direct_light_shadows), so no shadow views are needed for this map.
+1. **The barn lights** (ledger 193). Faces 0 to 5 bin 22, 4, 3, 3, 1 and 2 of the 37 light_barns.
+   Done and checked against cubehost captures: records (the baked shadow slot; 218 pairs byte for byte), the
+   lights' bounds (BarnLightBounds, 37 boxes), the screen size d (measured formula, 218 values) and both fades
+   (218). Read, not ported: the sort's comparator, the trim, the binner item (frustum and illumination-box
+   footprints through 1801abf30; LightBinnerItems.Pack needs the two-run light record). Still open: which lights
+   reach a face (the cull path of light objects is not 18003d380: find it, then reproduce 22 / 4 / 3 / 3 / 1 / 2),
+   the entry's other fields (the illumination box at +0x340 from precomputedobb*, +0x214, the constants),
+   +0x174 (a shadow atlas tile rect, writer not found) and +0x1dc (1801a2720, from a time-smoothed shadow size):
+   swap zeros into the capture's g_BarnLights first to see whether either reaches a pixel. Then g_BarnLights,
+   the items and edges, and the light block's counts in the renderer. Captures: holdem_barn_io (pairs),
+   holdem_radius (boxes); tests BarnLightRecordsTests, BarnLightDescriptionsTests, BarnLightBoundsTests,
+   BarnLightSizeProbe (CUBEBARN, CUBEBARN_VPK, CUBELIGHTBOX). The shadow atlas has no draw here (baked shadows:
+   direct_light_shadows), so no shadow views are needed for this map.
 2. **Entity models as their own scene objects.** Face 0 draws one non-aggregate object in the prepass and in a colour
    pass of its own (6,696 indices, 3 instances, a Csgo block with g_bOtherFxEnabled.x 0 and +256 / +260 1, 1); the
    later faces' annotations name CAnimatableSceneObjectDesc and CBaseSceneObjectDesc batches (the func_door /

@@ -235,7 +235,10 @@ the addon).
 - Ledger 192: the sunless and skyless scene, the light block's cull params and counts from the binner, the Csgo
   cube fog flag, and the csgo_ shaders' bindless lightmap indices (without them a sunless lit map renders black).
   ze face 4 now within 0.0072 of the game's readback; probe01 and s2c_l5probe unchanged.
-- Next: the 22 barn lights in the binner (CUBEMAPS.md F.1), then entity models as scene objects (F.2), AO proxies.
+- Ledger 193, the barn lights: records with baked shadow slots (218 captured pairs byte for byte), the lights'
+  snapped bounds (37 boxes), the screen size (measured, 218) and fades (218); the sort, trim and binner item read.
+  Next: which lights reach each face, the rest of the entry, then g_BarnLights and the items in the renderer
+  (CUBEMAPS.md F.1), then entity models as scene objects (F.2), AO proxies.
 
 ## Earlier session (2026-10-30 / 31, captures: Steam Audio's random stream, cube 1, atixref pinned; CS2 and Steam closed)
 
