@@ -22,7 +22,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `animationsystem_20261023.dll`, 9,329,816 bytes, PE time 2026-10-22 16:00 UTC
 - SHA-256 `8aa57d0c5b90cb49ad5fd9f141004710180a601b08159e50e93c4470142ea132`
 - installed: a different build
-- against the installed build (20261029_1.41.9.3.md): 9 tracked addresses: identical 9
+- against the installed build (20261101_1.41.9.4.md): 9 tracked addresses: identical 9
 - 9 addresses
 
 ### s2c:entities/settle
@@ -44,7 +44,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `bc7e_20261015.dll`, 1,529,856 bytes, PE time 2022-05-26 03:42 UTC
 - SHA-256 `a340167d3d9e2576b7d0d1ade6d9a290c10b9c747ac7f621e4da3b4dfc1196ee`
 - installed: this build
-- against the installed build (20261029_1.41.9.3.md): 5 tracked addresses: identical 5
+- against the installed build (20261101_1.41.9.4.md): 5 tracked addresses: identical 5
 - 5 addresses
 
 ### s2c:baked/lighting
@@ -62,8 +62,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `client_20261015.dll`, 39,205,528 bytes, PE time 2026-10-14 23:41 UTC
 - SHA-256 `659940c1db362ed981d1df10637cec8c2a3d99409b77fc3b73e435e4649e36b0`
 - installed: a different build
-- against the installed build (20261029_1.41.9.3.md): 38 tracked addresses: ambiguous 6, changed 3, identical 11, moved 16, relocated 2
-- 12 addresses
+- 15 addresses
 
 ### s2c:baked/lighting
 
@@ -72,12 +71,15 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1800538d8` | `Convar_buildcubemaps_renderdoc_capture` | registration of buildcubemaps_renderdoc_capture ("Capture a specific cubemap with RenderDoc during buildcubemaps.") with flags 2, development-only: a release build hides it from the console and the command line; its data pointer is the global 18237eab0 |  |
 | `1802091d0` | `BuildCubemaps_WriteExr` | the strip as an uncompressed half EXR through tinyexr's fast writer (1813dede0), channels B, G, R; Cubemaps/CubemapFaceExr.cs | `src/Source2.Compiler/Cubemaps/CubemapFaceExr.cs:8` |
 | `18020e130` | `BuildCubemaps_FaceToStrip` | a face's RGBA16F readback to a float bitmap (1813db210), QuarterSize (1813ddd00) down to EnvironmentMapFaceSize, flipped (1813dc290), copied into the 6x1 strip at x = face * size (181756620); Cubemaps/CubemapFaceExr.cs | `src/Source2.Compiler/Cubemaps/CubemapFaceExr.cs:8`, `src/Source2.Compiler/Cubemaps/CubemapFaceViews.cs:9` |
-| `180282390` | `C_EnvSky_UpdateSceneObject` | copies m_nFogType (+0x10b8) to the sky object's +0xf4 and the fog min / max start / end (+0x10bc..+0x10c8) to +0xf8..+0x104 (ledger 163) |  |
+| `180282390` | `C_EnvSky_UpdateSceneObject` | copies m_nFogType (+0x10b8) to the sky object's +0xf4 and the fog min / max start / end (+0x10bc..+0x10c8) to +0xf8..+0x104 (ledger 163) | `src/Source2.Compiler/Cubemaps/CubemapFaceBlocks.cs:99` |
 | `1811d5ae0` | `Pipeline_DepthPrepassLayers` | creates Depth Prepass Large / Small / AlphaTested with +0x6d0 = threshold / 100 and its negation (the 3D skybox passes r_csgo_depth_prepass_skybox_small_cull_threshold) |  |
+| `1811fef80` | `CreatePerViewConstantBufferCsgo` | renderingpipeline_csgo.cpp: words 0 .. 12 of PerViewConstantBufferCsgo_t from convars, the pass flags (param 10 >> 1, >> 3, >> 4, >> 5) and the fog fills: word 1 = 181218920's result, word 2 = 181217e20's (the cube fog); ledger 192; CubemapFaceConstants.Csgo | `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:111`, `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:125` |
 | `181201670` | `GamePipeline_DepthPrepassLayers` | the game view's prepass layers: Large +0x6d0 = r_csgo_depth_prepass_cull_threshold (1825f6150, 60) / 100, Small = -that; AggregateCulling.PrepassSplit | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:551` |
+| `181217e20` | `CubeFog_Fill` | with the convar on and the view attribute 0x765c7d3c: the cube fog terms from attribute 0x74a6158f (and the height vector), returns 1; else +0x210 = +inf, +0x214 = -inf, +0x218 = (1, 0) and returns 0 (ledger 192) | `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:114`, `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:117`, `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:126` |
+| `181218920` | `GradientFog_Fill` | the gradient fog terms for CreatePerViewConstantBufferCsgo's word 1 (not read) |  |
 | `1817435e0` | `Frustum_PackPlanes` | six planes as two SoA blocks of four (normals, d, sign masks, absolute normals) at view +0x30; AggregateCulling.Pack | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:12`, `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:88` |
 | `1817465f0` | `Frustum_PlanesFromMatrix` | six planes from a row-major world-to-projection: r3 - r0, r3 + r0, r3 - r1, r3 + r1, r3 + r2 (r2 with the flag), r3 - r2 (the near plane when degenerate); (n, -w) normalised by 1 / sqrt((x x + y y) + z z) when >= 1e-20; AggregateCulling.ExtractPlanes | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:11`, `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:47` |
-| `181747070` | `Matrix4_Invert` | 4 x 4 inverse by Gauss-Jordan on [M \| I]: per column the permuted row with the largest magnitude above 1e-6 (strictly), scaled by 1 / pivot, others r = (-r_k) pivot + r; the view's +0x2c8 from +0x288; AggregateCulling.Invert4 | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:146`, `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:256` |
+| `181747070` | `Matrix4_Invert` | 4 x 4 inverse by Gauss-Jordan on [M \| I]: per column the permuted row with the largest magnitude above 1e-6 (strictly), scaled by 1 / pivot, others r = (-r_k) pivot + r; the view's +0x2c8 from +0x288; AggregateCulling.Invert4 | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:146`, `src/Source2.Compiler/Cubemaps/BarnLightDescriptions.cs:13`, `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:256` |
 | `18174fe70` | `View_BuildProjection` | the projection, then +0x288 (18174f330), the planes (1817465f0) moved to the camera, d + ((nz (-oz) + ny (-oy)) + nx (-ox)), and packed (1817435e0); AggregateCulling.FaceFrustum | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:12`, `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:80`, `src/Source2.Compiler/Cubemaps/CubemapFaceViews.cs:15` |
 | `181ad10d0` | `BuildCubemaps_FaceTable` | data: six 0x28-byte face records (pitch, yaw, roll, a pointer, FOV 90, then three ints) for +X, -X, +Y, -Y, +Z, -Z; Cubemaps/CubemapFaceViews.cs (181ad3c80 in 20261023, 181ad5c70 in 20261029, bytes equal) | `src/Source2.Compiler/Cubemaps/CubemapFaceViews.cs:23` |
 | `18237eab0` | `g_buildcubemaps_renderdoc_capture` | the convar's data pointer (name at +0, int value at +0x58); BuildCubemaps compares the value with the cube counter (from 0) and calls the render device's StartCapture (vfunc 0x638) and EndCapture (0x640) around that cube; read at 18020e5cc and 18020f5b2. cubehost --renderdoc-capture writes it in its own process |  |
@@ -87,7 +89,6 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `client_20261021.dll`, 39,205,528 bytes, PE time 2026-10-20 18:34 UTC
 - SHA-256 `5a46a09b521bbd607012146364dafae2abfa50364246638391990d4c7dfb9d49`
 - installed: a different build
-- against the installed build (20261029_1.41.9.3.md): 38 tracked addresses: ambiguous 6, changed 3, identical 11, moved 16, relocated 2
 - 12 addresses
 
 ### s2c:baked/lighting
@@ -112,7 +113,6 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `client_20261023.dll`, 39,215,768 bytes, PE time 2026-10-22 20:34 UTC
 - SHA-256 `ccaf4e4926babc052994502b19ec61198a11008a39dce712921b93dd993be9f5`
 - installed: a different build
-- against the installed build (20261029_1.41.9.3.md): 38 tracked addresses: ambiguous 6, changed 3, identical 11, moved 16, relocated 2
 - 5 addresses
 
 ### s2c:baked/lighting
@@ -121,16 +121,15 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 |---|---|---|---|
 | `1800538d8` | `Convar_buildcubemaps_renderdoc_capture` | registration as in 10-15 (flags 2, development-only); the handle it passes at 1800538ed is 1823806d0, so the data pointer is the global 1823806d8 |  |
 | `180124b40` | `Convar_r_csgo_mixed_resolution_particles_scale` | registration, default 2, flags 0x4000 (10-15: 180124b60) |  |
-| `1811d84d0` | `RenderPipeline_QuarterResDepth` | the QuarterResDepth layer; its depth downsample's g_nDownsampleRatio is 4 (10-15: 1811d62a0) | `src/Source2.Compiler.Gpu/CubemapFaceRenderer.cs:1042` |
-| `1811e7ae0` | `RenderPipeline_HalfResDepth` | the HalfResDepth layer at the view's size / r_csgo_mixed_resolution_particles_scale; its depth downsample's g_nDownsampleRatio (0x779e702b) is that scale (10-15: 1811e58b0) | `src/Source2.Compiler.Gpu/CubemapFaceRenderer.cs:1041` |
+| `1811d84d0` | `RenderPipeline_QuarterResDepth` | the QuarterResDepth layer; its depth downsample's g_nDownsampleRatio is 4 (10-15: 1811d62a0) | `src/Source2.Compiler.Gpu/CubemapFaceRenderer.cs:1067` |
+| `1811e7ae0` | `RenderPipeline_HalfResDepth` | the HalfResDepth layer at the view's size / r_csgo_mixed_resolution_particles_scale; its depth downsample's g_nDownsampleRatio (0x779e702b) is that scale (10-15: 1811e58b0) | `src/Source2.Compiler.Gpu/CubemapFaceRenderer.cs:1066` |
 | `1823806d8` | `g_buildcubemaps_renderdoc_capture` | the convar's data pointer (name at +0, int value at +0x58), 18237eab0 in the 10-15 and 10-21 builds; cubehost --renderdoc-capture picks it by client.dll's PE time stamp 6ada7340 |  |
 
 ## client.dll, build 20261029
 
 - file: `client_20261029.dll`, 39,224,472 bytes, PE time 2026-10-28 15:41 UTC
 - SHA-256 `08a741030c1e569d8b854c5886a87fcafc21d0d0e2f05dfd380e8a351171501d`
-- installed: this build
-- against the installed build (20261029_1.41.9.3.md): 38 tracked addresses: ambiguous 6, changed 3, identical 11, moved 16, relocated 2
+- installed: a different build
 - 2 addresses
 
 ### s2c:baked/lighting
@@ -145,7 +144,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `hammer_20260924.dll`, 39,597,208 bytes, PE time 2026-09-23 22:00 UTC
 - SHA-256 `c638a81a542ab960e2a51cceaa4d5cfeaa62fa555df117be8293bdc887cb1395`
 - installed: a different build
-- against the installed build (20261029_1.41.9.3.md): 12 tracked addresses: ambiguous 1, moved 11
+- against the installed build (20261101_1.41.9.4.md): 12 tracked addresses: ambiguous 1, moved 11
 - 11 addresses
 
 ### s2c:containers/compile-map
@@ -169,7 +168,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `materialsystem2_20261001.dll`, 1,429,144 bytes, PE time 2026-09-30 18:55 UTC
 - SHA-256 `336abe089468bd5b218f773f09da3942fa9346b7f49f24d9e3591722fc54c5e6`
 - installed: a different build
-- against the installed build (20261029_1.41.9.3.md): 16 tracked addresses: identical 9, relocated 7
+- against the installed build (20261101_1.41.9.4.md): 16 tracked addresses: identical 9, relocated 7
 - 1 addresses
 
 ### s2c:physics/material-sampler
@@ -183,7 +182,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `materialsystem2_20261015.dll`, 1,429,144 bytes, PE time 2026-10-14 18:39 UTC
 - SHA-256 `b4d5c667eb65f13d9193d743a88eb1f9dfa623cc8f745cef764d9977969e38b6`
 - installed: a different build
-- against the installed build (20261029_1.41.9.3.md): 16 tracked addresses: identical 9, relocated 7
+- against the installed build (20261101_1.41.9.4.md): 16 tracked addresses: identical 9, relocated 7
 - 16 addresses
 
 ### s2c:infra
@@ -217,7 +216,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `meshsystem_20260923.dll`, 1,664,664 bytes, PE time 2026-09-21 20:51 UTC
 - SHA-256 `11203f370437e5d55dbec46f530812b6a6f92c894e8f1c85f3c3b6e8773dc1d6`
 - installed: a different build
-- against the installed build (20261029_1.41.9.3.md): 11 tracked addresses: identical 10, relocated 1
+- against the installed build (20261101_1.41.9.4.md): 11 tracked addresses: identical 10, relocated 1
 - 7 addresses
 
 ### s2c:baked/light-keys
@@ -242,7 +241,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `modtools_20261015.dll`, 17,944,216 bytes, PE time 2026-10-14 18:40 UTC
 - SHA-256 `31a29e428fd5e9bacf66614e7d11a44d273cdd74636bb3c45256e541655c18d6`
 - installed: a different build
-- against the installed build (20261029_1.41.9.3.md): 20 tracked addresses: moved 19, relocated 1
+- against the installed build (20261101_1.41.9.4.md): 20 tracked addresses: moved 19, relocated 1
 - 19 addresses
 
 ### s2c:baked/bomb
@@ -274,7 +273,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `modtools_20261023.dll`, 17,946,264 bytes, PE time 2026-10-22 16:02 UTC
 - SHA-256 `c9c4d68a8a235ed541f4ca07eae1f02b94830cceba94bc37f55e7cc9f1b18b68`
 - installed: a different build
-- against the installed build (20261029_1.41.9.3.md): 20 tracked addresses: moved 19, relocated 1
+- against the installed build (20261101_1.41.9.4.md): 20 tracked addresses: moved 19, relocated 1
 - 1 addresses
 
 ### s2c:containers
@@ -288,7 +287,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `navsystem_20261015.dll`, 1,314,968 bytes, PE time 2026-10-14 18:39 UTC
 - SHA-256 `919803ec647ac53c95524a6be8193fb19fddede2936ed05a8b8cda984f33098e`
 - installed: a different build
-- against the installed build (20261029_1.41.9.3.md): 251 tracked addresses: identical 246, relocated 5
+- against the installed build (20261101_1.41.9.4.md): 251 tracked addresses: identical 246, relocated 5
 - 250 addresses
 
 ### s2c:baked/navgen
@@ -551,7 +550,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `phonon_20260923.dll`, 53,322,904 bytes, PE time 2026-08-03 21:30 UTC
 - SHA-256 `a97c891d49619e6d6dc3cbad8d64db1648db8dc6efcfe1d01378e90c954161ea`
 - installed: this build
-- against the installed build (20261029_1.41.9.3.md): 29 tracked addresses: identical 29
+- against the installed build (20261101_1.41.9.4.md): 29 tracked addresses: identical 29
 - 27 addresses
 
 ### s2c:baked/steamaudio
@@ -591,7 +590,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `physicsbuilder_20260924.dll`, 13,936,280 bytes, PE time 2026-09-23 21:59 UTC
 - SHA-256 `1c324870ffbf4ece889329238a340cecb2fcbedd44664d06c4eedce1729c391b`
 - installed: a different build
-- against the installed build (20261029_1.41.9.3.md): 95 tracked addresses: ambiguous 1, changed 4, identical 4, moved 86
+- against the installed build (20261101_1.41.9.4.md): 95 tracked addresses: ambiguous 1, changed 4, identical 4, moved 86
 - 89 addresses
 
 ### s2c:geometry/props
@@ -718,7 +717,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `rendersystemvulkan_20261015.dll`, 6,248,600 bytes, PE time 2026-10-14 18:39 UTC
 - SHA-256 `2febd86471b9ed1953e75875296f3e76999661f1e86cb68e928c0cb12a2afb4a`
 - installed: a different build
-- against the installed build (20261029_1.41.9.3.md): 5 tracked addresses: moved 5
+- against the installed build (20261101_1.41.9.4.md): 5 tracked addresses: moved 5
 - 3 addresses
 
 ### s2c:baked/lighting
@@ -734,7 +733,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `resourcecompiler_20260923.dll`, 56,313,496 bytes, PE time 2026-09-22 19:17 UTC
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
-- against the installed build (20261029_1.41.9.3.md): 1331 tracked addresses: ambiguous 81, changed 22, identical 7, moved 1218, relocated 3
+- against the installed build (20261101_1.41.9.4.md): 1334 tracked addresses: ambiguous 81, changed 23, identical 7, moved 1220, relocated 3
 - 1250 addresses
 
 ### s2c:baked/light-keys
@@ -2133,7 +2132,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `resourcecompiler_20261006.dll`, 56,323,736 bytes, PE time 2026-10-05 21:03 UTC
 - SHA-256 `e2cd4c06976ee54ab8d32a6b109e7adcb7b551c02766cd0c6954b492b0aedbe3`
 - installed: a different build
-- against the installed build (20261029_1.41.9.3.md): 1331 tracked addresses: ambiguous 81, changed 22, identical 7, moved 1218, relocated 3
+- against the installed build (20261101_1.41.9.4.md): 1334 tracked addresses: ambiguous 81, changed 23, identical 7, moved 1220, relocated 3
 - 10 addresses
 
 ### s2c:entities
@@ -2161,7 +2160,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `resourcecompiler_20261015.dll`, 56,337,048 bytes, PE time 2026-10-14 18:44 UTC
 - SHA-256 `204e16e550fd3936585bd467303b9b2033fdd7de9f1038c045095b3f5e15ac78`
 - installed: a different build
-- against the installed build (20261029_1.41.9.3.md): 1331 tracked addresses: ambiguous 81, changed 22, identical 7, moved 1218, relocated 3
+- against the installed build (20261101_1.41.9.4.md): 1334 tracked addresses: ambiguous 81, changed 23, identical 7, moved 1220, relocated 3
 - 1 addresses
 
 ### s2c:baked/nav
@@ -2175,7 +2174,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `resourcecompiler_20261023.dll`, 56,351,896 bytes, PE time 2026-10-22 16:05 UTC
 - SHA-256 `eee3b5a3cbb92359ce8fffdf7cf1c83e938b03202daef8277c575bda42cc8d7a`
 - installed: a different build
-- against the installed build (20261029_1.41.9.3.md): 1331 tracked addresses: ambiguous 81, changed 22, identical 7, moved 1218, relocated 3
+- against the installed build (20261101_1.41.9.4.md): 1334 tracked addresses: ambiguous 81, changed 23, identical 7, moved 1220, relocated 3
 - 3 addresses
 
 ### s2c:containers
@@ -2191,8 +2190,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `scenesystem_20261015.dll`, 7,094,936 bytes, PE time 2026-10-14 18:43 UTC
 - SHA-256 `040eb851fa7875523346b890f1ed6e158abc59e08bccbd8dc60539435277efa5`
 - installed: a different build
-- against the installed build (20261029_1.41.9.3.md): 96 tracked addresses: identical 52, relocated 44
-- 99 addresses
+- against the installed build (20261101_1.41.9.4.md): 112 tracked addresses: identical 65, relocated 47
+- 100 addresses
 
 ### s2c:baked/lighting
 
@@ -2219,29 +2218,30 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1800cdae0` | `BarnLightDesc_Destroy` | desc vfunc 0x28: 1800d06f0 then the object's deleting destructor (vfunc 0, flag 1) |  |
 | `1800ed2d0` | `InstanceBuffer_Allocate` | (pool, count, out): an atomic counter at +0x2010 hands out count 0x20-byte records (capacity +0x2a54), stores the first's address in *out and returns its index, or -1 and NULL when full |  |
 | `180154fb0` | `SkyObject_SetAttributes` | the sky object's attributes: g_matSkyWsToOs from its rotation, D_FOG_TYPE (token 0x83cb90d6) from +0xf4 and, at type 2, the angular test of +0xf8 / +0xfc against -90 (ledger 163) |  |
-| `180155117` | `SkyObject_SetSkyWsToOs` | inside the sky object's draw setup: attribute SkyWsToOs (0xfba7d427) = 18049b6d0(object +0x30) with the row (0, 0, 0, 1); SkyTint (0x99e6002a) = object +0xe8 (float3, w 0); CubemapFaceConstants.SkyWsToOs | `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:250` |
-| `18019f8b0` | `SceneView_AddVisibleLPV` | needs the view's +0xf3e8 +0x65 flag and a slot in the view's map (1801c7690 on +0x48 keyed by the object's +0xf4); once per view (+0xe508 / +0xe510 list); layer masks +0xe1f0 +0x490 / +0x498 against the object's +0x78; 1801ac1b0 + 1801abf30; then a 0x120-byte record at +0xe520 / +0xe528: object, view record +0x10 / +0x1c, box volume ((dy dx) dz over +0xd0 .. +0xe4) at +0x10, priority (object +0xf8) at +0x14, screen bounds; CubemapFaceConstants.VisibleVolumes | `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:412` |
+| `180155117` | `SkyObject_SetSkyWsToOs` | inside the sky object's draw setup: attribute SkyWsToOs (0xfba7d427) = 18049b6d0(object +0x30) with the row (0, 0, 0, 1); SkyTint (0x99e6002a) = object +0xe8 (float3, w 0); CubemapFaceConstants.SkyWsToOs | `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:263` |
+| `18019f8b0` | `SceneView_AddVisibleLPV` | needs the view's +0xf3e8 +0x65 flag and a slot in the view's map (1801c7690 on +0x48 keyed by the object's +0xf4); once per view (+0xe508 / +0xe510 list); layer masks +0xe1f0 +0x490 / +0x498 against the object's +0x78; 1801ac1b0 + 1801abf30; then a 0x120-byte record at +0xe520 / +0xe528: object, view record +0x10 / +0x1c, box volume ((dy dx) dz over +0xd0 .. +0xe4) at +0x10, priority (object +0xf8) at +0x14, screen bounds; CubemapFaceConstants.VisibleVolumes | `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:425` |
 | `18019fe30` | `LightBinnerGPU_GatherBarnLight` | per barn light and view (from CBarnLightObjectDescGPU vfunc 0x30, 1801c1e50, on job threads): skipped when +0x1a8 / +0x1ac are 0, the +0x78 flags fail the view's layer masks (+0x490 all, +0x498 none), byte table 180921fc8[+0x9b] & 8, or its world (+0xb8) is not in the view's list; distance fades from +0x260 / +0x264 and +0x268 / +0x26c against view +0x1c; the transform (+0x30) and oriented box (+0xf0) into a 0x640-byte CPU light entry appended to one of four hash-bucketed lists (1801c9a40); found by a cubehost watchpoint (barn_records.js), CUBEMAPS.md A.6 |  |
 | `1801a5c28` | `CSM_SetupForView` | calls 180496ef0 with the frustum at view +0x10 (or vfunc 0x240's +0x10 under view flag bit 0xc), copied with +0x18 replaced by a view attribute when non-zero |  |
-| `1801a8150` | `LightBinner_SetupView` | bins = lb_bin_slices clamped 1..8192 rounded up to 32 (+0xf380); tile = view attribute 0x5af50a7c or lb_tile_pixels, at least 4, rounded up to a power of two (+0xf370, log2 +0xf374); tiles (size - 1 + t) >> log2 (+0xf378, +0xf37c), their product +0xf38c | `src/Source2.Compiler/Cubemaps/CubemapFaceBlocks.cs:71`, `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:201`, `src/Source2.Compiler.Gpu/CubemapFaceRenderer.cs:298` |
+| `1801a8150` | `LightBinner_SetupView` | bins = lb_bin_slices clamped 1..8192 rounded up to 32 (+0xf380); tile = view attribute 0x5af50a7c or lb_tile_pixels, at least 4, rounded up to a power of two (+0xf370, log2 +0xf374); tiles (size - 1 + t) >> log2 (+0xf378, +0xf37c), their product +0xf38c | `src/Source2.Compiler/Cubemaps/CubemapFaceBlocks.cs:73`, `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:203`, `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:218` +1 |
 | `1801a9410` | `LightBinnerGPU_MergeBarnLights` | CLightBinnerGPU vfunc 0x8 (vtable 1805fe688), per view: the four bucket lists into one (count +0xe3a8, 0x640-byte entries +0xe3b0), sorted (1801cc930), trimmed to min(convar 180923b68 when >= 0, 315); then 1801a3980 (shadows) and 1801a7fd0; CUBEMAPS.md A.6 |  |
-| `1801a9b70` | `LightBinner_GatherItems` | a chunk of 1801a9410: mask words per type (count + 31) / 32, 0 for none: lights +0xe3a8 -> +0xf390, environment maps -> +0xf394, light probe volumes +0xe520 -> +0xf398 | `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:204`, `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:415` |
-| `1801aac90` | `LightBinner_ItemScreenBounds` | LightBinnerItems.Bounds; eye-outside mask of the box planes (1801abcf0); 0 when the box's far point along the view direction is behind the camera; 2 (whole screen) when the eye is inside; a box wholly in front always passes (its silhouette from DAT_1805fe400 projected for the bounds); a box across the camera plane has its silhouette clipped against w 1e-4 and +-1 (1801c6050 .. 1801c7100) and is rejected when nothing is left or it lies past +-1 | `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:413`, `src/Source2.Compiler/Cubemaps/LightBinnerItems.cs:15`, `src/Source2.Compiler/Cubemaps/LightBinnerItems.cs:36` +4 |
+| `1801a9b70` | `LightBinner_GatherItems` | a chunk of 1801a9410: mask words per type (count + 31) / 32, 0 for none: lights +0xe3a8 -> +0xf390, environment maps -> +0xf394, light probe volumes +0xe520 -> +0xf398 | `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:221`, `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:428`, `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:498` |
+| `1801aac90` | `LightBinner_ItemScreenBounds` | LightBinnerItems.Bounds; eye-outside mask of the box planes (1801abcf0); 0 when the box's far point along the view direction is behind the camera; 2 (whole screen) when the eye is inside; a box wholly in front always passes (its silhouette from DAT_1805fe400 projected for the bounds); a box across the camera plane has its silhouette clipped against w 1e-4 and +-1 (1801c6050 .. 1801c7100) and is rejected when nothing is left or it lies past +-1 | `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:426`, `src/Source2.Compiler/Cubemaps/LightBinnerItems.cs:15`, `src/Source2.Compiler/Cubemaps/LightBinnerItems.cs:36` +4 |
 | `1801abcf0` | `Box_EyeOutsideMask` | bit i where the point is more than 1e-4 behind plane i ((z nz + y ny) + x nx - d); LightBinnerItems.OutsideMask | `src/Source2.Compiler/Cubemaps/LightBinnerItems.cs:97` |
-| `1801abf30` | `LPV_ScreenBounds` | the box in the object's frame (+0x30): camera and view direction moved into it, the projection 1804983c0(view +0x298) times the transform, then 1801aac90 with the view's size (+0xc7c / +0xc80) and the binner's tile size | `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:413`, `src/Source2.Compiler/Cubemaps/LightBinnerItems.cs:15`, `src/Source2.Compiler/Cubemaps/LightBinnerItems.cs:108` |
+| `1801abf30` | `LPV_ScreenBounds` | the box in the object's frame (+0x30): camera and view direction moved into it, the projection 1804983c0(view +0x298) times the transform, then 1801aac90 with the view's size (+0xc7c / +0xc80) and the binner's tile size | `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:426`, `src/Source2.Compiler/Cubemaps/LightBinnerItems.cs:15`, `src/Source2.Compiler/Cubemaps/LightBinnerItems.cs:108` |
 | `1801ac1b0` | `LPV_BoxPlanesAndCorners` | a box's six face planes (normals through 180053800, d from the min or max corner) and its corners by the DAT_180673b20 sign table | `src/Source2.Compiler/Cubemaps/LightBinnerItems.cs:14`, `src/Source2.Compiler/Cubemaps/LightBinnerItems.cs:71` |
 | `1801ad810` | `LightBinner_FootprintEdges` | edges of the footprint hull (count +0x80, points +0x84) as (nx, ny, quarter diagonal - (ny y + nx x), 0): longer than two pixel diagonals, turning one way; rsqrtss with (3 - r len2 r) (r 0.5); the last folded into the first when they turn back; LightBinnerItems.Edges | `src/Source2.Compiler/Cubemaps/LightBinnerItems.cs:19`, `src/Source2.Compiler/Cubemaps/LightBinnerItems.cs:351` |
-| `1801af7b0` | `LightBinner_WriteLightBlock` | PerViewLightingConstantBufferGpu_t: g_VisibleLPV from +0xe528 (at most 128): world-to-volume rows 18049b3b0(object +0x30), box +0xd0 .. +0xe4 padded by 0.1, 1 / +0xe8, +0xec, +0xf0 (FLT_MAX for 0), then the int from the view's map; g_vShadowSampleRotations V_sincosf(i / 16 2pi + frame 1.618034); CubemapFaceConstants.LightBlock | `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:417`, `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:432` |
+| `1801af7b0` | `LightBinner_WriteLightBlock` | PerViewLightingConstantBufferGpu_t: g_VisibleLPV from +0xe528 (at most 128): world-to-volume rows 18049b3b0(object +0x30), box +0xd0 .. +0xe4 padded by 0.1, 1 / +0xe8, +0xec, +0xf0 (FLT_MAX for 0), then the int from the view's map; g_vShadowSampleRotations V_sincosf(i / 16 2pi + frame 1.618034); the fast path sun from +0xebd0 (null: (0, 0, -1, 0.04), +31176 -1), cascades and ambient SH only with the shadow object +0xebd8; +304 .. +372 the binner's batches and grid from +0xf370 .. +0xf398; +31936 .. +31960 the atlas (+0xef80) and three other bindless indices, light entries (+0xe3a8), env map bits, volumes; built 0x7de0 bytes (ledger 192); CubemapFaceConstants.LightBlock | `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:430`, `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:445`, `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:453` +2 |
 | `1801b14b0` | `LightBinnerGPU_WriteBarnLightRecord` | (binner, 0x640-byte entry, 0x1e0-byte record): the g_BarnLights record; transforms at +0 .. +0x7f, colour x intensity +0xa0 .. +0xa8, flags +0x108 (entry +0x1fc << 16 \| type bits), falloff block +0x140 .. +0x18c (1 / +0x14c at +0x18c); Cubemaps/BarnLightRecords.Record (types 0 to 2, bit for bit on 64 captured pairs) | `src/Source2.Compiler/Cubemaps/BarnLightRecords.cs:8`, `src/Source2.Compiler/Cubemaps/BarnLightRecords.cs:16`, `src/Source2.Compiler/Cubemaps/BarnLightRecords.cs:26` +5 |
 | `1801b2450` | `LightBinnerGPU_UploadBarnLights` | one 0x1e0-byte g_BarnLights record per merged entry through the binner's vfunc 0x70 (1801b14a0 -> 1801b14b0), then count x 0x1e0 bytes to the buffer at +0xe558 (render context vfunc 0x380); called from vfunc 0x28 (1801b4530) | `src/Source2.Compiler/Cubemaps/BarnLightRecords.cs:8`, `src/Source2.Compiler/Simulation/Continuous.cs:28`, `src/Source2.Compiler/Simulation/Integrator.cs:17` +1 |
-| `1801b2850` | `LightBinner_ComputeCullBitsGPU` | lightbinner_gpu.cpp: the cull items, then CullParams_t (160 bytes from the stack at local_1b08) for both cull dispatches: tiles +0xf38c/+0xf378/+0xf37c, scale 2t/w, -2t/h, offset t/w - 1, 1 - t/h, bins +0xf380, bin width view +0x34 / bins, 0.001, near 0, first masks (0, wl, wl + we, 0), tile and bin batches per type; items padded to 32 per type; CubemapFaceConstants.LightBinnerCullParams. Then the dispatches through the context's vf 0x320 (thread counts): depth bins (+0xf380, mask words +0xf390 + 0xf394 + 0xf398, 1) when +0xf380 > 1, tiles (+0xf378, +0xf37c, mask words); with one bin or the GPU cull off, a fill of +0xf3d0 with 0xffffffff instead (ledger 162) | `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:200`, `src/Source2.Compiler/Cubemaps/LightBinnerItems.cs:22`, `src/Source2.Compiler/Cubemaps/LightBinnerItems.cs:351` +2 |
-| `1801c1f70` | `CLightProbeVolumeSceneObject_AddToView` | virtual: the view (+0x3c68 of the second argument) gets 18019f8b0(this view, the object, the view record) unless it is the culling view's own | `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:412` |
+| `1801b2850` | `LightBinner_ComputeCullBitsGPU` | lightbinner_gpu.cpp: the cull items, then CullParams_t (160 bytes from the stack at local_1b08) for both cull dispatches: tiles +0xf38c/+0xf378/+0xf37c, scale 2t/w, -2t/h, offset t/w - 1, 1 - t/h, bins +0xf380, bin width view +0x34 / bins, 0.001, near 0, first masks (0, wl, wl + we, 0), tile and bin batches per type; items padded to 32 per type; CubemapFaceConstants.LightBinnerCullParams. Then the dispatches through the context's vf 0x320 (thread counts): depth bins (+0xf380, mask words +0xf390 + 0xf394 + 0xf398, 1) when +0xf380 > 1, tiles (+0xf378, +0xf37c, mask words); with one bin or the GPU cull off, a fill of +0xf3d0 with 0xffffffff instead (ledger 162) | `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:217`, `src/Source2.Compiler/Cubemaps/LightBinnerItems.cs:22`, `src/Source2.Compiler/Cubemaps/LightBinnerItems.cs:351` +2 |
+| `1801c1f70` | `CLightProbeVolumeSceneObject_AddToView` | virtual: the view (+0x3c68 of the second argument) gets 18019f8b0(this view, the object, the view record) unless it is the culling view's own | `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:425` |
+| `1801c5cf0` | `BitSet_Count` | set bits of the binner's environment map bit set (+0xe498); the light block's +31956 and the env map mask words (1801a9b70) | `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:588` |
 | `1801c6050` | `ClipPolygon_W` | Sutherland-Hodgman against w >= eps: t = -(eps - w_prev) / (w_prev - w_cur), p = (cur - prev) t + prev; the polygon replaced only when a crossing was found | `src/Source2.Compiler/Cubemaps/LightBinnerItems.cs:231` |
 | `1801c65c0` | `ClipPolygon_Z` | against w >= k z: a = w - z k, t = a_prev / (a_prev - a_cur) | `src/Source2.Compiler/Cubemaps/LightBinnerItems.cs:216` |
 | `1801c6b60` | `ClipPolygon_Y` | against w >= k y | `src/Source2.Compiler/Cubemaps/LightBinnerItems.cs:216` |
 | `1801c7100` | `ClipPolygon_X` | against w >= k x | `src/Source2.Compiler/Cubemaps/LightBinnerItems.cs:216` |
 | `1801c9a40` | `LightEntry_CopyConstruct` | (dest, src) copy of a 0x640-byte CPU light entry; 17 call sites (the gather 1801a0f1c, the merge 1801a95cf, the sort 1801cc930) |  |
-| `1801cc400` | `LPV_SortRecords` | std::sort (introsort, insertion below 0x2520 bytes) of the 0x120-byte records: +0x14 descending, then the float +0x10 ascending, then the object pointer +0 ascending; 1801a9b70 calls it after capping the list at 128 (1801cbc20 nth_element first, logging 'Exceeded maximum number visible lpvs') | `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:415` |
+| `1801cc400` | `LPV_SortRecords` | std::sort (introsort, insertion below 0x2520 bytes) of the 0x120-byte records: +0x14 descending, then the float +0x10 ascending, then the object pointer +0 ascending; 1801a9b70 calls it after capping the list at 128 (1801cbc20 nth_element first, logging 'Exceeded maximum number visible lpvs') | `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:428` |
 | `180494b40` | `CSM_FitCascade` | a fit's cascades (light view, ortho, snapped bounds; CubemapShadowCascades.Fit) and their culling: per cascade the shadow view (1804a7a60), the previous cascade's ortho pulled 15% in as six planes with d negated (first culling-box set, +0x174 count 6), the fit's caster volume (180495df0, up to 12, d negated) as the second set (+0x170); AggregateCulling.CascadeFrustum | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:129`, `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:290`, `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:322` +5 |
 | `180495df0` | `CSM_CasterVolume` | the sun's caster volume from the main view's inverse world-to-projection corners and the corners pushed by light x reach: back-facing planes, the cap (1.125 x the double running minimum), silhouette edge planes (1805ab720 / 1805ab738), none when the centroid is outside or fewer than 6; AggregateCulling.CasterVolume | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:211` |
 | `180496ef0` | `CSM_SetupCascades` | count = min(view +0x38, light desc +0x3e) or csm_max_num_cascades_override (> 0); distances: the light desc's +0x48 (each later one doubled from the last given), csm_cascadeN_override_dist (> 0), the practical split ((V_powf(M/n, k/N) n - lin) 0.85 + lin) + 0.1 from n = max(0.125, frustum near), then the view attributes 0x61fac369, 0x70644345, ... replace each (1804976e5 on); M = csm_max_shadow_dist_override (> 0, view flag bit 4 clear) else ShadowFarZ (0x7b2a64e1, default 1000) at most the frustum far (+0x24 of the frustum at r8 +0x18); CubemapShadowCascades.SplitDistances / MaxDistance | `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:6`, `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:23`, `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:58` +1 |
@@ -2252,14 +2252,14 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180499860` | `Mat4_ProjectPoint` | x = ((y m1 + x m0) + z m2) + m3, y = ((x m4 + y m5) + z m6) + m7, w = ((x m12 + y m13) + z m14) + m15, each times 1 / w when w is not 0 | `src/Source2.Compiler/Cubemaps/LightBinnerItems.cs:257` |
 | `180499f90` | `Matrix3x4_Concat` | a b, row ((a2 b2 + a1 b1) + a0 b0) + (0, 0, 0, a3); BarnLightRecords.Concat | `src/Source2.Compiler/Cubemaps/BarnLightRecords.cs:14`, `src/Source2.Compiler/Cubemaps/BarnLightRecords.cs:309` |
 | `18049b3b0` | `Matrix3x4_InvertRigid` | rotation transposed, translation -((t2 r2 + t1 r1) + t0 r0); BarnLightRecords.InvertRigid | `src/Source2.Compiler/Cubemaps/BarnLightRecords.cs:12`, `src/Source2.Compiler/Cubemaps/BarnLightRecords.cs:282` |
-| `18049b6d0` | `Matrix3x4_TransposedRotation` | dst row r = (src[0][r], src[1][r], src[2][r], +0): the rotation transposed, translation dropped | `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:250` |
+| `18049b6d0` | `Matrix3x4_TransposedRotation` | dst row r = (src[0][r], src[1][r], src[2][r], +0): the rotation transposed, translation dropped | `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:263` |
 | `18049bcb0` | `Frustum_PackPlanes` | scenesystem's copy of client 1817435e0 | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:131` |
 | `18049c360` | `Matrix3x4_RotateVector` | z r2 + (y r1 + x r0) per row; BarnLightRecords.Rotate | `src/Source2.Compiler/Cubemaps/BarnLightRecords.cs:14`, `src/Source2.Compiler/Cubemaps/BarnLightRecords.cs:302` |
 | `18049d420` | `Matrix3x4_ToQuaternion` | trace branch (trace >= 0) else the largest diagonal; s = sqrt(... + 1), f = 0.5 / s; BarnLightRecords.Quaternion | `src/Source2.Compiler/Cubemaps/BarnLightRecords.cs:14`, `src/Source2.Compiler/Cubemaps/BarnLightRecords.cs:319` |
 | `18049dd60` | `Matrix3x4_TransformPoint` | through 18049c3a0: x' = (y m1 + m3) + (x m0 + z m2); AggregateCulling.TransformPoint | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:368`, `src/Source2.Compiler/Cubemaps/BarnLightRecords.cs:13`, `src/Source2.Compiler/Lighting/Bake/PathTraceBounds.cs:12` |
 | `1804a6570` | `Light_Falloff` | (point, k): (sqrt(w) + k)^2 / w as 1 / (w / (s s)), 1 unless w > 0; k = 100 from 1801b14b0; BarnLightRecords.Falloff | `src/Source2.Compiler/Cubemaps/BarnLightRecords.cs:126` |
 | `1804a65f0` | `LightDesc_ToCameraSpace` | (desc, out, camera-relative 3 x 4): out = a copy of desc (18008beb0) with +0x00 = desc 4 x 4 x rigid inverse (18049b3b0, 180499080), +0x40 = transform x desc +0x40, +0x80 (1804a32f0), +0x90 a point (translation dropped when +0x9c is 0), the shape points / vectors by type (+0xec), +0xd0 the rotation; BarnLightRecords.Block | `src/Source2.Compiler/Cubemaps/BarnLightRecords.cs:10`, `src/Source2.Compiler/Cubemaps/BarnLightRecords.cs:216`, `src/Source2.Compiler/Cubemaps/BarnLightRecords.cs:270` |
-| `1804a7a60` | `CSM_ShadowViewFrustum` | a cascade's frustum object: camera = translation of the inverted view (180498c70), planes from projection x (view x translate(camera)) through 180498520 with the zero-to-one flag, packed by 18049bcb0; CubemapShadowCascades.Camera, AggregateCulling.CascadeFrustum | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:129`, `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:345`, `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:255` |
+| `1804a7a60` | `CSM_ShadowViewFrustum` | a cascade's frustum object: camera = translation of the inverted view (180498c70), planes from projection x (view x translate(camera)) through 180498520 with the zero-to-one flag, packed by 18049bcb0; CubemapShadowCascades.Camera, AggregateCulling.CascadeFrustum | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:129`, `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:358`, `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:255` |
 | `1804c9ad0` | `TinyBvh_BuildCustomAabb` | tiny_bvh.h BVH::Build(customGetAABB, count): root bounds, then 1804c87c0 (the same build as resourcecompiler's 181ed64a0); Lighting/TinyBvh.cs | `src/Source2.Compiler/Cubemaps/AggregateCulling.cs:591` |
 
 ### s2c:baked/vrad3
@@ -2308,7 +2308,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `scenesystem_20261023.dll`, 7,094,936 bytes, PE time 2026-10-22 16:02 UTC
 - SHA-256 `0f17ccdc083290a496e6ac13e4fe54413077ad2b83b7dfd281749cffd2733d9b`
 - installed: a different build
-- against the installed build (20261029_1.41.9.3.md): 96 tracked addresses: identical 52, relocated 44
+- against the installed build (20261101_1.41.9.4.md): 112 tracked addresses: identical 65, relocated 47
 - 4 addresses
 
 ### s2c:baked/lighting
@@ -2318,14 +2318,13 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1805ec900` | `SkyCube_Vertices` | data: the sky's unit cube, eight corners at +-0.5; CubemapFaceMeshes.SkyCubeVertices | `src/Source2.Compiler/Cubemaps/CubemapFaceMeshes.cs:9` |
 | `1805ec960` | `SkyCube_Triangles` | data: its twelve triangles as one-based ints (1 3 2, 1 4 3, ...); CubemapFaceMeshes.SkyCubeIndices | `src/Source2.Compiler/Cubemaps/CubemapFaceMeshes.cs:17` |
 | `1805fe430` | `LightBinner_SilhouetteTable` | data (20261023; 1805fe400 in 20261015): per eye-outside plane mask, a count and up to 8 box corner indices of the outline | `src/Source2.Compiler/Cubemaps/LightBinnerItems.cs:17` |
-| `1806006e0` | `Shadow3x3PCF_KernelWeights` | data: g_vShadow3x3PCFTermC0..C3's kernel weights; CubemapFaceConstants | `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:446` |
+| `1806006e0` | `Shadow3x3PCF_KernelWeights` | data: g_vShadow3x3PCFTermC0..C3's kernel weights; CubemapFaceConstants | `src/Source2.Compiler/Cubemaps/CubemapFaceConstants.cs:465` |
 
 ## server.dll, build 20261015
 
 - file: `server_20261015.dll`, 34,628,248 bytes, PE time 2026-10-14 18:43 UTC
 - SHA-256 `09e8c04c5f44040155d04fa79a3f43491d542a386f45807ed77785729e5925a9`
 - installed: a different build
-- against the installed build (20261029_1.41.9.3.md): 49 tracked addresses: ambiguous 3, changed 2, moved 44
 - 48 addresses
 
 ### s2c:baked/lighting
@@ -2391,7 +2390,6 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `server_20261021.dll`, 34,628,248 bytes, PE time 2026-10-20 18:34 UTC
 - SHA-256 `05e6f04972bb2983f463c08824c3133626e0703e881443589288b68e200acc4d`
 - installed: a different build
-- against the installed build (20261029_1.41.9.3.md): 49 tracked addresses: ambiguous 3, changed 2, moved 44
 - 1 addresses
 
 ### s2c:baked/lighting
@@ -2405,7 +2403,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `smartprops_20260923.dll`, 1,511,576 bytes, PE time 2026-09-21 21:05 UTC
 - SHA-256 `383e57f1eb82a84157e537050a81fa598a4676389598778bdd9ea4167ea16545`
 - installed: a different build
-- against the installed build (20261029_1.41.9.3.md): 30 tracked addresses: identical 22, relocated 8
+- against the installed build (20261101_1.41.9.4.md): 30 tracked addresses: identical 22, relocated 8
 - 30 addresses
 
 ### s2c:smartprops
@@ -2448,7 +2446,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `steamaudio_20261023.dll`, 3,547,288 bytes, PE time 2026-10-22 16:00 UTC
 - SHA-256 `50a9eb97250dd9bc09c03b8c3abadb8f2c971712dc94db020d6a1c1691de5d1c`
 - installed: a different build
-- against the installed build (20261029_1.41.9.3.md): 20 tracked addresses: identical 20
+- against the installed build (20261101_1.41.9.4.md): 20 tracked addresses: identical 20
 - 17 addresses
 
 ### s2c:baked/steamaudio
@@ -2478,7 +2476,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `tier0_20260923.dll`, 3,979,416 bytes, PE time 2026-09-21 20:48 UTC
 - SHA-256 `4e0dcb0af3f6953f37ddaed0f4e67a56d031f1e84964a262148f8a6f80547791`
 - installed: a different build
-- against the installed build (20261029_1.41.9.3.md): 67 tracked addresses: changed 9, identical 32, missing 1, moved 22, relocated 3
+- against the installed build (20261101_1.41.9.4.md): 67 tracked addresses: changed 9, identical 32, missing 1, moved 22, relocated 3
 - 52 addresses
 
 ### s2c:baked/bomb
@@ -2558,7 +2556,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `tier0_20261015.dll`, 3,979,928 bytes, PE time 2026-10-14 18:37 UTC
 - SHA-256 `990ea56bf1626d299ba54b64b423f2e409bd592bb737c7a5edf7972ad5c7143e`
 - installed: a different build
-- against the installed build (20261029_1.41.9.3.md): 67 tracked addresses: changed 9, identical 32, missing 1, moved 22, relocated 3
+- against the installed build (20261101_1.41.9.4.md): 67 tracked addresses: changed 9, identical 32, missing 1, moved 22, relocated 3
 - 11 addresses
 
 ### s2c:io
@@ -2582,7 +2580,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `visbuilder_20260923.dll`, 1,855,640 bytes, PE time 2026-09-21 20:55 UTC
 - SHA-256 `4381c507be2cc8f783a0cd262e18759bb1ef0399ba2ca2deef6d236cde17c3cf`
 - installed: a different build
-- against the installed build (20261029_1.41.9.3.md): 201 tracked addresses: changed 36, identical 123, relocated 42
+- against the installed build (20261101_1.41.9.4.md): 201 tracked addresses: changed 36, identical 123, relocated 42
 - 200 addresses
 
 ### s2c:visibility
@@ -2795,7 +2793,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `vphysics2_20260924.dll`, 4,829,848 bytes, PE time 2026-09-23 21:58 UTC
 - SHA-256 `0f896375fa9233196e3de769f23ce3c21907c1adab81a786418822da75518228`
 - installed: a different build
-- against the installed build (20261029_1.41.9.3.md): 625 tracked addresses: changed 16, identical 391, moved 1, relocated 217
+- against the installed build (20261101_1.41.9.4.md): 625 tracked addresses: changed 16, identical 391, moved 1, relocated 217
 - 625 addresses
 
 ### s2c:baked/bomb
@@ -3473,7 +3471,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `vrad3_20261001.dll`, 3,269,272 bytes, PE time 2026-09-30 18:56 UTC
 - SHA-256 `172f7513161afca8e7c28fed95bb0abe9fae58f4377b49eea1bf9ae9322b722c`
 - installed: a different build
-- against the installed build (20261029_1.41.9.3.md): 412 tracked addresses: identical 271, relocated 141
+- against the installed build (20261101_1.41.9.4.md): 412 tracked addresses: identical 271, relocated 141
 - 410 addresses
 
 ### s2c:baked/vrad3
@@ -3896,7 +3894,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `worldrenderer_20261023.dll`, 2,029,720 bytes, PE time 2026-10-22 16:00 UTC
 - SHA-256 `e0b1ed04a652f8268fd9d6b75b5a97910ab57197e2cdb8a0a4966703a5ec8322`
 - installed: a different build
-- against the installed build (20261029_1.41.9.3.md): 3 tracked addresses: identical 3
+- against the installed build (20261101_1.41.9.4.md): 4 tracked addresses: identical 4
 - 3 addresses
 
 ### s2c:baked/lighting

@@ -117,7 +117,7 @@ static class Program
     // client.dll's buildcubemaps_renderdoc_capture (which cubemap BuildCubemaps captures with RenderDoc under
     // -renderdoc) is development-only (registered with flags 2, client 10-15 1800538d8): neither the console nor
     // the command line sets it in a release build. In our own process we set it the way the convar system would:
-    // the cvar's data pointer is a client global (18237eab0 in the 10-15 and 10-21 builds, 1823806d8 in 10-23, 182382858 in 10-29:
+    // the cvar's data pointer is a client global (18237eab0 in the 10-15 and 10-21 builds, 1823806d8 in 10-23, 182382858 in 10-29 and 10-30:
     // the handle 1800538ed passes to the registration, plus 8), its name at +0 and its int value at +0x58. The
     // build is told by client.dll's PE time stamp and the name is checked; another client build is left alone.
     private const string RenderDocConvar = "buildcubemaps_renderdoc_capture";
@@ -127,6 +127,7 @@ static class Program
         [0x6ad7b41c] = 0x237eab0,   // 2026-10-21
         [0x6ada7340] = 0x23806d8,   // 2026-10-23 (1.41.9.2)
         [0x6ae217a2] = 0x2382858,   // 2026-10-29 (1.41.9.3)
+        [0x6ae4fb84] = 0x2382858,   // 2026-10-30 (1.41.9.4; the handle's lea at 1800538ed unchanged)
     };
 
     private static void SetRenderDocCapture(int index)

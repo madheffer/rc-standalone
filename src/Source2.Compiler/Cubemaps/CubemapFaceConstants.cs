@@ -122,7 +122,10 @@ public static class CubemapFaceConstants
         var b = new byte[656];
         void F(int offset, float value) => BinaryPrimitives.WriteSingleLittleEndian(b.AsSpan(offset), value);
         void I(int offset, int value) => BinaryPrimitives.WriteInt32LittleEndian(b.AsSpan(offset), value);
-        int[] flags = [1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1];                     // g_bFogTypeEnabled, g_bOtherFxEnabled, g_bOtherEnabled2
+        // g_bFogTypeEnabled, g_bOtherFxEnabled, g_bOtherEnabled2 (1811fef80's words 0 .. 11): word 2 is whether
+        // 181217e20 filled the cube fog (it returns 0 when the view has no cube fog attribute 0x765c7d3c, i.e. no
+        // env_cubemap_fog: ze_hold_em_p's capture); the others are the capture's for a cubemap build.
+        int[] flags = [1, 0, fog != null ? 1 : 0, 0, 1, 0, 0, 1, 0, 1, 0, 1];
         for (var i = 0; i < flags.Length; i++)
             I(i * 4, flags[i]);
         F(144, 1f);                                                            // g_flEnvRainStrength
@@ -191,9 +194,23 @@ public static class CubemapFaceConstants
         F(628, 0.0018407785f);                                                 // g_flCablePixelRadiusScale
         F(632, 0.25f);                                                         // g_flBeginMixingRoughness
         F(640, 1.1f);                                                          // g_vPlayerVisibilityParams
-        F(644, 0.5882353f);
+        F(644, BitConverter.Int32BitsToSingle(0x3f169696));                     // the captures' bits (the literal 0.5882353f rounds one ulp up)
         F(648, 0.6f);
         return b;
+    }
+
+    /// <summary>
+    /// The binner's grid for a view (1801a8150): the bins (+0xf380, lb_bin_slices clamped to 1 .. 8192 and rounded up
+    /// to 32), the tile's shift and side (+0xf374, +0xf370: lb_tile_pixels, at least 4, rounded up to a power of
+    /// two) and the tiles across and down (+0xf378, +0xf37c: the view's size over the tile, rounded up; their
+    /// product is +0xf38c).
+    /// </summary>
+    public static (int Bins, int Shift, int Tile, int TilesX, int TilesY) BinnerGrid(int width, int height, int tilePixels, int binSlices)
+    {
+        var bins = (int)(((uint)Math.Clamp(binSlices, 1, 0x2000) + 31) & ~31u);
+        var tile = tilePixels < 4 ? 4 : (int)System.Numerics.BitOperations.RoundUpToPowerOf2((uint)tilePixels);
+        var shift = System.Numerics.BitOperations.TrailingZeroCount(tile);
+        return (bins, shift, tile, (width - 1 + tile) >> shift, (height - 1 + tile) >> shift);
     }
 
     /// <summary>
@@ -210,11 +227,7 @@ public static class CubemapFaceConstants
         var b = new byte[160];
         void I(int offset, int value) => BinaryPrimitives.WriteInt32LittleEndian(b.AsSpan(offset), value);
         void F(int offset, float value) => BinaryPrimitives.WriteSingleLittleEndian(b.AsSpan(offset), value);
-        var bins = (int)(((uint)Math.Clamp(binSlices, 1, 0x2000) + 31) & ~31u);
-        var tile = tilePixels < 4 ? 4 : (int)System.Numerics.BitOperations.RoundUpToPowerOf2((uint)tilePixels);
-        var shift = System.Numerics.BitOperations.TrailingZeroCount(tile);
-        var tilesX = (width - 1 + tile) >> shift;
-        var tilesY = (height - 1 + tile) >> shift;
+        var (bins, _, tile, tilesX, tilesY) = BinnerGrid(width, height, tilePixels, binSlices);
         static int Words(int count) => count != 0 ? (count + 31) / 32 : 0;
         static int Pad(int count) => (count + 31) & ~31;
         var (wl, we, wp) = (Words(lights), Words(envMaps), Words(lpvs));
@@ -436,9 +449,15 @@ public static class CubemapFaceConstants
     /// <paramref name="volumes"/> are the view's visible light probe volumes in the game's order (g_VisibleLPV, 96
     /// bytes each): probe01's cube 0 has its own, cube 1 its own then cube 0's (which ones the game lists is not
     /// read, GROUND_TRUTH 147).
+    /// <para>A null <paramref name="sun"/> is a map with no light_environment: the view then has neither the fast
+    /// path sun (binner +0xebd0) nor the shadow object (+0xebd8), and 1801af7b0's null branches leave the sun
+    /// direction (0, 0, -1, 0.04), its colour, bake mask and two indices 0, +31176 -1, and the ambient SH, cascade count
+    /// and every cascade word 0 (the memset). <paramref name="lights"/> and <paramref name="envMaps"/> are the
+    /// binner's entry counts (+0xe3a8, the environment map bits), which set the cull params' mask words.</para>
     /// </summary>
-    public static byte[] LightBlock(Sun sun, IReadOnlyList<LightProbeVolume> volumes, IReadOnlyList<CubemapShadowCascades.Cascade> cascades, int[][] tiles, int tileSize,
-                                    int atlasWidth, int atlasHeight, Vector3 lightingOffset, float maxShadowDistance, int frame = 0)
+    public static byte[] LightBlock(Sun? sun, IReadOnlyList<LightProbeVolume> volumes, IReadOnlyList<CubemapShadowCascades.Cascade> cascades, int[][] tiles, int tileSize,
+                                    int atlasWidth, int atlasHeight, Vector3 lightingOffset, float maxShadowDistance, int frame = 0,
+                                    int lights = 0, int envMaps = 0, int faceSize = 1024, int tilePixels = 8, int binSlices = 8192, float farPlane = 10000f)
     {
         var b = new byte[32256];
         void F(int offset, float value) => BinaryPrimitives.WriteSingleLittleEndian(b.AsSpan(offset), value);
@@ -456,31 +475,45 @@ public static class CubemapFaceConstants
         F(88, 0.00390625f);                                            // g_vScreenSpaceDitherParams.z (1 / 256); x, y random, w from a convar
         F(92, 0.003921569f);
         F(100, 1f);                                                    // g_vCubemapNormalizationParams
-        // g_vAmbientLightingSH: z and w of each channel, the sky colour times intensity times 0.5.
-        var sh = new[] { sun.SkyColorLinear.X, sun.SkyColorLinear.Y, sun.SkyColorLinear.Z }.Select(c => c * sun.SkyIntensity * 0.5f).ToArray();
-        for (var i = 0; i < 3; i++)
+        if (sun != null)
         {
-            F(112 + i * 16 + 8, sh[i]);
-            F(112 + i * 16 + 12, sh[i]);
+            // g_vAmbientLightingSH: z and w of each channel, the sky colour times intensity times 0.5.
+            var sh = new[] { sun.SkyColorLinear.X, sun.SkyColorLinear.Y, sun.SkyColorLinear.Z }.Select(c => c * sun.SkyIntensity * 0.5f).ToArray();
+            for (var i = 0; i < 3; i++)
+            {
+                F(112 + i * 16 + 8, sh[i]);
+                F(112 + i * 16 + 12, sh[i]);
+            }
+            var lum = sh[2] * 0.0722f + sh[1] * 0.7152f + sh[0] * 0.2126f;  // g_vAmbientLightingNormalizationSH
+            var lum95 = lum * 0.95f;
+            F(168, lum <= lum95 ? lum : lum95);
+            F(172, lum);
         }
-        var lum = sh[2] * 0.0722f + sh[1] * 0.7152f + sh[0] * 0.2126f;  // g_vAmbientLightingNormalizationSH
-        var lum95 = lum * 0.95f;
-        F(168, lum <= lum95 ? lum : lum95);
-        F(172, lum);
         float[] ao = [0.5547002f, 0f, 0.8320503f, 0f, -0.5547002f, 0f, 0.8320503f, 0f, 0f, 0.5547002f, 0.8320503f, 0f, 0f, -0.5547002f, 0.8320503f, 0f,
                       0.3f, 0.3f, 0.3f, 0.3f, 1f, 1f, 1f, 1f, 0.2f, 0f, 0f, 0f];
         for (var i = 0; i < ao.Length; i++)
             F(176 + i * 4, ao[i]);
-        I(308, 8192);                                                  // g_vLightCullParams
-        I(324, 8192);                                                  // g_vEnvMapCullParams
-        I(340, 8192);                                                  // g_vLPVCullParams
-        I(344, volumes.Count > 0 ? 1 : 0);
-        I(352, 3);                                                     // g_vTileCullParams
-        I(356, 128);
-        I(360, 128);
-        I(364, 8);
-        F(368, 0.8192f);                                               // g_vDepthCullParams
-        F(372, 8191f);
+        // g_vLightCullParams, g_vEnvMapCullParams, g_vLPVCullParams: per item type (first bin mask word, first tile mask
+        // word, mask words, 0), from the binner (+0xf380 bins, +0xf38c tiles x * tiles y, +0xf390 / +0xf394 / +0xf398
+        // the types' mask words, 1801a9b70), as 1801af7b0 copies them; the same batches CullParams_t carries.
+        var (bins, tileShift, tileSide, tilesX, tilesY) = BinnerGrid(faceSize, faceSize, tilePixels, binSlices);
+        static int Words(int count) => count != 0 ? (count + 31) / 32 : 0;
+        var (wl, we, wp) = (Words(lights), Words(envMaps), Words(volumes.Count));
+        var (words, tileCount) = (wl + we + wp, tilesX * tilesY);
+        I(308, words * bins);
+        I(312, wl);
+        I(320, bins * wl);
+        I(324, tileCount * wl + words * bins);
+        I(328, we);
+        I(336, bins * (wl + we));
+        I(340, tileCount * (wl + we) + words * bins);
+        I(344, wp);
+        I(352, tileShift);                                             // g_vTileCullParams (+0xf374 .. +0xf37c, +0xf370)
+        I(356, tilesX);
+        I(360, tilesY);
+        I(364, tileSide);
+        F(368, 1f / (farPlane / bins));                                // g_vDepthCullParams
+        F(372, bins - 1f);
         F(384, 256f);                                                  // g_vEnvironmentMapSizeConstants
         F(388, 5f);
         F(392, 8f);
@@ -503,30 +536,40 @@ public static class CubemapFaceConstants
             F(at + 88, Inv(volume.EdgeFadeDists.Z));
             I(at + 92, volume.ArrayIndex);
         }
-        F(31120, sun.Direction.X);                                     // g_vFastPathSunLightDir
-        F(31124, sun.Direction.Y);
-        F(31128, sun.Direction.Z);
-        F(31132, 0.04f);
-        F(31136, sun.Color.X);                                         // g_vFastPathSunLightColor
-        F(31140, sun.Color.Y);
-        F(31144, sun.Color.Z);
-        F(31152, 1f);                                                  // g_vFastPathSunLightBakedShadowMask
-        I(31168, -1);
-        I(31172, -1);
-        I(31176, 65535);
-        I(31248, cascades.Count - 1);                                  // g_nShadowCascadeCount (the viewmodel cascade not counted)
-        I(31252, 2);
-        F(31256, -1.526e-05f);                                         // g_flShadowCascadeReceiverDepthBias
+        F(31256, -1.526e-05f);                                         // g_flShadowCascadeReceiverDepthBias (convars, either way)
         F(31260, -0.00015f);
-        for (var i = 0; i < 4; i++)
-            F(31264 + i * 4, 1f);                                      // g_vShadowCascadeSampleThreshold
-        var cf = Math.Clamp(sun.CrossFade, 0.001f, 0.5f);
-        F(31280, -(1f - cf) / cf);                                     // split lerp
-        F(31284, 1f / cf);
-        var df = Math.Clamp(sun.DistanceFade, 0.001f, 0.5f);
-        var fadeRange = maxShadowDistance * df;
-        F(31288, -((1f - df) * maxShadowDistance) / fadeRange);        // z lerp
-        F(31292, 1f / fadeRange);
+        if (sun == null)
+        {
+            // No fast path sun: 1801af7b0's defaults (0, 0, -1, 0.04) and light index -1; no shadow object: no cascade word.
+            F(31128, -1f);
+            F(31132, 0.04f);
+            I(31176, -1);
+        }
+        else
+        {
+            F(31120, sun.Direction.X);                                 // g_vFastPathSunLightDir
+            F(31124, sun.Direction.Y);
+            F(31128, sun.Direction.Z);
+            F(31132, 0.04f);
+            F(31136, sun.Color.X);                                     // g_vFastPathSunLightColor
+            F(31140, sun.Color.Y);
+            F(31144, sun.Color.Z);
+            F(31152, 1f);                                              // g_vFastPathSunLightBakedShadowMask
+            I(31168, -1);
+            I(31172, -1);
+            I(31176, 65535);
+            I(31248, cascades.Count - 1);                              // g_nShadowCascadeCount (the viewmodel cascade not counted)
+            I(31252, 2);
+            for (var i = 0; i < 4; i++)
+                F(31264 + i * 4, 1f);                                  // g_vShadowCascadeSampleThreshold
+            var cf = Math.Clamp(sun.CrossFade, 0.001f, 0.5f);
+            F(31280, -(1f - cf) / cf);                                 // split lerp
+            F(31284, 1f / cf);
+            var df = Math.Clamp(sun.DistanceFade, 0.001f, 0.5f);
+            var fadeRange = maxShadowDistance * df;
+            F(31288, -((1f - df) * maxShadowDistance) / fadeRange);    // z lerp
+            F(31292, 1f / fadeRange);
+        }
         float[] identity = [1f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 1f];
         float[] shift = [1f, 0f, 0f, lightingOffset.X, 0f, 1f, 0f, lightingOffset.Y, 0f, 0f, 1f, lightingOffset.Z, 0f, 0f, 0f, 1f];
         for (var k = 0; k < cascades.Count && k < 4; k++)
@@ -541,6 +584,8 @@ public static class CubemapFaceConstants
             F(31816 + k * 16, half / atlasWidth);
             F(31820 + k * 16, -(half / atlasHeight));
         }
+        I(31952, lights);                                              // the binner's light entries (+0xe3a8)
+        I(31956, envMaps);                                             // its environment map bits (1801c5cf0)
         I(31960, volumes.Count);                                       // g_nNumLPVs
         for (var i = 0; i < 16; i++)
         {

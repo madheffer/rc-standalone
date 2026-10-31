@@ -5060,6 +5060,42 @@ game can answer is raised with the user first, and runs with -insecure.
      - Also: the 10-29 engine2's frame-state forwarder (10-22 180242680) ports to 1802426c0 but its prologue
        changed, so time_inputs.js logs no engine_frame on this build.
 
+192. **A cube of a map with no light_environment and no env_sky, and the csgo_ shaders' bindless lightmaps**
+     (2026-11-01: decompile of scenesystem 20261015 1801af7b0 and 1801a9b70, disassembly of 1801a8150; decompile of
+     client 20261015 1811fef80 and 181217e20; RenderDoc capture of ze_hold_em_p's cube 0 in cubehost on CS2 1.41.9.4,
+     %TEMP%/cubehost_run/holdem_rdc0 with replay_face0 .. 5, readbacks and spirv; the shaders' DXBC reflection.)
+     Code read, then checked against the capture; ze_hold_em_p has 37 light_barn, 8 env_combined_light_probe_volume,
+     no light_environment, no env_sky, no env_cubemap_fog.
+     - The light block (1801af7b0) takes the fast path sun from the binner's +0xebd0 and the shadow object from
+       +0xebd8. With +0xebd0 null the sun words are the defaults it sets first: direction (0, 0, -1, 0.04), colour
+       and bake mask 0, the two light indices 0, +31176 -1. With +0xebd8 null its whole branch is skipped: ambient SH,
+       cascade count and every cascade word stay the memset's 0 (the receiver bias +31256 / +31260 is written either
+       way, from convars). Measured, not read: a map with no light_environment has neither object (the capture).
+     - +304 .. +351 are the binner's batches as 1801af7b0 copies them from +0xf370 .. +0xf398: per item type (first bin
+       mask word, first tile mask word, mask words, 0) with bins +0xf380, tiles +0xf38c (= +0xf378 x +0xf37c, stored
+       at 1801a87f4) and the types' mask words +0xf390 / +0xf394 / +0xf398 ((count + 31) / 32, 1801a9b70). +352 ..
+       +372 are the grid (+0xf374, +0xf378, +0xf37c, +0xf370) and bins / far, bins - 1. Checked: probe01's constants
+       are this formula with no light; ze_hold_em_p's face 0 (one light word) 16384, 1, 8192, 32768, 8192, 32768.
+     - +31936 .. +31960 are, in order, bindless indices of the shadow atlas (+0xef80), DAT_180925ba8's texture (or the
+       type 2 default), +0xefa0's and +0xef88's (or defaults), then the binner's light entry count (+0xe3a8; 22 on
+       face 0), its environment map bits (1801c5cf0) and the volume count. The block is copied 0x7de0 bytes, so its
+       last 32 bytes are stack junk (ze's +32224 .. differ from probe01's: not read).
+     - PerViewConstantBufferCsgo_t word 2 (+8) is 181217e20's result: it fills the cube fog only when the view has the
+       attribute 0x765c7d3c, else writes (+inf, -inf, 1, 0) at its +0x210 and returns 0. ze_hold_em_p has no
+       env_cubemap_fog: 0. +644 is 0x3f169696 in both captures (the port's literal 0.5882353f rounded to 0x3f169697;
+       no face reads it).
+     - With no env_sky the colour pass draws no sky (no draw after the world in any face of the capture; C_EnvSky makes
+       the sky object, client 180282390).
+     - The csgo_ world shaders (csgo_lightmappedgeneric, csgo_environment, csgo_simple_2way_blend) read every texture
+       through set 4's bindless arrays, the lightmaps included; generic (probe01's dev materials) binds them by name.
+       BakedLightingConstantBuffer_t's members (reflection): +16 g_tLightmapIrradianceIndex, +20
+       g_tLightmapDirectionalIndex, +24 g_tLightmapShadowsIndex, +28 g_tLightmapDebugChartIndex, +32
+       g_bBakedShadowsGamma20, +36 .. +48 the SH2 sets. The capture's draw 429 indexes BC6H, BC1, BC5 and BC1 images
+       there (UNORM / UFLOAT views; the BC1 views force alpha to one, ours is BC1 RGBA). With those words 0 a sunless
+       map renders black; with our indices written, face 4 is within 0.0072 of the readback.
+     - Left on ze_hold_em_p (CUBEMAPS.md F): the 22 barn light entries in the binner and their records, the entity
+       models drawn as their own scene objects (CAnimatableSceneObjectDesc, CBaseSceneObjectDesc), the AO proxies.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

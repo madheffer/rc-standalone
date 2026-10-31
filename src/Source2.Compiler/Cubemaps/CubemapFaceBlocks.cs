@@ -20,7 +20,8 @@ public static class CubemapFaceBlocks
     /// What the blocks take from the map: the cube's origin, the light probe volumes, env_cubemap_fog, the
     /// light_environment (its angles, colour times brightness, the sky colour and intensity, fades), the world's
     /// lightmap uv scale and size, env_sky's angles and origin. <paramref name="ScriptedCamera"/> is whether the
-    /// build saw a scripted camera (UI state, ledger 149: cascade 0's distance).
+    /// build saw a scripted camera (UI state, ledger 149: cascade 0's distance). <paramref name="HasSun"/> false is a map
+    /// with no light_environment (the sun fields are then unused: no fast path sun, no cascades).
     /// </summary>
     public sealed record Scene(
         Vector3 Origin,
@@ -38,7 +39,8 @@ public static class CubemapFaceBlocks
         Vector3 SkyAngles,
         Vector3 SkyOrigin,
         bool ScriptedCamera,
-        float MinSpecLightmapSize = 4096f);
+        float MinSpecLightmapSize = 4096f,
+        bool HasSun = true);
 
     /// <summary>One face's blocks.</summary>
     public sealed record Face(
@@ -92,9 +94,12 @@ public static class CubemapFaceBlocks
     /// gameinfo's BakedLighting MinSpecLightmapSize (client 181206bfe).</item>
     /// </list>
     /// What is not read throws: rotated volumes or fog, fog with a height range (its struct fill is not read), a
-    /// tinted sky, func_ and plain env_light_probe_volume, more than one fog, sun or sky.
+    /// tinted sky, func_ and plain env_light_probe_volume, more than one fog, sun or sky. A map with no
+    /// light_environment has no sun (<see cref="Scene.HasSun"/> false); one with no env_sky has no sky object to draw
+    /// (C_EnvSky makes it, client 180282390), so <paramref name="skyMaterial"/> is null (ze_hold_em_p's capture: the
+    /// colour pass draws no sky).
     /// </summary>
-    public static List<Cube> FromPackage(ValvePak.Package package, string gameinfo, bool scriptedCamera, out string skyMaterial)
+    public static List<Cube> FromPackage(ValvePak.Package package, string gameinfo, bool scriptedCamera, out string? skyMaterial)
     {
         var entities = new List<(string Class, Maps.LightPrecompute.KeyReader Key)>();
         foreach (var entry in (package.Entries!.GetValueOrDefault("vents_c") ?? []).OrderBy(e => e.GetFullPath(), StringComparer.Ordinal))
@@ -134,11 +139,11 @@ public static class CubemapFaceBlocks
                 F(f("cubemapfogfalloffexponent")), new Vector4(0f, F(f("cubemapfogheightstart")), F(f("cubemapfogheightexponent")), F(f("cubemapfogmaxopacity"))),
                 Matrix4x4.CreateTranslation(V(f("origin"))));
         }
-        var sun = One("light_environment") ?? throw new NotSupportedException("no light_environment: the sunless light block is not read");
-        var sky = One("env_sky") ?? throw new NotSupportedException("no env_sky");
-        if (sky("tint_color") is { } tint && V(tint) != new Vector3(255, 255, 255) || sky("brightnessscale") is { } scale && F(scale) != 1f)
+        var sun = One("light_environment");
+        var sky = One("env_sky");
+        if (sky != null && (sky("tint_color") is { } tint && V(tint) != new Vector3(255, 255, 255) || sky("brightnessscale") is { } scale && F(scale) != 1f))
             throw new NotSupportedException("a tinted env_sky: SkyTint from the entity is not read");
-        skyMaterial = sky("skyname") ?? throw new InvalidDataException("env_sky has no skyname");
+        skyMaterial = sky == null ? null : sky("skyname") ?? throw new InvalidDataException("env_sky has no skyname");
         using var worldResource = Read(package, package.Entries!.GetValueOrDefault("vwrld_c")!.Single());
         var lightingInfo = ((World)worldResource.DataBlock!).Data.GetSubCollection("m_worldLightingInfo");
         var uvScale = lightingInfo.GetSubCollection("m_vLightmapUvScale").ToVector2();
@@ -161,10 +166,13 @@ public static class CubemapFaceBlocks
         var cubes = new List<Cube>();
         foreach (var cls in new[] { "env_cubemap", "env_cubemap_box", "env_combined_light_probe_volume" })
             foreach (var (_, key) in entities.Where(e => e.Class == cls))
-                cubes.Add(new Cube(new Scene(V(key("origin")), volumes, fog, V(sun("angles")), Colour(sun("color")) * F(sun("brightness")),
-                    sun("cascadecrossfade") is { } crossFade ? F(crossFade) : AbsentCrossFade,
-                    sun("cascadedistancefade") is { } distanceFade ? F(distanceFade) : AbsentDistanceFade, Colour(sun("skycolor")), F(sun("skyintensity")),
-                    uvScale, lightmapWidth, lightmapHeight, V(sky("angles")), V(sky("origin")), scriptedCamera, minSpec),
+                cubes.Add(new Cube(new Scene(V(key("origin")), volumes, fog,
+                    sun == null ? Vector3.Zero : V(sun("angles")), sun == null ? Vector3.Zero : Colour(sun("color")) * F(sun("brightness")),
+                    sun?.Invoke("cascadecrossfade") is { } crossFade ? F(crossFade) : AbsentCrossFade,
+                    sun?.Invoke("cascadedistancefade") is { } distanceFade ? F(distanceFade) : AbsentDistanceFade,
+                    sun == null ? Vector3.Zero : Colour(sun("skycolor")), sun == null ? 0f : F(sun("skyintensity")),
+                    uvScale, lightmapWidth, lightmapHeight, sky == null ? Vector3.Zero : V(sky("angles")), sky == null ? Vector3.Zero : V(sky("origin")),
+                    scriptedCamera, minSpec, sun != null),
                     uint.Parse(key("handshake") ?? throw new InvalidDataException($"{cls} has no handshake"), CultureInfo.InvariantCulture), cls));
         return cubes;
     }
@@ -183,13 +191,21 @@ public static class CubemapFaceBlocks
         var view = CubemapFaceViews.Face(scene.Origin, Vector3.Zero, Near, Far, face);
         var frustum = AggregateCulling.FaceFrustum(view);
         var volumes = CubemapFaceConstants.VisibleVolumes(frustum, scene.Volumes);
-        var (toSun, lightDirection, cameraDirection) = CubemapShadowCascades.SunDirections(scene.SunAngles);
-        var cascades = CubemapShadowCascades.GameCascades(view, toSun, Near, Far, scene.ScriptedCamera);
         var tiles = CubemapFaceDrawList.CascadeTiles.Select(t => new[] { t.X, t.Y }).ToArray();
-        var cascadeViews = Enumerable.Range(0, 4).Select(k => CubemapFaceConstants.CascadePerView(cascades[k], cameraDirection, tiles[k][0], tiles[k][1],
-            CubemapShadowCascades.Inputs.Resolution, CubemapShadowCascades.Inputs.AtlasWidth, CubemapShadowCascades.Inputs.AtlasHeight)).ToArray();
-        var sun = new CubemapFaceConstants.Sun(lightDirection, scene.SunColour, scene.SunCrossFade, scene.SunDistanceFade, scene.SkyColourLinear, scene.SkyIntensity);
-        var stretched = CubemapShadowCascades.Slice(view, Near, CubemapShadowCascades.GameDistances(Near, Far, scene.ScriptedCamera)[^1]).Diameter * 1.42f;
+        // With no sun there is no shadow object, so no cascade view or pass (ze_hold_em_p's capture: the atlas is only cleared).
+        List<CubemapShadowCascades.Cascade> cascades = [];
+        byte[][] cascadeViews = [];
+        CubemapFaceConstants.Sun? sun = null;
+        var stretched = 0f;
+        if (scene.HasSun)
+        {
+            var (toSun, lightDirection, cameraDirection) = CubemapShadowCascades.SunDirections(scene.SunAngles);
+            cascades = [.. CubemapShadowCascades.GameCascades(view, toSun, Near, Far, scene.ScriptedCamera)];
+            cascadeViews = [.. Enumerable.Range(0, 4).Select(k => CubemapFaceConstants.CascadePerView(cascades[k], cameraDirection, tiles[k][0], tiles[k][1],
+                CubemapShadowCascades.Inputs.Resolution, CubemapShadowCascades.Inputs.AtlasWidth, CubemapShadowCascades.Inputs.AtlasHeight))];
+            sun = new CubemapFaceConstants.Sun(lightDirection, scene.SunColour, scene.SunCrossFade, scene.SunDistanceFade, scene.SkyColourLinear, scene.SkyIntensity);
+            stretched = CubemapShadowCascades.Slice(view, Near, CubemapShadowCascades.GameDistances(Near, Far, scene.ScriptedCamera)[^1]).Diameter * 1.42f;
+        }
         // The binner's items: no lights or environment maps are binned in the cubemap view, the visible volumes are.
         var bin = new LightBinnerItems.View(view.Origin, new Vector3(view.CameraToWorld[0], view.CameraToWorld[4], view.CameraToWorld[8]),
             AggregateCulling.WorldToProjection(view), CubemapFaceDrawList.FaceSize, CubemapFaceDrawList.FaceSize, BinnerTilePixels);

@@ -81,7 +81,7 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
     private readonly Package _coreShaders;
     private readonly IReadOnlyList<AggregateModel> _aggregates;
     private readonly IReadOnlyList<IReadOnlyList<AggregateCulling.Fragment>>? _fragments;
-    private readonly string _skyMaterial;
+    private readonly string? _skyMaterial;
     private readonly Dictionary<string, (int R, int G, int B)> _shaderIdColors;
 
     private readonly Dictionary<object, GpuDevice.GpuBuffer> _buffers = new(ReferenceEqualityComparer.Instance);
@@ -98,8 +98,8 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
     /// <param name="game">The game folder (.../game) holding csgo and core.</param>
     /// <param name="mapVpk">The compiled map's package: world nodes, models, lightmaps.</param>
     /// <param name="aggregates">The draw list's aggregates' models, in its order (<see cref="AggregateModels"/>).</param>
-    /// <param name="skyMaterial">env_sky's material.</param>
-    public CubemapFaceRenderer(GpuDevice gpu, string game, string mapVpk, IReadOnlyList<AggregateModel> aggregates, string skyMaterial,
+    /// <param name="skyMaterial">env_sky's material, or null for a map with no env_sky (no sky object, nothing drawn).</param>
+    public CubemapFaceRenderer(GpuDevice gpu, string game, string mapVpk, IReadOnlyList<AggregateModel> aggregates, string? skyMaterial,
         IReadOnlyList<IReadOnlyList<AggregateCulling.Fragment>>? fragments = null)
     {
         _fragments = fragments;
@@ -239,11 +239,12 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
         CreateTarget(AmbientOcclusion, Format.R8G8B8A8Srgb, WindowWidth, WindowHeight);
         Clear(AmbientOcclusion, Format.R8G8B8A8Srgb, WindowWidth, WindowHeight, new(0, 0, half, half), null, null, [1f, 1f, 1f, 1f]);
 
-        // 6. The colour layer, then the sky.
+        // 6. The colour layer, then the sky (a map with no env_sky has no sky object).
         foreach (var d in draws.Where(d => d.Layer == CubemapFaceDrawList.Layer.Colour))
             foreach (var c in d.Commands)
                 WorldDraw(d, c, CubemapFacePipelines.Pass.Colour, blocks.WorldView, blocks, transforms, instanceRecords, instanceIds, cullBits, FaceDepth, observe, FaceColour);
-        Sky(blocks, instanceIds, observe);
+        if (_skyMaterial != null)
+            Sky(blocks, instanceIds, observe);
 
         // 7. The face's stencil cleared, then the quarter resolution depth.
         Clear(FaceDepth, Format.D24UnormS8Uint, (uint)face, (uint)face, new(0, 0, face, face), null, 0, null);
@@ -796,6 +797,24 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
         return b;
     }
 
+    /// <summary>
+    /// BakedLightingConstantBuffer_t for a program that reads the bindless set (the csgo_ shaders read their lightmaps
+    /// only so; generic binds them by name): g_tLightmapIrradianceIndex (+16), g_tLightmapDirectionalIndex (+20),
+    /// g_tLightmapShadowsIndex (+24) and g_tLightmapDebugChartIndex (+28), the block's members in the shaders'
+    /// reflection, index the package's irradiance, directional_irradiance, direct_light_shadows and
+    /// debug_chart_color. Matched in ze_hold_em_p face 0's capture (BC6H, BC1, BC5, BC1 through UNORM / UFLOAT views).
+    /// A world without lightmaps keeps 0 (what the game binds there is not read). The SH2 indices (+36 .. +48) stay 0.
+    /// </summary>
+    private byte[] BakedWithIndices(byte[] baked)
+    {
+        var lightmaps = (_map.Entries!.GetValueOrDefault("vtex_c") ?? []).Where(e => e.DirectoryName.EndsWith("lightmaps", StringComparison.Ordinal)).Select(e => e.FileName).ToHashSet();
+        var b = (byte[])baked.Clone();
+        foreach (var (offset, name) in new[] { (16, "irradiance"), (20, "directional_irradiance"), (24, "direct_light_shadows"), (28, "debug_chart_color") })
+            if (lightmaps.Contains(name))
+                BitConverter.TryWriteBytes(b.AsSpan(offset), BindlessLive($"lightmap {name}", Lightmap(name, false, ImageViewType.Type2D), ImageViewType.Type2D));
+        return b;
+    }
+
     /// <summary>The error for a binding <see cref="Named"/> cannot place, with what the write sequence does list in that set.</summary>
     private static string Unnamed(ValveProgram program, int set, int binding, SpirvReflection.Kind kind)
         => $"{program.Name}: set {set} binding {binding} ({kind}) is named by no variable; the sequence lists in set {set}: "
@@ -848,8 +867,10 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
         var globals = new[] { vs, ps }.Select((program, stage) => program == null || !program.Reflection.Resources.Any(r => r.Kind == SpirvReflection.Kind.UniformBuffer && r.Binding == 0 && r.Set == stage) ? null : Globals(call.Material + " " + program.Name, program, material,
             new() { ["g_bRenderingToCubemaps"] = VfxExpression.Value.Of(1f) }, ShaderIdColor(material),
             (name, v) => BindlessTexture(program, name, v, material), name => BindlessSampler(program, name, material))).ToArray();
-        // The Csgo block's bindless indices are registered here too, before set 4's arrays are bound.
-        var csgo = new[] { vs, ps }.Any(p => p != null && BindlessArrays(p).Any()) ? CsgoWithIndices(blocks.Csgo) : blocks.Csgo;
+        // The Csgo and baked lighting blocks' bindless indices are registered here too, before set 4's arrays are bound.
+        var bindless = new[] { vs, ps }.Any(p => p != null && BindlessArrays(p).Any());
+        var csgo = bindless ? CsgoWithIndices(blocks.Csgo) : blocks.Csgo;
+        var baked = bindless ? BakedWithIndices(blocks.Baked) : blocks.Baked;
         foreach (var (program, stage) in new[] { (vs, 0), (ps, 1) })
         {
             if (program == null)
@@ -871,7 +892,7 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
                         {
                             "PerViewConstantBuffer_t" => perView,
                             "PerViewConstantBufferCsgo_t" => csgo,
-                            "BakedLightingConstantBuffer_t" => blocks.Baked,
+                            "BakedLightingConstantBuffer_t" => baked,
                             "PerViewLightProbeVolumeConstantBuffer_t" => ProbeVolumeBuffer(),
                             "PerViewLightingConstantBufferGpu_t" => blocks.Lights,
                             _ => throw Unbound(program, v.Name),
@@ -913,6 +934,10 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
             DepthFormat = _live[depthTarget].Format,
         };
         var state = CubemapFacePipelines.Apply(template, pass, ps != null ? (VfxRenderStateInfoPixelShader)ps.RenderState : null);
+        // S2C_CUBE_TRACE=1: each colour draw's programs and pipeline state (diagnosis).
+        if (pass == CubemapFacePipelines.Pass.Colour && Environment.GetEnvironmentVariable("S2C_CUBE_TRACE") == "1")
+            Console.Error.WriteLine($"cube trace {model.Model} {command}: {vs.Name} / {ps?.Name}; write mask {state.ColorWriteMask}, depth {state.DepthTest} {state.DepthWrite} {state.DepthCompare}, "
+                + $"stencil {state.StencilTest} {state.StencilFront.CompareOp}, cull {state.Cull}, blend {state.Blend}, streams {string.Join("+", streams.Select(x => x.Stride))}");
         (GpuDevice.GpuBuffer, ulong)[] vertexBuffers = [.. streams.Select(s => (Buffer(s.Data), 0ul)), (Buffer(instanceIds), 0ul), (Buffer(Zero16), 0ul)];
         _runner.Draw(state, bindings, vertexBuffers, (Buffer(model.Indices), 0ul, model.IndexType),
             new SceneDrawArgs(true, (uint)command.IndexCount, (uint)command.InstanceCount, (uint)command.FirstIndex, command.VertexOffset, (uint)command.FirstInstance),
@@ -1083,7 +1108,8 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
     /// </summary>
     private void Sky(CubemapFaceBlocks.Face blocks, byte[] instanceIds, Action<Action>? observe)
     {
-        var material = Material(_skyMaterial);
+        var skyMaterial = _skyMaterial!;
+        var material = Material(skyMaterial);
         var features = Features(material);
         var vs = Program(_csgoShaders, "sky", "vs", [], [], features);
         var ps = Program(_csgoShaders, "sky", "ps", [], new() { ["D_FOG_TYPE"] = 0 }, features);
@@ -1094,7 +1120,7 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
                 if (r.Kind == SpirvReflection.Kind.UniformBuffer && r.Set == stage && r.Binding == 0)
                 {
                     bindings.Buffer(r.Set, 0, 0, Buffer(stage == 0 ? blocks.SkyWsToOs
-                        : Globals("sky " + _skyMaterial, ps, material, new() { ["SkyTint"] = VfxExpression.Value.Of(1f, 1f, 1f, 0f) })), 0, Vk.WholeSize);
+                        : Globals("sky " + skyMaterial, ps, material, new() { ["SkyTint"] = VfxExpression.Value.Of(1f, 1f, 1f, 0f) })), 0, Vk.WholeSize);
                     continue;
                 }
                 var v = Named(program, r.Set, r.Binding, r.Kind) ?? throw new InvalidDataException(Unnamed(program, r.Set, r.Binding, r.Kind));

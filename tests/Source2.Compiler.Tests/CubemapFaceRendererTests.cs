@@ -12,7 +12,7 @@ namespace Source2.Compiler.Tests;
 /// packages and gameinfo. No file of a RenderDoc dump is read to render. The six faces' colour must equal the game's readbacks (<c>CUBEREADBACK</c>, rdc_readback.py) and
 /// through <see cref="CubemapFaceExr"/> the game's EXR (<c>CUBEREADBACK_EXR</c>) byte for byte. <c>CUBENODUMP_VPK</c>
 /// is the captured map's package, <c>CUBENODUMP_CUBE</c> the cube (0 by default), <c>CUBEREPLAY_SCRIPTEDCAMERA=0</c> a build without a scripted camera; <c>CUBEREPLAY_EXR_OUT</c> writes our
-/// EXR for GameCubemapTests to build the array from.
+/// EXR for GameCubemapTests to build the array from, <c>CUBENODUMP_FACES_OUT</c> our raw faces.
 /// </summary>
 public sealed class CubemapFaceRendererTests(ITestOutputHelper output)
 {
@@ -60,7 +60,7 @@ public sealed class CubemapFaceRendererTests(ITestOutputHelper output)
         var scripted = Environment.GetEnvironmentVariable("CUBEREPLAY_SCRIPTEDCAMERA") != "0";
         // The scene from the package's lumps and world, and gameinfo (CubemapFaceBlocks.FromPackage).
         List<CubemapFaceBlocks.Cube> cubes;
-        string skyMaterial;
+        string? skyMaterial;
         using (var package = new ValvePak.Package())
         {
             package.Read(vpk);
@@ -84,7 +84,7 @@ public sealed class CubemapFaceRendererTests(ITestOutputHelper output)
         models = [.. models.Select((m, i) => m with { DrawCallFlags = memberships[aggregates[i].Name.Split(' ', 2)[1]].DrawCall14 })];
         var listAggregates = aggregates.Select(a => new CubemapFaceDrawList.Aggregate(a.Fragments, a.OwnTransforms, a.Lods, memberships[a.Name.Split(' ', 2)[1]])).ToList();
         var order = CubemapFaceDrawList.MaterialOrder(CubemapFaceRenderer.AggregateMaterials(models));
-        var (toSun, _, _) = CubemapShadowCascades.SunDirections(scene.SunAngles);
+        Vector3? toSun = scene.HasSun ? CubemapShadowCascades.SunDirections(scene.SunAngles).ToSun : null;
 
         using var gpu = new GpuDevice(rayTracingShaderFeatures: Environment.GetEnvironmentVariable("CUBEREPLAY_BASIC_DEVICE") != "1");
         using var renderer = new CubemapFaceRenderer(gpu, game, vpk, models, skyMaterial, [.. aggregates.Select(a => (IReadOnlyList<AggregateCulling.Fragment>)a.Fragments)]);
@@ -95,10 +95,47 @@ public sealed class CubemapFaceRendererTests(ITestOutputHelper output)
             var blocks = CubemapFaceBlocks.Build(scene, f);
             var (draws, instances) = CubemapFaceDrawList.Face(blocks.View, toSun, listAggregates, scene.ScriptedCamera, materialOrder: order);
             var actions = 0;
-            var face = renderer.RenderFace(blocks, draws, instances, _ => actions++);
+            // CUBENODUMP_TRACE=1: after each action, how much of the face's colour and depth it has touched.
+            var trace = Environment.GetEnvironmentVariable("CUBENODUMP_TRACE") == "1";
+            var face = renderer.RenderFace(blocks, draws, instances, a =>
+            {
+                actions++;
+                // With CUBENODUMP_FACES_OUT, the face depth once the prepass is done (depth plane then stencil plane).
+                if (a.Label.StartsWith("DownsampleHalf", StringComparison.Ordinal) && Environment.GetEnvironmentVariable("CUBENODUMP_FACES_OUT") is { Length: > 0 } depthOut)
+                {
+                    Directory.CreateDirectory(depthOut);
+                    File.WriteAllBytes(Path.Combine(depthOut, $"prepass_depth_{f}.bin"), renderer.ReadTarget(CubemapFaceRenderer.FaceDepth));
+                }
+                if (!trace || a.Colour is null && a.Depth is null)
+                    return;
+                var colour = a.Colour is { } c ? renderer.ReadTarget(c) : [];
+                var lit = Enumerable.Range(0, colour.Length / 2).Count(i => i % 4 != 3 && BitConverter.ToUInt16(colour, i * 2) != 0);
+                var depth = a.Depth is { } d ? renderer.ReadTarget(d) : [];
+                var near = a.Depth == CubemapFaceRenderer.FaceDepth ? Enumerable.Range(0, Math.Min(depth.Length / 4, CubemapFaceDrawList.FaceSize * CubemapFaceDrawList.FaceSize)).Count(i => (BitConverter.ToUInt32(depth, i * 4) & 0xffffff) != 0xffffff) : -1;
+                output.WriteLine($"  face {f} {a.Label}: colour halves set {lit}, face depth texels below 1: {near}");
+            });
             var readback = File.ReadAllBytes(Path.Combine(readbackDir, $"readback_{f}.bin"));
             var differ = Enumerable.Range(0, Math.Min(face.Length, readback.Length) / 2).Count(i => BitConverter.ToUInt16(face, i * 2) != BitConverter.ToUInt16(readback, i * 2));
-            output.WriteLine($"face {f}: {actions} actions ({draws.Sum(d => d.Commands.Count)} world draws), colour against readback_{f}: {(face.Length == readback.Length && differ == 0 ? "equal" : $"{differ} halves differ")}");
+            // How far off: the largest difference of a colour half, and the pixels with any channel off by more than 1 / 256.
+            var halves = Math.Min(face.Length, readback.Length) / 2;
+            var worst = Enumerable.Range(0, halves).Where(i => i % 4 != 3).Select(i => Math.Abs((float)BitConverter.ToHalf(face, i * 2) - (float)BitConverter.ToHalf(readback, i * 2))).DefaultIfEmpty(0f).Max();
+            var far = Enumerable.Range(0, halves / 4).Count(p => Enumerable.Range(0, 3).Any(c => Math.Abs((float)BitConverter.ToHalf(face, (p * 4 + c) * 2) - (float)BitConverter.ToHalf(readback, (p * 4 + c) * 2)) > 1f / 256));
+            output.WriteLine($"face {f}: {actions} actions ({draws.Sum(d => d.Commands.Count)} world draws), colour against readback_{f}: {(face.Length == readback.Length && differ == 0 ? "equal" : $"{differ} halves differ, largest {worst}, {far} pixels off by more than 1/256")}");
+            // CUBENODUMP_FACES_OUT=<dir>: our face as raw RGBA16F (face_<f>.bin), to diff against readback_<f>.bin, and
+            // the instance and transform buffers its draws read.
+            if (Environment.GetEnvironmentVariable("CUBENODUMP_FACES_OUT") is { Length: > 0 } facesOut)
+            {
+                Directory.CreateDirectory(facesOut);
+                File.WriteAllBytes(Path.Combine(facesOut, $"face_{f}.bin"), face);
+                var (transformBuffer, instanceBuffer) = CubemapFaceRenderer.InstanceBuffers(draws, instances, [.. aggregates.Select(a => (IReadOnlyList<AggregateCulling.Fragment>)a.Fragments)]);
+                File.WriteAllBytes(Path.Combine(facesOut, $"instances_{f}.bin"), instanceBuffer);
+                File.WriteAllBytes(Path.Combine(facesOut, $"transforms_{f}.bin"), transformBuffer);
+                File.WriteAllLines(Path.Combine(facesOut, $"draws_{f}.txt"), draws.SelectMany(d => d.Commands.Select(c => $"{d.Layer} view {d.View} aggregate {d.Aggregate} {models[d.Aggregate].Model} {c}")));
+                if (f == 0)
+                    File.WriteAllLines(Path.Combine(facesOut, "models.txt"), models.Select((m, i) => $"{i} {m.Model}: streams "
+                        + string.Join(" | ", m.Streams.Select(st => $"stride {st.Stride} [{string.Join(", ", st.Fields.Select(x => x.ToString()))}]"))
+                        + "; calls " + string.Join(", ", m.DrawCalls.Select(c => $"{c.Material} depth stream {c.DepthStream} compressed {c.CompressedNormals}"))));
+            }
             if (face.Length != readback.Length || differ != 0)
                 failures.Add($"face {f}: {differ} halves differ from the readback");
             faces.Add(System.Runtime.InteropServices.MemoryMarshal.Cast<byte, Half>(face).ToArray());

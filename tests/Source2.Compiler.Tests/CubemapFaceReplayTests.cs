@@ -241,8 +241,8 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
     /// Every constant block of a face from a package, against the capture's by role (<see cref="BlockRoles"/>):
     /// <c>CUBEBLOCKCMP=&lt;a face's dump&gt;</c>, <c>CUBEBLOCKCMP_VPK</c> the captured package, <c>CUBEBLOCKCMP_FACE</c>
     /// and <c>CUBEBLOCKCMP_CUBE</c> (0 by default), <c>CUBEREPLAY_SCRIPTEDCAMERA=0</c> as elsewhere. For each role:
-    /// how many words are the capture's and the first differing offsets, so the gap of a new map is a list.
-    /// <c>CUBEBLOCKCMP_STRICT=1</c> fails on any difference.
+    /// how many words are the capture's and the first differing offsets (every one with <c>CUBEBLOCKCMP_ALL=1</c>), so
+    /// the gap of a new map is a list. <c>CUBEBLOCKCMP_STRICT=1</c> fails on any difference.
     /// </summary>
     [Fact]
     public void PackageBlocksAgainstTheCapture()
@@ -266,7 +266,7 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
             ["world"] = b.WorldView, ["sky"] = b.SkyView, ["csgo"] = b.Csgo, ["baked"] = b.Baked, ["lights"] = b.Lights,
             ["binner"] = b.BinnerParams, ["skyview"] = b.SkyWsToOs,
         };
-        for (var k = 0; k < 4; k++)
+        for (var k = 0; k < b.CascadeViews.Length; k++)
             ours[$"cascade{k}"] = b.CascadeViews[k];
         var actions = File.ReadLines(Path.Combine(dir, "actions.jsonl")).Select(l => JsonNode.Parse(l)!)
             .Where(r => r["contents"] is not null && (r["stages"]?["vs"] is not null || r["stages"]?["cs"] is not null)).ToList();
@@ -286,13 +286,67 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                 var n = Math.Min(theirs.Length, mine.Length) / 4;
                 var differ = Enumerable.Range(0, n).Where(i => BitConverter.ToUInt32(theirs, i * 4) != BitConverter.ToUInt32(mine, i * 4)).ToList();
                 output.WriteLine($"{role} {sha[..8]}: {n - differ.Count} of {n} words the capture's ({mine.Length} / {theirs.Length} bytes)"
-                                 + (differ.Count > 0 ? "; first at " + string.Join(", ", differ.Take(12).Select(i => $"+{i * 4} ours {BitConverter.ToSingle(mine, i * 4).ToString("R", System.Globalization.CultureInfo.InvariantCulture)} theirs {BitConverter.ToSingle(theirs, i * 4).ToString("R", System.Globalization.CultureInfo.InvariantCulture)}")) : ""));
+                                 + (differ.Count > 0 ? "; first at " + string.Join(", ", differ.Take(Environment.GetEnvironmentVariable("CUBEBLOCKCMP_ALL") == "1" ? int.MaxValue : 12).Select(i => $"+{i * 4} ours {BitConverter.ToSingle(mine, i * 4).ToString("R", System.Globalization.CultureInfo.InvariantCulture)} theirs {BitConverter.ToSingle(theirs, i * 4).ToString("R", System.Globalization.CultureInfo.InvariantCulture)}")) : ""));
                 if (differ.Count > 0)
                     failures.Add($"{role}: {differ.Count} words");
             }
         }
         if (Environment.GetEnvironmentVariable("CUBEBLOCKCMP_STRICT") == "1")
             Assert.Empty(failures);
+    }
+
+    /// <summary>
+    /// Diagnosis for a new map: our blocks from the package (as <see cref="PackageBlocksAgainstTheCapture"/> builds them)
+    /// put into the capture's own draws one role at a time (<c>CUBEBLOCKSWAP=&lt;role&gt;[,&lt;role&gt;...]</c>, every
+    /// role by default), each draw run from its captured targets. Prints, per role, which draws still equal the
+    /// capture, so a wrong input is found by the draws it breaks.
+    /// </summary>
+    [Fact]
+    public void PackageBlocksInTheCapturesDraws()
+    {
+        if (Environment.GetEnvironmentVariable("CUBEBLOCKCMP") is not { Length: > 0 } dir
+            || Environment.GetEnvironmentVariable("CUBEBLOCKCMP_VPK") is not { Length: > 0 } vpk
+            || Environment.GetEnvironmentVariable("CUBEREPLAY_SPIRV") is not { Length: > 0 } spirvDir)
+            return;
+        var face = int.Parse(Environment.GetEnvironmentVariable("CUBEBLOCKCMP_FACE") ?? "0", System.Globalization.CultureInfo.InvariantCulture);
+        var cube = int.Parse(Environment.GetEnvironmentVariable("CUBEBLOCKCMP_CUBE") ?? "0", System.Globalization.CultureInfo.InvariantCulture);
+        var game = Path.Combine(Environment.GetEnvironmentVariable("CS2_DIR") ?? @"D:\Steam\steamapps\common\Counter-Strike Global Offensive", "game");
+        List<Cubemaps.CubemapFaceBlocks.Cube> cubes;
+        using (var package = new ValvePak.Package())
+        {
+            package.Read(vpk);
+            cubes = Cubemaps.CubemapFaceBlocks.FromPackage(package, File.ReadAllText(Path.Combine(game, "csgo", "gameinfo.gi")),
+                Environment.GetEnvironmentVariable("CUBEREPLAY_SCRIPTEDCAMERA") != "0", out _);
+        }
+        var b = Cubemaps.CubemapFaceBlocks.Build(cubes[cube].Scene, face);
+        var ours = new Dictionary<string, byte[]> { ["world"] = b.WorldView, ["sky"] = b.SkyView, ["csgo"] = b.Csgo, ["baked"] = b.Baked, ["lights"] = b.Lights };
+        for (var k = 0; k < b.CascadeViews.Length; k++)
+            ours[$"cascade{k}"] = b.CascadeViews[k];
+        var lines = File.ReadLines(Path.Combine(dir, "actions.jsonl")).Select(l => JsonNode.Parse(l)!).ToList();
+        var actions = lines.Where(r => r["contents"] is not null && (r["stages"]?["vs"] is not null || r["stages"]?["cs"] is not null)).ToList();
+        var roles = BlockRoles(actions, sha => File.ReadAllBytes(Path.Combine(dir, "blobs", sha + ".bin")));
+        var resources = JsonNode.Parse(File.ReadAllText(Path.Combine(dir, "resources.json")))!;
+        using var gpu = new GpuDevice(rayTracingShaderFeatures: Environment.GetEnvironmentVariable("CUBEREPLAY_BASIC_DEVICE") != "1");
+        var runner = new SceneDrawRunner(gpu);
+        var swap = Environment.GetEnvironmentVariable("CUBEBLOCKSWAP") is { Length: > 0 } list ? list.Split(',') : [.. ours.Keys];
+        foreach (var role in swap)
+        {
+            using var replay = new Replay(dir, spirvDir, resources, gpu, runner);
+            var shas = roles.Where(p => p.Value == role).Select(p => p.Key).ToList();
+            foreach (var sha in shas)
+            {
+                var captured = File.ReadAllBytes(Path.Combine(dir, "blobs", sha + ".bin"));
+                byte[] mine = captured.Length > ours[role].Length ? [.. ours[role], .. captured.AsSpan(ours[role].Length)] : [.. ours[role]];
+                // Bindless index words name the capture's own heap: those stay the capture's.
+                foreach (var (from, to) in role switch { "csgo" => [(64, 132)], "baked" => [(16, 32)], "lights" => [(31936, 31952)], _ => Array.Empty<(int, int)>() })
+                    captured.AsSpan(from, to - from).CopyTo(mine.AsSpan(from));
+                replay.Overrides[sha] = mine;
+            }
+            var users = actions.Where(r => r["stages"]?["vs"] is not null && shas.Any(s => r.ToJsonString().Contains(s, StringComparison.Ordinal))).ToList();
+            var broken = users.Select(r => (Eid: (int)r["eid"]!, Result: replay.Run(r))).Where(e => !e.Result.StartsWith("equal", StringComparison.Ordinal)).ToList();
+            output.WriteLine($"{role} ({shas.Count} blocks): {users.Count - broken.Count} of {users.Count} draws still the capture's"
+                             + (broken.Count > 0 ? "; broken: " + string.Join("; ", broken.Take(6).Select(e => $"{e.Eid} {e.Result}")) : ""));
+        }
     }
 
     /// <summary>

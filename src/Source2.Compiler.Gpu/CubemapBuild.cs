@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Text.RegularExpressions;
 using Source2.Compiler.Cubemaps;
 using Source2.Compiler.Lighting;
@@ -49,7 +50,7 @@ public static class CubemapBuild
         var storage = StorageSize(gameinfo);
 
         List<CubemapFaceBlocks.Cube> cubes;
-        string skyMaterial;
+        string? skyMaterial;
         List<CubemapPackageAggregates.Aggregate> aggregates;
         Dictionary<string, CubemapFaceDrawList.Membership> memberships;
         using (var package = new ValvePak.Package())
@@ -79,7 +80,7 @@ public static class CubemapBuild
         {
             foreach (var cube in cubes)
             {
-                var (toSun, _, _) = CubemapShadowCascades.SunDirections(cube.Scene.SunAngles);
+                Vector3? toSun = cube.Scene.HasSun ? CubemapShadowCascades.SunDirections(cube.Scene.SunAngles).ToSun : null;
                 var faces = new List<Half[]>();
                 for (var f = 0; f < 6; f++)
                 {

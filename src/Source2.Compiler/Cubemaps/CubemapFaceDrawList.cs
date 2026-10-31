@@ -109,17 +109,20 @@ public static class CubemapFaceDrawList
 
     /// <summary>
     /// The face's frustum (-1) and its cascades' (0 to 3): each view cascade after the first excludes what its
-    /// predecessor covers, and every cascade of a fit culls to that fit's caster volume (ledger 140).
+    /// predecessor covers, and every cascade of a fit culls to that fit's caster volume (ledger 140). With no sun
+    /// (<paramref name="toSun"/> null: no light_environment, so no shadow object) the face is the only view.
     /// </summary>
-    public static Dictionary<int, AggregateCulling.Frustum> Views(CubemapFaceViews.View view, Vector3 toSun, float near, float far, bool scriptedCamera)
+    public static Dictionary<int, AggregateCulling.Frustum> Views(CubemapFaceViews.View view, Vector3? toSun, float near, float far, bool scriptedCamera)
     {
-        var cascades = CubemapShadowCascades.GameCascades(view, toSun, near, far, scriptedCamera);
         var views = new Dictionary<int, AggregateCulling.Frustum> { [-1] = AggregateCulling.FaceFrustum(view) };
+        if (toSun is not { } sun)
+            return views;
+        var cascades = CubemapShadowCascades.GameCascades(view, sun, near, far, scriptedCamera);
         var worldToProjection = AggregateCulling.WorldToProjection(view);
         var inverse = AggregateCulling.Invert4(worldToProjection)!;
         var (viewReach, viewmodelReach) = CubemapShadowCascades.GameReaches(view, near, far, scriptedCamera);
-        var viewVolume = AggregateCulling.CullingVolume(AggregateCulling.CasterVolume(worldToProjection, inverse, toSun, viewReach));
-        var viewmodelVolume = AggregateCulling.CullingVolume(AggregateCulling.CasterVolume(worldToProjection, inverse, toSun, viewmodelReach));
+        var viewVolume = AggregateCulling.CullingVolume(AggregateCulling.CasterVolume(worldToProjection, inverse, sun, viewReach));
+        var viewmodelVolume = AggregateCulling.CullingVolume(AggregateCulling.CasterVolume(worldToProjection, inverse, sun, viewmodelReach));
         for (var c = 0; c < cascades.Count; c++)
         {
             var viewmodel = c == cascades.Count - 1;
@@ -172,7 +175,7 @@ public static class CubemapFaceDrawList
     /// number of instance records the blocks use (instance 0 included). <paramref name="materialOrder"/> lists the
     /// aggregates in the order the layer sort puts them (by default aggregate order).
     /// </summary>
-    public static (List<ListDraw> Draws, int Instances) Face(CubemapFaceViews.View view, Vector3 toSun, IReadOnlyList<Aggregate> aggregates,
+    public static (List<ListDraw> Draws, int Instances) Face(CubemapFaceViews.View view, Vector3? toSun, IReadOnlyList<Aggregate> aggregates,
         bool scriptedCamera, float near = 1f, float far = 10000f, IReadOnlyList<int>? materialOrder = null)
     {
         var order = materialOrder ?? [.. Enumerable.Range(0, aggregates.Count)];

@@ -136,7 +136,13 @@
    "addr": "1801af7b0",
    "name": "LightBinner_WriteLightBlock",
    "module": "s2c:baked/lighting",
-   "note": "PerViewLightingConstantBufferGpu_t: g_VisibleLPV from +0xe528 (at most 128): world-to-volume rows 18049b3b0(object +0x30), box +0xd0 .. +0xe4 padded by 0.1, 1 / +0xe8, +0xec, +0xf0 (FLT_MAX for 0), then the int from the view's map; g_vShadowSampleRotations V_sincosf(i / 16 2pi + frame 1.618034); CubemapFaceConstants.LightBlock"
+   "note": "PerViewLightingConstantBufferGpu_t: g_VisibleLPV from +0xe528 (at most 128): world-to-volume rows 18049b3b0(object +0x30), box +0xd0 .. +0xe4 padded by 0.1, 1 / +0xe8, +0xec, +0xf0 (FLT_MAX for 0), then the int from the view's map; g_vShadowSampleRotations V_sincosf(i / 16 2pi + frame 1.618034); the fast path sun from +0xebd0 (null: (0, 0, -1, 0.04), +31176 -1), cascades and ambient SH only with the shadow object +0xebd8; +304 .. +372 the binner's batches and grid from +0xf370 .. +0xf398; +31936 .. +31960 the atlas (+0xef80) and three other bindless indices, light entries (+0xe3a8), env map bits, volumes; built 0x7de0 bytes (ledger 192); CubemapFaceConstants.LightBlock"
+  },
+  {
+   "addr": "1801c5cf0",
+   "name": "BitSet_Count",
+   "module": "s2c:baked/lighting",
+   "note": "set bits of the binner's environment map bit set (+0xe498); the light block's +31956 and the env map mask words (1801a9b70)"
   },
   {
    "addr": "18000f900",

@@ -1268,10 +1268,60 @@ port done:
 - BakedLightingConstantBuffer_t's lightmap size (the irradiance texture's) and the instance and transform buffers'
   own layout (ours is output-equivalent, not the allocator's).
 
+### F. ze_hold_em_p: a lit ZE map with no sun and no sky (2026-11-01, ledger 192)
+
+Why this map: it is a real ZE map, fully baked, and Valve's build of its 8 cubes is reproducible (holdem_order1 and
+_2 on 10-27 gave the same package; on 1.41.9.4 cubes 1 to 7 are still byte for byte those, only the RenderDoc-captured
+cube 0 differs). So unlike atixref (item D) its EXRs are a fixed reference. It has 37 light_barn, 8
+env_combined_light_probe_volume (the cubes), no light_environment, no env_sky, no env_cubemap_fog.
+
+Capture: `run_probe.py --map ze_hold_em_p --renderdoc 0 --settle 20 --keep-intermediates --out holdem_rdc0`
+(%TEMP%/cubehost_run/holdem_rdc0: the .rdc, summary.txt, actions.txt from rdc_actions.py, passes.jsonl, readback/,
+spirv/, replay_face0 .. 5 from rdc_replay.py with RDC_DUMP=1 over 146-547, 548-944, 945-1286, 1287-1623, 1624-1930,
+1931-2237). The game's 8 EXRs of that run are in intermediates/ (cube 0's is the capture's own frame).
+
+Done (ledger 192):
+- The scene without a sun or sky: `CubemapFaceBlocks.Scene.HasSun`, `FromPackage` with an optional env_sky (sky
+  material null), `Build` with no cascades, the draw list with no cascade views, the renderer with no sky draw.
+- The light block's sunless branches and its cull params from the binner's counts (any light, env map and volume
+  count), the light entry count words; the Csgo block's cube fog flag; +644's exact bits.
+- The csgo_ shaders' bindless lightmaps: BakedLightingConstantBuffer_t +16 .. +28 hold our indices of irradiance,
+  directional_irradiance, direct_light_shadows and debug_chart_color (`CubemapFaceRenderer.BakedWithIndices`).
+- Checks: every block by role against all six faces (PackageBlocksAgainstTheCapture: the world, Csgo, baked and light
+  blocks differ only in bindless indices, the per-frame dither, the inverse projection's float noise and what the
+  barn lights drive); our blocks in the capture's own draws (PackageBlocksInTheCapturesDraws: world, Csgo and baked
+  keep every world draw the game's; the light block changes only light-binned pixels); every program a module of the
+  capture. probe01 and s2c_l5probe unchanged.
+
+Where the dump-free render stands (CubeWithNoDumpMakesTheGamesExr on cube 0): face 4 within 0.0072 of the readback
+(945 pixels over 1/256); faces 2 and 3 about 350k pixels over 1/256 (largest 0.12); faces 0, 1 and 5 lit areas much
+darker than the game's. Next, in order:
+1. **The barn lights.** Face 0 bins 22 light entries (light block +31952; one mask word). Needed: which of the 37
+   lights the view gathers (18019fe30's early returns and fades, item A.6), the merge, sort and trim (1801a9410,
+   1801cc930), each entry from the light (BarnLightDescriptions, the attributes; A.6) into its record
+   (BarnLightRecords), the lights' binner items and edges, and g_BarnLights bound. Check against the capture's
+   g_BarnLights, CullItems and edges per face (all six dumps hold them). The shadow atlas has no draw here (baked
+   shadows: direct_light_shadows), so no shadow views are needed for this map.
+2. **Entity models as their own scene objects.** Face 0 draws one non-aggregate object in the prepass and in a colour
+   pass of its own (6,696 indices, 3 instances, a Csgo block with g_bOtherFxEnabled.x 0 and +256 / +260 1, 1); the
+   later faces' annotations name CAnimatableSceneObjectDesc and CBaseSceneObjectDesc batches (the func_door /
+   func_breakable / func_physbox / func_tracktrain models), see item A.4.
+3. **AO proxies.** A later face splats CAmbientOcclusionProxySceneObjectDesc boxes (aoproxy_splat.vmat, 36 indices, 2
+   instances) into the AO target, which the renderer leaves white.
+4. The g_sBilinearClamp index at lightmappedgeneric's $Globals +4 (the game writes 1, ours 0: the program's write
+   sequence does not list it), g_mTextureColorAdjust1's float noise (csgo_environment), g_vShaderIDColor 0.1 on
+   csgo_simple_2way_blend (cmp_globals.py).
+
 ### Tests and switches
 
     CUBENODUMP_VPK, CUBENODUMP_CUBE, CUBEREADBACK, CUBEREADBACK_EXR [CUBEREPLAY_SPIRV, CUBEREPLAY_EXR_OUT, CUBEREPLAY_SCRIPTEDCAMERA=0]
+                 [CUBENODUMP_TRACE=1 per action, CUBENODUMP_FACES_OUT=<dir> our faces, prepass depth, instances, draw list, models]
         CubemapFaceRendererTests.CubeWithNoDumpMakesTheGamesExr   the dump-free cube against readbacks and the EXR
+    CUBEBLOCKCMP=<face dump>, CUBEBLOCKCMP_VPK [CUBEBLOCKCMP_FACE, CUBEBLOCKCMP_ALL=1]
+        CubemapFaceReplayTests.PackageBlocksAgainstTheCapture     every block from the package against the capture's, by role
+    CUBEBLOCKCMP, CUBEBLOCKCMP_VPK, CUBEREPLAY_SPIRV [CUBEBLOCKSWAP=<role,...>]
+        CubemapFaceReplayTests.PackageBlocksInTheCapturesDraws    our blocks in the capture's draws, one role at a time
+    S2C_CUBE_TRACE=1 (renderer)                                   each colour draw's programs and pipeline state
     CUBEPROGS=<capture dir>      CubemapFaceProgramsTests           every world draw's programs against the capture's modules
     CUBEINST=<capture dir>       CubemapInstanceRecordsTests        instance tints and transforms against the capture's
     CUBECULL=<capture dir>       AggregateCullingCaptureTests       the draw list

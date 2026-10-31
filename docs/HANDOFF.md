@@ -224,7 +224,20 @@ the addon).
     Debug test build; time a Release build and Valve's own step before sizing it. Any change
     that could alter bytes waits for the user's OK (parity before speed).
 
-## Latest session (2026-10-30 / 31, captures: Steam Audio's random stream, cube 1, atixref pinned; CS2 and Steam closed)
+## Latest session (2026-11-01, cubemaps on a lit ZE map: ze_hold_em_p; CS2 and Steam closed)
+
+- CS2 1.41.9.4 (Oct 30) changed only client.dll and server.dll (patch report tools/re/patch_reports/20261101_1.41.9.4.md);
+  every toolchain DLL and the shaders are the 10-29 builds. cubehost's ClientConvarGlobals has the new client
+  (the RenderDoc convar global did not move). Valve's 10-27 builds of ze_hold_em_p's cubes 1 to 7 are still byte for
+  byte what 1.41.9.4 builds.
+- Picked as the weakest part: cubemaps (the largest file kind we cannot make for a real map: 100 of 132 workshop
+  maps, 14% of their bytes). Target ze_hold_em_p, whose Valve build is reproducible (CUBEMAPS.md F).
+- Ledger 192: the sunless and skyless scene, the light block's cull params and counts from the binner, the Csgo
+  cube fog flag, and the csgo_ shaders' bindless lightmap indices (without them a sunless lit map renders black).
+  ze face 4 now within 0.0072 of the game's readback; probe01 and s2c_l5probe unchanged.
+- Next: the 22 barn lights in the binner (CUBEMAPS.md F.1), then entity models as scene objects (F.2), AO proxies.
+
+## Earlier session (2026-10-30 / 31, captures: Steam Audio's random stream, cube 1, atixref pinned; CS2 and Steam closed)
 
 - HANDOFF "What passing means where Valve varies" (the user's rule) and Steam Audio's real state in HANDOFF and
   COVERAGE (it is well along on this branch, ledgers 170-173; it had been listed as not started).

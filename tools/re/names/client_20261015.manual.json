@@ -1,6 +1,24 @@
 {
  "functions": [
   {
+   "addr": "1811fef80",
+   "name": "CreatePerViewConstantBufferCsgo",
+   "module": "s2c:baked/lighting",
+   "note": "renderingpipeline_csgo.cpp: words 0 .. 12 of PerViewConstantBufferCsgo_t from convars, the pass flags (param 10 >> 1, >> 3, >> 4, >> 5) and the fog fills: word 1 = 181218920's result, word 2 = 181217e20's (the cube fog); ledger 192; CubemapFaceConstants.Csgo"
+  },
+  {
+   "addr": "181217e20",
+   "name": "CubeFog_Fill",
+   "module": "s2c:baked/lighting",
+   "note": "with the convar on and the view attribute 0x765c7d3c: the cube fog terms from attribute 0x74a6158f (and the height vector), returns 1; else +0x210 = +inf, +0x214 = -inf, +0x218 = (1, 0) and returns 0 (ledger 192)"
+  },
+  {
+   "addr": "181218920",
+   "name": "GradientFog_Fill",
+   "module": "s2c:baked/lighting",
+   "note": "the gradient fog terms for CreatePerViewConstantBufferCsgo's word 1 (not read)"
+  },
+  {
    "addr": "180282390",
    "name": "C_EnvSky_UpdateSceneObject",
    "module": "s2c:baked/lighting",
