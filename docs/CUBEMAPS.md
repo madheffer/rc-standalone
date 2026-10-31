@@ -1304,8 +1304,12 @@ darker than the game's. Next, in order:
    is reproduced on all six faces (BarnLightFacesProbe, CUBELIGHTFACES_VPK: box test, fade, both footprints, sort;
    the box test's function for lights is measured, not identified). Still open: the entry's other fields (the illumination box at +0x340 from precomputedobb*, +0x214, the constants),
    +0x174 (a shadow atlas tile rect, writer not found) and +0x1dc (1801a2720, from a time-smoothed shadow size):
-   swap zeros into the capture's g_BarnLights first to see whether either reaches a pixel. Then g_BarnLights,
-   the items and edges, and the light block's counts in the renderer. Captures: holdem_barn_io (pairs),
+   neither reaches a pixel (swapping the captured terms in changes no face). In the renderer since 0db0f68:
+   g_BarnLights, the light items ahead of the volumes, the counts, the shadow atlas index; CullParams_t and the
+   edges are the game's on all six faces, pixels over 1/256 now 195,611 / 126,101 / 22,899 / 21,588 / 945 /
+   367,762. **Next:** the light items' depth range and non-inside bounds (BinnerItemsProbe, CUBEITEMS: face 4's
+   light ours -68.12, the game's -76.0001 = the frustum's far plane), i.e. 1801abf30 / 1801aac90 on a light
+   frustum; then light_omni2 and cookie lights, which are not gathered yet (no s2c_l5probe face bins one). Captures: holdem_barn_io (pairs),
    holdem_radius (boxes); tests BarnLightRecordsTests, BarnLightDescriptionsTests, BarnLightBoundsTests,
    BarnLightSizeProbe (CUBEBARN, CUBEBARN_VPK, CUBELIGHTBOX). The shadow atlas has no draw here (baked shadows:
    direct_light_shadows), so no shadow views are needed for this map.

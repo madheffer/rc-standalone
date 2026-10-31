@@ -237,8 +237,10 @@ the addon).
   ze face 4 now within 0.0072 of the game's readback; probe01 and s2c_l5probe unchanged.
 - Ledger 193, the barn lights: records with baked shadow slots (218 captured pairs byte for byte), the lights'
   snapped bounds (37 boxes), the screen size (measured, 218) and fades (218); the sort, trim and binner item read.
-  Next: which lights reach each face, the rest of the entry, then g_BarnLights and the items in the renderer
-  (CUBEMAPS.md F.1), then entity models as scene objects (F.2), AO proxies.
+  Then: each face's light list reproduced (all six), entries and records from the keys (every record the game's
+  but shadow terms that reach no pixel), and the lights in the render (0db0f68): ze cube 0 pixels over 1/256 fell
+  to 195,611 / 126,101 / 22,899 / 21,588 / 945 / 367,762. Next: the light items' depth range and bounds
+  (CUBEMAPS.md F.1 "Next"), then entity models as scene objects (F.2) and the AO proxies (F.3).
 
 ## Earlier session (2026-10-30 / 31, captures: Steam Audio's random stream, cube 1, atixref pinned; CS2 and Steam closed)
 

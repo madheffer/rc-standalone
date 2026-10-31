@@ -5132,8 +5132,14 @@ game can answer is raised with the user first, and runs with -insecure.
        cube 0 give the capture's lists, lights and order (BarnLightFacesProbe).
      - Not ported yet: +0x174 .. +0x183, a shadow atlas tile rect (x / 4352, y / 5248 in 64-pixel units; written
        outside the gather, not found), +0x1d0 (1801a1030's size request, smoothed over the binner clock: runtime
-       state) and +0x1dc (1801a2720 from it). Nothing draws into the atlas in the cube view (cleared to 1), so the
-       rect may not reach a pixel: check by swapping before porting.
+       state) and +0x1dc (1801a2720 from it). They reach no pixel in the cube view: with the light block's +31936
+       indexing the (cleared, never drawn) shadow atlas, the captured terms swapped into our records give the same
+       six faces as ours, which the record clears (CUBENODUMP_BARN_SHADOWS). Ported only for that reason, not as
+       Valve's values: g_BarnLights' +0xd0 .. +0xdf, +0x104 and +0x19c are not the game's bytes.
+     - In the render (CubemapFaceBlocks, ledger 192's renderer): the binner's CullParams_t equals the capture on all
+       six faces, the edges too; the light items differ in their depth range (face 4: ours -68.12, the game's
+       -76.0001, the light frustum's far plane) and in the bounds of lights not containing the eye (BinnerItemsProbe,
+       CUBEITEMS). Open: 1801abf30 / 1801aac90 on a light frustum (the probe volumes' box path is exact).
 
 ## Resolved
 
