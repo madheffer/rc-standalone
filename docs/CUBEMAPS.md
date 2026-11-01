@@ -1308,7 +1308,14 @@ darker than the game's. Next, in order:
    g_BarnLights, the light items ahead of the volumes, the counts, the shadow atlas index; CullParams_t and the
    edges are the game's on all six faces, pixels over 1/256 now 195,611 / 126,101 / 22,899 / 21,588 / 945 /
    367,762. The light items are exact since 6946e08 (the box footprint only with a silhouette; ledger 193).
-   **Next: texture residency** (ledger 194). The game's material maps in this build are resident at 512 at most;
+   **Done 2026-11-02 (ledger 195): residency and the BRDF lookup.** The renderer uploads every texture from the
+   preload level (GpuTextures.PreloadLevel, 512; S2C_CUBE_MAXTEXTURE overrides, 0 none) and writes Csgo +68, the
+   BRDF lookup (textures/dev/brdf_lut.vtex, the captured image byte for byte). ze cube 0 against Valve's EXR: 1 / 0 /
+   0 / 0 / 0 / 0 pixels over 1/256 (face 5 equals the readback); all 8 cubes at most 10 pixels over 1/256 a face.
+   Compare EXRs with tools/cubehost/exr_diff.py; Valve's reference EXRs of all 8 cubes are in
+   cubehost_run/holdem_cvars/intermediates (no RenderDoc; cube 0 there differs from holdem_rdc0's in 76 pixels).
+   The paragraph below is the state before.
+   Was next: texture residency (ledger 194). The game's material maps in this build are resident at 512 at most;
    with S2C_CUBE_MAXTEXTURE=512 faces 4 and 5 are within 1/256 everywhere and faces 0 / 1 / 2 / 3 are left with
    100,981 / 85,873 / 301 / 85 pixels over 1/256. Read the rule (rendersystemvulkan's texture budget convars, the
    video config's texture detail) and re-capture probe01 on 1.41.9.4 to see whether its 2048 maps are now capped.

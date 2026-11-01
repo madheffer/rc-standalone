@@ -786,16 +786,19 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
     }
 
     /// <summary>
-    /// PerViewConstantBufferCsgo_t for a program that reads the bindless set: +72, +76 and +80 index what the named
-    /// path binds as EnvironmentMap (a cube of zeros: no environment map is binned in the cubemap view),
-    /// DynamicAmbientOcclusion (the AO target, R8G8B8A8 UNORM) and DynamicAmbientOcclusionDepth (the half depth).
-    /// Matched in atixref face 0's capture: a 256 BC6 cube, a 1280 x 720 R8G8B8A8 target no draw of the face
-    /// writes, and the D24S8 that the half depth downsample writes. The block's writer (client
-    /// CreatePerViewConstantBufferCsgo) is not read for these three words.
+    /// PerViewConstantBufferCsgo_t for a program that reads the bindless set. +68 g_tBRDFLookupTextureIndex indexes
+    /// textures/dev/brdf_lut.vtex (64 x 64 x 3 RGBA16F, read unguarded for the specular term; the captured image is
+    /// the file's pixels byte for byte, ledger 195). +72 (g_tCubemapFogTextureIndex), +76 and +80 index what the named
+    /// path binds as the fog cube (a cube of zeros), DynamicAmbientOcclusion (the AO target, R8G8B8A8 UNORM) and
+    /// DynamicAmbientOcclusionDepth (the half depth), matched in atixref face 0's capture: a 256 BC6 cube, a 1280 x 720
+    /// R8G8B8A8 target no draw of the face writes, and the D24S8 that the half depth downsample writes. +64 (blue noise)
+    /// is read by none of the csgo_ programs; +84 (SSAO) and +88 (particle shadows) only under flags the cube view
+    /// leaves 0. The block's writer (client CreatePerViewConstantBufferCsgo) is not read for these words.
     /// </summary>
     private byte[] CsgoWithIndices(byte[] csgo)
     {
         var b = (byte[])csgo.Clone();
+        BitConverter.TryWriteBytes(b.AsSpan(68), BindlessLive("brdf lut", Vtex("textures/dev/brdf_lut.vtex", false, ImageViewType.Type2DArray), ImageViewType.Type2DArray));
         BitConverter.TryWriteBytes(b.AsSpan(72), BindlessLive("environment map", Constant("zero Cube", Format.R8G8B8A8Unorm, ImageViewType.TypeCube, 0), ImageViewType.TypeCube));
         BitConverter.TryWriteBytes(b.AsSpan(76), BindlessLive("ambient occlusion", _live.ContainsKey(AmbientOcclusion) ? Viewed(AmbientOcclusion, Format.R8G8B8A8Unorm) : null, ImageViewType.Type2D));
         BitConverter.TryWriteBytes(b.AsSpan(80), BindlessLive("ambient occlusion depth", _live.GetValueOrDefault(HalfDepth), ImageViewType.Type2D));
@@ -1072,11 +1075,12 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
             format = srgb ? Format.BC1RgbSrgbBlock : Format.BC1RgbUnormBlock;
         var layers = tex.Depth > 1 && viewType != ImageViewType.Type3D ? tex.Depth : (tex.Flags & VTexFlags.CUBE_TEXTURE) != 0 ? 6 : 1;
         var metrics = tex.GetEveryMipLevelMetrics().ToList();
-        // S2C_CUBE_MAXTEXTURE=<side> (diagnosis): drop top mips above that side, as a texture budget would.
-        var first = 0;
-        if (int.TryParse(Environment.GetEnvironmentVariable("S2C_CUBE_MAXTEXTURE"), out var cap) && !key.StartsWith("lightmap", StringComparison.Ordinal))
-            while (first < metrics.Count - 1 && Math.Max(tex.Width, tex.Height) >> first > cap)
-                first++;
+        // Resident from the render system's preload level (GpuTextures.PreloadLevel, 512): the cube build renders
+        // in the frame it is asked for, with nothing streamed in (ledger 195: ze_hold_em_p's 2048 maps are 512 on the
+        // GPU in a build with and without RenderDoc). A one-mip texture (the lightmaps) is whole.
+        // S2C_CUBE_MAXTEXTURE=<side> (diagnosis) sets another cap, 0 none.
+        var cap = int.TryParse(Environment.GetEnvironmentVariable("S2C_CUBE_MAXTEXTURE"), out var side) ? side : GpuTextures.MaxPreloadResolution;
+        var first = cap > 0 ? GpuTextures.PreloadLevel(tex.Width, tex.Height, metrics.Count, cap) : 0;
         if (Environment.GetEnvironmentVariable("S2C_CUBE_TRACE") == "1")
             Console.Error.WriteLine($"cube upload {key}: {tex.Width} x {tex.Height} x {tex.Depth} {tex.Format}, {metrics.Count} mips");
         var image = _runner.CreateImage(format, (uint)Math.Max(1, tex.Width >> first), (uint)Math.Max(1, tex.Height >> first), viewType == ImageViewType.Type3D ? (uint)tex.Depth : 1u,

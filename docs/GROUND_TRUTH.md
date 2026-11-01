@@ -5161,6 +5161,39 @@ game can answer is raised with the user first, and runs with -insecure.
      - The lightmaps stay whole (4096, 1 mip) in both.
      - Ruled out by experiment on this capture (no pixel changes): the light block's dither, lightmappedgeneric's
        $Globals +4, simple_2way_blend's g_vShaderIDColor, BC1 alpha (now uploaded as BC1 RGB, the captures' views).
+     - SETTLED by ledger 195: it is the preload cap, and no capture had a map above 512 to show otherwise.
+
+195. **The cube build's texture residency, and the BRDF lookup** (2026-11-02, CS2 1.41.9.4, cubehost runs
+     holdem_cvars, holdem_tele, holdem_td2, probe01_1102b in %TEMP%/cubehost_run; tools/cubehost/rdc_textures.py,
+     rdc_texture_data.py, exr_diff.py). MEASURED and matched to read code.
+     - Residency is rendersystem's preload cap (GpuTextures.PreloadLevel: the first mip whose longer side is at most
+       RenderSystem/MaxPreloadTextureResolution 512; rendersystemvulkan 1800f7ccc / 180104cd0, read for
+       physicsbuilder). Nothing streams in before the cube renders. The checks:
+       - probe01's and s2c_l5probe's materials have no map over 512 (every .vtex their .vmap names, read from the
+         paks), so their captures could not show a cap. atixref has 189 such maps and was never matched.
+       - Valve's EXRs of ze cube 0 with and without RenderDoc differ only in 76 pixels of face 1, so the 512 maps
+         are not a capture effect. holdem_order1 / _2 (10-27) equal the no-RenderDoc run.
+       - Moving the player onto cube 0 (sv_cheats, noclip, setpos) and waiting 15 s: the EXRs are byte for byte
+         unchanged, so the view does not stream textures up before the build. videocfg_texture_detail is 2 in
+         cubehost already; setting it again changes nothing. r_texture_pool_size is 10218 (MB), far above the map's
+         need, r_texture_stream_max_resolution 8192, r_texture_stream_mip_bias 0.
+       - A one-mip texture stays whole (the 4096 lightmaps), as the rule's last-mip bound gives.
+     - PerViewConstantBufferCsgo_t's bindless words, named from the csgo shaders' reflection (VRF's
+       vcs68_csgo_simple_2way_blend_vulkan_60_rtx GLSL): +64 g_tBlueNoiseTextureIndex, +68 g_tBRDFLookupTextureIndex,
+       +72 g_tCubemapFogTextureIndex, +76 / +80 the dynamic AO and its depth, +84 g_tSSAOIndex, +88
+       g_tParticleShadowBufferIndex, +92 .. +100 the moments, +104 g_tLowShaderQualityFallbackCubemap.
+       csgo_environment, csgo_lightmappedgeneric and csgo_simple_2way_blend (ze's three) read +68 .. +88 and not
+       +64. +84 is read only under g_bFogTypeEnabled.w and +88 under g_bOtherFxEnabled.y, both 0 in the cube view.
+       +68 is read with no guard: the specular term is mix(lut.x, lut.y, F0) times the lighting.
+     - +68's image in the capture is a 64 x 64 x 3 RGBA16F array whose pixels are textures/dev/brdf_lut.vtex_c's
+       byte for byte (csgo's and core's are equal; client.dll names textures/dev/brdf_lut.vtex). Bound,
+       ze cube 0 against Valve's EXR goes from 6,084 / 5,241 / 1 / 0 / 0 / 0 pixels over 1/256 to 1 / 0 / 0 / 0 / 0 /
+       0; face 5 equals the readback. All 8 cubes: at most 10 pixels over 1/256 per face (largest 0.009), faces 2 to
+       5 at a few 1-ulp halves.
+     - Not read: which client code writes +68 (the measured index matches the texture, the writer is
+       CreatePerViewConstantBufferCsgo, 1811fef80 in 10-15).
+     - Side finding: run_probe.py --renderdoc 0 makes no capture on probe01 (env_cubemap, 2 cubes) while it did on
+       ze_hold_em_p (probe volumes); --renderdoc 1 captures on probe01.
 
 ## Resolved
 
