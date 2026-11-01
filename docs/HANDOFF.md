@@ -243,6 +243,21 @@ the addon).
   remaining cause found: texture residency (ledger 194, the game's maps resident at 512 in this build; capped,
   faces 4 / 5 are within 1/256). Next: the residency rule (needs Steam closed for a probe01 re-capture), the
   Csgo block's bindless indices, entity models as scene objects (F.2), the AO proxies (F.3).
+- **Resume here.** Captures in %TEMP%/cubehost_run: holdem_rdc0 (cube 0's .rdc, replay_face0 .. 5, readback/,
+  spirv/, intermediates/ with the game's 8 EXRs), holdem_barn_io (218 barn light entry / record pairs),
+  holdem_radius (the boxes 1800ce950 stores). The render against the readbacks, with W = holdem_rdc0 as a Windows
+  path: `CUBENODUMP_VPK=W\game__csgo_addons__s2c_cubeprobe__maps__ze_hold_em_p.vpk CUBEREADBACK=W\readback
+  CUBEREADBACK_EXR=W\intermediates\env_cubemap_1424340351.exr dotnet test --filter CubeWithNoDumpMakesTheGamesExr`
+  (add S2C_CUBE_MAXTEXTURE=512 for the residency experiment, CUBENODUMP_DRAWS_OUT=<dir> for per-draw targets).
+  Other checks: BarnLightFaceRecordsTests (CUBEBARNFACES), BinnerItemsProbe (CUBEITEMS), BarnLightFacesProbe
+  (CUBELIGHTFACES_VPK), PackageBlocksAgainstTheCapture / PackageBlocksInTheCapturesDraws (CUBEBLOCKCMP). The
+  regression pair: probe01 (cubehost_run/probe01, cube 0 byte for byte) and s2c_l5probe (CUBEREPLAY_SCRIPTEDCAMERA=0,
+  five faces equal, -X the viewmodel). With CS2 open (cs2-open rules: decompiles and Idle offline tests only):
+  read the residency rule in rendersystemvulkan 20261015 (r_texture_budget_dynamic, r_texture_budget_threshold,
+  r_texture_stream_mip_bias) and client's videocfg_texture_detail, and map the Csgo block's +64 .. +128 indices to
+  images from holdem_rdc0's dumps (the draws' bindless arrayElements). With CS2 and Steam closed: re-capture probe01
+  (`run_probe.py --map probe01 --renderdoc 0 --settle 20 --keep-intermediates --out probe01_1104`) and check
+  whether its 2048 maps are now resident at 512.
 
 ## Earlier session (2026-10-30 / 31, captures: Steam Audio's random stream, cube 1, atixref pinned; CS2 and Steam closed)
 
