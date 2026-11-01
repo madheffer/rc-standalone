@@ -224,7 +224,31 @@ the addon).
     Debug test build; time a Release build and Valve's own step before sizing it. Any change
     that could alter bytes waits for the user's OK (parity before speed).
 
-## Latest session (2026-11-01, cubemaps on a lit ZE map: ze_hold_em_p; CS2 and Steam closed)
+## Latest session (2026-11-02, ze_hold_em_p's cubes nearly exact; CS2 and Steam closed)
+
+- Ledger 195: texture residency is rendersystem's preload cap (the first mip with longer side <= 512), which the
+  cube renderer now applies by default. The "probe01 keeps 2048 maps" premise was empty: probe01 and s2c_l5probe use
+  no map over 512. Ruled out by cubehost runs: RenderDoc, the player's view (setpos onto the cube, 15 s),
+  videocfg_texture_detail, the pool budget.
+- Ledger 195: PerViewConstantBufferCsgo_t's bindless words named (+64 blue noise .. +104 fallback cube). +68, the
+  BRDF lookup, is read unguarded by every csgo_ program; it is textures/dev/brdf_lut.vtex (the captured image byte
+  for byte), now bound. ze cube 0 went from thousands of pixels over 1/256 on faces 0 and 1 to one.
+- Ledger 196: materialsystem2's MatrixMultiply / MatrixColorTint2 / MatrixColorCorrect2 ported from the
+  disassembly (Gpu/ColorMatrices.cs) and $Globals' 4 x 4 transposed. csgo_environment's $Globals are now the
+  capture's word for word.
+- **Where ze_hold_em_p stands:** against Valve's no-RenderDoc EXRs (cubehost_run/holdem_cvars/intermediates),
+  faces 2 to 5 of all 8 cubes and the whole of cube 7 are byte for byte. Faces 0 and 1 of cubes 0 to 6 differ in 16
+  to 34 pixels: the team intro's skinned agent models (CUBEMAPS.md F). probe01 still byte for byte, s2c_l5probe
+  unchanged (-X viewmodel).
+- Tools: tools/cubehost/exr_diff.py (per-face EXR diff), rdc_textures.py (every image's size and mips),
+  rdc_texture_data.py (one image's bytes), spvmatch --expr (a variable's expression decompiled).
+- Gotchas: holdem_rdc0's .rdc now fails to replay (VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS) though it replayed on
+  11-01; the 11-02 probe01 capture replays. run_probe.py --renderdoc 0 makes no capture on probe01; use 1.
+- **Next:** the agent models need the client's team intro scene at build time (which agents, their pose: roadmap 0e),
+  a large item. Smaller and open: TextureAverageColor's source (render device vfunc 0x2d8) for a contrast other than
+  1; a tinted or desaturated material capture for ColorMatrices; then another real ZE map through the same checks.
+
+## Earlier session (2026-11-01, cubemaps on a lit ZE map: ze_hold_em_p; CS2 and Steam closed)
 
 - CS2 1.41.9.4 (Oct 30) changed only client.dll and server.dll (patch report tools/re/patch_reports/20261101_1.41.9.4.md);
   every toolchain DLL and the shaders are the 10-29 builds. cubehost's ClientConvarGlobals has the new client

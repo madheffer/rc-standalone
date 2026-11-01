@@ -5214,6 +5214,9 @@ game can answer is raised with the user first, and runs with -insecure.
      - $Globals holds a 4 x 4 transposed: the prototype's row-major result equals the captured block with rows and
        columns swapped, on all six off-diagonal words (ProgramGlobals.Fill now transposes Float4x4).
      - Exact only at contrast 1, where TextureAverageColor cancels exactly in T(avg) diag(c) T(-avg).
+     - Checked only at the material defaults (tint (1, 1, 1), contrast, saturation and brightness 1): a tinted or
+       desaturated material (the HSV path, V_powf with s > 0) has no capture yet. RGB to HSV is from the decompile,
+       not the disassembly.
      - Result: ze_hold_em_p's csgo_environment $Globals are the capture's word for word; cube 0 faces 2 to 5 equal
        the readbacks, and against Valve's no-RenderDoc EXRs faces 2 to 5 of all 8 cubes and the whole of cube 7 are
        byte for byte. Faces 0 and 1 of cubes 0 to 6 keep 16 to 34 differing pixels: skinned agent models
