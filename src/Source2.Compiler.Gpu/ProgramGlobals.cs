@@ -141,10 +141,14 @@ public static class ProgramGlobals
             var n = Width(v.VfxType);
             if (n > 4)
             {
-                // Matrices: row after row as the expression built them.
+                // Matrices: row after row as the expression built them, a 4 x 4 transposed (the block holds its columns:
+                // ze_hold_em_p's g_mTextureColorAdjust1, every word the game's, ledger 196). 3 x 3 and 4 x 3 as built (not
+                // measured).
                 var m = new float[n];
                 for (var i = 0; i < n; i++)
                     m[i] = i < value.Width ? value.C[i] : 0f;
+                if (v.VfxType == VfxVariableType.Float4x4 && value.Width == 16)
+                    m = [.. Enumerable.Range(0, 16).Select(k => value.C[(k % 4) * 4 + k / 4])];
                 MemoryMarshal.AsBytes(m.AsSpan()).CopyTo(at);
                 continue;
             }

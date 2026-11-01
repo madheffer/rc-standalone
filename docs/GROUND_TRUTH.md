@@ -5195,6 +5195,32 @@ game can answer is raised with the user first, and runs with -insecure.
      - Side finding: run_probe.py --renderdoc 0 makes no capture on probe01 (env_cubemap, 2 cubes) while it did on
        ze_hold_em_p (probe volumes); --renderdoc 1 captures on probe01.
 
+196. **The colour matrix expressions** (2026-11-02, materialsystem2 1015 decompile and the installed 1029 build's
+     disassembly, same addresses; ze_hold_em_p's capture of ledger 192). READ and checked bit for bit.
+     - csgo_environment's g_mTextureColorAdjust1 is `MatrixMultiply(MatrixColorTint2(g_vTextureColorTint1, 1),
+       MatrixColorCorrect2(float3(contrast, saturation, brightness), TextureAverageColor(g_tColor1)))` (spvmatch
+       --expr). Our evaluator returned the identity for every matrix function; the game's value is the identity
+       plus float noise (diagonal 0x3f800002, off-diagonal 1e-9 .. 2e-7), which put ze's csgo_environment pixels 1
+       ulp low.
+     - The functions, from the names table at 1800fa100 .. (name, argument count, function): MatrixMultiply
+       18009bf90 (a times b, 180081100: each element a dpps of a row and a column, ((p0 + p1) + (p2 + p3))),
+       MatrixColorTint2 18009c3c0 -> 1800818d0, MatrixColorCorrect2 18009c090 -> 180081260, TextureAverageColor
+       18009bb70 (the render device's vfunc 0x2d8 on the texture, alpha 1: NOT read further). Helpers: 180081020
+       (a 4 x 4 from 16 values, row after row), 180080f40 (normalize, (y y + z z) + x x), 1800828c0 (the rotation
+       taking a onto b; the disassembly computes ay (ay k) and az (ay k), Ghidra prints (ay ay) k and (az ay) k),
+       180082c50 (a 3 x 4 on a point), 180083390 (RGB to HSV), V_powf(saturation, 2). Ported as
+       Gpu/ColorMatrices.cs; Tint2 normalizes the luminance axis (0.2125, 0.7154, 0.0721) from the compiler's folded
+       sum of squares 0x3f0fe92e, Correct2 at run time.
+     - $Globals holds a 4 x 4 transposed: the prototype's row-major result equals the captured block with rows and
+       columns swapped, on all six off-diagonal words (ProgramGlobals.Fill now transposes Float4x4).
+     - Exact only at contrast 1, where TextureAverageColor cancels exactly in T(avg) diag(c) T(-avg).
+     - Result: ze_hold_em_p's csgo_environment $Globals are the capture's word for word; cube 0 faces 2 to 5 equal
+       the readbacks, and against Valve's no-RenderDoc EXRs faces 2 to 5 of all 8 cubes and the whole of cube 7 are
+       byte for byte. Faces 0 and 1 of cubes 0 to 6 keep 16 to 34 differing pixels: skinned agent models
+       (CAnimatableSceneObjectDesc, USES_CS_SKINNING) near terrorist_team_intro / counterterrorist_team_intro /
+       team_select, and in the RenderDoc run their AO proxies (aoproxy_splat, 2 instances at (-12841, -338, -12)
+       and (-12851, -436, 0)). Not ported (needs the client's team intro scene and its animation pose).
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

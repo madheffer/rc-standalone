@@ -1314,6 +1314,13 @@ darker than the game's. Next, in order:
    0 / 0 / 0 / 0 pixels over 1/256 (face 5 equals the readback); all 8 cubes at most 10 pixels over 1/256 a face.
    Compare EXRs with tools/cubehost/exr_diff.py; Valve's reference EXRs of all 8 cubes are in
    cubehost_run/holdem_cvars/intermediates (no RenderDoc; cube 0 there differs from holdem_rdc0's in 76 pixels).
+   **Then (ledger 196): the colour matrix expressions** (Gpu/ColorMatrices.cs: MatrixMultiply, MatrixColorTint2,
+   MatrixColorCorrect2 from materialsystem2; $Globals holds a 4 x 4 transposed). Now faces 2 to 5 of all 8 cubes
+   and the whole of cube 7 are Valve's EXRs byte for byte; cube 0 faces 2 to 5 equal the readbacks. **What is left
+   on this map** is faces 0 and 1 of cubes 0 to 6 (16 to 34 pixels each): skinned agent models of the team intro
+   (terrorist_team_intro, counterterrorist_team_intro, team_select; CAnimatableSceneObjectDesc with
+   USES_CS_SKINNING; face 0's 6,696-index draw, 3 instances) and, in RenderDoc runs only, their AO proxy splat. That
+   needs the client's team intro scene and its pose at build time (roadmap 0e).
    The paragraph below is the state before.
    Was next: texture residency (ledger 194). The game's material maps in this build are resident at 512 at most;
    with S2C_CUBE_MAXTEXTURE=512 faces 4 and 5 are within 1/256 everywhere and faces 0 / 1 / 2 / 3 are left with

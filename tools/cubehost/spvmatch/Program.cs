@@ -6,6 +6,23 @@ using System.Security.Cryptography;
 using ValvePak;
 using ValveResourceFormat.CompiledShader;
 
+// --expr <vpk> <vcs path> <variable substring>: each matching variable's source and compiled expression decompiled.
+if (args[0] == "--expr")
+{
+    using var pak = new Package();
+    pak.Read(args[1]);
+    pak.ReadEntry(pak.FindEntry(args[2])!, out var bytes);
+    using var p = new VfxProgramData();
+    p.Read(Path.GetFileName(args[2]), new MemoryStream(bytes));
+    foreach (var v in p.VariableDescriptions.Where(v => v.Name.Contains(args[3], StringComparison.Ordinal)))
+    {
+        Console.WriteLine($"{v.Name} {v.VfxType} source {v.VariableSource} '{v.SourceString}' expression {v.CompiledExpression.Length} bytes");
+        if (v.CompiledExpression.Length > 0)
+            Console.WriteLine("    " + new ValveResourceFormat.Serialization.VfxEval.VfxEval(v.CompiledExpression, true).DynamicExpressionResult.Replace("\n", "\n    "));
+    }
+    return;
+}
+
 // --res <file>...: a compiled resource's blocks as text (RED2 edit info, DATA), for diffing ours against Valve's.
 if (args[0] == "--res")
 {

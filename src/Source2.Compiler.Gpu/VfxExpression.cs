@@ -7,9 +7,10 @@ namespace Source2.Compiler.Gpu;
 /// VfxEval decompiles to text): a stack machine over float values of one to
 /// four components (sixteen for a matrix). Operations are single precision,
 /// component by component, a scalar spreading to the other operand's width.
-/// Matrix builders return the identity and TextureAverageColor zero: in the
-/// material sampler's programs they only reach colour adjustment, never the
-/// layer weights.
+/// MatrixMultiply, MatrixColorTint2 and MatrixColorCorrect2 are materialsystem2's
+/// (<see cref="ColorMatrices"/>); the other matrix builders return the identity
+/// and TextureAverageColor zero: in the material sampler's programs they only
+/// reach colour adjustment, never the layer weights.
 /// </summary>
 public static class VfxExpression
 {
@@ -207,12 +208,19 @@ public static class VfxExpression
             0x23 => Map(a[0], x => x * x),
             0x34 => Map(a[0], x => x * (MathF.PI / 180f)),
             0x35 => Map(a[0], x => x * (180f / MathF.PI)),
-            // TextureAverageColor: only an argument of the colour matrices below.
+            // TextureAverageColor: only an argument of the colour matrices below. Its source (the render device's vfunc
+            // 0x2d8, materialsystem2 18009bb70) is not read, so MatrixColorCorrect2 is exact only at contrast 1, where the
+            // average cancels.
             0x28 => Value.Of(0f, 0f, 0f, 0f),
-            0x29 or 0x2A or 0x2B or 0x2C or 0x2D or 0x2E or 0x2F or 0x30 or 0x31 or 0x36 or 0x37 => new Value([.. Identity]),
+            0x2E => new Value(ColorMatrices.Multiply(Matrix(a[0]), Matrix(a[1]))),
+            0x30 => new Value(ColorMatrices.Correct2(a[0][0], a[0][1], a[0][2], [a[1][0], a[1][1], a[1][2]])),
+            0x36 => new Value(ColorMatrices.Tint2([a[0][0], a[0][1], a[0][2]], a[1][0])),
+            0x29 or 0x2A or 0x2B or 0x2C or 0x2D or 0x2F or 0x31 or 0x37 => new Value([.. Identity]),
             _ => throw new NotSupportedException($"expression function 0x{id:x2} not evaluated"),
         };
     }
+
+    private static float[] Matrix(Value v) => v.Width == 16 ? v.C : throw new NotSupportedException($"a matrix argument of {v.Width} components");
 
     private static Value Normalize(Value v)
     {
