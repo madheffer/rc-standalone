@@ -40,4 +40,28 @@ public class MapCompileTests(ITestOutputHelper output)
             Assert.True(tested[i].Bytes.AsSpan().SequenceEqual(ours[i].Bytes), $"{map}: {tested[i].Path} differs");
         output.WriteLine($"{map}: {ours.Count} lumps identical");
     }
+
+    /// <summary>
+    /// Steam Audio's rebake options as compile-map reads them. ze_hold_em_p's .vmap sets reverb and pathing to Manual
+    /// (1) and leaves custom data at the FGD's Cleanup (0); CleanupBakedDataIfNeeded takes Manual as Cleanup, so
+    /// nothing is baked, and Valve's full build of it ships no .sareverb or .sapaths (s2c_cubeprobe's package).
+    /// </summary>
+    [Fact]
+    public void SteamAudioCleanupOnZeHoldEm()
+    {
+        if (MapFixtures.VmapSource("s2c_rc_probe", "ze_hold_em_p") is not { } source || MapFixtures.GameSchema() is not { } schema)
+        {
+            MapFixtures.Skip("the ze_hold_em_p source");
+            return;
+        }
+        var document = DmxBinary.ReadFile(source);
+        Assert.Equal(1, MapCompile.SteamAudioRebakeOption(document, schema, "sareverb"));
+        Assert.Equal(1, MapCompile.SteamAudioRebakeOption(document, schema, "sapaths"));
+        Assert.Equal(0, MapCompile.SteamAudioRebakeOption(document, schema, "sacustomdata"));
+        // A cleanup drops the kind's baked file and nothing else.
+        string[] entries = ["maps/ze_hold_em_p.sareverb", "maps/ze_hold_em_p.sapaths", "maps/ze_hold_em_p.nav", "maps/ze_hold_em_p.vmap_c"];
+        Assert.Equal(["maps/ze_hold_em_p.sareverb"], MapCompile.SteamAudioCleanup(entries, "ze_hold_em_p", "sareverb"));
+        Assert.Equal(["maps/ze_hold_em_p.sapaths"], MapCompile.SteamAudioCleanup(entries, "ze_hold_em_p", "sapaths"));
+        Assert.Empty(MapCompile.SteamAudioCleanup(entries, "ze_hold_em_p", "sacustomdata"));
+    }
 }

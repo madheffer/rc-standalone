@@ -224,7 +224,32 @@ the addon).
     Debug test build; time a Release build and Valve's own step before sizing it. Any change
     that could alter bytes waits for the user's OK (parity before speed).
 
-## Latest session (2026-11-02, ze_hold_em_p's cubes nearly exact; CS2 and Steam closed)
+## Latest session (2026-11-02 later, TextureAverageColor, Steam Audio's rebake rule, full builds from empty; CS2 open)
+
+- Ledger 197: TextureAverageColor is the .vtex header's reflectivity (RenderDevice003 vf 0x2d8 reads the 16 bytes
+  rendersystem copied from header +4). Both evaluators read it; ColorMatrices moved to Lighting/ and the bake's
+  VfxEval (RtxMaterials) uses it too, so coloured tints and contrast other than 1 follow the disassembly in the
+  bake as well (default materials unchanged word for word). 1,120 stock materials have a non-default colour
+  adjustment (ColorMatrixTests.NonDefaultColorAdjust). Not measured yet: a capture of one of them.
+- Ledger 198: Steam Audio's rebake options (CleanupBakedDataIfNeeded): Cleanup and Manual (deprecated, taken as
+  Cleanup) drop the baked file and bake nothing; only Auto bakes. compile-map now does the same instead of refusing
+  the three Steam Audio builders, and refuses only an Auto bake.
+- compile-map: a full build (no builder named) starts from an empty package with -f / -fshallow2 or when there is
+  no package yet; before, every build needed a package Valve had compiled.
+- **The full compile test (needs CS2 closed: heavy, then the game).** Everything ze_hold_em_p needs is wired now:
+  its Steam Audio is Manual (nothing to bake), lighting via -s2cbake, cubes via build-cubemaps.
+  1. `s2c compile-map -i "<cs2>/content/csgo_addons/s2c_rc_probe/maps/ze_hold_em_p.vmap" -outroot <out> -s2cbake
+     <out>/bake --gpu` (no builder named = a full build; vis included). Expect the 10-19 result: lit package 55 of
+     56 files, 99.90%.
+  2. `s2c build-cubemaps <out>/csgo_addons/s2c_rc_probe/maps/ze_hold_em_p.vpk --game "<cs2>/game"`.
+  3. Score against Valve's: `PARITY=s2c_rc_probe|ze_hold_em_p|<cs2>/game/csgo_addons/s2c_cubeprobe/maps/ze_hold_em_p.vpk`
+     ParityReport (or diff the two packages file by file).
+  4. In game: copy our .vpk to game/csgo/maps before launch, `cs2.exe -tools -insecure -netconport 29000 -novid`,
+     `tools/pipeline/map_test.py` (walk, triggers, look for missing lighting or magenta). Delete crash dumps after.
+  Then the same on a second ZE map with props and doors (ze_atix: memory ze-focus).
+- Not done here: the Auto Steam Audio bake through compile-map (the port exists: STEAM_AUDIO.md item 4).
+
+## Earlier session (2026-11-02, ze_hold_em_p's cubes nearly exact; CS2 and Steam closed)
 
 - Ledger 195: texture residency is rendersystem's preload cap (the first mip with longer side <= 512), which the
   cube renderer now applies by default. The "probe01 keeps 2048 maps" premise was empty: probe01 and s2c_l5probe use

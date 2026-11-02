@@ -262,7 +262,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `18003ad70` | `CMapCompileModifierCS2BombDamage::Run` | bombsites, build, distances, then the .vdata (cs2_baked_bomb_damage_data, /baked_bomb_damage.vdata) saved as a child; grid 10, 32 | `src/Source2.Compiler/Maps/BombDamage.cs:7`, `src/Source2.Compiler/Maps/MapCompile.cs:297`, `src/Source2.Compiler/Maps/NavCompile.cs:138` |
+| `18003ad70` | `CMapCompileModifierCS2BombDamage::Run` | bombsites, build, distances, then the .vdata (cs2_baked_bomb_damage_data, /baked_bomb_damage.vdata) saved as a child; grid 10, 32 | `src/Source2.Compiler/Maps/BombDamage.cs:7`, `src/Source2.Compiler/Maps/MapCompile.cs:381`, `src/Source2.Compiler/Maps/NavCompile.cs:138` |
 | `18003b5d0` | `CCS2BombDamageBaker::GatherBombsites` | func_bomb_target entities with bomb_damage_power above 0 | `src/Source2.Compiler/Maps/NavCompile.cs:88` |
 | `18003b750` | `CCS2BombDamageBaker::BuildGrid` | top seed cells lifted 30 into the node table (+0x11 written out), site membership by the trigger overlapping the cell box (vtable +0xd0); rounds of zero-length box casts (vphysics2 +0x558) growing 5 diagonal-down steps within the bounds +-30, at most 64 | `src/Source2.Compiler/Maps/BombDamage.cs:15`, `src/Source2.Compiler/Maps/BombDamage.cs:210`, `src/Source2.Compiler/Maps/BombDamage.cs:248` |
 | `18003d030` | `CCS2BombDamageBaker::SampleNavAreas` | per area, per fan triangle (v0, v[n-1], v[n-2]) down: cells of the area bounds snapped through fmod, y x z from the top, box half 10 against the triangle (1803f2400); bounds of every hit | `src/Source2.Compiler/Maps/BombDamage.cs:142`, `src/Source2.Compiler/Maps/BombDamage.cs:157` |
@@ -786,7 +786,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `1800fd550` | `ResourceCompilerMap_CompileMap` | sets ctx +0x605/+0x606 (bake now / baked lighting available): with gameinfo DefaultMapBuilders/bakedlighting, world off or entities only reads the lightmaps there, else bake = (not partial (+0x607) or bakelighting) and not nobakedlighting | `src/Source2.Compiler/Maps/MapCompile.cs:395`, `src/Source2.Compiler/Maps/MapCompileArgs.cs:153`, `src/Source2.Compiler/Maps/MapRootFile.cs:108` |
+| `1800fd550` | `ResourceCompilerMap_CompileMap` | sets ctx +0x605/+0x606 (bake now / baked lighting available): with gameinfo DefaultMapBuilders/bakedlighting, world off or entities only reads the lightmaps there, else bake = (not partial (+0x607) or bakelighting) and not nobakedlighting | `src/Source2.Compiler/Maps/MapCompile.cs:479`, `src/Source2.Compiler/Maps/MapCompileArgs.cs:153`, `src/Source2.Compiler/Maps/MapRootFile.cs:108` |
 | `1800fe7b0` | `CResourceCompilerMap_AssignBakedShadowIndices` | directlight 2 for unshadowed stationary; shadow slots | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:60`, `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:213`, `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:284` |
 | `180105f50` | `NodeIdPath_Hash` | MurmurHash2 of heap ids then inline ids, seed 0x3501a674; light_path_uniqueid | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:722` |
 | `180107cb0` | `AssignBakedShadowIndices_PerLight` | light_path_uniqueid, light_map_uniqueid, bakedshadowindex |  |
@@ -1071,7 +1071,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | address | name | what | cited in |
 |---|---|---|---|
 | `1800fb1c0` | `CNavGenInput_Construct` | bounds FLT_MAX/-FLT_MAX, +0x120 15.0; +0x128 left to 180f20e40 |  |
-| `1800fc370` | `MapCompile_BuildNav` | the nav step: settings from the map's CMapNavData (180fafae0) or 'Nav settings not found, using default settings.', the seed and markup collectors (180f21760 first), navsystem's generation ('>>NAVGEN: Skipped... no walkable seeds present' with no seeds), then maps/<map>.nav, .navdbg, .navspace and .navflowmap. No seeds and no settings give the fixed 834-byte nav (Maps/NavFile.cs) | `src/Source2.Compiler/Maps/MapCompile.cs:272`, `src/Source2.Compiler/Maps/NavCompile.cs:21`, `src/Source2.Compiler/Maps/NavFile.cs:7` +3 |
+| `1800fc370` | `MapCompile_BuildNav` | the nav step: settings from the map's CMapNavData (180fafae0) or 'Nav settings not found, using default settings.', the seed and markup collectors (180f21760 first), navsystem's generation ('>>NAVGEN: Skipped... no walkable seeds present' with no seeds), then maps/<map>.nav, .navdbg, .navspace and .navflowmap. No seeds and no settings give the fixed 834-byte nav (Maps/NavFile.cs) | `src/Source2.Compiler/Maps/MapCompile.cs:356`, `src/Source2.Compiler/Maps/NavCompile.cs:21`, `src/Source2.Compiler/Maps/NavFile.cs:7` +3 |
 | `1800fd2b0` | `MapCompile_CreateNavMesh` | the custom nav factory (1800fbe80: gameinfo CustomNavBuild ModuleName / Interface; CS2 server.dll customnavsystem001) vfn 0x58, else a CNavMesh (0x428 bytes, 1818d4720) |  |
 | `180dd2210` | `EntityClass_HasStaticMesh` | the FGD class's metadata (+0xc0) bool has_static_mesh (hash 0x2755870d, default 0): prop_static and cable_static | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:88` |
 | `180f1ef70` | `NavGen_FindNavMarkups` | func_nav_markup entities in the map, then each sub-world's (flag 4 keeps the list) | `src/Source2.Compiler/Maps/NavGen/NavGenMarkups.cs:53` |
@@ -2213,7 +2213,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `1800fe5f0` | `MapCompile_RunPostMapBuildSteps` | after the builder steps of every compile: each key of gameinfo ResourceCompiler/GameSpecificPostMapBuildSteps names a map compile modifier (CS2: cs2_bomb_damage, modtools 18003ad70), run with its flags (vfn 0x20, 3) and its vfn 0x28 value (0x40) | `src/Source2.Compiler/Maps/MapCompile.cs:296` |
+| `1800fe5f0` | `MapCompile_RunPostMapBuildSteps` | after the builder steps of every compile: each key of gameinfo ResourceCompiler/GameSpecificPostMapBuildSteps names a map compile modifier (CS2: cs2_bomb_damage, modtools 18003ad70), run with its flags (vfn 0x20, 3) and its vfn 0x28 value (0x40) | `src/Source2.Compiler/Maps/MapCompile.cs:380` |
 
 ## resourcecompiler.dll, build 20261023
 
@@ -2230,6 +2230,21 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18015adb0` | `CompileVData_SpecialDependencyFingerprint` | "VData Compiler Version" 2 (1 before 10-23), "VData ModTools Stripping Version" 18015bc50 over the strip rules the game's ModTools (183b64970, vfn 0x80) returns ({0, 0} without one), "KV3 Compiler Version" 2; Source2ContainerAuthor.SpecByExtension | `src/Source2.Compiler/Containers/Source2ContainerAuthor.cs:52`, `src/Source2.Compiler/Containers/Source2ContainerAuthor.Vdata.cs:13` |
 | `18015ae70` | `CompileVData_ModToolsStrippingVersion` | 2 for the named identity, else 1: a dependency's own version check |  |
 | `18015bc50` | `VDataStrip_RulesFingerprint` | per 24-byte rule {char *file, int, char *member}: FNV-1a of each string folded (h << 17 ^ h) + (h >> 21), the int through murmur3's finaliser, combined boost-style (0x9e3779b9); no rules gives 0; Source2ContainerAuthor.ModToolsStripFingerprint | `src/Source2.Compiler/Containers/Source2ContainerAuthor.Vdata.cs:13`, `src/Source2.Compiler/Containers/Source2ContainerAuthor.Vdata.cs:22` |
+
+## resourcecompiler.dll, build 20261029
+
+- file: `resourcecompiler_20261029.dll`, 56,351,896 bytes, PE time 2026-10-28 15:42 UTC
+- SHA-256 `a253dd2e183296ef8b545ce53bf165185c0edb0d0cd54c72df49f6dbfa845615`
+- installed: this build
+- against the installed build (20261101_1.41.9.4.md): 1334 tracked addresses: ambiguous 81, changed 23, identical 7, moved 1220, relocated 3
+- 2 addresses
+
+### s2c:baked/steamaudio
+
+| address | name | what | cited in |
+|---|---|---|---|
+| `180100aa0` | `CleanupBakedDataIfNeeded` | (probe type 0 reverb / 1 pathing / 2 custom data, custom data type, context): the rebake option from steamaudio vf 0x138 / 0x140 / 0x148; Manual (1) logged as deprecated and taken as Cleanup; Cleanup drops the baked file from the outputs (context vf 0x1a0 with 180107ca0) and returns true (no bake); Auto (2) returns false. Inlined in the four other builders that hold its lambda | `src/Source2.Compiler/Maps/MapCompile.cs:133` |
+| `180107ca0` | `CleanupBakedDataIfNeeded_lambda` | the predicate: an output path with its slashes made '\', strstr for the baked file's name; true when it is not that file | `src/Source2.Compiler/Maps/MapCompile.cs:197` |
 
 ## scenesystem.dll, build 20261015
 
@@ -2513,8 +2528,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180067dc0` | `CSteamAudioScene_Create` | a 0x78-byte scene, then its build (180084d90) |  |
 | `18006b260` | `SteamAudio_MetersToSource` | the axes, then x 39.37008 | `src/Source2.Compiler/SteamAudio/ProbeFilters.cs:10`, `src/Source2.Compiler/SteamAudio/ProbeGeneration.cs:15`, `src/Source2.Compiler/SteamAudio/ProbeGeneration.cs:31` +1 |
 | `18006b2d0` | `SteamAudio_BoxMatrix` | a box (quaternion, centre, size in inches) as phonon's row-major 4x4 | `src/Source2.Compiler/SteamAudio/ProbeGeneration.cs:9`, `src/Source2.Compiler/SteamAudio/ProbeGeneration.cs:39` |
-| `18006bc60` | `SteamAudio_ReadReverbSettings` | code defaults, gameinfo ReverbDefaults, then worldspawn | `src/Source2.Compiler/SteamAudio/SteamAudioFiles.cs:6`, `src/Source2.Compiler/SteamAudio/SteamAudioFiles.cs:33` |
-| `18006c1b0` | `SteamAudio_ReadPathingSettings` |  | `src/Source2.Compiler/SteamAudio/SteamAudioFiles.cs:105` |
+| `18006bc60` | `SteamAudio_ReadReverbSettings` | code defaults, gameinfo ReverbDefaults, then worldspawn | `src/Source2.Compiler/Maps/MapCompile.cs:180`, `src/Source2.Compiler/SteamAudio/SteamAudioFiles.cs:6`, `src/Source2.Compiler/SteamAudio/SteamAudioFiles.cs:33` |
+| `18006c1b0` | `SteamAudio_ReadPathingSettings` |  | `src/Source2.Compiler/Maps/MapCompile.cs:180`, `src/Source2.Compiler/SteamAudio/SteamAudioFiles.cs:105` |
 | `180071240` | `SteamAudio_WriteProbeBatchBlob` | the serialized batch into m_pProbeBatch | `src/Source2.Compiler/SteamAudio/SteamAudioFiles.cs:226` |
 | `18007d0b0` | `SteamAudio_SumBands` | a band array summed in order from 0 | `src/Source2.Compiler/SteamAudio/AcousticMaterials.cs:16` |
 | `180084720` | `CSteamAudioMaterial_ReadEntry` | a surfaceproperties_steamaudio.txt entry's coefficients; missing arrays keep theirs | `src/Source2.Compiler/SteamAudio/AcousticMaterials.cs:13` |

@@ -3440,6 +3440,13 @@ RESOURCECOMPILER_1015 = [
 ]
 
 # resourcecompiler.dll as installed since the 10-23 update, 1.41.9.2 (tools/re/binaries/resourcecompiler_20261023.dll).
+RESOURCECOMPILER_1029 = [
+    # Read from the disassembly (resourcecompiler 20261029) beside the Ghidra project's resourcecompiler.dll decompile
+    # (18013b060, 18013af00 there): ledger 198.
+    ("180100aa0", "CleanupBakedDataIfNeeded", SA, "(probe type 0 reverb / 1 pathing / 2 custom data, custom data type, context): the rebake option from steamaudio vf 0x138 / 0x140 / 0x148; Manual (1) logged as deprecated and taken as Cleanup; Cleanup drops the baked file from the outputs (context vf 0x1a0 with 180107ca0) and returns true (no bake); Auto (2) returns false. Inlined in the four other builders that hold its lambda"),
+    ("180107ca0", "CleanupBakedDataIfNeeded_lambda", SA, "the predicate: an output path with its slashes made '\\', strstr for the baked file's name; true when it is not that file"),
+]
+
 RESOURCECOMPILER_1023 = [
     ("18015adb0", "CompileVData_SpecialDependencyFingerprint", CT, "\"VData Compiler Version\" 2 (1 before 10-23), \"VData ModTools Stripping Version\" 18015bc50 over the strip rules the game's ModTools (183b64970, vfn 0x80) returns ({0, 0} without one), \"KV3 Compiler Version\" 2; Source2ContainerAuthor.SpecByExtension"),
     ("18015ae70", "CompileVData_ModToolsStrippingVersion", CT, "2 for the named identity, else 1: a dependency's own version check"),
@@ -3550,6 +3557,7 @@ if __name__ == "__main__":
     write("server_20261015.manual.json", SERVER_1015 + SERVER_1015_CUBEHOST)
     write("resourcecompiler_20261015.manual.json", RESOURCECOMPILER_1015)
     write("resourcecompiler_20261023.manual.json", RESOURCECOMPILER_1023)
+    write("resourcecompiler_20261029.manual.json", RESOURCECOMPILER_1029)
     write("modtools_20261023.manual.json", MODTOOLS_1023)
     write("bc7e_20261015.manual.json", BC7E)
     write("steamaudio_20261023.manual.json", STEAMAUDIO_1023)

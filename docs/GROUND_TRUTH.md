@@ -5247,6 +5247,25 @@ game can answer is raised with the user first, and runs with -insecure.
      - Not measured: no capture of a material with contrast other than 1 yet, and the shader default texture of a
        texture the material does not set is not read (both evaluators give zero then).
 
+198. **Steam Audio's rebake options in a compile** (2026-11-02, CS2 open: the Ghidra project's resourcecompiler.dll
+     decompile, 18013b060 and 18013af00 there, and the installed 1029 build's disassembly). READ.
+     - CleanupBakedDataIfNeeded (1029 180100aa0; inlined in the four other builders holding its lambda) takes the
+       probe type (0 reverb, 1 pathing, 2 custom data) and reads worldspawn's rebake option through steamaudio.dll's
+       settings readers (vf 0x138 reverb = 18006bc60, 0x140 pathing = 18006c1b0, 0x148 custom data).
+     - Manual (1) logs "Rebake option set to MANUAL, which is deprecated. Proceeding as if set to CLEANUP." and is
+       Cleanup from then on. Cleanup logs "Bake set to cleanup, baked data file (%s) will be deleted.", hands the
+       context (vf 0x1a0) a predicate (180107ca0: an output path, slashes made '\', strstr for the file's name)
+       and returns true, so nothing is baked. Auto (2) returns false and the builder bakes.
+     - The file name (18013af00): steamaudio vf 0x100 (reverb) or 0x108 (pathing) of the map, or vf 0x110 with
+       .custom.occlusion / .custom.dimensions / .custom.materials for custom data types 1 to 3.
+     - Measured: ze_hold_em_p's .vmap sets reverb and pathing to 1 and leaves custom data at the FGD's 0; Valve's
+       full build of it ships no Steam Audio file. s2c_rounds is 0 for all three.
+     - Ported: MapCompile (SteamAudioRebakeOption, SteamAudioCleanup); Cleanup and Manual drop maps/<map>.sareverb
+       or .sapaths from the package; an Auto bake is refused by name (the bake is ported, its wiring is not), and
+       Cleanup over custom data files in a kept package is refused (their names' stem is not read).
+     - Also now: a full build (no builder named) starts from an empty package with -f / -fshallow2 or with no
+       package yet, as RC does; a partial build that would start empty is still refused.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

@@ -1,0 +1,16 @@
+{
+ "functions": [
+  {
+   "addr": "180100aa0",
+   "name": "CleanupBakedDataIfNeeded",
+   "module": "s2c:baked/steamaudio",
+   "note": "(probe type 0 reverb / 1 pathing / 2 custom data, custom data type, context): the rebake option from steamaudio vf 0x138 / 0x140 / 0x148; Manual (1) logged as deprecated and taken as Cleanup; Cleanup drops the baked file from the outputs (context vf 0x1a0 with 180107ca0) and returns true (no bake); Auto (2) returns false. Inlined in the four other builders that hold its lambda"
+  },
+  {
+   "addr": "180107ca0",
+   "name": "CleanupBakedDataIfNeeded_lambda",
+   "module": "s2c:baked/steamaudio",
+   "note": "the predicate: an output path with its slashes made '\\', strstr for the baked file's name; true when it is not that file"
+  }
+ ]
+}

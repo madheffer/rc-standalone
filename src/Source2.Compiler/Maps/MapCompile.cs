@@ -80,11 +80,15 @@ public static class MapCompile
     /// physics step writes world_physics. The nav step writes the fixed empty
     /// nav of a map with no seeds (NavFile) and otherwise generates it with its
     /// CS custom data (NavCompile); after every build the CS2 bomb damage post
-    /// step bakes the map's bombsites over the package's nav. Steam Audio is not ported and is refused by name; the bake
-    /// takes vrad3's results (-vrad3output). Like a -fshallow build, the package
-    /// already at the output path is kept and only these outputs replaced; a
-    /// build that would start from an empty package is refused, as the
-    /// compile refuses a partial build then.
+    /// step bakes the map's bombsites over the package's nav. Steam Audio's
+    /// builders clean up at worldspawn's rebake option Cleanup or Manual
+    /// (<see cref="SteamAudioCleanup"/>); an Auto bake is not wired and is
+    /// refused by name. The bake
+    /// takes vrad3's results (-vrad3output) or our own (-s2cbake). Like a
+    /// -fshallow build, the package already at the output path is kept and only
+    /// these outputs replaced. A full build starts from an empty package with
+    /// -f or -fshallow2, or when there is no package yet; a partial build that
+    /// would start empty is refused, as the compile refuses it.
     /// </summary>
     /// <returns>0 on success; 1 when refused or failed, with the reason logged.</returns>
     /// <param name="skipUnported">Run the ported steps and leave the rest (nav, Steam
@@ -107,7 +111,7 @@ public static class MapCompile
         var map = string.Join('/', parts[(content + 4)..])[..^".vmap".Length];
         var game = Path.Combine(root, "game");
 
-        var steps = args.SelectedBuilders(out _);
+        var steps = args.SelectedBuilders(out var partial);
         var entitiesOnly = args.EntitiesOnly;
         var refused = new List<string>();
         var vrad3 = args.Vrad3Output;
@@ -118,7 +122,35 @@ public static class MapCompile
             return Fail(log, "-s2cbake and -vrad3output both name the bake's folder; give one");
         if (ownBakes && ownBake == null)
             return Fail(log, "-s2cbake: this build has no GPU bake (run it through the CLI)");
-        refused.AddRange(steps.Where(s => s is "sareverb" or "sapaths" or "sacustomdata" || (s is "bakedlighting" && vrad3 == null && !ownBakes)));
+        var package = Path.Combine(args.OutRoot ?? game, "csgo_addons", addon, "maps", map.Replace('/', Path.DirectorySeparatorChar) + ".vpk");
+        var startsEmpty = !args.KeepsPackage || !File.Exists(package);
+        if (startsEmpty && partial)
+            return Fail(log, !args.KeepsPackage
+                ? "-f and -fshallow2 start from an empty package, and this is a partial build (the compile refuses it too)"
+                : $"no compiled package at {package} to update, and a partial build does not start one");
+        var document = DmxBinary.ReadFile(full);
+        var schema = FgdSchema.Load(Path.Combine(game, "csgo", "csgo.fgd"), [Path.Combine(game, "core"), Path.Combine(game, "csgo")]);
+        // Steam Audio (CleanupBakedDataIfNeeded, rc 1029 180100aa0): Cleanup, and Manual taken as Cleanup, drop the
+        // kind's baked file and bake nothing; Auto bakes, which is not wired here.
+        var cleanups = new List<string>();
+        foreach (var kind in new[] { "sareverb", "sapaths", "sacustomdata" })
+        {
+            if (!steps.Contains(kind))
+                continue;
+            var option = SteamAudioRebakeOption(document, schema, kind);
+            if (option is 0 or 1)
+            {
+                steps.Remove(kind);
+                cleanups.Add(kind);
+                if (option == 1)
+                    log.WriteLine($"  {kind}: rebake option set to MANUAL, which is deprecated. Proceeding as if set to CLEANUP.");
+            }
+            else if (option == 2)
+                refused.Add($"{kind} (rebake option Auto)");
+        }
+        if (!startsEmpty && cleanups.Contains("sacustomdata") && SteamAudioCustomDataIn(package, map))
+            refused.Add("sacustomdata (Cleanup over custom data files, whose names are not read)");
+        refused.AddRange(steps.Where(s => s is "bakedlighting" && vrad3 == null && !ownBakes));
         if (args.BakesLighting && vrad3 == null && !ownBakes)
             refused.Add("the lighting bake (a build naming no builder, or -bakelighting; -vrad3output takes vrad3's results)");
         if (refused.Count > 0 && !skipUnported)
@@ -129,17 +161,12 @@ public static class MapCompile
         // The bake's own outputs are skipped, but the lumps a baking build writes
         // carry its keys (shadow slots, probe atlas), which come from the map alone.
         var bakes = steps.Contains("bakedlighting") || args.BakesLighting;
-        steps.ExceptWith(refused);
-        if (!args.KeepsPackage)
-            return Fail(log, "-f and -fshallow2 start from an empty package, and this is a partial build (the compile refuses it too)");
-
-        var package = Path.Combine(args.OutRoot ?? game, "csgo_addons", addon, "maps", map.Replace('/', Path.DirectorySeparatorChar) + ".vpk");
-        if (!File.Exists(package))
-            return Fail(log, $"no compiled package at {package} to update; the parts not ported need one built by Valve's compiler");
+        steps.ExceptWith(refused.Select(r => r.Split(' ')[0]));
 
         try
         {
-            return Build(args, log, acceptGaps, sampler, full, root, addon, map, game, steps, package, bakes, skipUnported, ownBake);
+            return Build(args, log, acceptGaps, sampler, full, root, addon, map, game, steps, package, document, schema, startsEmpty, cleanups,
+                         bakes, skipUnported, ownBake);
         }
         catch (Exception ex) when (ex is NotSupportedException or InvalidOperationException)
         {
@@ -148,11 +175,59 @@ public static class MapCompile
         }
     }
 
+    /// <summary>
+    /// worldspawn's steamaudio_reverb / pathing / customdata rebake option (0 Cleanup, 1 Manual, 2 Auto), which
+    /// steamaudio.dll's settings readers take (18006bc60 reverb, 18006c1b0 pathing): the .vmap's value, else the
+    /// FGD's default (0 in csgo.fgd).
+    /// </summary>
+    public static int SteamAudioRebakeOption(DmxBinary.Document document, FgdSchema schema, string kind)
+    {
+        var key = kind switch
+        {
+            "sareverb" => "steamaudio_reverb_rebake_option",
+            "sapaths" => "steamaudio_pathing_rebake_option",
+            _ => "steamaudio_customdata_rebake_option",
+        };
+        var world = MapEntities.From(document).FirstOrDefault(e => e.IsWorld);
+        var value = world?.Keys.FirstOrDefault(k => k.Key.EqualsAscii(key)).Value ?? schema.KeyOf("worldspawn", key)?.Default;
+        return value is { Length: > 0 } ? (int)CNumbers.Atoi(value) : 0;
+    }
+
+    /// <summary>
+    /// The package entries a Steam Audio cleanup drops (CleanupBakedDataIfNeeded's predicate, 180107ca0: an output
+    /// whose path, slashes made '\', contains the baked file's name): maps/&lt;map&gt;.sareverb for the reverb and
+    /// .sapaths for pathing (the names steamaudio vf 0x100 / 0x108 give, as Valve's packages hold them). Custom data
+    /// is refused before this when the package has any (<see cref="SteamAudioCustomDataIn"/>).
+    /// </summary>
+    public static IEnumerable<string> SteamAudioCleanup(IEnumerable<string> entries, string map, string kind)
+    {
+        var name = kind switch
+        {
+            "sareverb" => $"maps/{map}.sareverb",
+            "sapaths" => $"maps/{map}.sapaths",
+            _ => null,
+        };
+        return name is null ? [] : entries.Where(e => e.Contains(name.ToLowerInvariant(), StringComparison.OrdinalIgnoreCase)).ToList();
+    }
+
+    /// <summary>
+    /// Whether the package holds Steam Audio custom data (18013af00 names it from steamaudio vf 0x110 with a
+    /// .custom.occlusion, .custom.dimensions or .custom.materials suffix; the rest of the name is not read).
+    /// </summary>
+    private static bool SteamAudioCustomDataIn(string package, string map)
+    {
+        using var pak = new ValvePak.Package();
+        pak.Read(package);
+        return pak.Entries?.Values.SelectMany(list => list).Any(e => e.GetFullPath() is var p
+            && (p.Contains(".custom.occlusion", StringComparison.OrdinalIgnoreCase) || p.Contains(".custom.dimensions", StringComparison.OrdinalIgnoreCase)
+                || p.Contains(".custom.materials", StringComparison.OrdinalIgnoreCase))) == true;
+    }
+
     private static int Build(MapCompileArgs args, TextWriter log, bool acceptGaps,
                              Func<GameContent, Func<string, MaterialSampler.Renderer?>?>? sampler,
                              string full, string root, string addon, string map, string game,
-                             HashSet<string> steps, string package, bool bakes = false, bool skipUnported = false,
-                             Action<string, GameContent, TextWriter>? ownBake = null)
+                             HashSet<string> steps, string package, DmxBinary.Document document, FgdSchema schema, bool startsEmpty,
+                             IReadOnlyList<string> steamAudioCleanups, bool bakes = false, bool skipUnported = false, Action<string, GameContent, TextWriter>? ownBake = null)
     {
         // Where the bake's outputs are read from: vrad3's folder, or the job our own bake ran in.
         var lightingFolder = args.Vrad3Output;
@@ -161,13 +236,22 @@ public static class MapCompile
         List<Physics.EntityPhysicsModels.Model> entityModels = [];
         // What an Only Entities build compiles, the map root's children in that build.
         var entitiesOnlyChildren = new List<string>();
-        var document = DmxBinary.ReadFile(full);
         // A prefab's map loads from the addon's content, as Hammer's does.
         MapPrefabs.Attach(document, MapPrefabs.FromContent(Path.Combine(root, "content", "csgo_addons", addon)));
-        var schema = FgdSchema.Load(Path.Combine(game, "csgo", "csgo.fgd"), [Path.Combine(game, "core"), Path.Combine(game, "csgo")]);
         MapDeformers.Apply(document, schema);
         using var assets = new GameContent(Path.Combine(game, "csgo", "pak01_dir.vpk"), Path.Combine(game, "csgo_addons", addon));
-        var entries = Io.VpkWriter.ReadAll(package);
+        var entries = startsEmpty ? new Dictionary<string, byte[]>(StringComparer.Ordinal) : Io.VpkWriter.ReadAll(package);
+        if (startsEmpty)
+        {
+            log.WriteLine("  starting from an empty package (a full build)");
+            Directory.CreateDirectory(Path.GetDirectoryName(package)!);
+        }
+        foreach (var kind in steamAudioCleanups)
+            foreach (var path in SteamAudioCleanup(entries.Keys, map, kind))
+            {
+                entries.Remove(path);
+                log.WriteLine($"  Steam Audio: Bake set to cleanup, baked data file ({path}) will be deleted.");
+            }
         var notes = new List<string>();
         log.WriteLine($"{map}.vmap -> {package}");
 

@@ -102,9 +102,14 @@ static void Usage()
                     entity lumps (settled unless -nosettle); -phys world_physics.
                     They replace their files in the compiled map package already
                     at <outroot or game>/csgo_addons/<addon>/maps, as -fshallow
-                    does. The lighting bake, nav and Steam Audio are refused by
-                    name; --skip-unported runs the rest and leaves those as the
-                    package has them.
+                    does; a full build (no builder named) with -f or -fshallow2,
+                    or with no package there yet, starts from an empty one.
+                    -s2cbake <folder> bakes the lighting on the GPU with no vrad3.
+                    Steam Audio at worldspawn's Cleanup or Manual rebake option
+                    bakes nothing, as resourcecompiler does; an Auto bake is
+                    refused by name, as is the lighting bake with neither
+                    -s2cbake nor -vrad3output. --skip-unported runs the rest and
+                    leaves those as the package has them.
 
       s2c build-cubemaps <game/csgo_addons/<addon>/maps/<map>.vpk>
                     [--no-scripted-camera] [--intermediates <dir>] [--game <dir>]

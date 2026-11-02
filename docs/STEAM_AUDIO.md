@@ -203,8 +203,8 @@ In order of the plan (the user's call, 10-28: the rest of the pipeline first, Em
 3. **Pathing's remaining cases**: sampled visibility (numSamples > 1 with a radius; the sphere volume samples), the
    4.9 flag at +0x40, coincident probes, and the KV3 conversion of worldspawn choices keys (generation type, rebake option). The
    pathing settings reader (18006c1b0) is ported (`PathingSettings.From`, gameinfo PathingDefaults then worldspawn).
-4. **compile-map**: `-sareverb` / `-sapaths` steps instead of the refusal in MapCompile.cs, the rebake options
-   (0 cleanup, 1 manual, 2 auto) and what each does to an existing file, `-sareverb_threads` (more than one
+4. **compile-map**: the rebake options are read (ledger 198: Cleanup and Manual drop the baked file, Manual
+   logged as deprecated; only Auto bakes). Left: the Auto bake itself in MapCompile.cs, `-sareverb_threads` (more than one
    thread is not reproducible in Valve's build either: refuse or document), the seed (Valve's is rdtsc; ours
    is fixed), packing both files into the map .vpk; then a whole-package parity check against a Valve compile
    with seeds pinned (capture_sareverb.py).
