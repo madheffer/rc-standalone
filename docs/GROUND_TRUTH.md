@@ -5284,14 +5284,54 @@ game can answer is raised with the user first, and runs with -insecure.
      scene's box, the inside-shapes filter, the bake and the KV3 file; compile-map runs it after the nav, in the
      default builder order.
      - Checked: s2c_saprobe's whole .sapaths through the builder equals Valve's (SaprobePathsFromTheBuilder), and the
-       reverb settings it reads are the pinned bake's (SaprobeReverbSettingsFromTheMap). The reverb run through it
-       is queued (SaprobeReverbFromTheBuilder, SAREVERB_FULL=1, about 90 s on 8 cores).
+       reverb settings it reads are the pinned bake's (SaprobeReverbSettingsFromTheMap). The reverb through it
+       (SaprobeReverbFromTheBuilder, SAREVERB_FULL=1, run 2026-11-02 with CS2 open at below-normal priority):
+       73 probes, 1 with a ray tie, the file Valve's length with 117 bytes different; SaprobeReverbFromTheMap's
+       run beside it has probe 65 as the only differing and tied probe, and the file Valve's once that probe is
+       swapped for Valve's.
      - Refused by name, as not measured: generation types other than Automatic Everywhere, the navmesh filter, a nav
        with areas (the coverage appender, ledger 186), any steamaudio_* entity, func_ladder and snd_opvar_set_point,
        clustering and compression, sampled pathing visibility, and a pathing probe the inside-shapes filter would
        drop (s2c_sainside measured that filter for the reverb only). Custom data at Auto is not ported.
      - Also read in 18013af00 (ledger 198): the .custom.occlusion file some stock maps ship is Steam Audio's custom
        data (type 1), made by -sacustomdata.
+
+200. **cs_script sources to .vjs_c** (2026-11-02, CS2 open; measured: the installed 1.41.9.4 resourcecompiler run
+     on its own, `-nop4 -f -game csgo -i <script.js>`, one file per run, over cs_script_demo's seven scripts; several
+     -i in one run compile nothing). MEASURED.
+     - The file: container version 4, blocks RED2 then DATA, zero padding to 16 between them and none after DATA.
+       DATA is the .js source byte for byte (all seven).
+     - RED2: input dependencies, sorted by path, the source (CRC32 of its bytes) and an optional, absent
+       same-named .vjs, both under the addon's search path ("csgo_addons/cs_script_demo"); the one
+       ___OverrideInputData___ argument at 0; special dependencies "JavaScript Compiler Version" (CompileJavaScript,
+       4) and "Panorama Preprocessor Presence/Version" (CompileJavaScript, 0); IsChildResource 0.
+     - The preprocessor: every archived resourcecompiler build (0923 to 1029) names panorama/preprocessor_config.txt.
+       No install here has it (not loose in game/ or content/core, not in core's or csgo's pak01). The .vjs_c that
+       Steam shipped with the 10-23 update (written with core's pak01 at 09:56) record it as an input from core
+       (CRC 3533796717) with the preprocessor fingerprint 6, and their DATA has comments and Console.Log calls
+       blanked to spaces of the same length: that is Valve's build machine, not a user's compile. RC on this install
+       rewrote all seven without the input and with fingerprint 0, 48 bytes smaller each.
+     - Ported: ScriptAuthor (s2c compile <in.js>); ScriptAuthorTests checks all seven byte for byte. Not ported: the
+       preprocessor's pass (its config is not on any install) and .ts sources (not measured).
+
+201. **s2c_coloradjust against Valve: streams a material adds, and what follows** (2026-11-02, CS2 open; measured:
+     Valve's full compile of the specimen on driver 32.0.16.1088, %TEMP%/fresh_compile/s2c_coloradjust.vpk, against
+     `full_compile_test.py s2c_rc_probe s2c_coloradjust --cs2-open --no-cubemaps`). OPEN.
+     - 18 of 25 files equal. The two world node models of the swapped stock materials differ (DATA, RED2, RERL,
+       MVTX, MIDX equal; CTRL and MDAT not): Valve's vertex layout has COLOR 0 (R8G8B8A8_UNORM,
+       m_szShaderSemantic VertexPaintTintColor) at offset 32 before the last field, stride 40, every vertex
+       FFFFFFFF (VertexStreamValuesProbe, VTXSTREAM=); ours has no such stream (stride 36). The specimen's meshes
+       store no VertexPaintTintColor, so the compile adds it for a material that reads it, as
+       NodeMeshEntries.WithPaintStreams adds texcoord 1 and VertexPaintBlendParams for LowPrecisionUv1 (measured on
+       atixref, its code not read either).
+     - Also different: m_flUvDensity on five draws in the last digits (63.999992 / 64.0 against ours 63.999996 /
+       63.999989), the .nav (9,579 against 9,607 bytes, first difference at 5416), irradiance, directional
+       irradiance and the probe volume atlas; whether these follow from the stream, from the materials' surface
+       properties or from the bake's colour matrices (ledger 197) is not known.
+     - Next (CS2 open): read the code that adds the missing streams (the merge preparation around
+       WRBMeshList_PrepareForMerge, 1802b52d0 in 0923, and its 1029 counterpart), with its fill values and
+       placement; port it in place of WithPaintStreams' fitted rule; then rerun the specimen and take the nav, the
+       UV density and the bake in that order.
 
 ## Resolved
 

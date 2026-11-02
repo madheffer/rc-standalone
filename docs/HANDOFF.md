@@ -28,9 +28,14 @@ remote `box`.
   pinned (docs/STEAM_AUDIO.md) and ours must equal those.
 - **VAC safety.** Never attach to or read cs2.exe. Game tests use `-insecure`,
   and only after asking the user.
-- **Compiles and captures only while CS2 is closed.**
-  - Check `tasklist` and run the watchdog, which kills resourcecompiler if
-    cs2.exe appears.
+- **What waits for CS2 closed is what VAC could see (user, 2026-11-02).**
+  Frida on any process, cubehost and RenderDoc, anything touching cs2.exe,
+  and the -insecure game launch wait for CS2 (and for cubehost Steam)
+  closed. Jobs that are only heavy run with the game open at below-normal
+  priority through `tools/re/heavy.py run --allow-cs2`: our own s2c
+  builds, compiles and tests, and resourcecompiler run on its own
+  (`compile_fresh.py --cs2-open`, `full_compile_test.py --cs2-open`).
+  [CS2_CLOSED_QUEUE.md](CS2_CLOSED_QUEUE.md) sorts each item.
   - Back up any package a compile overwrites, restore it after and `cmp`
     it.
   - Delete crash dumps after reading them, and keep 10 GB free on D:.
@@ -208,7 +213,8 @@ the addon).
 10. **Containers and resources:** compiling the addon content a map
    references, a package made only of our outputs; glTF export, model
    internals, shaders.
-11. **Map scripts (user, 2026-10-23), once visibility is 100%:** compile cs_script
+11. **Map scripts (user, 2026-10-23), once visibility is 100%:** .js done 2026-11-02
+    (ledger 200, ScriptAuthor); .ts and a pre-update file left. Compile cs_script
     sources (.js/.ts) to `.vjs_c` ourselves; today resourcecompiler does it and the
     service only checks the file exists. The 1.41.9.2 update changed the compiler
     (new "Panorama Compiler Conditionals Fingerprint", every shipped `.vjs_c`
@@ -224,7 +230,22 @@ the addon).
     Debug test build; time a Release build and Valve's own step before sizing it. Any change
     that could alter bytes waits for the user's OK (parity before speed).
 
-## Latest session (2026-11-02 later, TextureAverageColor, Steam Audio's rebake rule, full builds from empty; CS2 open)
+## Latest session (2026-11-02 evening, the full compile's compile half, .vjs_c, the driver; CS2 open, below-normal)
+
+- The user's rule: VAC, not load, is why the game closes, so heavy-only items ran now (Rules above).
+- **Full compile of ze_hold_em_p** (`full_compile_test.py s2c_rc_probe ze_hold_em_p --cs2-open`, 12 min): against
+  Valve's fresh compile on the same driver, 55 of 56 files byte for byte, 99.99%; only world.vwrld_c's compile
+  stamp and per-compile fingerprint differ. The in-game half is CS2_CLOSED_QUEUE A.1.
+- **The GPU driver moves the lightmaps.** NVIDIA 32.0.15.9579 to 32.0.16.1088 (2026-11-01 05:21): Valve's own
+  irradiance moved by 70% of its blocks; ours equals Valve's on either driver (a 30192cf build gave the same
+  counts, so no code regression). Lit references from before a driver update are stale: CS2_CLOSED_QUEUE part C;
+  new-driver vrad3 references in %TEMP%/vrad3_refs/driver_32.0.16.1088. Tool: CpuBakeProbe.LightmapBlocksAgainstValve
+  (PKGTEX=<valve vpk>|<our vpk>|<map>).
+- **Ledger 200: .js to .vjs_c** (ScriptAuthor, `s2c compile <in.js>`): byte for byte with this install's RC on all
+  seven cs_script_demo scripts. The shipped .vjs_c are Valve's build machine's (Panorama preprocessor present).
+- Steam Audio reverb through the builder (ledger 199): only the Embree-tie probe 65 differs, as expected.
+
+## Earlier session (2026-11-02 later, TextureAverageColor, Steam Audio's rebake rule, full builds from empty; CS2 open)
 
 - Ledger 197: TextureAverageColor is the .vtex header's reflectivity (RenderDevice003 vf 0x2d8 reads the 16 bytes
   rendersystem copied from header +4). Both evaluators read it; ColorMatrices moved to Lighting/ and the bake's

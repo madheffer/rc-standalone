@@ -8,24 +8,27 @@ ledger or doc that is waiting for its result. Last updated 2026-11-02.
 Steam has to be closed too for anything run in cubehost (part B). Part A needs only CS2 closed; A.1's in-game
 step needs Steam open, since it launches the game.
 
+Why each item waits (user, 2026-11-02: VAC is the reason for closing CS2 and Steam, not load; an item that is only
+heavy runs with the game open at below-normal priority):
+- **VAC**: Frida on any process, cubehost and RenderDoc (Valve's engine in our exe), anything that attaches to or
+  reads cs2.exe, and launching the game with -insecure. These stay in the queue.
+- **Heavy only**: our own s2c builds and tests (s2c starts no Valve process and touches no game process), and
+  Valve's resourcecompiler run on its own (it does not touch cs2.exe). Run these with the game open:
+  `heavy.py run --allow-cs2`, below-normal priority (`full_compile_test.py --cs2-open` does both).
+
 ## A. CS2 closed (Steam may stay open)
 
-1. **The full compile test** (HANDOFF "Latest session (2026-11-02 later)"; memory full-compile-test). The first
-   whole compile of a ZE map from its .vmap with only our code. About an hour, most of it the visibility build and
-   the GPU bake:
-   ```
-   python tools/pipeline/full_compile_test.py s2c_rc_probe ze_hold_em_p --valve "<cs2>/game/csgo_addons/s2c_cubeprobe/maps/ze_hold_em_p.vpk"
-   ```
-   The script builds s2c, runs `compile-map` (full build, `-s2cbake`, `--gpu`) and `build-cubemaps`, then scores
-   the package file by file against Valve's (expected: lit 55 of 56 files as on 10-19, plus the cube array).
-   Then, in game: copy the package into game/csgo/maps (back up anything already there), launch
-   `cs2.exe -tools -insecure -netconport 29000 -novid`, and run `python tools/pipeline/map_test.py ze_s2c
-   ze_hold_em_p <spawn x,y,z>`. Look for missing lighting, magenta, wrong reflections and broken triggers.
-   Report the score and what the game showed.
-2. **Steam Audio's reverb through compile-map's builder** (ledger 199). The wiring is in and the .sapaths through
-   it is exact; the reverb run is heavy CPU (about 90 s on 8 cores), so it waits for CS2 closed or the dev box:
-   `SAREVERB_FULL=1 dotnet test tests/Source2.Compiler.Tests --filter SaprobeReverbFromTheBuilder` (expected: equal
-   but for the one Embree-tie probe, 65).
+1. **The full compile test, in game** (HANDOFF "Latest session (2026-11-02 later)"; memory full-compile-test). The
+   compile half ran 2026-11-02 with CS2 open (`full_compile_test.py ... --cs2-open`, 12 min in all: compile-map
+   7 min, build-cubemaps 4.5 min): every step exit 0, and against Valve's fresh compile on the same GPU driver
+   (%TEMP%/fresh_compile/ze_hold_em_p_lit_1102.vpk) 55 of 56 files byte for byte, 99.99% of Valve's bytes; the one
+   left is world.vwrld_c, whose compile timestamp and per-compile fingerprint are the only differences
+   (S2C_WORLD_STAMP pins them). Our package: %TEMP%/full_compile/ze_hold_em_p. Left, CS2 closed: copy it into
+   game/csgo/maps (back up anything already there), launch `cs2.exe -tools -insecure -netconport 29000 -novid`,
+   and run `python tools/pipeline/map_test.py ze_s2c ze_hold_em_p <spawn x,y,z>`. Look for missing lighting,
+   magenta, wrong reflections and broken triggers. Report what the game showed.
+2. ~~Steam Audio's reverb through compile-map's builder~~ (ledger 199): done 2026-11-02 with CS2 open. 73 probes,
+   the only differing probe the Embree tie (65), as SaprobeReverbFromTheMap.
 3. **The colour-adjust specimen, Valve's compile** (ledger 197; nothing measured yet for a contrast other than 1
    or a coloured tint). The specimen is made: `content/csgo_addons/s2c_rc_probe/maps/s2c_coloradjust.vmap`
    (`tools/cubehost/coloradjust_specimen.py`: probe01 with cobblestone_ground_large_1 and italy_cobblestone_01).
@@ -34,8 +37,10 @@ step needs Steam open, since it launches the game.
    ```
    Copy the result to game/csgo_addons/s2c_rc_probe/maps/ for B.1. With vrad3's job kept (CPUBAKE_HOSTCAP,
    tools/vrad3/capture_host.py), the bake's material blocks also check RtxMaterials' colour matrices.
-4. **Map scripts** (HANDOFF roadmap 11): Valve's fresh compile of cs_script_demo as the reference for our own
-   .js/.ts to .vjs_c compile, and a pre-1.41.9.2 `.vjs_c` if one can be found.
+4. ~~Map scripts, Valve's reference~~ (ledger 200): done 2026-11-02 with CS2 open. RC on this install wrote all
+   seven cs_script_demo scripts (the files Steam ships are Valve's build machine's, with the Panorama
+   preprocessor); ScriptAuthor (`s2c compile <in.js>`) equals them byte for byte. Copies in %TEMP%/vjs_refs
+   (20261023 = as shipped, current = this install's RC). Left: a pre-1.41.9.2 .vjs_c, and .ts sources.
 5. **The Blender viewmodel add-on's in-game test** (memory blender-vm-anim): export a SCAR-20 reload into an addon
    and check that it plays.
 6. **Steam Audio, the nav coverage appender** (ledger 186): a specimen where a random point survives, captured
@@ -59,14 +64,23 @@ step needs Steam open, since it launches the game.
 5. **The map decompiler's Hammer re-save** (branch research/vmap-decompile, DECOMPILE.md "Handoff"):
    hammer_autosave.py in cubehost, then decompile_rc_batch.ps1.
 
-## C. After every CS2 update
+## C. After every CS2 update or GPU driver update
 
 `python tools/re/patch_check.py`, then `tools/re/build_diff.py --strings`, and `rc-oracle.ps1` (memory
 patch-check). Refresh any reference older than the update (memory stale-references; cs2_closed_session.py
 --fixtures).
 
+A GPU driver update changes vrad3's output (and so ours, which runs Valve's SPIR-V): the 2026-11-01 05:21 NVIDIA
+update (32.0.15.9579 to 32.0.16.1088) moved 737,382 of ze_hold_em_p's 1,048,576 irradiance blocks in Valve's own
+compile, and ours equals Valve's on either driver. Every lit reference made before a driver update is stale for
+lightmap parity: recompile it (`compile_fresh.py <addon> <map> --full --cs2-open --out ...`, no VAC concern).
+Old-driver copies of the vrad3 references: %TEMP%/vrad3_refs/driver_32.0.15.9579; new ones in
+%TEMP%/vrad3_refs/driver_32.0.16.1088 (the default %TEMP%/vrad3_refs files are still the old driver's).
+
 ## Done since the last window, with CS2 open
 
+- 2026-11-02 evening (CS2 open, below-normal): A.1's compile half, A.2, A.4 and ScriptAuthor (ledger 200), the
+  driver finding (part C), new-driver vrad3 references.
 - 2026-11-02: TextureAverageColor read (ledger 197), Steam Audio's rebake rule and full builds from an empty
   package in compile-map (ledger 198), the Steam Audio Auto bake in compile-map (ledger 199), full_compile_test.py,
   the colour-adjust specimen.

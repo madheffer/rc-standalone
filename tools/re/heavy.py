@@ -16,8 +16,9 @@ Priority by agreement, not by code: while CS2 is closed, jobs that need it close
 vrad3, captures) go first; long jobs that do not (Ghidra imports and analysis, offline test sweeps)
 wait for CS2 to be open again or run on the dev box (dev@192.168.20.32).
 
-Refuses to start an RC job while cs2.exe runs (the rule for resourcecompiler on this PC); pass
---allow-cs2 for jobs that do not touch the game.
+Waits for cs2.exe to close before starting, unless --allow-cs2. Since 2026-11-02 (user: VAC is the reason
+for closing the game, not load) jobs that are no VAC risk pass it and run at below-normal priority: our own
+s2c builds, compiles and tests, and a standalone resourcecompiler. Frida captures and cubehost never do.
 """
 import argparse
 import json

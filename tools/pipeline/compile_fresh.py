@@ -7,7 +7,9 @@ writes at --out (default %TEMP%/fresh_compile/<map>.vpk). The map's own
 package is backed up first and restored, cmp-checked, afterwards, so the
 user's addon is left as it was.
 
-Refuses while CS2 or another compile runs, or with under 10 GB free.
+Refuses while CS2 or another compile runs, or with under 10 GB free. --cs2-open allows CS2 to be running
+(resourcecompiler on its own touches no game process; user 2026-11-02: VAC, not load, is why the game
+closes) and runs the compile at below-normal priority.
 """
 import argparse
 import filecmp
@@ -34,11 +36,15 @@ def main():
     p.add_argument("map")
     p.add_argument("--out")
     p.add_argument("--full", action="store_true")
+    p.add_argument("--cs2-open", action="store_true", help="allow CS2 to be running; compile at below-normal priority")
     p.add_argument("--over", action="store_true",
                    help="compile over the existing package (an Entities-only build reads its world and lightmaps)")
     a = p.parse_args(argv)
-    if running("cs2.exe") or running("resourcecompiler.exe"):
-        raise SystemExit("CS2 or a compile is running; not starting")
+    if (running("cs2.exe") and not a.cs2_open) or running("resourcecompiler.exe"):
+        raise SystemExit("CS2 or a compile is running; not starting (--cs2-open if only CS2)")
+    if a.cs2_open:
+        import ctypes
+        ctypes.windll.kernel32.SetPriorityClass(ctypes.windll.kernel32.GetCurrentProcess(), 0x4000)  # BELOW_NORMAL, inherited
     if shutil.disk_usage(os.path.splitdrive(CS2)[0] + "\\").free < 10 * 1024 ** 3:
         raise SystemExit("under 10 GB free on the game drive; not starting")
     out_path = a.out or os.path.join(os.environ.get("TEMP", "."), "fresh_compile", a.map + ".vpk")

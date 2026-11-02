@@ -223,6 +223,9 @@ public class SteamAudioSceneTests(ITestOutputHelper output)
             return;
         var valve = File.ReadAllBytes(file);
         output.WriteLine($"{ours.Probes} probes, {ours.Ties} tied, {ours.Bytes.Length} bytes against Valve's {valve.Length}");
+        File.WriteAllBytes(Path.Combine(Path.GetTempPath(), "s2c_saprobe.builder.sareverb"), ours.Bytes);
+        var differ = Enumerable.Range(0, Math.Min(valve.Length, ours.Bytes.Length)).Count(i => valve[i] != ours.Bytes[i]);
+        output.WriteLine($"{differ} bytes differ");
         Assert.Equal(valve.Length, ours.Bytes.Length);
         if (ours.Ties == 0)
             Assert.True(valve.AsSpan().SequenceEqual(ours.Bytes));

@@ -378,12 +378,14 @@ public static partial class Source2ContainerAuthor
     /// <param name="templateSpecialDeps">Preserved verbatim.</param>
     /// <param name="optionalProbes">Sibling paths RC records as absent, so its incremental
     /// rebuild retriggers if one appears. Each is a statement that the file does not exist.</param>
+    /// <param name="searchPath">The mod tree the source was compiled from ("csgo", or an addon's "csgo_addons/&lt;addon&gt;").</param>
     public static KVObject BuildBinaryEditInfo(
         string? sourceName,
         ReadOnlySpan<byte> sourceBytes,
         IReadOnlyList<SpecialDep> fallbackSpecialDeps,
         IReadOnlyList<SpecialDep>? templateSpecialDeps = null,
-        IReadOnlyList<string>? optionalProbes = null)
+        IReadOnlyList<string>? optionalProbes = null,
+        string searchPath = "csgo")
     {
         var name = string.IsNullOrWhiteSpace(sourceName) ? "vpkeditor/compiled" : sourceName!;
 
@@ -402,7 +404,7 @@ public static partial class Source2ContainerAuthor
 
         var inputDeps = KVObject.Array();
         foreach (var (path, crc, optional, exists) in deps.OrderBy(d => d.Path, StringComparer.Ordinal))
-            inputDeps.Add(InputDependency(path, crc, optional, exists));
+            inputDeps.Add(InputDependency(path, crc, optional, exists, searchPath));
         root.Add("m_InputDependencies", inputDeps);
         root.Add("m_AdditionalInputDependencies", KVObject.Array());
 

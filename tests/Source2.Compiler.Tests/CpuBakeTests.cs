@@ -955,6 +955,44 @@ public class CpuBakeProbe(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// <c>PKGTEX=&lt;Valve's vpk&gt;|&lt;our vpk&gt;|&lt;map&gt;</c>: each lightmap texture's mip 0 blocks against Valve's, with
+    /// where the differing blocks lie (the compressed files alone cannot say how far a lit compile is off).
+    /// </summary>
+    [Fact]
+    public void LightmapBlocksAgainstValve()
+    {
+        if (Environment.GetEnvironmentVariable("PKGTEX") is not { Length: > 0 } spec || spec.Split('|') is not [var valveVpk, var oursVpk, var map])
+            return;
+        (Texture T, byte[] Mip) Read(string vpk, string name)
+        {
+            using var pkg = new ValvePak.Package();
+            pkg.Read(vpk);
+            pkg.ReadEntry(pkg.FindEntry($"maps/{map}/lightmaps/{name}.vtex_c")!, out var vtex);
+            var res = new ValveResourceFormat.Resource();
+            res.Read(new MemoryStream(vtex));
+            var t = (Texture)res.DataBlock!;
+            var mip = new byte[t.CalculateBufferSizeForMipLevel(0)];
+            t.ReadTextureMipLevel(mip, 0);
+            return (t, mip);
+        }
+        foreach (var name in new[] { "irradiance", "directional_irradiance", "direct_light_shadows", "debug_chart_color", "env_light_probe_volume_atlas", "env_light_probe_volume_atlas_dlshd" })
+        {
+            var (vt, valve) = Read(valveVpk, name);
+            var (ot, ours) = Read(oursVpk, name);
+            var block = valve.Length / ((vt.Width + 3) / 4 * ((vt.Height + 3) / 4) * Math.Max(1, (int)vt.Depth));
+            var wide = (vt.Width + 3) / 4;
+            var differ = new List<int>();
+            for (var k = 0; k < Math.Min(valve.Length, ours.Length) / block; k++)
+                if (!valve.AsSpan(k * block, block).SequenceEqual(ours.AsSpan(k * block, block)))
+                    differ.Add(k);
+            var rows = differ.Select(k => k / wide).Distinct().Count();
+            output.WriteLine($"{name}: {vt.Width}x{vt.Height}x{vt.Depth} {vt.Format} (ours {ot.Width}x{ot.Height}x{ot.Depth} {ot.Format}), "
+                + $"{differ.Count} of {valve.Length / block} blocks differ in {rows} block rows"
+                + (differ.Count > 0 ? $", first block {differ[0]} (x {differ[0] % wide * 4}, y {differ[0] / wide * 4}), last {differ[^1]}" : ""));
+        }
+    }
+
+    /// <summary>
     /// <c>LMTEX=...</c>: the six lightmap textures rebuilt by <see cref="LightmapTextures"/> from vrad3's
     /// EXRs against the map's files, byte for byte, RED2's hashes derived.
     /// </summary>

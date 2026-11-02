@@ -11,7 +11,9 @@ the build is heavy, and the in-game check after it needs the game):
    different, missing and extra files, and the share of Valve's bytes in identical files, by extension.
 4. The in-game step's commands: copy into game/csgo/maps, launch with -insecure and netcon, map_test.py.
 
-Refuses while cs2.exe runs.
+Refuses while cs2.exe runs unless --cs2-open: steps 0 to 3 are our own code only (s2c starts no Valve process
+and touches no game process), so with the game open they run at below-normal priority, as heavy jobs that are
+not a VAC concern; step 4 still needs the game closed and relaunched with -insecure.
 """
 import argparse
 import collections
@@ -38,9 +40,10 @@ def step(title):
     print(f"\n=== {title} ({time.strftime('%H:%M:%S')})", flush=True)
 
 
-def heavy(what, cmd):
+def heavy(what, cmd, cs2_open):
     print(" ".join(cmd), flush=True)
-    return subprocess.run([sys.executable, HEAVY, "run", "--who", "full_compile_test", "--what", what, "--gpu", "--", *cmd]).returncode
+    return subprocess.run([sys.executable, HEAVY, "run", "--who", "full_compile_test", "--what", what, "--gpu",
+                           *(["--allow-cs2"] if cs2_open else []), "--", *cmd]).returncode
 
 
 def entries(vpk_path):
@@ -89,10 +92,14 @@ def main():
     p.add_argument("--valve", help="Valve's package to score against (default the addon's compiled one)")
     p.add_argument("--out", default=os.path.join(TEMP, "full_compile"))
     p.add_argument("--no-cubemaps", action="store_true")
+    p.add_argument("--cs2-open", action="store_true", help="run steps 0 to 3 with the game open, at below-normal priority")
     p.add_argument("extra", nargs="*", help="compile switches after --, as Hammer passes them")
     a = p.parse_args()
-    if running("cs2.exe"):
-        raise SystemExit("CS2 is running; close it first")
+    if running("cs2.exe") and not a.cs2_open:
+        raise SystemExit("CS2 is running; close it first (or --cs2-open for steps 0 to 3)")
+    if a.cs2_open:
+        import ctypes
+        ctypes.windll.kernel32.SetPriorityClass(ctypes.windll.kernel32.GetCurrentProcess(), 0x4000)  # BELOW_NORMAL, inherited
     vmap = os.path.join(CS2, "content", "csgo_addons", a.addon, "maps", a.map + ".vmap")
     valve = a.valve or os.path.join(CS2, "game", "csgo_addons", a.addon, "maps", a.map + ".vpk")
     if not os.path.exists(vmap):
@@ -109,7 +116,7 @@ def main():
         raise SystemExit("build failed")
 
     step("1. compile-map (full build, -s2cbake)")
-    code = heavy(f"compile-map {a.map}", [S2C, "compile-map", "-i", vmap, "-outroot", out, "-s2cbake", os.path.join(out, "bake"), "--gpu", *a.extra])
+    code = heavy(f"compile-map {a.map}", [S2C, "compile-map", "-i", vmap, "-outroot", out, "-s2cbake", os.path.join(out, "bake"), "--gpu", *a.extra], a.cs2_open)
     print(f"compile-map exit {code} ({time.time() - started:.0f} s)", flush=True)
     if code or not os.path.exists(package):
         raise SystemExit("compile-map failed")
@@ -117,7 +124,7 @@ def main():
     if not a.no_cubemaps:
         step("2. build-cubemaps")
         code = heavy(f"build-cubemaps {a.map}", [S2C, "build-cubemaps", package, "--game", os.path.join(CS2, "game"),
-                                                 "--intermediates", os.path.join(out, "cubemap_intermediates")])
+                                                 "--intermediates", os.path.join(out, "cubemap_intermediates")], a.cs2_open)
         print(f"build-cubemaps exit {code} ({time.time() - started:.0f} s)", flush=True)
 
     step("3. against Valve's package")

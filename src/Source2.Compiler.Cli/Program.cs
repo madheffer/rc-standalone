@@ -61,6 +61,10 @@ static void Usage()
 
       s2c compile   <in.vdata|.vsndevts|.vpcf|.vagrp> [-o <out_c>] [--ship-as <path>]
                     KV3 text source -> compiled container, authored from scratch.
+      s2c compile   <in.js> [-o <out.vjs_c>] [--ship-as <path>] [--search-path <mod>]
+                    cs_script source -> .vjs_c, as resourcecompiler writes it on a
+                    user's install (no Panorama preprocessor). Under content/<mod>/
+                    the path and mod come from the file's own location.
 
       s2c decompile <in.*_c> [-o <out.txt>] [--block DATA|RED2|CTRL|PHYS|MDAT]
                     Compiled resource -> KV3 text. Defaults to the DATA block;

@@ -17,6 +17,8 @@ internal static class Commands
     {
         var input = Positional(a, "input file");
         var ext = Path.GetExtension(input);
+        if (ext.Equals(".js", StringComparison.OrdinalIgnoreCase))
+            return CompileScript(a, input);
         var outPath = Opt(a, "-o") ?? input + "_c";
 
         // RED2 records where the source lived, content-relative. Use --ship-as
@@ -27,6 +29,30 @@ internal static class Commands
         var bytes = Kv3SourceCompiler.Compile(File.ReadAllBytes(input), ext, shipAs);
         File.WriteAllBytes(outPath, bytes);
         Console.WriteLine($"{outPath}  ({bytes.Length:n0} bytes)");
+        return 0;
+    }
+
+    // A cs_script source: RED2 records its path inside its mod tree and the tree, which for a file under
+    // content/<mod>/... (content/csgo_addons/<addon>/...) are read from the path itself; --ship-as and
+    // --search-path set them for a file kept anywhere else.
+    private static int CompileScript(string[] a, string input)
+    {
+        var full = Path.GetFullPath(input).Replace('\\', '/');
+        var at = full.LastIndexOf("/content/", StringComparison.OrdinalIgnoreCase);
+        string? searchPath = null, relative = null;
+        if (at >= 0)
+        {
+            var parts = full[(at + "/content/".Length)..].Split('/');
+            var depth = parts[0].Equals("csgo_addons", StringComparison.OrdinalIgnoreCase) && parts.Length > 2 ? 2 : 1;
+            searchPath = string.Join('/', parts[..depth]);
+            relative = string.Join('/', parts[depth..]);
+        }
+        searchPath = Opt(a, "--search-path") ?? searchPath ?? "csgo";
+        relative = Opt(a, "--ship-as") ?? relative ?? "scripts/" + Path.GetFileName(input);
+        var outPath = Opt(a, "-o") ?? Path.ChangeExtension(input, ".vjs_c");
+        var bytes = ScriptAuthor.Compile(relative, searchPath, File.ReadAllBytes(input));
+        File.WriteAllBytes(outPath, bytes);
+        Console.WriteLine($"{outPath}  ({bytes.Length:n0} bytes, {searchPath}:{relative})");
         return 0;
     }
 
