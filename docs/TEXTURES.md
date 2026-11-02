@@ -63,6 +63,34 @@ The smallest mip whose shorter side is still at least 32 (mip 0 when none is), r
 (rule 4), then ATI DXT5, perceptual weights when the texture is sRGB and 1 when it is linear.
 64 of 64 blocks on every fixture.
 
+DXT5 is what the engine expects too. The texture-streaming fill that binds fallbacks
+(`rendersystemdx11_20261029.dll` 180048e30, logging `TEXTURESTREAMING: Filled %d fallback
+textures`) passes image format 0x17 to the format-info lookup (180090d10) and uploads 32x32 from
+the 1024 bytes for every texture, whatever its own format. The engine's format-name table puts
+`DXT5` at index 23. `rendersystemvulkan_20261029.dll` does the same (1800bd290,
+`mov ecx, 0x17`). A fallback in any other format is drawn as DXT5 garbage until the mips stream in.
+
+Valve's stock fallbacks keep only the channels the texture outputs. Out of 200 pak01 textures
+sampled on 2026-11-02: every ATI1N fallback is R alone (G, B and alpha 0), every ATI2N fallback
+has alpha 0, and 38 of 40 DXT1 fallbacks have alpha 0. That follows the `.vtex` channel mapping,
+which is not ported (see below), so the in-house builder's fallback carries the image's RGBA.
+
+### The in-house builder (`ResourceBuilder.BuildTexture`)
+
+It makes its fallback with the same steps (`ResourceBuilder.FallbackBits`). The pick is the last
+level of its own chain whose shorter side is at least 32 (level 0 when none is). When that is the
+chain's last level, RC's box downsample continues it below, since RC picks from its whole chain.
+The bytes load as `v / 255` (they are already the stored, gamma-encoded values RC resamples).
+Then come RC's resampler and RC's DXT5, perceptual when `TextureDef.Srgb` (default sRGB, linear
+for BC4/BC5). Given RC's own chain (`MipChainBgra`), the fallback is RC's byte for byte
+(`BuildTextureFallback_GivenRcChain_MatchesResourceCompiler`: DXT5, DXT1, BC7, ATI2N, ATI1N).
+Against the BC7 fallback it replaced, measured on 254 textures (200 stock textures rebuilt,
+probes, synthetic cases) with an exact area average of the input as the reference:
+- Before, what CS2 drew scored 8 dB median. Now it scores 35 dB, and no case got worse.
+- It beats the old resize encoded as DXT5 in 243 of 254 cases.
+- The cases it loses by more than 3 dB are all textures of 8x8 and smaller. There RC's wrapping
+  resampler pulls the opposite edge in, which is RC's measured rule.
+
 ## Block encoders
 
 | format | encoder | settings | measured |
@@ -224,3 +252,5 @@ particles store four), and stock particle sheets read and write back to their ow
 1. The settings refused above, each measured against RC before it is accepted.
 2. The vpkstuff texture goldens: every one moves, so re-bless win-x64 and linux-x64 with the
    cause and check in game.
+3. The DXT5 fallback in game (CS2 closed): a built texture at a fresh path, with
+   `mat_texture_streaming` limits forcing the fallback, showing the image and not noise.

@@ -3,6 +3,21 @@
 The `Source2.Compiler` package. Versions are `0.1.<commit count of main>`; one entry per published
 version that changes something a host sees.
 
+## Unreleased (texture fallback)
+
+### Added
+- `ResourceBuilder.TextureDef.Srgb`: sRGB colour or linear data; it sets the fallback's encoder
+  weights. Null (the default) is sRGB, except BC4/BC5.
+
+### Fixed
+- `ResourceBuilder.BuildTexture` wrote `FALLBACK_BITS` as BC7. CS2 uploads those 1024 bytes as
+  DXT5 for every texture, so the image it drew while a texture streamed in was block noise. The
+  fallback is now made the way resourcecompiler makes it (RC's level pick, resampler and DXT5
+  encoder): given RC's own mip chain, it is RC's bytes. Every texture's bytes change in that
+  1024-byte payload only. Header and mips are unchanged, so host goldens over whole `.vtex_c`
+  files move (vpkstuff's `DependencyGoldenTests`). The fallback no longer goes through SkiaSharp
+  or BCnEncoder.
+
 ## Unreleased (VRF independence: models, textures, animations)
 
 ### Added

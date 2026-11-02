@@ -3,6 +3,7 @@ using System.Numerics;
 using BCnEncoder.Encoder;
 using BCnEncoder.Shared;
 using SkiaSharp;
+using Source2.Compiler.RcTexture;
 using ValvePak;
 using ValveKeyValue;
 
@@ -166,6 +167,16 @@ public static class ResourceBuilder
         /// (highest quality, 4× smaller than BGRA8888).
         /// </summary>
         public TextureCompression Compression { get; set; } = TextureCompression.BC7;
+
+        /// <summary>
+        /// Whether the pixels are sRGB colour (true) or linear data such as normals and masks
+        /// (false). It is what a <c>.vtex</c>'s <c>m_colorSpace</c> says to resourcecompiler,
+        /// and here it sets only how the <c>FALLBACK_BITS</c> thumbnail is encoded: perceptual
+        /// weights for sRGB, equal weights for linear data. Null (the default) means sRGB,
+        /// RC's own default, except for <see cref="TextureCompression.BC4"/> and
+        /// <see cref="TextureCompression.BC5"/>, which hold data.
+        /// </summary>
+        public bool? Srgb { get; set; }
 
         /// <summary>
         /// Which encoder computes BC7 blocks. Defaults to
@@ -394,6 +405,9 @@ public static class ResourceBuilder
             }
         }
 
+        // The 8-bit chain, kept for the fallback before the mips are encoded in place.
+        var bgraChain = (byte[][])mipData.Clone();
+
         // Block-compress each mip. formatByte is the on-disk VTexFormat value.
         byte formatByte;
         if (blockCompressed)
@@ -430,15 +444,12 @@ public static class ResourceBuilder
 
         int mipDataSize = mipData.Sum(b => b.Length);
 
-        // FALLBACK_BITS - a 32×32 BC7 thumbnail (64 blocks × 16 B = 1024 B), the
-        // always-resident low-res copy CS2's texture streamer binds while the
-        // full mip chain streams in. resourcecompiler emits this on every vtex;
-        // without it the streamer fails to bind the texture and the material
-        // that references it FATAL-errors with "error material".
-        byte[] fallbackBits;
-        using (var thumb = baseBitmap.Resize(
-            new SKImageInfo(32, 32, SKColorType.Bgra8888, SKAlphaType.Unpremul), highQuality)!)
-            fallbackBits = ManagedEncoder(CompressionFormat.Bc7, CompressionQuality.Balanced)(thumb.Bytes, 32, 32);
+        // FALLBACK_BITS - the always-resident 32×32 copy CS2's texture streamer
+        // binds while the full mip chain streams in. resourcecompiler emits this
+        // on every vtex; without it the streamer fails to bind the texture and the
+        // material that references it FATAL-errors with "error material".
+        bool srgb = def.Srgb ?? def.Compression is not (TextureCompression.BC4 or TextureCompression.BC5);
+        var fallbackBits = FallbackBits(bgraChain, pow2W, pow2H, srgb);
 
         // DATA block layout (matches resourcecompiler output)
         //   [0..40)     vtex header
@@ -610,6 +621,35 @@ public static class ResourceBuilder
         encoder.Options.IsParallel = true;
         encoder.Options.TaskCount = Environment.ProcessorCount;
         return (bgra, width, height) => encoder.EncodeToRawBytes(bgra, width, height, PixelFormat.Bgra32)[0];
+    }
+
+    /// <summary>
+    /// <c>FALLBACK_BITS</c> for an 8-bit BGRA chain (level 0 at <paramref name="width"/> by
+    /// <paramref name="height"/>): 1024 bytes of 32x32 DXT5, whatever the texture's own format.
+    /// CS2 uploads these bytes as ImageFormat 23, DXT5 (rendersystemdx11 180048e30 and
+    /// rendersystemvulkan 1800bd290 pass 0x17 for every texture), and resourcecompiler writes
+    /// them so (docs/TEXTURES.md, Fallback). RC picks from its whole chain, so one that stops
+    /// above 32 is continued with RC's box downsample; <see cref="RcMipChain.FallbackRgba8"/>
+    /// picks the level and resamples it, and <see cref="AtiCompress"/> encodes it, perceptual
+    /// when <paramref name="srgb"/>. The bytes are already the stored values (RC resamples
+    /// gamma-encoded too), so they load as plain v / 255 and the box tail averages them as
+    /// this builder's own mips do. Only the level that can be picked is loaded: the last whose
+    /// shorter side is at least 32 (else level 0), with the box tail when the chain ends there.
+    /// </summary>
+    internal static byte[] FallbackBits(IReadOnlyList<byte[]> bgraChain, int width, int height, bool srgb)
+    {
+        var pick = 0;
+        for (var i = 1; i < bgraChain.Count; i++)
+        {
+            var (w, h) = MipChainInput.LevelSize(width, height, i);
+            if (Math.Min(w, h) >= 32)
+                pick = i;
+        }
+        var (pw, ph) = MipChainInput.LevelSize(width, height, pick);
+        var top = RcMipChain.Load(VtexCompiler.SwapRedBlue(bgraChain[pick]), pw, ph, srgb: false);
+        var levels = pick == bgraChain.Count - 1 ? RcMipChain.Chain(top) : [top];
+        var rgba = RcMipChain.FallbackRgba8(levels, srgb: false, clamp: false);
+        return AtiCompress.Compress(VtexCompiler.SwapRedBlue(rgba), 32, 32, AtiCompress.Format.Dxt5, perceptual: srgb);
     }
 
     /// <summary>

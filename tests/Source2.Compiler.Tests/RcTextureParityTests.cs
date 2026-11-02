@@ -110,10 +110,64 @@ public class RcTextureParityTests
         Assert.Equal(Header(vtexC).Fallback, mine);
     }
 
-    // FALLBACK_BITS is the first extra-data payload; each entry's offset counts from its own field.
-    private static (float[] Reflectivity, byte[] Fallback) Header(string vtexC)
+    // The in-house builder's fallback is RC's: handed RC's own chain, it writes RC's bytes, DXT5
+    // whatever the texture's format (the default colour space: sRGB, linear for BC4/BC5).
+    [Theory]
+    [InlineData("dxt5.vtex_c", true, ResourceBuilder.TextureCompression.BC3)]
+    [InlineData("dxt1.vtex_c", true, ResourceBuilder.TextureCompression.BC1)]
+    [InlineData("dxt1.vtex_c", true, ResourceBuilder.TextureCompression.BC7)]
+    [InlineData("ati2n.vtex_c", false, ResourceBuilder.TextureCompression.BC5)]
+    [InlineData("ati1n.vtex_c", false, ResourceBuilder.TextureCompression.BC4)]
+    public void BuildTextureFallback_GivenRcChain_MatchesResourceCompiler(string vtexC, bool srgb, ResourceBuilder.TextureCompression format)
     {
-        var file = File.ReadAllBytes(Fixture(vtexC));
+        var (rgba, w, h) = LoadPng("probe.png");
+        var chain = RcMipChain.Build(rgba, w, h, srgb).Select(l => ToBgra(RcMipChain.WriteRgba8(l, srgb))).ToList();
+        var vtex = ResourceBuilder.BuildTexture(new ResourceBuilder.TextureDef
+        {
+            RawRgba = rgba, RawWidth = w, RawHeight = h, Compression = format, MipChainBgra = chain,
+            Quality = BCnEncoder.Encoder.CompressionQuality.Fast,
+        });
+        Assert.Equal(Header(vtexC).Fallback, Header(vtex).Fallback);
+    }
+
+    // CS2 uploads FALLBACK_BITS as DXT5 for every texture (rendersystemdx11 180048e30), so a flat
+    // colour must decode as that colour at any size, mip setting or format.
+    [Theory]
+    [InlineData(512, 512, true, ResourceBuilder.TextureCompression.BC7)]
+    [InlineData(512, 512, false, ResourceBuilder.TextureCompression.BC7)]
+    [InlineData(300, 70, true, ResourceBuilder.TextureCompression.BC7)]
+    [InlineData(8, 8, true, ResourceBuilder.TextureCompression.BC7)]
+    [InlineData(4, 4, true, ResourceBuilder.TextureCompression.BC1)]
+    [InlineData(256, 256, true, ResourceBuilder.TextureCompression.BC5)]
+    [InlineData(64, 32, true, ResourceBuilder.TextureCompression.None)]
+    public void BuildTextureFallback_DecodesAsDxt5(int w, int h, bool mips, ResourceBuilder.TextureCompression format)
+    {
+        byte[] colour = [200, 100, 48, 160];
+        var rgba = new byte[w * h * 4];
+        for (int i = 0; i < rgba.Length; i++)
+            rgba[i] = colour[i % 4];
+        var vtex = ResourceBuilder.BuildTexture(new ResourceBuilder.TextureDef
+        {
+            RawRgba = rgba, RawWidth = w, RawHeight = h, Compression = format, GenerateMipmaps = mips,
+            Quality = BCnEncoder.Encoder.CompressionQuality.Fast,
+        });
+        var fallback = Header(vtex).Fallback;
+        var pixels = new BCnEncoder.Decoder.BcDecoder().DecodeRaw(fallback, 32, 32, BCnEncoder.Shared.CompressionFormat.Bc3);
+        foreach (var p in pixels)
+        {
+            // 5:6:5 endpoints, 8-bit interpolated alpha
+            Assert.InRange(Math.Abs(p.r - colour[0]), 0, 4);
+            Assert.InRange(Math.Abs(p.g - colour[1]), 0, 2);
+            Assert.InRange(Math.Abs(p.b - colour[2]), 0, 4);
+            Assert.InRange(Math.Abs(p.a - colour[3]), 0, 1);
+        }
+    }
+
+    // FALLBACK_BITS is the first extra-data payload; each entry's offset counts from its own field.
+    private static (float[] Reflectivity, byte[] Fallback) Header(string vtexC) => Header(File.ReadAllBytes(Fixture(vtexC)));
+
+    private static (float[] Reflectivity, byte[] Fallback) Header(byte[] file)
+    {
         int blockOffset = BitConverter.ToInt32(file, 8), blockCount = BitConverter.ToInt32(file, 12);
         int data = -1;
         for (int i = 0; i < blockCount; i++)
