@@ -170,6 +170,65 @@ public class SteamAudioSceneTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// compile-map's builder (<see cref="SteamAudioBuild"/>) gives the same .sapaths, with the settings from gameinfo
+    /// and the .vmap's worldspawn rather than the test's.
+    /// </summary>
+    [Fact]
+    public void SaprobePathsFromTheBuilder()
+    {
+        var file = Path.Combine(Dir, "s2c_saprobe.sapaths");
+        if (!File.Exists(file))
+            return;
+        var ours = WithMap<SteamAudioBuild.Result?>("s2c_saprobe", (document, models, schema, _, _) =>
+            SteamAudioBuild.Paths(new SteamAudioBuild.Inputs(document, models, schema,
+                File.ReadAllText(Path.Combine(Path.GetDirectoryName(CS2Fixtures.StockPak()!)!, "gameinfo.gi")), HasNavAreas: false)));
+        if (ours is null)
+            return;
+        output.WriteLine($"{ours.Probes} probes, {ours.Bytes.Length} bytes");
+        Assert.True(File.ReadAllBytes(file).AsSpan().SequenceEqual(ours.Bytes));
+    }
+
+    /// <summary>
+    /// The reverb settings compile-map's builder reads for s2c_saprobe are the ones SaprobeReverbFromTheMap bakes Valve's
+    /// probes with (the iplReflectionsBakerBake capture's: 32768 rays, 32 bounces, 1 s, order 1; probes 6 apart, 1.5 up).
+    /// </summary>
+    [Fact]
+    public void SaprobeReverbSettingsFromTheMap()
+    {
+        var s = WithMap<ReverbSettings?>("s2c_saprobe", (document, models, schema, _, _) =>
+            SteamAudioBuild.Settings(new SteamAudioBuild.Inputs(document, models, schema,
+                File.ReadAllText(Path.Combine(Path.GetDirectoryName(CS2Fixtures.StockPak()!)!, "gameinfo.gi")), HasNavAreas: false)));
+        if (s is null)
+            return;
+        output.WriteLine(s.ToString());
+        var used = new ReverbSettings();
+        Assert.Equal((used.Rays, used.Bounces, used.IRDuration, used.AmbisonicsOrder, 6.0f, 1.5f, 0, false, false),
+                     (s.Rays, s.Bounces, s.IRDuration, s.AmbisonicsOrder, s.GridSpacing, s.HeightAboveFloor, s.GenerationType, s.ClusteringEnable, s.CompressionEnable));
+    }
+
+    /// <summary>
+    /// compile-map's builder against the pinned reverb (SAREVERB_FULL=1, about 90 s on 8 cores): every probe but the
+    /// ones with an Embree tie equals Valve's seed-0 one-thread .sareverb, so the file differs only there.
+    /// </summary>
+    [Fact]
+    public void SaprobeReverbFromTheBuilder()
+    {
+        if (Environment.GetEnvironmentVariable("SAREVERB_FULL") != "1")
+            return;
+        var file = Path.Combine(Dir, "s2c_saprobe.sareverb");
+        var ours = WithMap<SteamAudioBuild.Result?>("s2c_saprobe", (document, models, schema, _, _) =>
+            SteamAudioBuild.Reverb(new SteamAudioBuild.Inputs(document, models, schema,
+                File.ReadAllText(Path.Combine(Path.GetDirectoryName(CS2Fixtures.StockPak()!)!, "gameinfo.gi")), HasNavAreas: false)));
+        if (ours is null)
+            return;
+        var valve = File.ReadAllBytes(file);
+        output.WriteLine($"{ours.Probes} probes, {ours.Ties} tied, {ours.Bytes.Length} bytes against Valve's {valve.Length}");
+        Assert.Equal(valve.Length, ours.Bytes.Length);
+        if (ours.Ties == 0)
+            Assert.True(valve.AsSpan().SequenceEqual(ours.Bytes));
+    }
+
+    /// <summary>
     /// The whole .sareverb from the .vmap alone (one thread, seed 0, as the pinned capture s2c_saprobe_api0): our bake
     /// scene, our probes, the reverb kernel per probe (listener and source at the probe with the default axes), the
     /// reverb times, the reflections layer (type 0, variation 0, every probe's needs_update cleared) and the KV3 file.

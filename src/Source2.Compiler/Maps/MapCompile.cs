@@ -82,8 +82,9 @@ public static class MapCompile
     /// CS custom data (NavCompile); after every build the CS2 bomb damage post
     /// step bakes the map's bombsites over the package's nav. Steam Audio's
     /// builders clean up at worldspawn's rebake option Cleanup or Manual
-    /// (<see cref="SteamAudioCleanup"/>); an Auto bake is not wired and is
-    /// refused by name. The bake
+    /// (<see cref="SteamAudioCleanup"/>); at Auto the reverb and pathing bake
+    /// (<see cref="SteamAudio.SteamAudioBuild"/>) and custom data is refused by
+    /// name. The bake
     /// takes vrad3's results (-vrad3output) or our own (-s2cbake). Like a
     /// -fshallow build, the package already at the output path is kept and only
     /// these outputs replaced. A full build starts from an empty package with
@@ -131,7 +132,7 @@ public static class MapCompile
         var document = DmxBinary.ReadFile(full);
         var schema = FgdSchema.Load(Path.Combine(game, "csgo", "csgo.fgd"), [Path.Combine(game, "core"), Path.Combine(game, "csgo")]);
         // Steam Audio (CleanupBakedDataIfNeeded, rc 1029 180100aa0): Cleanup, and Manual taken as Cleanup, drop the
-        // kind's baked file and bake nothing; Auto bakes, which is not wired here.
+        // kind's baked file and bake nothing; Auto bakes (reverb and pathing; custom data is not ported).
         var cleanups = new List<string>();
         foreach (var kind in new[] { "sareverb", "sapaths", "sacustomdata" })
         {
@@ -145,8 +146,8 @@ public static class MapCompile
                 if (option == 1)
                     log.WriteLine($"  {kind}: rebake option set to MANUAL, which is deprecated. Proceeding as if set to CLEANUP.");
             }
-            else if (option == 2)
-                refused.Add($"{kind} (rebake option Auto)");
+            else if (option == 2 && kind == "sacustomdata")
+                refused.Add($"{kind} (rebake option Auto: the custom data bake is not ported)");
         }
         if (!startsEmpty && cleanups.Contains("sacustomdata") && SteamAudioCustomDataIn(package, map))
             refused.Add("sacustomdata (Cleanup over custom data files, whose names are not read)");
@@ -373,6 +374,25 @@ public static class MapCompile
                 {
                     log.WriteLine($"  skipped (not ported): nav generation ({ex.Message})");
                 }
+            }
+        }
+        // The Steam Audio builders at Auto, after the nav (the default builder order: nav, sareverb, sapaths).
+        foreach (var kind in new[] { "sareverb", "sapaths" }.Where(steps.Contains))
+        {
+            var navPath = $"maps/{map}.nav".ToLowerInvariant();
+            var hasNavAreas = generatedNav is { } built ? built.Mesh.Areas.Count > 0
+                : entries.TryGetValue(navPath, out var navBytes) && NavCompile.Areas(navBytes).Count > 0;
+            var inputs = new SteamAudio.SteamAudioBuild.Inputs(document, assets, schema, File.ReadAllText(Path.Combine(game, "csgo", "gameinfo.gi")), hasNavAreas);
+            try
+            {
+                var result = kind == "sareverb" ? SteamAudio.SteamAudioBuild.Reverb(inputs) : SteamAudio.SteamAudioBuild.Paths(inputs);
+                var path = $"maps/{map}.{kind}".ToLowerInvariant();
+                entries[path] = result.Bytes;
+                log.WriteLine($"  {kind}: {path}, {result.Probes} probes" + (result.Ties > 0 ? $", {result.Ties} with an Embree ray tie (may differ from Valve's)" : ""));
+            }
+            catch (NotSupportedException ex) when (skipUnported)
+            {
+                log.WriteLine($"  skipped (not ported): {kind} ({ex.Message})");
             }
         }
         try

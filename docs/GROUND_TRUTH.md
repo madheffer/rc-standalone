@@ -5266,6 +5266,21 @@ game can answer is raised with the user first, and runs with -insecure.
      - Also now: a full build (no builder named) starts from an empty package with -f / -fshallow2 or with no
        package yet, as RC does; a partial build that would start empty is still refused.
 
+199. **compile-map's Steam Audio Auto bake** (2026-11-02, CS2 open; no new reading, the pieces of ledgers 170-173
+     and 198 put together). SteamAudio/SteamAudioBuild: the settings (code, gameinfo's ReverbDefaults /
+     PathingDefaults, then worldspawn as the compile fills it), the two scenes, automatic probes over the generation
+     scene's box, the inside-shapes filter, the bake and the KV3 file; compile-map runs it after the nav, in the
+     default builder order.
+     - Checked: s2c_saprobe's whole .sapaths through the builder equals Valve's (SaprobePathsFromTheBuilder), and the
+       reverb settings it reads are the pinned bake's (SaprobeReverbSettingsFromTheMap). The reverb run through it
+       is queued (SaprobeReverbFromTheBuilder, SAREVERB_FULL=1, about 90 s on 8 cores).
+     - Refused by name, as not measured: generation types other than Automatic Everywhere, the navmesh filter, a nav
+       with areas (the coverage appender, ledger 186), any steamaudio_* entity, func_ladder and snd_opvar_set_point,
+       clustering and compression, sampled pathing visibility, and a pathing probe the inside-shapes filter would
+       drop (s2c_sainside measured that filter for the reverb only). Custom data at Auto is not ported.
+     - Also read in 18013af00 (ledger 198): the .custom.occlusion file some stock maps ship is Steam Audio's custom
+       data (type 1), made by -sacustomdata.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

@@ -204,7 +204,9 @@ In order of the plan (the user's call, 10-28: the rest of the pipeline first, Em
    4.9 flag at +0x40, coincident probes, and the KV3 conversion of worldspawn choices keys (generation type, rebake option). The
    pathing settings reader (18006c1b0) is ported (`PathingSettings.From`, gameinfo PathingDefaults then worldspawn).
 4. **compile-map**: the rebake options are read (ledger 198: Cleanup and Manual drop the baked file, Manual
-   logged as deprecated; only Auto bakes). Left: the Auto bake itself in MapCompile.cs, `-sareverb_threads` (more than one
+   logged as deprecated; only Auto bakes), and at Auto `SteamAudioBuild` bakes the reverb and pathing (ledger
+   199; s2c_saprobe's .sapaths byte for byte through it). Left: the reverb run through it against the pinned
+   reference (SaprobeReverbFromTheBuilder, SAREVERB_FULL=1), custom data, `-sareverb_threads` (more than one
    thread is not reproducible in Valve's build either: refuse or document), the seed (Valve's is rdtsc; ours
    is fixed), packing both files into the map .vpk; then a whole-package parity check against a Valve compile
    with seeds pinned (capture_sareverb.py).

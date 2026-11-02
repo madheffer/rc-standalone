@@ -128,9 +128,10 @@ s2c compile-map -i <content/csgo_addons/<addon>/maps/<map>.vmap> -outroot <dir> 
   world step (settled lumps) and the physics step, each replacing its files
   in the package (GROUND_TRUTH 55).
 - **Steam Audio** (GROUND_TRUTH 198): at worldspawn's Cleanup (0) or Manual (1) rebake option the kind's
-  baked file is dropped and nothing baked, as CleanupBakedDataIfNeeded does; Auto (2) is refused by name.
-- **Refused, by name:** the lighting bake with neither `-s2cbake` nor `-vrad3output`, a Steam Audio Auto
-  bake, and lumps with light or probe gaps unless `--accept-gaps`. `--skip-unported` runs the rest and
+  baked file is dropped and nothing baked, as CleanupBakedDataIfNeeded does; at Auto (2) the reverb and
+  pathing bake (SteamAudioBuild, ledger 199) and custom data is refused by name.
+- **Refused, by name:** the lighting bake with neither `-s2cbake` nor `-vrad3output`, Steam Audio's custom
+  data at Auto and the Steam Audio cases SteamAudioBuild does not port, and lumps with light or probe gaps unless `--accept-gaps`. `--skip-unported` runs the rest and
   leaves those as the package has them.
 - **Parsing:** the line is read as RC reads it: its own switches first, then
   generic ones typed `%f`, then `%i`, then string. Builders are selected as
