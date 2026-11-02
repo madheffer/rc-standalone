@@ -1,6 +1,18 @@
 {
  "functions": [
   {
+   "addr": "180f88460",
+   "name": "MapNode_WorldTransforms",
+   "module": "s2c:entities",
+   "note": "mode 1/2: up the parents (vf 0x600) while vf 0x400; a node referenced through 'target' collects its referrers (g_pDataModel vf 0x3b8 / 0x3c0 on 1800d3270's handle), recurses into each in that order, then composes its own transform (vf 0x110, 180ffd750); no kind-0 reference starts from its own (180f82b60). Ledger 46"
+  },
+  {
+   "addr": "180fc6f40",
+   "name": "MapNode_FindByClassWildcard",
+   "module": "s2c:entities",
+   "note": "(node, out, pattern, flags): MapWorld_GatherLights' 'light_*' search"
+  },
+  {
    "addr": "18023b500",
    "name": "WorldRendererBuilder_Construct",
    "module": "s2c:baked/lighting",

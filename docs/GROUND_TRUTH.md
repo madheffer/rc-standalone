@@ -136,6 +136,18 @@ game can answer is raised with the user first, and runs with -insecure.
     node copy that flips a repeated placement's keys (ExportToLump writes
     the table as stored, 181004020). A prefab inside an instanced group
     crashes Valve's compiler (s2c_prefabprobe10).
+    Read 2026-11-02 (rc 0923 decompile; not yet enough to replace the fit): MapDoc_GatherLights
+    (180f1c660) gathers the world's lights, then each document of MapDoc_ListLoadedDocs(+0x6b8, loaded)
+    in that vector's order, appending. MapWorld_GatherLights (180f1c8b0) finds "light_*" (180fc6f40) and
+    for each light appends one entry per world transform from 180f88460(light, mode 2): so a prefab
+    document's entries run light by light, each light's placements inside. 180f88460 walks the node's
+    parents (vf 0x600) while vf 0x400 holds; at a node referenced through a "target" attribute (counts
+    from 180f8ba70 kinds 3 and 0) it collects the referrers by g_pDataModel vf 0x3b8 / 0x3c0 (the first
+    and next element referencing the node's handle, 1800d3270), recurses into each in that order, then
+    composes its own transform (vf 0x110, 180ffd750) onto the entries they added; with no kind-0
+    reference it starts from its own (180f82b60). Left to read: the order of the datamodel's
+    referencing list (which placement comes first: the measured "first placement last to first" should
+    fall out of it) and who appends to +0x6b8.
 
 47. **Order of baked props within a model.** NodePropEntries orders a
     model's baked props last to first in the walk (measured on atixref's

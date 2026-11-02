@@ -43,6 +43,8 @@ IO = "s2c:io"
 SA = "s2c:baked/steamaudio"
 
 RESOURCECOMPILER = [
+    ("180f88460", "MapNode_WorldTransforms", ENT, "mode 1/2: up the parents (vf 0x600) while vf 0x400; a node referenced through 'target' collects its referrers (g_pDataModel vf 0x3b8 / 0x3c0 on 1800d3270's handle), recurses into each in that order, then composes its own transform (vf 0x110, 180ffd750); no kind-0 reference starts from its own (180f82b60). Ledger 46"),
+    ("180fc6f40", "MapNode_FindByClassWildcard", ENT, "(node, out, pattern, flags): MapWorld_GatherLights' 'light_*' search"),
     ('18023b500', 'WorldRendererBuilder_Construct', BAKE, "+0x2f8, the builder's requested lightmap side, 0x7fffffff; +0x2fc Engine2/LightmapQueries"),
     ('180240b7f', 'WorldRendererBuilder_ReadWorldKeys', BAKE, "worldspawn's max_lightmap_resolution into +0x2f8 when above 0, else 0x7fffffff (1802413cd); novis_min_draw_volume_size +0x300, novis_max_triangles_per_cluster +0x304, lightmap_queries +0x2fc"),
     ('18025dd8d', 'CWorldRendererBuilderNode_BakeLightMaps', BAKE, "BakeLighting (180217740) with the builder's +0x2f8 and +0x2fc"),

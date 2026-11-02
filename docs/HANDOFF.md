@@ -247,7 +247,14 @@ the addon).
   4. In game: copy our .vpk to game/csgo/maps before launch, `cs2.exe -tools -insecure -netconport 29000 -novid`,
      `tools/pipeline/map_test.py` (walk, triggers, look for missing lighting or magenta). Delete crash dumps after.
   Then the same on a second ZE map with props and doors (ze_atix: memory ze-focus).
-- Not done here: the Auto Steam Audio bake through compile-map (the port exists: STEAM_AUDIO.md item 4).
+- Later the same day (CS2 open): the Steam Audio Auto bake runs in compile-map (SteamAudio/SteamAudioBuild,
+  ledger 199; s2c_saprobe's .sapaths through it byte for byte, the reverb run queued). **Everything that needs CS2
+  closed is in [CS2_CLOSED_QUEUE.md](CS2_CLOSED_QUEUE.md)**, in order, with `tools/pipeline/full_compile_test.py`
+  as item A.1 and the s2c_coloradjust specimen (tools/cubehost/coloradjust_specimen.py) made for A.3 / B.1.
+- Ledger 46 partly read: the light gather runs light by light, each light's placements in the datamodel's
+  referencing-element order (180f88460). **Next with CS2 open:** read that list's insertion order (g_pDataModel
+  vf 0x3b8 / 0x3c0) and the +0x6b8 appender, then replace EntityLumpAuthor.Lighting's fitted order; then
+  Steam Audio custom data (-sacustomdata, which also makes the .custom.occlusion of stock maps: 18013af00).
 
 ## Earlier session (2026-11-02, ze_hold_em_p's cubes nearly exact; CS2 and Steam closed)
 
