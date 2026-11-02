@@ -1,0 +1,10 @@
+{
+ "functions": [
+  {
+   "addr": "1800f7745",
+   "name": "TextureDesc_FromVtexHeader",
+   "module": "s2c:infra",
+   "note": "as rendersystemdx11 18006a7e5: the .vtex header's +4 reflectivity to desc +0x3c (1800f7849 .. 1800f784d)"
+  }
+ ]
+}

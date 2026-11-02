@@ -128,7 +128,8 @@ public sealed unsafe class GpuMaterialSampler : IDisposable
         var attributesByName = new Dictionary<string, Value> { ["g_nToolsVisMode"] = Value.Of(80), ["MaterialSamplerMode"] = Value.Of(0) };
         foreach (var (program, stageSet) in new[] { (vs, 0), (ps, 1) })
         {
-            var scope = new ProgramGlobals.MaterialScope(mat, program, attributesByName);
+            var scope = new ProgramGlobals.MaterialScope(mat, program, attributesByName,
+                reflectivity: path => Lighting.Bake.RtxScene.TextureReflectivity(_files(path.EndsWith("_c", StringComparison.Ordinal) ? path : path + "_c")));
             foreach (var r in program.Reflection.Resources.Where(r => r.Kind is SpirvReflection.Kind.UniformBuffer or SpirvReflection.Kind.StorageBuffer))
             {
                 // The SPIR-V is stripped of names: the stage's set holds _Globals_

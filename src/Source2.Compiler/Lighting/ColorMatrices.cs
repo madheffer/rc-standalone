@@ -1,4 +1,4 @@
-namespace Source2.Compiler.Gpu;
+namespace Source2.Compiler.Lighting;
 
 /// <summary>
 /// materialsystem2's colour matrix expression functions (the 1015 and 1029 builds, same addresses): MatrixMultiply

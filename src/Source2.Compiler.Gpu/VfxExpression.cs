@@ -1,3 +1,4 @@
+using Source2.Compiler.Lighting;
 using ValveResourceFormat.Utils;
 
 namespace Source2.Compiler.Gpu;
@@ -8,15 +9,17 @@ namespace Source2.Compiler.Gpu;
 /// four components (sixteen for a matrix). Operations are single precision,
 /// component by component, a scalar spreading to the other operand's width.
 /// MatrixMultiply, MatrixColorTint2 and MatrixColorCorrect2 are materialsystem2's
-/// (<see cref="ColorMatrices"/>); the other matrix builders return the identity
-/// and TextureAverageColor zero: in the material sampler's programs they only
-/// reach colour adjustment, never the layer weights.
+/// (<see cref="ColorMatrices"/>); the other matrix builders return the identity:
+/// in the material sampler's programs they only reach colour adjustment, never
+/// the layer weights. TextureAverageColor is the texture's header reflectivity
+/// (<see cref="IScope.TextureReflectivity"/>).
 /// </summary>
 public static class VfxExpression
 {
-    /// <summary>A value: its components (1 to 4, or 16 for a matrix).</summary>
+    /// <summary>A value: its components (1 to 4, or 16 for a matrix); a texture parameter also carries its path.</summary>
     public readonly record struct Value(float[] C)
     {
+        public string? Texture { get; init; }
         public static Value Of(params float[] c) => new(c);
         public float this[int i] => C[Math.Min(i, C.Length - 1)];
         public int Width => C.Length;
@@ -28,6 +31,9 @@ public static class VfxExpression
         Value? Parameter(string name);
         Value? Attribute(string name);
         int Feature(int index);
+
+        /// <summary>A texture's header reflectivity (the four floats after its flags), null when not known.</summary>
+        float[]? TextureReflectivity(string path) => null;
     }
 
     public static Value Evaluate(byte[] code, IScope scope)
@@ -63,7 +69,7 @@ public static class VfxExpression
                 {
                     var id = U8();
                     U8();
-                    stack.Push(Call(id, stack));
+                    stack.Push(Call(id, stack, scope));
                     break;
                 }
                 case 0x07: // FLOAT
@@ -160,7 +166,7 @@ public static class VfxExpression
         0, 1, 1, 1, 2, 2, 1, 2, 1, 1, 1, 1, 1, 2, 3, 5, 5,
     ];
 
-    private static Value Call(byte id, Stack<Value> stack)
+    private static Value Call(byte id, Stack<Value> stack, IScope scope)
     {
         var n = id < Arguments.Length ? Arguments[id] : throw new NotSupportedException($"expression function 0x{id:x2}");
         var a = new Value[n];
@@ -208,10 +214,11 @@ public static class VfxExpression
             0x23 => Map(a[0], x => x * x),
             0x34 => Map(a[0], x => x * (MathF.PI / 180f)),
             0x35 => Map(a[0], x => x * (180f / MathF.PI)),
-            // TextureAverageColor: only an argument of the colour matrices below. Its source (the render device's vfunc
-            // 0x2d8, materialsystem2 18009bb70) is not read, so MatrixColorCorrect2 is exact only at contrast 1, where the
-            // average cancels.
-            0x28 => Value.Of(0f, 0f, 0f, 0f),
+            // TextureAverageColor (materialsystem2 18009bb70): a texture argument's RenderDevice003 vfunc 0x2d8
+            // (rendersystemdx11 180030740), the xyz of the 16 bytes rendersystem copied from the .vtex header's +4 at
+            // creation (dx11 18006a7e5, vulkan 1800f7745), w 1; any other argument zero. A texture we cannot read stays
+            // zero (not measured).
+            0x28 => a[0].Texture is { } t && scope.TextureReflectivity(t) is { } r ? Value.Of(r[0], r[1], r[2], 1f) : Value.Of(0f, 0f, 0f, 0f),
             0x2E => new Value(ColorMatrices.Multiply(Matrix(a[0]), Matrix(a[1]))),
             0x30 => new Value(ColorMatrices.Correct2(a[0][0], a[0][1], a[0][2], [a[1][0], a[1][1], a[1][2]])),
             0x36 => new Value(ColorMatrices.Tint2([a[0][0], a[0][1], a[0][2]], a[1][0])),

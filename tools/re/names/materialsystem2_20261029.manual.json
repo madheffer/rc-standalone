@@ -1,0 +1,10 @@
+{
+ "functions": [
+  {
+   "addr": "180154cf0",
+   "name": "g_pRenderDevice",
+   "module": "s2c:infra",
+   "note": "data: RenderDevice003 (the connect table's entry at 1800f85d0); 18009bb70 calls its vf 0x2d8"
+  }
+ ]
+}

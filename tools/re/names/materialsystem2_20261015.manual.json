@@ -34,13 +34,13 @@
    "addr": "18009c090",
    "name": "VfxEval_MatrixColorCorrect2",
    "module": "s2c:infra",
-   "note": "(contrast, saturation, brightness), average colour -> 180081260 (VfxEval.ColorCorrect)"
+   "note": "(contrast, saturation, brightness), average colour -> 180081260 (Lighting/ColorMatrices.Correct2)"
   },
   {
    "addr": "18009c3c0",
    "name": "VfxEval_MatrixColorTint2",
    "module": "s2c:infra",
-   "note": "(tint, amount) -> 1800818d0 (white equals ColorCorrect(1, 1, 1) word for word; coloured not ported)"
+   "note": "(tint, amount) -> 1800818d0 (Lighting/ColorMatrices.Tint2; white equals ColorCorrect(1, 1, 1) word for word)"
   },
   {
    "addr": "180081260",
@@ -82,7 +82,7 @@
    "addr": "18009bb70",
    "name": "VfxEval_TextureAverageColor",
    "module": "s2c:infra",
-   "note": "the texture manager's average colour (vtable +0x2d8), w 1"
+   "note": "a texture argument (type byte 1): RenderDevice003 (180154cf0 in 1029) vf 0x2d8, the texture's .vtex header reflectivity xyz, w 1; any other argument 0 (ledger 197)"
   },
   {
    "addr": "180081260",

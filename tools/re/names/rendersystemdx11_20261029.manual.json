@@ -1,0 +1,34 @@
+{
+ "functions": [
+  {
+   "addr": "1803f40e8",
+   "name": "CRenderDeviceDx11_vtable",
+   "module": "s2c:infra",
+   "note": "data: the device's vtable, stored by its constructor (18003a236); the base class's at 1803f1348 (18002b496) has the same +0x2d8. The object is 180495980, which 180433580 points at and QueryInterface hands out as RenderDevice003 (18005400e)"
+  },
+  {
+   "addr": "180030740",
+   "name": "CRenderDevice_GetTextureAverageColor",
+   "module": "s2c:infra",
+   "note": "vf 0x2d8 (both vtables): the 12 bytes at the start of 180074aa0's texture record"
+  },
+  {
+   "addr": "180074aa0",
+   "name": "RenderDevice_TextureRecord16",
+   "module": "s2c:infra",
+   "note": "a texture handle's 16-byte record: block +0x180 + (h >> 8) * 8, entry ((h & 0xff) + 0x1260) * 16; an unresolved handle reports an error and gives (1, 0, 1, 1) (not modelled)"
+  },
+  {
+   "addr": "180067bf0",
+   "name": "RenderDevice_CreateTexture",
+   "module": "s2c:infra",
+   "note": "writes the record from the creation descriptor's +0x3c (180068161 .. 180068189)"
+  },
+  {
+   "addr": "18006a7e5",
+   "name": "TextureDesc_FromVtexHeader",
+   "module": "s2c:infra",
+   "note": "a chunk: .vtex header +0x1a format through a table to desc +0xc, +0x1b mip count to +6, the header's 16 bytes at +4 (the reflectivity) to desc +0x3c, flags +2 to desc +0x10 bits, +0x14 / +0x16 width and height"
+  }
+ ]
+}

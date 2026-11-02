@@ -199,22 +199,25 @@ public sealed class VfxEval
     private readonly string _text;
     private int _pos;
     private readonly Func<string, float[]?> _lookup;
+    private readonly Func<string, float[]?>? _reflectivity;
     private readonly int[] _features;
     private readonly Dictionary<string, float[]> _locals = [];
 
-    private VfxEval(string text, Func<string, float[]?> lookup, int[] features)
+    private VfxEval(string text, Func<string, float[]?> lookup, int[] features, Func<string, float[]?>? reflectivity)
     {
         _text = text;
         _lookup = lookup;
         _features = features;
+        _reflectivity = reflectivity;
     }
 
-    /// <summary>Unported colour matrix arguments met (non-default colour correction or tint): the result was identity.</summary>
-    public static int UnportedColorMatrices;
-
-    public static float[] Evaluate(string text, Func<string, float[]?> lookup, int[] features)
+    /// <summary>
+    /// <paramref name="reflectivity"/>: a texture variable's header reflectivity, TextureAverageColor's source (null
+    /// when the material sets no such texture).
+    /// </summary>
+    public static float[] Evaluate(string text, Func<string, float[]?> lookup, int[] features, Func<string, float[]?>? reflectivity = null)
     {
-        var e = new VfxEval(text.Trim(), lookup, features);
+        var e = new VfxEval(text.Trim(), lookup, features, reflectivity);
         if (e._text.StartsWith("return ", StringComparison.Ordinal))
             e._pos = 7;
         float[] last = [0f];
@@ -412,6 +415,17 @@ public sealed class VfxEval
         }
         if (Eat("("))
         {
+            // TextureAverageColor(texture): rendersystem's copy of the .vtex header's reflectivity (+4), w 1
+            // (materialsystem2 18009bb70; Gpu/VfxExpression). A texture the material does not set keeps (0, 0, 0, 1)
+            // (the shader default texture is not read).
+            if (id == "TextureAverageColor")
+            {
+                var at = _pos;
+                Skip();
+                if (Identifier() is { } texture && Eat(")"))
+                    return _reflectivity?.Invoke(texture) is { } r ? [r[0], r[1], r[2], 1f] : [0f, 0f, 0f, 1f];
+                _pos = at;
+            }
             var args = new List<float[]>();
             if (!Eat(")"))
             {
@@ -473,16 +487,16 @@ public sealed class VfxEval
                 return v;
             }
             case "MatrixMultiply":
-                return Multiply(a[0], a[1]);
+                return a[0].Length == 16 && a[1].Length == 16 ? ColorMatrices.Multiply(a[0], a[1]) : Identity();
             case "MatrixColorTint2":
-                // 1800818d0 builds D^-1 R^T (tint terms) R D like ColorCorrect; with a white tint the tint
-                // terms are identity, and its output equals ColorCorrect(1, 1, 1) word for word
-                // (tools/vrad3/capture_colormatrix.py). Coloured tints are not ported.
-                if (!a[0].Take(3).All(x => x == 1f))
-                    UnportedColorMatrices++;
-                return ColorCorrect(1f, 1f, 1f, [0f, 0f, 0f]);
+                // 1800818d0 (Lighting/ColorMatrices; a white tint's output is ColorCorrect(1, 1, 1)'s word for word,
+                // tools/vrad3/capture_colormatrix.py).
+                return ColorMatrices.Tint2([a[0][0], a[0][Math.Min(1, a[0].Length - 1)], a[0][Math.Min(2, a[0].Length - 1)]], a[1][0]);
             case "MatrixColorCorrect2":
-                return ColorCorrect(a[0][0], a[0][1], a[0][2], a.Count > 1 ? a[1] : [0f, 0f, 0f]);
+            {
+                var avg = a.Count > 1 ? a[1] : [0f, 0f, 0f];
+                return ColorMatrices.Correct2(a[0][0], a[0][1], a[0][2], [avg[0], avg[Math.Min(1, avg.Length - 1)], avg[Math.Min(2, avg.Length - 1)]]);
+            }
             case "TextureAverageColor":
                 return [0f, 0f, 0f, 1f];
             default:
@@ -500,89 +514,6 @@ public sealed class VfxEval
     }
 
     private static float[] Identity() => [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
-
-    // Row-major 4x4 product a * b (materialsystem2 180081100: each element a dpps of a row and a column,
-    // (a0 b0 + a1 b1) + (a2 b2 + a3 b3)).
-    private static float[] Multiply(float[] a, float[] b)
-    {
-        if (a.Length != 16 || b.Length != 16)
-            return Identity();
-        var r = new float[16];
-        for (var i = 0; i < 4; i++)
-            for (var j = 0; j < 4; j++)
-                r[i * 4 + j] = (a[i * 4] * b[j] + a[i * 4 + 1] * b[4 + j]) + (a[i * 4 + 2] * b[8 + j] + a[i * 4 + 3] * b[12 + j]);
-        return r;
-    }
-
-    private static float[] Diagonal(float x, float y, float z) => [x, 0, 0, 0, 0, y, 0, 0, 0, 0, z, 0, 0, 0, 0, 1];
-
-    /// <summary>
-    /// MatrixColorCorrect2 (materialsystem2 18009c090 / 180081260) of (contrast, saturation,
-    /// brightness) about the average colour a: ((((((D^-1 R^T) S) R) D) B) C), R the rotation
-    /// (1800828c0) taking the normalised luminance axis (0.2125, 0.7154, 0.0721) (180080f40) to z,
-    /// D that axis' components, S diag(saturation, saturation, 1), B diag(brightness),
-    /// C = (T(a) diag(contrast)) T(-a).
-    /// </summary>
-    public static float[] ColorCorrect(float contrast, float saturation, float brightness, float[] a)
-    {
-        float[] t = [1, 0, 0, a[0], 0, 1, 0, a[1], 0, 0, 1, a[2], 0, 0, 0, 1];
-        float[] tn = [1, 0, 0, -a[0], 0, 1, 0, -a[1], 0, 0, 1, -a[2], 0, 0, 0, 1];
-        var c = Multiply(Multiply(t, Diagonal(contrast, contrast, contrast)), tn);
-        // 180080f40: length from (y y + z z) + x x, scaled by its reciprocal.
-        float lx = 0.2125f, ly = 0.7154f, lz = 0.0721f;
-        var len = MathF.Sqrt(ly * ly + lz * lz + lx * lx);
-        if (len >= 1e-17f && len <= 1e17f)
-        {
-            var inv = 1f / len;
-            (lx, ly, lz) = (inv * lx, inv * ly, inv * lz);
-        }
-        var r = RotationBetween(lx, ly, lz, 0f, 0f, 1f);
-        float[] rt =
-        [
-            r[0], r[4], r[8], r[12], r[1], r[5], r[9], r[13], r[2], r[6], r[10], r[14], r[3], r[7], r[11], r[15],
-        ];
-        var m = Multiply(Diagonal(1f / lx, 1f / ly, 1f / lz), rt);
-        m = Multiply(m, Diagonal(saturation, saturation, 1f));
-        m = Multiply(m, r);
-        m = Multiply(m, Diagonal(lx, ly, lz));
-        m = Multiply(m, Diagonal(brightness, brightness, brightness));
-        return Multiply(m, c);
-    }
-
-    // 1800828c0: the rotation taking unit vector f to unit vector t about their cross product, with
-    // |cross| as the sine (identity when it is 0); the decompile's operation order.
-    private static float[] RotationBetween(float fx, float fy, float fz, float tx, float ty, float tz)
-    {
-        var cy = fz * tx - tz * fx;
-        var cx = tz * fy - fz * ty;
-        var cz = ty * fx - fy * tx;
-        var len = MathF.Sqrt(cz * cz + cy * cy + cx * cx);
-        var cos = fz * tz + ty * fy + fx * tx;
-        var k = 1f - cos;
-        var m = new float[16];
-        m[15] = 1f;
-        if (!(len > 0f))
-        {
-            m[0] = m[5] = m[10] = 1f;
-            return m;
-        }
-        var inv = 1f / len;
-        var ax = inv * cx;
-        var ay = inv * cy;
-        var az = inv * cz;
-        var t = ax * k;
-        m[0] = ax * t + cos;
-        m[1] = ay * t - az * len;
-        m[4] = ay * t + az * len;
-        m[5] = ay * ay * k + cos;
-        var u = az * ay * k;
-        m[2] = az * t + ay * len;
-        m[8] = az * t - ay * len;
-        m[9] = u + ax * len;
-        m[6] = u - ax * len;
-        m[10] = az * k * az + cos;
-        return m;
-    }
 
     private static float[] Map(float[] a, Func<float, float> f) => [.. a.Select(f)];
 
@@ -702,6 +633,13 @@ public sealed class RtxScene
             textures.Add(t);
             return textures.Count - 1;
         }
+        var reflectivity = new Dictionary<string, float[]?>(StringComparer.OrdinalIgnoreCase);
+        float[]? Reflectivity(string path)
+        {
+            if (!reflectivity.TryGetValue(path, out var r))
+                reflectivity[path] = r = TextureReflectivity(read(path + "_c"));
+            return r;
+        }
         var samplers = new List<BindlessSampler>();
         var samplerIndex = new Dictionary<BindlessSampler, int>();
         int Sampler(BindlessSampler s)
@@ -742,7 +680,7 @@ public sealed class RtxScene
                 else
                 {
                     // CPUBAKE_MATDUMP=1: every variable the block writes, as a note (a check against the vmat).
-                    var bytes = MaterialBlock(program, combo, info, Texture, Sampler,
+                    var bytes = MaterialBlock(program, combo, info, Texture, Sampler, Reflectivity,
                         Environment.GetEnvironmentVariable("CPUBAKE_MATDUMP") == "1" ? line => notes.Add($"  {material} {line}") : null);
                     while (data.Count % 16 != 0)
                         data.Add(0);
@@ -787,8 +725,6 @@ public sealed class RtxScene
             Instances = instances, Geometries = geometries, VerticesF = vf, VerticesU = vu, Indices = ib,
             MatF = matF, MatI = matI, MatU = matU, Textures = tex, Samplers = smp,
         };
-        if (VfxEval.UnportedColorMatrices > 0)
-            notes.Add($"{VfxEval.UnportedColorMatrices} coloured MatrixColorTint2 tints taken as white (1800818d0 is ported for white only)");
         return new RtxScene(scene, hit, Factory, notes, textureSources) { ContentRead = read };
     }
 
@@ -839,8 +775,10 @@ public sealed class RtxScene
 
     // The material's _RTX_MATERIAL_DATA_ block: each field from its rtx variable (artist value, default or expression).
     private static byte[] MaterialBlock(RtxShaderLibrary.Program program, long combo, SettleWorld.MaterialInfo info,
-                                        Func<string?, bool, bool, int> texture, Func<BindlessSampler, int> sampler, Action<string>? log = null)
+                                        Func<string?, bool, bool, int> texture, Func<BindlessSampler, int> sampler, Func<string, float[]?> reflectivity,
+                                        Action<string>? log = null)
     {
+        float[]? TextureAverage(string name) => info.Textures.TryGetValue(name, out var path) ? reflectivity(path) : null;
         var vars = program.Rtx.VariableDescriptions;
         var features = program.Features.StaticComboArray.Select(f => info.Params.TryGetValue(f.Name, out var v) ? (int)v : 0).ToArray();
         var cache = new Dictionary<string, float[]?>();
@@ -871,12 +809,12 @@ public sealed class RtxScene
             switch (d.VariableSource)
             {
                 case VfxVariableSourceType.__Expression__:
-                    r = VfxEval.Evaluate(ShaderUtilHelpers.ParseDynamicExpression(d.CompiledExpression), n => Value(n), features);
+                    r = VfxEval.Evaluate(ShaderUtilHelpers.ParseDynamicExpression(d.CompiledExpression), n => Value(n), features, TextureAverage);
                     break;
                 case VfxVariableSourceType.__SetByArtistAndExpression__:
                 {
                     var artist = Artist(d) ?? Default(d);
-                    r = VfxEval.Evaluate(ShaderUtilHelpers.ParseDynamicExpression(d.CompiledExpression), n => Value(n, name, artist), features);
+                    r = VfxEval.Evaluate(ShaderUtilHelpers.ParseDynamicExpression(d.CompiledExpression), n => Value(n, name, artist), features, TextureAverage);
                     break;
                 }
                 default:
@@ -893,7 +831,7 @@ public sealed class RtxScene
         {
             var d = vars[f.VariableIndex];
             var value = d.VariableSource == VfxVariableSourceType.__Expression__ && d.CompiledExpression.Length > 0
-                ? (int)(VfxEval.Evaluate(ShaderUtilHelpers.ParseDynamicExpression(d.CompiledExpression), n => Value(n), features)?[0] ?? 0f)
+                ? (int)(VfxEval.Evaluate(ShaderUtilHelpers.ParseDynamicExpression(d.CompiledExpression), n => Value(n), features, TextureAverage)?[0] ?? 0f)
                 : d.IntDefs[0];
             if (!states.TryGetValue(f.RegisterOffset, out var st))
                 states[f.RegisterOffset] = st = [];
@@ -1000,6 +938,16 @@ public sealed class RtxScene
     }
 
     /// <summary>The resident mips of a texture as linear floats (8-bit sRGB through the sRGB curve when the shader reads it sRGB).</summary>
+    /// <summary>A .vtex_c's header reflectivity (the four floats after version and flags), null when not a texture.</summary>
+    public static float[]? TextureReflectivity(byte[]? bytes)
+    {
+        if (bytes is null)
+            return null;
+        using var res = new ValveResourceFormat.Resource();
+        res.Read(new MemoryStream(bytes));
+        return res.DataBlock is ValveResourceFormat.ResourceTypes.Texture tex ? [tex.Reflectivity.X, tex.Reflectivity.Y, tex.Reflectivity.Z, tex.Reflectivity.W] : null;
+    }
+
     public static BindlessTexture? LoadTexture(byte[]? bytes, bool srgb)
     {
         if (bytes is null)

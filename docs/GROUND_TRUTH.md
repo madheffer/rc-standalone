@@ -5213,7 +5213,7 @@ game can answer is raised with the user first, and runs with -insecure.
        sum of squares 0x3f0fe92e, Correct2 at run time.
      - $Globals holds a 4 x 4 transposed: the prototype's row-major result equals the captured block with rows and
        columns swapped, on all six off-diagonal words (ProgramGlobals.Fill now transposes Float4x4).
-     - Exact only at contrast 1, where TextureAverageColor cancels exactly in T(avg) diag(c) T(-avg).
+     - TextureAverageColor read since (ledger 197); at contrast 1 it cancels exactly in T(avg) diag(c) T(-avg).
      - Checked only at the material defaults (tint (1, 1, 1), contrast, saturation and brightness 1): a tinted or
        desaturated material (the HSV path, V_powf with s > 0) has no capture yet. RGB to HSV is from the decompile,
        not the disassembly.
@@ -5223,6 +5223,29 @@ game can answer is raised with the user first, and runs with -insecure.
        (CAnimatableSceneObjectDesc, USES_CS_SKINNING) near terrorist_team_intro / counterterrorist_team_intro /
        team_select, and in the RenderDoc run their AO proxies (aoproxy_splat, 2 instances at (-12841, -338, -12)
        and (-12851, -436, 0)). Not ported (needs the client's team intro scene and its animation pose).
+
+197. **TextureAverageColor is the .vtex header's reflectivity** (2026-11-02, CS2 open: disassembly only, the
+     installed 1029 builds of materialsystem2, rendersystemdx11 and rendersystemvulkan). READ.
+     - materialsystem2 18009bb70: an argument whose type byte is 1 (a texture) goes to the global at 180154cf0,
+       which the connect table (1800f85d0) binds to RenderDevice003; it calls vf 0x2d8 and writes x, y, z with w 1.
+       Any other argument: 16 zero bytes.
+     - rendersystemdx11: RenderDevice003 is the object at 180495980 (QueryInterface 18005400e through 180433580); its
+       vtable 1803f40e8 (and the base's 1803f1348) has 180030740 at +0x2d8, which copies 12 bytes from the texture's
+       16-byte record (180074aa0: block +0x180 + (h >> 8) * 8, entry ((h & 0xff) + 0x1260) * 16).
+     - The only writer of that record with a value is 180067bf0 (180068161 .. 180068189), from its creation
+       descriptor's +0x3c; the descriptor's +0x3c is filled in 18006a7e5 from the .vtex header's 16 bytes at +4, in
+       the same function that takes +0x1a (format), +0x1b (mips), +2 (flags) and +0x14 / +0x16 (size), so the header
+       is the .vtex DATA block (VRF's Texture.Reflectivity). rendersystemvulkan does the same at 1800f7745.
+     - An unresolved handle gives (1, 0, 1, 1) after an error (180074bda; not modelled: our textures come from files).
+     - Ported: Gpu/VfxExpression (a texture parameter now carries its path; the cube renderer and GpuMaterialSampler
+       read the header) and the bake's VfxEval in Lighting/Bake/RtxMaterials (by the argument's name). The bake's
+       evaluator now uses Lighting/ColorMatrices too: the coloured MatrixColorTint2 it took as white and the
+       rotation's products in Ghidra's order (ay ay k, az ay k; equal words at the default luminance axis, where
+       az = 0, so default materials bake as before).
+     - Scope (ColorMatrixTests.NonDefaultColorAdjust): 1,120 materials of the stock pak01 have a contrast,
+       saturation or brightness other than 1 or a tint other than white; ze_hold_em_p's own package none.
+     - Not measured: no capture of a material with contrast other than 1 yet, and the shader default texture of a
+       texture the material does not set is not read (both evaluators give zero then).
 
 ## Resolved
 

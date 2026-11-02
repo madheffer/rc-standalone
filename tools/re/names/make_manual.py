@@ -3210,6 +3210,26 @@ RENDERSYSTEMVULKAN_1015 = [
 ]
 
 
+RENDERSYSTEMDX11_1029 = [
+    # Read from the disassembly (rendersystemdx11 20261029): TextureAverageColor's source (ledger 197).
+    ("1803f40e8", "CRenderDeviceDx11_vtable", I, "data: the device's vtable, stored by its constructor (18003a236); the base class's at 1803f1348 (18002b496) has the same +0x2d8. The object is 180495980, which 180433580 points at and QueryInterface hands out as RenderDevice003 (18005400e)"),
+    ("180030740", "CRenderDevice_GetTextureAverageColor", I, "vf 0x2d8 (both vtables): the 12 bytes at the start of 180074aa0's texture record"),
+    ("180074aa0", "RenderDevice_TextureRecord16", I, "a texture handle's 16-byte record: block +0x180 + (h >> 8) * 8, entry ((h & 0xff) + 0x1260) * 16; an unresolved handle reports an error and gives (1, 0, 1, 1) (not modelled)"),
+    ("180067bf0", "RenderDevice_CreateTexture", I, "writes the record from the creation descriptor's +0x3c (180068161 .. 180068189)"),
+    ("18006a7e5", "TextureDesc_FromVtexHeader", I, "a chunk: .vtex header +0x1a format through a table to desc +0xc, +0x1b mip count to +6, the header's 16 bytes at +4 (the reflectivity) to desc +0x3c, flags +2 to desc +0x10 bits, +0x14 / +0x16 width and height"),
+]
+
+RENDERSYSTEMVULKAN_1029 = [
+    # Read from the disassembly (rendersystemvulkan 20261029).
+    ("1800f7745", "TextureDesc_FromVtexHeader", I, "as rendersystemdx11 18006a7e5: the .vtex header's +4 reflectivity to desc +0x3c (1800f7849 .. 1800f784d)"),
+]
+
+MATERIALSYSTEM_1029 = [
+    # Read from the disassembly (materialsystem2 20261029).
+    ("180154cf0", "g_pRenderDevice", I, "data: RenderDevice003 (the connect table's entry at 1800f85d0); 18009bb70 calls its vf 0x2d8"),
+]
+
+
 MATERIALSYSTEM_1015 = [
     # Read by hand (decompile of materialsystem2 20261015): VfxEval's functions.
     ("18000bb80", "CMaterial2_GetIntAttribute", VIS, "vf 0x50: the key in chunks of 12 hashes at +0x180 (values 12 slots on), then the chunk list at +0x68, then the parent set at +0x60 (ledger 165)"),
@@ -3217,15 +3237,15 @@ MATERIALSYSTEM_1015 = [
     ("18009b580", "VfxEval_SrgbGammaToLinear", I, "the top three components through 180082e60"),
     ("180082e60", "SrgbGammaToLinear", I, "clamp 0..1; x / 12.92 up to 0.04045, else powf((x + 0.055) / 1.055, 2.4)"),
     ("18009bf90", "VfxEval_MatrixMultiply", I, "two 4x4 off the stack, product through 180081100"),
-    ("18009c090", "VfxEval_MatrixColorCorrect2", I, "(contrast, saturation, brightness), average colour -> 180081260 (VfxEval.ColorCorrect)"),
-    ("18009c3c0", "VfxEval_MatrixColorTint2", I, "(tint, amount) -> 1800818d0 (white equals ColorCorrect(1, 1, 1) word for word; coloured not ported)"),
+    ("18009c090", "VfxEval_MatrixColorCorrect2", I, "(contrast, saturation, brightness), average colour -> 180081260 (Lighting/ColorMatrices.Correct2)"),
+    ("18009c3c0", "VfxEval_MatrixColorTint2", I, "(tint, amount) -> 1800818d0 (Lighting/ColorMatrices.Tint2; white equals ColorCorrect(1, 1, 1) word for word)"),
     ("180081260", "ColorMatrix_Correct", I, "((((((D^-1 R^T) diag(sat, sat, 1)) R) D) diag(bright)) (T(a) diag(contrast)) T(-a)); R = 1800828c0(normalised (0.2125, 0.7154, 0.0721), z)"),
     ("180081100", "Matrix4_Multiply", I, "row-major a x b, each element dpps: (a0 b0 + a1 b1) + (a2 b2 + a3 b3)"),
     ("180081020", "Matrix4_Set", I, "16 floats row by row"),
     ("180080f40", "Vector3_Normalize", I, "length sqrt((y y + z z) + x x); within 1e-17..1e17 times its reciprocal"),
     ("1800828c0", "Matrix4_RotationBetween", I, "unit f to unit t: axis cross(f, t) over its length (the sine), cos = (fz tz + ty fy) + fx tx; identity when the cross is 0"),
     ("1800818d0", "ColorMatrix_Tint", I, "D^-1 R^T (translate, diag(1 - s, 1 - s, 1 - pow(...) amount), translate back) R D; ported for white only"),
-    ("18009bb70", "VfxEval_TextureAverageColor", I, "the texture manager's average colour (vtable +0x2d8), w 1"),
+    ("18009bb70", "VfxEval_TextureAverageColor", I, "a texture argument (type byte 1): RenderDevice003 (180154cf0 in 1029) vf 0x2d8, the texture's .vtex header reflectivity xyz, w 1; any other argument 0 (ledger 197)"),
     ("180081260", "MatrixColorCorrect", I, "Haeberli-style: translate by -average, contrast, saturation about luminance (0.2125, 0.7154, 0.0721), brightness, back"),
     ("1800818d0", "MatrixColorTint", I, "tint about luminance with a powf amount term"),
 ]
@@ -3524,6 +3544,9 @@ if __name__ == "__main__":
     write("scenesystem_20261023.manual.json", SCENESYSTEM_1023)
     write("materialsystem2_20261015.manual.json", MATERIALSYSTEM_1015)
     write("rendersystemvulkan_20261015.manual.json", RENDERSYSTEMVULKAN_1015)
+    write("rendersystemdx11_20261029.manual.json", RENDERSYSTEMDX11_1029)
+    write("rendersystemvulkan_20261029.manual.json", RENDERSYSTEMVULKAN_1029)
+    write("materialsystem2_20261029.manual.json", MATERIALSYSTEM_1029)
     write("server_20261015.manual.json", SERVER_1015 + SERVER_1015_CUBEHOST)
     write("resourcecompiler_20261015.manual.json", RESOURCECOMPILER_1015)
     write("resourcecompiler_20261023.manual.json", RESOURCECOMPILER_1023)

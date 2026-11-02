@@ -480,7 +480,7 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
         var size = program.Reflection.Resources.First(r => r.Binding == 0 && r.Kind == SpirvReflection.Kind.UniformBuffer).BlockSize;
         var block = new byte[(size + 15) & ~15];
         var tokens = new Dictionary<string, VfxExpression.Value>(attributes, StringComparer.OrdinalIgnoreCase);
-        ProgramGlobals.Fill(program, block, new ProgramGlobals.MaterialScope(material, program, tokens, shaderIdColor), textureSlot ?? ((_, _) => -1), samplerSlot ?? (_ => -1));
+        ProgramGlobals.Fill(program, block, new ProgramGlobals.MaterialScope(material, program, tokens, shaderIdColor, Reflectivity), textureSlot ?? ((_, _) => -1), samplerSlot ?? (_ => -1));
         // S2C_CUBE_GLOBALS_PATCH=<program name part>:<offset>=<int>[;...] (diagnosis): a word written over the block.
         if (Environment.GetEnvironmentVariable("S2C_CUBE_GLOBALS_PATCH") is { Length: > 0 } patches)
             foreach (var patch in patches.Split(';'))
@@ -1040,6 +1040,25 @@ public sealed unsafe class CubemapFaceRenderer : IDisposable
         var entry = (_map.Entries!.GetValueOrDefault("vtex_c") ?? []).Single(e => e.DirectoryName.EndsWith("lightmaps", StringComparison.Ordinal) && e.FileName == name);
         _map.ReadEntry(entry, out var bytes);
         return Upload($"lightmap {name} {srgb} {viewType}", bytes, srgb, viewType);
+    }
+
+    private readonly Dictionary<string, float[]?> _reflectivity = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>A material texture's header reflectivity (TextureAverageColor), null when no package holds it.</summary>
+    private float[]? Reflectivity(string path)
+    {
+        if (_reflectivity.TryGetValue(path, out var made))
+            return made;
+        foreach (var pak in new[] { _map, _csgo, _core })
+            if (pak.FindEntry(path + "_c") is { } e)
+            {
+                pak.ReadEntry(e, out var bytes);
+                using var resource = new Resource();
+                resource.Read(new MemoryStream(bytes));
+                var r = ((Texture)resource.DataBlock!).Reflectivity;
+                return _reflectivity[path] = [r.X, r.Y, r.Z, r.W];
+            }
+        return _reflectivity[path] = null;
     }
 
     private SceneDrawRunner.SceneImage Vtex(string path, bool srgb, ImageViewType viewType)
