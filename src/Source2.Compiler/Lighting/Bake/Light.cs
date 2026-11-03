@@ -224,6 +224,28 @@ public sealed class Light
                 r.SetV3(0xf0, new Vector3(p[0], p[1], p[2]));
                 r[0xfc] = (float)lum["m_flRadius"].ToDouble(null);
             }
+            else if (r.Type == 1)
+            {
+                // SceneLights.Table's quad: m_Positions at 0xf0 + 12 i, m_vNormal at 0x120.
+                var corners = lum["m_Positions"].Values.Select(BakeScene.Floats).ToList();
+                for (var i = 0; i < 4; i++)
+                    r.SetV3(0xf0 + i * 12, new Vector3(corners[i][0], corners[i][1], corners[i][2]));
+                var n = BakeScene.Floats(lum["m_vNormal"]);
+                r.SetV3(0x120, new Vector3(n[0], n[1], n[2]));
+            }
+            else if (r.Type is 4 or 5)
+            {
+                // SceneLights.Table's capsule: m_Endpoints at 0xf0 / 0xfc, m_Tangents at 0x108 / 0x114,
+                // m_flRadius at 0x120, m_flEndcapAreaPercentage at 0x124.
+                var ends = lum["m_Endpoints"].Values.Select(BakeScene.Floats).ToList();
+                var axes = lum["m_Tangents"].Values.Select(BakeScene.Floats).ToList();
+                r.SetV3(0xf0, new Vector3(ends[0][0], ends[0][1], ends[0][2]));
+                r.SetV3(0xfc, new Vector3(ends[1][0], ends[1][1], ends[1][2]));
+                r.SetV3(0x108, new Vector3(axes[0][0], axes[0][1], axes[0][2]));
+                r.SetV3(0x114, new Vector3(axes[1][0], axes[1][1], axes[1][2]));
+                r[0x120] = (float)lum["m_flRadius"].ToDouble(null);
+                r[0x124] = (float)lum["m_flEndcapAreaPercentage"].ToDouble(null);
+            }
             else
                 throw new NotSupportedException($"the {type} luminaire's table is not ported");
         }

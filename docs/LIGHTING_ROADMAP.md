@@ -49,6 +49,23 @@ where they say so.
   - subsurface;
   - AMD (the bake runs on Valve's RTX pipelines).
 
+## Scope for 100% (2026-11-03)
+
+What a CS2 map can reach, read from resourcecompiler 0923, so that "not ported" below means something a map can hit:
+- **Gameinfo-only branches** (a workshop map cannot change the game's gameinfo.gi, and CS2's sets none of them):
+  SH2 light probe volumes (ResourceCompiler/BakedLighting/LPVSH2, read by CStaticLightingProcessor_BakeLighting;
+  the LPV script writer 1801ee0b0 writes `lpv_type sh2` only then), the sh2 lightmap channels
+  (LightmapChannels), and charts without the mesh's uvs (UnwrapUsingUvsFromMesh, default on). Not ported, out of
+  scope for CS2.
+- **Subsurface**: no such string in resourcecompiler or vrad3; a material's own shading runs as Valve's SPIR-V
+  hit groups already. Nothing to port at this level.
+- **Ported 2026-11-03**: the sky light's tinted env_sky, sky_lightingonly_name and uniform_sky_color (181113f20,
+  CSkyboxHelper 180f001e0 / 180f000b0); the QUAD and TUBE luminaires in the GPU light records (the inverse of
+  SceneLights.Table); props with a lodlevel (1802b4ab0, 18174c9c0, 1801d30d0); direct_light_shadows with no
+  shadow (SerializeLightMap's 4x4).
+- **Checked 2026-11-03 with -s2cbake on the 11-01 driver**: probe01 and cardtest, every lighting file Valve's
+  (cardtest's unloadable material included, L19).
+
 ## Milestones to 80%
 
 Percentages are judgement, weighted by remaining work.

@@ -243,8 +243,8 @@ internal static class SceneLights
     /// </summary>
     /// <remarks>The light's fields are read through their getters (180edb540,
     /// 180edb430, 180edb490, 1801bc490) and named after the keys whose values
-    /// they hold on probe01. Not ported: no skytexture (the sky colour,
-    /// 180edb4d0), sky_lightingonly_name, a tinted env_sky.</remarks>
+    /// they hold on probe01 (180edb570 maps them: skycolor +0xa0, skyintensity +0xa4, skytexture +0xa8,
+    /// skytexturescale +0xb0, brightnessscale +0xb4).</remarks>
     public static KVObject? Ibl(LightPrecompute.KeyReader? light, Func<string, (LightPrecompute.KeyReader Key, float[] Matrix)?> skyNamed)
     {
         if (light is null)
@@ -254,24 +254,51 @@ internal static class SceneLights
         var ibl = KVObject.Collection();
         var bounce = (sbyte)Int(light, "bouncelight", -1);
         ibl.Add("path_trace_light_flags", new KVObject(bounce == 2 ? 0x40 : 1));
+        // 181113f20: the light's skytexture (180165e50, +0xa8). Empty: uniform_sky_color (180edb4d0), skyintensity
+        // (+0xa4) times skycolor (+0xa0, 18126a5a0) per channel, times brightnessscale (+0xb4). Otherwise the base
+        // scale is brightnessscale times skytexturescale (180edb540, +0xb4 * +0xb0), and the entity the name finds
+        // (180fc7220) gives, from its first CSkyboxHelper (180f001e0's keys; 180f000b0's defaults 1), its matrix and
+        // scale = base * (brightnessscale * tint): with sky_lightingonly_name its lighting_only_tint_color (+0xbc)
+        // and that material, else its tint_color (+0xb0) and skyname. A name that finds no entity keeps the identity
+        // matrix, the base scale and the name itself as the material.
         var name = light("skytexture") ?? "";
-        if (name.Length == 0 || skyNamed(name) is not { } sky)
-            throw new NotSupportedException("a sky light without an env_sky (the sky colour, 180edb4d0) is not ported");
-        if (!string.IsNullOrEmpty(sky.Key("sky_lightingonly_name")))
-            throw new NotSupportedException("an env_sky's sky_lightingonly_name is not ported");
-        var tint = sky.Key("tint_color") ?? "255 255 255";
-        if (tint.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries) is not ["255", "255", "255", ..])
-            throw new NotSupportedException("a tinted env_sky is not ported");
-        var a = KVObject.Array();
-        foreach (var x in sky.Matrix)
-            a.Add(new KVObject((double)x));
-        ibl.Add("transform", a);
-        var scale = Float(light, "brightnessscale", 1f) * Float(light, "skytexturescale", 1f) * Float(sky.Key, "brightnessscale", 1f);
-        var sv = KVObject.Array();
-        for (var i = 0; i < 3; i++)
-            sv.Add(new KVObject((double)scale));
-        ibl.Add("scale", sv);
-        ibl.Add("material", new KVObject(sky.Key("skyname") ?? "") { Flag = KVFlag.ResourceName });
+        var lightBrightness = Float(light, "brightnessscale", 1f);
+        if (name.Length == 0)
+        {
+            // FUN_180edb570 reads skycolor and skyintensity into fields whose defaults (the helper's constructor) are not read.
+            if (light("skycolor") is null || light("skyintensity") is null)
+                throw new NotSupportedException("a sky light with no skytexture and no skycolor or skyintensity key (the light helper's defaults are not read)");
+            var colour = Color(light, "skycolor", Vector3.Zero);
+            var intensity = Float(light, "skyintensity", 0f);
+            var u = KVObject.Array();
+            foreach (var c in new[] { colour.X, colour.Y, colour.Z })
+                u.Add(new KVObject((double)(intensity * c * lightBrightness)));
+            ibl.Add("uniform_sky_color", u);
+        }
+        else
+        {
+            var baseScale = lightBrightness * Float(light, "skytexturescale", 1f);
+            float[] matrix = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0];
+            var tint = Vector3.One;
+            var material = name;
+            if (skyNamed(name) is { } sky)
+            {
+                matrix = sky.Matrix;
+                var brightness = Float(sky.Key, "brightnessscale", 1f);
+                var lightingOnly = sky.Key("sky_lightingonly_name") ?? "";
+                tint = brightness * (lightingOnly.Length > 0 ? Color(sky.Key, "lighting_only_tint_color", Vector3.One) : Color(sky.Key, "tint_color", Vector3.One));
+                material = lightingOnly.Length > 0 ? lightingOnly : sky.Key("skyname") ?? "";
+            }
+            var a = KVObject.Array();
+            foreach (var x in matrix)
+                a.Add(new KVObject((double)x));
+            ibl.Add("transform", a);
+            var sv = KVObject.Array();
+            foreach (var c in new[] { tint.X, tint.Y, tint.Z })
+                sv.Add(new KVObject((double)(baseScale * c)));
+            ibl.Add("scale", sv);
+            ibl.Add("material", new KVObject(material) { Flag = KVFlag.ResourceName });
+        }
         var bounceColor = Color(light, "skyambientbounce", Vector3.Zero);
         var bv = KVObject.Array();
         foreach (var x in new[] { bounceColor.X, bounceColor.Y, bounceColor.Z, 1f })

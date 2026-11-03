@@ -101,24 +101,40 @@ internal static class PathTraceProps
         {
             if (loadModel(group.Key) is not { } model)
                 continue;
-            if (group.Any(p => p.LodLevel >= 0))
-                throw new NotSupportedException($"{group.Key}: a lodlevel (180284aa0's LOD groups, FUN_18174c9c0) is not ported");
-            var calls = Draws(model, 0, readMaterial).ToList();
-            foreach (var (mesh, material) in calls)
+            // 1802b4ab0: the model's records split by LOD in first-seen order, each group's meshes loaded for its LOD
+            // (1801d30d0). A record without lodlevel takes LOD 0; one with it takes lodlevel, or the model's highest
+            // LOD (18174c9c0) when that is not above lodlevel.
+            var highest = HighestLod(model);
+            foreach (var lodGroup in group.GroupBy(p => p.LodLevel < 0 ? 0 : p.LodLevel < highest ? p.LodLevel : highest))
             {
-                var index = -1;
-                foreach (var p in group)
+                var calls = Draws(model, lodGroup.Key, readMaterial).ToList();
+                foreach (var (mesh, material) in calls)
                 {
-                    if (index == -1)
+                    var index = -1;
+                    foreach (var p in lodGroup)
                     {
-                        index = meshes.Count;
-                        meshes.Add(mesh);
+                        if (index == -1)
+                        {
+                            index = meshes.Count;
+                            meshes.Add(mesh);
+                        }
+                        var remap = NodePropEntries.MaterialGroup(model, p.Skin);
+                        instances.Add(Instance(index, p, p.MaterialOverride ?? remap.GetValueOrDefault(material, material)));
                     }
-                    var remap = NodePropEntries.MaterialGroup(model, p.Skin);
-                    instances.Add(Instance(index, p, p.MaterialOverride ?? remap.GetValueOrDefault(material, material)));
                 }
             }
         }
+    }
+
+    // 18174c9c0: over the meshes' LOD mask bytes, -1 when every one is 0xff or the largest is 0, else the
+    // largest's highest set bit.
+    private static int HighestLod(Model model)
+    {
+        var masks = model.GetEmbeddedMeshesAndLoD().Select(m => (byte)m.LoDMask).ToList();
+        var largest = masks.Count == 0 ? (byte)0 : masks.Max();
+        if (masks.All(b => b == 0xff) || largest == 0)
+            return -1;
+        return 31 - System.Numerics.BitOperations.LeadingZeroCount((uint)largest);
     }
 
     private static KVObject Instance(int mesh, Prop p, string material)
@@ -159,7 +175,8 @@ internal static class PathTraceProps
             var (mesh, _, _, lodMask) = all[i];
             if (all.Count != 1)
             {
-                if (((ulong)lodMask & (1UL << lod)) == 0)
+                // 1801d30d0: LOD -1 (a model whose masks name no LOD) keeps a mesh with any mask bit.
+                if (lod < 0 ? (byte)lodMask == 0 : ((ulong)lodMask & (1UL << lod)) == 0)
                     continue;
                 var groupMask = groupMasks != null && i < groupMasks.Length ? groupMasks[i] : ulong.MaxValue;
                 if ((groupMask & defaultMask) == 0)
