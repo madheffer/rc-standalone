@@ -99,8 +99,12 @@ if ($Import) {
 } else {
   $pack = @("-ExecutionPolicy", "Bypass", "-File", (Join-Path $PSScriptRoot "pack.ps1"), "-Version", $version)
   if ($SkipTests) { $pack += "-SkipTests" }
+  # Windows PowerShell turns a native command's redirected stderr into a terminating error under
+  # 'Stop', which would end the script before the CP diagnostics are read.
+  $ErrorActionPreference = 'Continue'
   $log = & powershell @($pack + $(if ($baseline) { @("-BaselinePackage", $baseline) } else { @() })) 2>&1 | ForEach-Object { "$_" }
   $packExit = $LASTEXITCODE
+  $ErrorActionPreference = 'Stop'
   $log | Write-Host
   if ($packExit -ne 0) {
     $diagnostics = @($log | Select-String -Pattern 'error (CP\d{4}):' | ForEach-Object { $_.Line.Trim() } | Sort-Object -Unique)
