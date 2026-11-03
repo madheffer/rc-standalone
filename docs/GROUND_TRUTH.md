@@ -5852,3 +5852,82 @@ game can answer is raised with the user first, and runs with -insecure.
 - **Stitched subdivided faces** (2026-09-28, decompile). The bake runs on a
   port of Valve's half-edge mesh (containers, edge split, add edge, arc-length
   split, grid write-back); c2m2's prefab and Mako are whole-file exact.
+
+## The resource compiler line (main), 2026-11-03
+
+Ledgers 230-240 belong to the standalone compiler vpkstuff takes (branch `main`, the work on
+`resources/rc-types`); their code and docs live there (docs/TEXTURES.md, docs/MATERIALS.md,
+docs/RC_PARITY.md C9), the addresses in make_manual's RESOURCES_AGENT_0923 / _1103. Every RC
+reference was compiled on 2026-11-03 by the installed 1.41.9.5 resourcecompiler on its own (main's
+`tools/re/texture/rc_probe.py`, which backs the probe addon up and restores it).
+
+230. **A .vtex's channel groups, and None beside other algorithms** (2026-11-03; rc 0923 decompile of
+     180133da0, RC probes). READ, MEASURED where noted.
+     - Each output channel group runs GenerateMips on its inputs' whole images (all four channels),
+       then the channel copy (181277690) takes the source channels; a .vtex channel names its inputs
+       and reads the first one with that name. The 5 algorithm probes of 10-13, recompiled, equal ours.
+     - The first group sets the output's size and level count; its level loop ends at a group mip
+       count of 1, so a first None group keeps one mip (`none_box_rgba`), a later one fills every
+       level from its level 0 (`box_none_rgba`, `sticker_normal_*`). A later larger group upsizes
+       the output (18013ce60, with mips when it has several: character's 1x1 metal before 16x16
+       masks). Open: a first one-level group smaller than a later one-level group (refused).
+     - Reflectivity is per group: each group's last mip averaged (180c3bb80), avg[src] added to the
+       destination's slot as level 0 is copied (Box groups: the texture's 1x1; None: its image mean).
+231. **Mip algorithms beyond Box** (2026-11-03; rc 0923 decompiles 180142990, 180144200, 1801447c0,
+     1801443f0, 18014fa90 with 18014f380 / 180142710 / 18014f840, 180148350's lambda 180149d20, and
+     disassembly of 18014f380 and 18014fa90 for the float order and constants). READ.
+     None, BoxInverse, MipNormal (the Box chain with its own dependency), PreserveCoverage (the
+     coverage weight table carried as bit patterns, comiss/jae NaN behaviour kept),
+     HemiOctAnisoRoughness (the unshuffled planes) and AnisoRoughness_RG's shuffle; fingerprints
+     from the dependency calls (PreserveCoverage 5). 14 probes (RGBA8888 isolating each chain, BC7 /
+     ATI2N as shaders pack them) compile to RC's whole files. CS2's shaders' m_mipProcessingCommand
+     over all 103 programs leaves AnisoNormal (generic) and RGBM (sky) unported.
+232. **Mod2XCenter** (2026-11-03; rc 0923 decompiles of ApplyImageProcessor 18013f300 and 18013fee0).
+     READ. Per masked channel the row-order sum, each pixel (0.5 - sum / (w h)) + v; dependency
+     "Image Mod2X" 1. Three probes (linear, sRGB, g_tDetail's BC7) exact. ConvertToYCoCg (sky) left.
+233. **The main line against today's RC: uint32 0/1 and VData v2** (2026-11-03; the map branch's
+     reading, ledger 61, f35010e and bcb19b5, ported; RC probes). READ there, MEASURED here. Every
+     10-13 RcReference fixture had moved. Kv3V5Writer writes a uint 0 / 1 as types 26 / 27 (v5; a
+     v4 block keeps 15 / 16, the reader 1800c4120 refusing 26 / 27 below format 5); RED2's uint32
+     fields (m_nFileCRC, argument fingerprints, special fingerprints and user data) are uints at 0
+     and 1; VData records Compiler Version 2 and the ModTools strip fingerprint. VRF takes the map
+     branch's two patches. 18 .vtex, 5 algorithm, 12 .vmat (13 children) and 4 KV3 fixtures exact.
+234. **(unused)**
+235. **RED2 sorts are V_stricmp_fast** (2026-11-03; rc 0923 disassembly: the RED2 finalize
+     18016dd80..18016df5d sorts its lists through 18017a780 / 18017a9c0 / 18017abe0 / 18017ae90 /
+     18017b0a0 / 18017a5a0 and the searchable tables through 181ebae60 -> 181ea5d30 -> std::sort
+     181ea6ae0; every comparator's import call is tier0!V_stricmp_fast, IAT 1820ed908). READ.
+     A-Z folded to a-z, so '_' sorts before letters: csgo_complex's
+     _dummyReferenceAlphaTestReferenceInMainShader opens cx_alphatest's searchable data, where
+     .NET's uppercase fold put it last. EditInfo.Red2Sorted uses MsvcSort; above 32 entries, equal
+     names follow our insertion order, which is not checked against RC's.
+236. **.svg is stored as it is** (2026-11-03; rc 0923 decompile of 18015e2d0). READ. The vector
+     graphic compile hands the source file's bytes to the Panorama writer (1800f6960) and RED2 has
+     their CRC; panorama/t.svg exact. The in-house Panorama sanitizer is now opt-in.
+237. **.wav: the v5 container and CVoiceContainerBase's new fields** (2026-11-03; the 20261103 dll's
+     schema field table 18304f840; the strings first appear in the 20261023 build). READ for CTRL,
+     MEASURED for the probe list. CTRL saves _class, m_bRegisteredVMix (false), m_nResourceName (""),
+     m_vSound, m_pEnvelopeAnalyzer; RC writes RED2, an empty DATA, CTRL, version 5. RED2 also lists
+     an absent `<name>.vmix` sibling, taken from RC's RED2 like the nine before it; where RC builds
+     that list is NOT located (no standalone ".vmix" string in the 1103 dll). sounds/t.wav exact.
+238. **TGA as RC reads it** (2026-11-03; rc 0923 decompiles 180c3ea20, 180c71290, 180c70da0). READ.
+     Only descriptor bit 0x20 is read: right-to-left and the alpha bit count are ignored, a 32-bit
+     pixel's fourth byte is alpha as it is. tga_rtl and tga_noalphabits exact. vpkstuff's F23
+     (treat 0 declared alpha bits as opaque) would leave RC. Colour-mapped TGAs, which RC reads,
+     are still refused.
+239. **Material formats, m_nMaxRes, string attributes, the representative size** (2026-11-03; the
+     1103 dll's image format table 0x182fecf08, rc 0923 decompile of 18010c660, RC's own
+     logical-CRC spew from a patched side copy of the 1103 dll). READ / MEASURED.
+     - m_outputTextureFormat indexes the image format table: 0 RGBA8888 and 23 DXT5 compile now;
+       15 RGBA16161616F, 26 BC6H and 67 R8_UNORM (new in this build) do not.
+     - A variable's m_nMaxRes is the generated .vtex's m_nOutputMaxDimension, printed after
+       m_outputFormat when not 0 (the spew of cx_weapon's glitter normal). Inputs above it are
+       refused: the downsize in 180133da0 is not ported.
+     - Attribute type 41 holds a string (MaterialLayerType "csgo_weapon") and RC lists it. MEASURED:
+       the type's meaning comes from the values and RC's output, not from code.
+     - DATA's RepresentativeTextureWidth/Height only when an attribute is named RepresentativeTexture
+       (18010c660); csgo_weapon has none. cx_weapon and its five children equal RC's.
+240. **DXT5 to DXT1 looks at the kept mips** (2026-11-03; rc 0923 decompile of 180133da0 at
+     "Found DXT5 texture with solid 255 alpha!"). READ. Plane 3 of every mip the texture keeps must
+     be exactly 1; a 7x5 block texture keeps one level, so the odd-side filter's 1.5 alpha below it
+     does not count (dxt5_7x5). The rule now covers a material's DXT5 children too.

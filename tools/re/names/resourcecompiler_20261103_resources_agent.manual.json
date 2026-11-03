@@ -1,0 +1,22 @@
+{
+ "functions": [
+  {
+   "addr": "182fecf08",
+   "name": "ImageFormat_NameTable",
+   "module": "s2c:resources/texture",
+   "note": "24-byte entries from RGBA8888 (0): 20 DXT1, 23 DXT5, 24 ATI1N, 25 ATI2N, 26 BC6H, 27 BC7, 15 RGBA16161616F, 67 R8_UNORM (new after IMAGE_FORMAT_NV12); a shader's m_outputTextureFormat indexes it (ledger 239)"
+  },
+  {
+   "addr": "18304f840",
+   "name": "Schema_CVoiceContainerBase_Fields",
+   "module": "s2c:resources/containers",
+   "note": "m_bRegisteredVMix (+0x10), m_nResourceName (+0x14), m_vSound (+0x30), m_pEnvelopeAnalyzer (+0x70); the first two since the 20261023 build (ledger 237)"
+  },
+  {
+   "addr": "18010bc5c",
+   "name": "MaterialChild_LogicalCrcSpew_Skip1",
+   "module": "s2c:resources/texture",
+   "note": "cmovz r9, rsi (file offset 0x10b05c, 4 bytes); NOP it and the je at 18010bd48 (file offset 0x10b148, 6 bytes) and the child-naming function logs its logical-CRC text (tools/re/texture/rc_spew.py; 20261009's file offsets 0x10afbc / 0x10b0a8, moved 0xa0)"
+  }
+ ]
+}

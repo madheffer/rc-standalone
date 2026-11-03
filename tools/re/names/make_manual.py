@@ -3349,6 +3349,40 @@ GEOMETRY_AGENT_1103 = [
     ("1810e11f0", "ConvertMeshForBuilder_KeepsTexcoordsLoop", G, "per mesh material (1810d6020): vf 0x48 HasTexcoordTransform 0x2661694a == 1 -> keep (je 1810e126c); else 0x7c928c7c (default 1) == 0 -> keep; one DMX for every builder, the world renderer's too (ledger 210, WorldNodeBuild.WorldEntries)"),
 ]
 
+# The resource compiler line (main, branch resources/rc-types): texture, material, sound, vector
+# graphic and RED2 rules read from the Ghidra project's resourcecompiler 20260923 (ledgers 230-240).
+TEX = "s2c:resources/texture"
+RES = "s2c:resources/containers"
+RESOURCES_AGENT_0923 = [
+    ("180133da0", "CResourceCompilerTexture_CompileResourceInternal", TEX, "per output channel group: inputs, GenerateMips (180142990) per frame, the first group sets the output size and level count (leaves its level loop at a group mip count of 1), a larger later group upsizes the output (18013ce60); averages each group's last mip (180c3bb80) and adds avg[src] to the destination's reflectivity while copying level 0 (181277690); DXT5 -> DXT1 when plane 3 of every kept mip is 1 (ledgers 230, 240)"),
+    ("180142990", "CTextureFrame_GenerateMips", TEX, "dispatch by name: ArtistDefined(/OrAlphaWeighted) via the image's artist string (empty -> Box / AlphaWeighted), None 180144200, Box / Box<n> 1801443f0, BoxInverse 1801447c0, MultiplyBox / MultiplyNoMip 180144ce0, MipNormal (dep Mip Normals, then Box), HemiOctNormal 18014c050, HemiOctIsoRoughness_RG_B / AnisoRoughness_RG (180148350 then a shuffle), HemiOctAnisoRoughness (180148350 raw), AnisoNormal 18014c660, AlphaWeighted 18014e680, PreserveCoverage 18014fa90, GGXCubeMapBlur 180150130, RGBM 180151310, Nice 180151cf0 (ledger 231)"),
+    ("180144200", "CTextureFrame_GenerateMips_None", TEX, "dep Mip None 1; level 0 copied (180c3c3c0) as the only level (ledger 231)"),
+    ("1801443f0", "CTextureFrame_GenerateMips_Box", TEX, "dep Mip Box 1; levels min(mip count 180c49440, param_7), each QuarterSize (180c43450) of the one before; non-power-of-two only with AllowNP2Textures"),
+    ("1801447c0", "CTextureFrame_GenerateMips_BoxInverse", TEX, "dep Mip Box Inverse 1; power of two only; level 0 = v * -1 + 1 per masked channel (+0x8a0), then QuarterSize per level (ledger 231)"),
+    ("18014fa90", "CTextureFrame_GenerateMips_PreserveCoverage", TEX, "dep Mip PreserveCoverage 5; power of two only; target = coverage(input, 1); per level QuarterSize to a scratch, copy, unless target <= 0 or 1x1: bisection on [0, 8] to 0.01 (mid (hi + lo) * 0.5), scale planes 0..2, clamp [0, 1] (180142710), restore uniform pixels (18014f840) (ledger 231)"),
+    ("18014f380", "TextureFrame_AlphaTestCoverage", TEX, "plane 0 scaled and clamped (maxss 0, minss 1) at each 2x2 cell's corners, 16 samples from the weight table (stack, from 0x182a9ecd0 .. 0x182a9ee10), counted at v >= 0.5; count / (float)(((h-1)(w-1)) << 4)"),
+    ("180142710", "TextureFrame_ClampPlane", TEX, "maxps(v, lo) then minps(v, hi) over one plane"),
+    ("18014f840", "PreserveCoverage_KeepUniform", TEX, "in place, row by row: a pixel whose clamped 3x3 neighbourhood of plane 0 is all >= 0.5 or all < 0.5 takes planes 0..2 of the unscaled level back"),
+    ("180c49440", "ImageFormat_MipCount", TEX, "levels to 1x1, each side halved and floored at 1"),
+    ("180149d20", "HemiOctAnisoRoughness_Lambda", TEX, "x = 2 m10 - 1, y = 2 m11 - 1, z = sqrt(clamp(1 - (y y + x x))), inv = 1 / ((|y| + |x|) + z); plane 3 (x' + y') / 2 + 1/2, plane 1 (x' - y') / 2 + 1/2, plane 0 ch6 + ch4, plane 2 ch7 + ch5 (MinRoughness clamps unset) (ledger 231)"),
+    ("18013f300", "CTextureFrame_ApplyImageProcessor", TEX, "by name (V_stricmp_fast): Mod2XCenter 18013fee0, NormalizeNormals 180140120, FillToPowerOfTwo 180140550, FillToMultipleOfFour 180140ae0, ScaleToPowerOfTwo (inline), HeightToNormal 180141080, Inverse 180141590, ConvertToYCoCg 180141720, DilateColorInTransparentPixels 180141be0, EncodeRGBM 180142040, UniformRandom<w>x<h>x<d> 180140320 (ledger 232)"),
+    ("18013fee0", "CTextureFrame_ImageProcessor_Mod2X", TEX, "dep Image Mod2X 1; per masked channel the row-order sum, then each pixel (0.5 - sum / (w h)) + v (ledger 232)"),
+    ("18016dd80", "Red2_FinalizeAndSort", RES, "MSVC std::sort of each RED2 list (18017a780, 18017a9c0, 18017abe0, 18017ae90, 18017b0a0, 18017a5a0) and of the three searchable tables' members (181ebae60), then Red2_WriteBlock 181c24a70; every comparator V_stricmp_fast (ledger 235)"),
+    ("181ebae60", "KV3_SortTableMembers", RES, "a table (type 9) only: 181ea5d30 sorts its member index by std::sort 181ea6ae0 with V_stricmp_fast on the names (ledger 235)"),
+    ("18015e2d0", "CResourceCompilerVectorGraphic_Compile", RES, "dep Vector Graphic Version 2; the source file's bytes into a CUtlBuffer, then the Panorama writer 1800f6960 (ledger 236)"),
+    ("180c3ea20", "HelperLoadFbmByFileExtension", TEX, "by extension: exr, psd, tga (180c70980 then RGBA8888 into the bitmap), tif, png, jpg, webp"),
+    ("180c71290", "TGA_Decode", TEX, "types 1/3 (palette or grey), 2 (24 bits 180c70c20, 32 bits 180c70da0), 9 (palette refused), 10, 11; rows bottom-up unless descriptor & 0x20; no other descriptor bit read (ledger 238)"),
+    ("180c70da0", "TGA_Row32", TEX, "BGRA to RGBA per pixel, the fourth byte as alpha as it is (ledger 238)"),
+    ("18010c660", "Material_RepresentativeTextureSize", RES, "over the attributes: at the one named RepresentativeTexture, its bound texture's size as RepresentativeTextureWidth / Height int attributes (ledger 239)"),
+]
+
+# resourcecompiler 20261103 (the installed 1.41.9.5 build; capstone on tools/re/binaries).
+RESOURCES_AGENT_1103 = [
+    ("182fecf08", "ImageFormat_NameTable", TEX, "24-byte entries from RGBA8888 (0): 20 DXT1, 23 DXT5, 24 ATI1N, 25 ATI2N, 26 BC6H, 27 BC7, 15 RGBA16161616F, 67 R8_UNORM (new after IMAGE_FORMAT_NV12); a shader's m_outputTextureFormat indexes it (ledger 239)"),
+    ("18304f840", "Schema_CVoiceContainerBase_Fields", RES, "m_bRegisteredVMix (+0x10), m_nResourceName (+0x14), m_vSound (+0x30), m_pEnvelopeAnalyzer (+0x70); the first two since the 20261023 build (ledger 237)"),
+    ("18010bc5c", "MaterialChild_LogicalCrcSpew_Skip1", TEX, "cmovz r9, rsi (file offset 0x10b05c, 4 bytes); NOP it and the je at 18010bd48 (file offset 0x10b148, 6 bytes) and the child-naming function logs its logical-CRC text (tools/re/texture/rc_spew.py; 20261009's file offsets 0x10afbc / 0x10b0a8, moved 0xa0)"),
+]
+
 
 def write(name, rows):
     with open(os.path.join(HERE, name), "w", encoding="utf-8", newline="\n") as f:
@@ -3632,4 +3666,6 @@ if __name__ == "__main__":
     write("server_20261021.manual.json", SERVER_1021)
     write("resourcecompiler_20261103_geometry_agent.manual.json", GEOMETRY_AGENT_1103)
     write("resourcecompiler_20260923_geometry_agent.manual.json", GEOMETRY_AGENT_0923)
+    write("resourcecompiler_20260923_resources_agent.manual.json", RESOURCES_AGENT_0923)
+    write("resourcecompiler_20261103_resources_agent.manual.json", RESOURCES_AGENT_1103)
     print(len(RESOURCECOMPILER), len(VPHYSICS2), len(PHYSICSBUILDER), len(VISBUILDER), len(SMARTPROPS), len(TIER0), len(HAMMER))

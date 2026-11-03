@@ -1,0 +1,124 @@
+{
+ "functions": [
+  {
+   "addr": "180133da0",
+   "name": "CResourceCompilerTexture_CompileResourceInternal",
+   "module": "s2c:resources/texture",
+   "note": "per output channel group: inputs, GenerateMips (180142990) per frame, the first group sets the output size and level count (leaves its level loop at a group mip count of 1), a larger later group upsizes the output (18013ce60); averages each group's last mip (180c3bb80) and adds avg[src] to the destination's reflectivity while copying level 0 (181277690); DXT5 -> DXT1 when plane 3 of every kept mip is 1 (ledgers 230, 240)"
+  },
+  {
+   "addr": "180142990",
+   "name": "CTextureFrame_GenerateMips",
+   "module": "s2c:resources/texture",
+   "note": "dispatch by name: ArtistDefined(/OrAlphaWeighted) via the image's artist string (empty -> Box / AlphaWeighted), None 180144200, Box / Box<n> 1801443f0, BoxInverse 1801447c0, MultiplyBox / MultiplyNoMip 180144ce0, MipNormal (dep Mip Normals, then Box), HemiOctNormal 18014c050, HemiOctIsoRoughness_RG_B / AnisoRoughness_RG (180148350 then a shuffle), HemiOctAnisoRoughness (180148350 raw), AnisoNormal 18014c660, AlphaWeighted 18014e680, PreserveCoverage 18014fa90, GGXCubeMapBlur 180150130, RGBM 180151310, Nice 180151cf0 (ledger 231)"
+  },
+  {
+   "addr": "180144200",
+   "name": "CTextureFrame_GenerateMips_None",
+   "module": "s2c:resources/texture",
+   "note": "dep Mip None 1; level 0 copied (180c3c3c0) as the only level (ledger 231)"
+  },
+  {
+   "addr": "1801443f0",
+   "name": "CTextureFrame_GenerateMips_Box",
+   "module": "s2c:resources/texture",
+   "note": "dep Mip Box 1; levels min(mip count 180c49440, param_7), each QuarterSize (180c43450) of the one before; non-power-of-two only with AllowNP2Textures"
+  },
+  {
+   "addr": "1801447c0",
+   "name": "CTextureFrame_GenerateMips_BoxInverse",
+   "module": "s2c:resources/texture",
+   "note": "dep Mip Box Inverse 1; power of two only; level 0 = v * -1 + 1 per masked channel (+0x8a0), then QuarterSize per level (ledger 231)"
+  },
+  {
+   "addr": "18014fa90",
+   "name": "CTextureFrame_GenerateMips_PreserveCoverage",
+   "module": "s2c:resources/texture",
+   "note": "dep Mip PreserveCoverage 5; power of two only; target = coverage(input, 1); per level QuarterSize to a scratch, copy, unless target <= 0 or 1x1: bisection on [0, 8] to 0.01 (mid (hi + lo) * 0.5), scale planes 0..2, clamp [0, 1] (180142710), restore uniform pixels (18014f840) (ledger 231)"
+  },
+  {
+   "addr": "18014f380",
+   "name": "TextureFrame_AlphaTestCoverage",
+   "module": "s2c:resources/texture",
+   "note": "plane 0 scaled and clamped (maxss 0, minss 1) at each 2x2 cell's corners, 16 samples from the weight table (stack, from 0x182a9ecd0 .. 0x182a9ee10), counted at v >= 0.5; count / (float)(((h-1)(w-1)) << 4)"
+  },
+  {
+   "addr": "180142710",
+   "name": "TextureFrame_ClampPlane",
+   "module": "s2c:resources/texture",
+   "note": "maxps(v, lo) then minps(v, hi) over one plane"
+  },
+  {
+   "addr": "18014f840",
+   "name": "PreserveCoverage_KeepUniform",
+   "module": "s2c:resources/texture",
+   "note": "in place, row by row: a pixel whose clamped 3x3 neighbourhood of plane 0 is all >= 0.5 or all < 0.5 takes planes 0..2 of the unscaled level back"
+  },
+  {
+   "addr": "180c49440",
+   "name": "ImageFormat_MipCount",
+   "module": "s2c:resources/texture",
+   "note": "levels to 1x1, each side halved and floored at 1"
+  },
+  {
+   "addr": "180149d20",
+   "name": "HemiOctAnisoRoughness_Lambda",
+   "module": "s2c:resources/texture",
+   "note": "x = 2 m10 - 1, y = 2 m11 - 1, z = sqrt(clamp(1 - (y y + x x))), inv = 1 / ((|y| + |x|) + z); plane 3 (x' + y') / 2 + 1/2, plane 1 (x' - y') / 2 + 1/2, plane 0 ch6 + ch4, plane 2 ch7 + ch5 (MinRoughness clamps unset) (ledger 231)"
+  },
+  {
+   "addr": "18013f300",
+   "name": "CTextureFrame_ApplyImageProcessor",
+   "module": "s2c:resources/texture",
+   "note": "by name (V_stricmp_fast): Mod2XCenter 18013fee0, NormalizeNormals 180140120, FillToPowerOfTwo 180140550, FillToMultipleOfFour 180140ae0, ScaleToPowerOfTwo (inline), HeightToNormal 180141080, Inverse 180141590, ConvertToYCoCg 180141720, DilateColorInTransparentPixels 180141be0, EncodeRGBM 180142040, UniformRandom<w>x<h>x<d> 180140320 (ledger 232)"
+  },
+  {
+   "addr": "18013fee0",
+   "name": "CTextureFrame_ImageProcessor_Mod2X",
+   "module": "s2c:resources/texture",
+   "note": "dep Image Mod2X 1; per masked channel the row-order sum, then each pixel (0.5 - sum / (w h)) + v (ledger 232)"
+  },
+  {
+   "addr": "18016dd80",
+   "name": "Red2_FinalizeAndSort",
+   "module": "s2c:resources/containers",
+   "note": "MSVC std::sort of each RED2 list (18017a780, 18017a9c0, 18017abe0, 18017ae90, 18017b0a0, 18017a5a0) and of the three searchable tables' members (181ebae60), then Red2_WriteBlock 181c24a70; every comparator V_stricmp_fast (ledger 235)"
+  },
+  {
+   "addr": "181ebae60",
+   "name": "KV3_SortTableMembers",
+   "module": "s2c:resources/containers",
+   "note": "a table (type 9) only: 181ea5d30 sorts its member index by std::sort 181ea6ae0 with V_stricmp_fast on the names (ledger 235)"
+  },
+  {
+   "addr": "18015e2d0",
+   "name": "CResourceCompilerVectorGraphic_Compile",
+   "module": "s2c:resources/containers",
+   "note": "dep Vector Graphic Version 2; the source file's bytes into a CUtlBuffer, then the Panorama writer 1800f6960 (ledger 236)"
+  },
+  {
+   "addr": "180c3ea20",
+   "name": "HelperLoadFbmByFileExtension",
+   "module": "s2c:resources/texture",
+   "note": "by extension: exr, psd, tga (180c70980 then RGBA8888 into the bitmap), tif, png, jpg, webp"
+  },
+  {
+   "addr": "180c71290",
+   "name": "TGA_Decode",
+   "module": "s2c:resources/texture",
+   "note": "types 1/3 (palette or grey), 2 (24 bits 180c70c20, 32 bits 180c70da0), 9 (palette refused), 10, 11; rows bottom-up unless descriptor & 0x20; no other descriptor bit read (ledger 238)"
+  },
+  {
+   "addr": "180c70da0",
+   "name": "TGA_Row32",
+   "module": "s2c:resources/texture",
+   "note": "BGRA to RGBA per pixel, the fourth byte as alpha as it is (ledger 238)"
+  },
+  {
+   "addr": "18010c660",
+   "name": "Material_RepresentativeTextureSize",
+   "module": "s2c:resources/containers",
+   "note": "over the attributes: at the one named RepresentativeTexture, its bound texture's size as RepresentativeTextureWidth / Height int attributes (ledger 239)"
+  }
+ ]
+}
