@@ -231,7 +231,25 @@ the addon).
     Debug test build; time a Release build and Valve's own step before sizing it. Any change
     that could alter bytes waits for the user's OK (parity before speed).
 
-## Latest session (2026-11-03, 1.41.9.5 patch check, mesh vertex streams, .vmap_c bake reads; CS2 open)
+## Latest session (2026-11-04, CS2 and Steam closed: captures for ledgers 38 and 197, lighting checks)
+
+- Ledger 38 closed (d2fe461): capture_subdivtangents.py showed the bake itself turns the flat meshes' -0 into +0;
+  1813b82f0 writes lerp * weight + grid (1813c83f0's record). atixref: 103,887 of 103,887 corners.
+- Lighting (ea32f68): tinted / lighting-only env_sky, uniform sky colour, QUAD / TUBE lights, lodlevel props.
+  scene_info.kv3 byte for byte on six maps; -s2cbake lighting files Valve's on s2c_skytint, probe_classes and
+  s2c_coloradjust (Valve's fresh compiles of the sky specimens and coloradjust are in %TEMP%/fresh_compile).
+- Ledger 197 (68e77a7): capture_host.py on Valve's coloradjust job: vrad3 bakes csgo_environment's constant
+  g_mTextureColorAdjust1 (the one the combo binds); RtxMaterials writes each field from its own VariableIndex.
+- The default hit group opacity of translucent materials (8e5d8c3, 180098cd0): every atixref material block
+  equals vrad3's captured one but for bindless indices (%TEMP%/hostcap_atixref).
+- B.1: Valve's cube builds of coloradjust vary run to run on material seams; ours is inside the variance.
+- compile-map --skip-unported skips bomb damage when it skipped the nav (45c2738); TJunctionFix's record walk
+  indexed by x (byte-neutral, 4.6x on atixref's replay). atixref's -world stage still takes far longer than
+  Valve's 24 minutes for the whole compile; the next profile should say where.
+- Found, not ported: the particle snapshot (.vsnap) generator (OPEN.md 5.b10, addresses there); the missing-
+  material rule 1.c5 still needs a capture design.
+
+## Earlier session (2026-11-03, 1.41.9.5 patch check, mesh vertex streams, .vmap_c bake reads; CS2 open)
 
 - 1.41.9.5: nothing to port (memory patch-check); cubehost knows the new client.dll stamp.
 - Ledger 201: mesh paint streams and texcoord 1 from Valve's code (NodeMeshEntries.WithPaintStreams), and the
