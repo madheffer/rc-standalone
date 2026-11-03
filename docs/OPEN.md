@@ -78,24 +78,27 @@ Embree's BVH tie order; lightmap L16 and the ameliorate repack iterations.
 
 Changed since the audit: 8.c1 / 8.c2 are no longer true for textures and materials. On the main line every
 RcReference texture, material, child texture, sound, SVG and KV3 fixture is byte-identical to resourcecompiler
-1.41.9.5 (resources agent, merged to main 11-04 as f6d84ec), and branch `resources/rc-types-2` (77af96f) adds:
-Box<N>, MultiplyBox / MultiplyNoMip, RGBM, AlphaWeighted, HemiOctNormal, HemiOctAnisoRoughness_RG_BA,
-MipWidth / MipHeight / MipDepth (red only), the ConvertToYCoCg and EncodeRGBM processors, and 15 output formats
-(I8, IA88, A8, R8_UNORM = the vtex "format 33", BGRA8888, R16, RG1616, RGBA16161616, R16F, RG1616F,
-RGBA16161616F, R32F, RG3232F, RGB323232F, RGBA32323232F), 31 new RC probes byte-identical. docs/TEXTURES.md on
-that branch has the rules.
+1.41.9.5 (resources agent, f6d84ec), and main now also has (11-04, 43429e0): Box<N>, MultiplyBox /
+MultiplyNoMip, RGBM, AlphaWeighted, HemiOctNormal, HemiOctAnisoRoughness_RG_BA, MipWidth / MipHeight /
+MipDepth; the ConvertToYCoCg, EncodeRGBM, ScaleToPowerOfTwo, FillToPowerOfTwo, FillToMultipleOfFour,
+HeightToNormal and DilateColorInTransparentPixels processors; and 15 output formats (I8, IA88, A8,
+R8_UNORM = the vtex "format 33", BGRA8888, R16, RG1616, RGBA16161616, R16F, RG1616F, RGBA16161616F, R32F,
+RG3232F, RGB323232F, RGBA32323232F). 40 new RC probes (`RcReference/textures/algorithms2`) are
+byte-identical; the 20 formats RC itself refuses are refused here too. docs/TEXTURES.md on main has the rules.
 
 Open, with RC probes already compiled in `RcReference/textures/algorithms2` (no CS2-closed time needed):
 - Mip algorithms: **AnisoNormal / AnisoNormalRoughness** (18014c660, the generic shader's: the parallel moments
   chain and the footprint search), HemiOctIsoRoughnessAdjustable_RG_BA (18014a080, the eight-channel chain with
-  NORMALZ), Mip2DGradient (18014dd80 -> the rsqrtps Sobel 181274380, per-vendor like NormalizeNormals),
-  WrapGaussian (180152360), AutoLevels (180147460), HeightCombine (180145330), Sharpen* (180152c00),
-  RelaxedCones (180154570), DepthPyramidMin / Max (180155950), Nice; red-only probes for MipSize and Mip2DGradient.
+  NORMALZ), Mip2DGradient (18014dd80 -> the rsqrtps Sobel 181274380, per-vendor like NormalizeNormals; probe
+  gradient2d_rg), WrapGaussian (180152360: binomial kernel 1801521b0 indexed by |i| over 2 taps - 1, the
+  separable wrap filter 180c3a150, whose 4-wide sums need the disassembly's order), AutoLevels (180147460),
+  HeightCombine (180145330), Sharpen* (180152c00), RelaxedCones (180154570), DepthPyramidMin / Max
+  (180155950), Nice.
 - Cube-only: GGXCubeMapBlur(_RGBM) (180150130), RGBM's irradiance pass, SphericalHarmonics* (RC refuses the 2D
   probe: "Invalid output texture"); cube and 3D textures in general.
-- Image processors: HeightToNormal (180141080), FillToPowerOfTwo (180140550), FillToMultipleOfFour (180140ae0),
-  ScaleToPowerOfTwo, DilateColorInTransparentPixels (180141be0), UniformRandom, processor arguments, several
-  processors on one input.
+- Image processors: UniformRandom (180140320: Valve's SIMD lagged-Fibonacci stream, read; its seed is
+  MurmurHash2 of a string from the compile context's vtable +0x170, not identified); processor arguments;
+  several processors on one input.
 - Output: BC6H (vtex 19; 180c46b20 / 180c46dd0), an sRGB texture in a non-8-bit format, colour-space conversion
   between input and output.
 - Inputs: downsizing past a shader's m_nMaxRes, the artist settings in an image's .txt and `_mipN` images,
