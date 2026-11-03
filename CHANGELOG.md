@@ -3,6 +3,44 @@
 The `Source2.Compiler` package. Versions are `0.1.<commit count of main>`; one entry per published
 version that changes something a host sees.
 
+## Unreleased (resourcecompiler 1.41.9.5 byte parity)
+
+Every resource this compiler writes now matches the resourcecompiler of the 2026-11-03 CS2 update
+(1.41.9.5) byte for byte on the RcReference fixtures, so **every compiled file's bytes change** and
+host goldens over `.vtex_c`, `.vmat_c`, `.vsnd_c`, `.vsvg_c` and KV3 resources move (vpkstuff's
+`DependencyGoldenTests`).
+
+### Changed
+- KV3 v5 writes an unsigned 0 or 1 as types 26 / 27 (tier0 20261015), RED2's uint32 fields likewise,
+  and VData records Compiler Version 2 with the ModTools strip fingerprint. The vendored VRF reads
+  types 26 / 27.
+- RED2 list and searchable sorts use V_stricmp_fast.
+- `SoundCompiler` returns the v5 container; `ModernizeVsnd` adds `m_bRegisteredVMix` and
+  `m_nResourceName`.
+- `VectorGraphicCompiler` stores the SVG as RC stores it; the Panorama sanitizer is opt-in
+  (`ResourceBuilder.BuildPanoramaSvg` still sanitizes).
+- `TgaReader` reads only descriptor bit 0x20 as RC does: a right-to-left image is no longer mirrored,
+  and the declared alpha bit count is ignored.
+
+### Added
+- `.vtex` sources with several inputs, image processors and output channel groups.
+- Mip algorithms: None, BoxInverse, MipNormal, PreserveCoverage, HemiOctAnisoRoughness,
+  AnisoRoughness_RG, HemiOctAnisoRoughness_RG_BA, HemiOctNormal, AnisoNormal, AnisoNormalRoughness,
+  Box<N>, MultiplyBox, MultiplyNoMip, RGBM (2D), AlphaWeighted, MipWidth / MipHeight / MipDepth,
+  DepthPyramidMin / Max, AutoLevels (perchannel, luminance), HeightCombine (method2, sumnormalized),
+  WrapGaussian. Every mip algorithm a CS2 shader names is ported for 2D textures.
+- Image processors: Mod2XCenter, ConvertToYCoCg, EncodeRGBM, ScaleToPowerOfTwo, FillToPowerOfTwo,
+  FillToMultipleOfFour, HeightToNormal, DilateColorInTransparentPixels.
+- Output formats: I8, IA88, A8, R8_UNORM, BGRA8888, R16, RG1616, RGBA16161616, R16F, RG1616F,
+  RGBA16161616F, R32F, RG3232F, RGB323232F, RGBA32323232F. The formats resourcecompiler itself
+  refuses ("Unsupported image format") are refused.
+- Materials: csgo_weapon's RGBA8888 children, `m_nMaxRes`, string attributes; alpha-tested materials.
+
+### Refused (not yet ported; an error names the setting)
+- Mip2DGradient, RelaxedCones, HemiOctIsoRoughnessAdjustable_RG_BA, Sharpen*, Nice, UniformRandom,
+  the cube-only algorithms, BC6H, cube and 3D textures, image `.txt` settings, AutoLevels with
+  GammaToLinear, and a channel group reading a channel its algorithm's frame does not hold.
+
 ## Unreleased (texture fallback)
 
 ### Added
