@@ -19,6 +19,37 @@ public class ShaderAttributeProbe(ITestOutputHelper output)
 {
     private static string Platform => Environment.GetEnvironmentVariable("SHADERATTR_API") == "vulkan" ? "vulkan_50" : "pc_50";
 
+    /// <summary>
+    /// <c>SHADERVAR=&lt;shader&gt;|&lt;variable&gt;[,...]</c>: each named variable's description in the shader's features,
+    /// vs and ps files: type, source, its int and float defaults, and the compiled expression's length.
+    /// </summary>
+    [Fact]
+    public void VariableDefaults()
+    {
+        if (Environment.GetEnvironmentVariable("SHADERVAR") is not { Length: > 0 } spec || spec.Split('|') is not [var shader, var list])
+            return;
+        var game = Path.Combine(Environment.GetEnvironmentVariable("CS2_DIR") ?? @"D:\Steam\steamapps\common\Counter-Strike Global Offensive", "game", "csgo");
+        using var package = new Package();
+        package.Read(Path.Combine(game, "shaders_pc_dir.vpk"));
+        var wanted = list.Split(',');
+        foreach (var part in new[] { "features", "vs", "ps" })
+        {
+            var entry = package.FindEntry($"shaders/vfx/{shader}_{Platform}_{part}.vcs");
+            if (entry == null)
+            {
+                output.WriteLine($"{shader} {part}: not in the package");
+                continue;
+            }
+            package.ReadEntry(entry, out var bytes);
+            using var program = new VfxProgramData();
+            program.Read($"{shader}_{Platform}_{part}.vcs", new MemoryStream(bytes));
+            foreach (var v in program.VariableDescriptions.Where(v => wanted.Contains(v.Name)))
+                output.WriteLine($"{shader} {part}: {v.Name} {v.VfxType} ({(int)v.VfxType}) source {v.VariableSource} ({(int)v.VariableSource}) register {v.RegisterType} ({(int)v.RegisterType})"
+                    + $" int {string.Join(",", v.IntDefs)} float {string.Join(",", v.FloatDefs)}"
+                    + $" expression {v.CompiledExpression.Length} bytes{(v.CompiledExpression.Length > 0 ? " " + Convert.ToHexString(v.CompiledExpression) : "")}");
+        }
+    }
+
     [Fact]
     public void AttributesOfShaders()
     {

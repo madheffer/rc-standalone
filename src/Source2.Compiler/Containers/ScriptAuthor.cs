@@ -14,7 +14,8 @@ namespace Source2.Compiler;
 /// <para>Fingerprint 0 is the preprocessor's absence: RC looks for <c>panorama/preprocessor_config.txt</c> in
 /// <c>core</c>, which no user install has. Valve's own build machine has it, so the scripts Valve ships record it as
 /// an input (fingerprint 6) and their DATA has comments and <c>Console.Log</c> calls blanked to spaces. That pass is
-/// not ported; a .ts source (its transpile) is not measured. Both are refused.</para>
+/// not ported. A .ts source is refused, as a user's RC refuses it ("Failed to find compiler": its TypeScript
+/// compiler loads a typescript.js no install has; ledger 200).</para>
 /// </summary>
 public static class ScriptAuthor
 {
@@ -36,7 +37,7 @@ public static class ScriptAuthor
     {
         ArgumentNullException.ThrowIfNull(source);
         if (!relativePath.EndsWith(".js", StringComparison.OrdinalIgnoreCase))
-            throw new NotSupportedException($"{relativePath}: only .js sources are measured (a .ts transpile is not ported)");
+            throw new NotSupportedException($"{relativePath}: only .js sources compile (resourcecompiler on a user's install compiles no .ts; transpile it to .js)");
         using var resource = new Resource();
         Source2ContainerAuthor.SetResourceVersion(resource, ResourceVersion);
         var red2 = Source2ContainerAuthor.BuildBinaryEditInfo(relativePath, source, SpecialDeps, null,

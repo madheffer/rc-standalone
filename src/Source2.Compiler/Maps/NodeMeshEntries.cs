@@ -132,45 +132,75 @@ internal static class NodeMeshEntries
     }
 
     /// <summary>
-    /// The streams a mesh's corners carry: its own faceVertexData streams in
-    /// the .vmap's order and, when any of its materials consumes
-    /// LowPrecisionUv1, a second texcoord after the first and
-    /// VertexPaintBlendParams at the end where missing, zero filled. Measured
-    /// on all 538 atixref entries matched to a mesh, subdivided ones included
-    /// (a mesh storing VertexPaintBlendParams with no such material keeps its
-    /// own streams); the code doing it is not read.
+    /// HammerMesh_UpdateExtraAttributeStreams' rows (1810dca50, table 18237b480 in the 09-23 build): the stream's
+    /// name, which a material input names case-blind, and AddExtraAttributeStream's (1810c27d0) default, a
+    /// per-vertex float4 (row +0x14 1, +0x18 3, defaults at +0x1c).
+    /// </summary>
+    private static readonly (string Name, float[] Default)[] ExtraStreams =
+    [
+        ("VertexPaintTintColor", [1, 1, 1, 1]), ("VertexPaintBlendParams", [0, 0, 0, 0]), ("VertexPaintBlendParams1", [0, 0, 0, 0]),
+    ];
+
+    /// <summary>
+    /// The streams a mesh's corners carry: its own faceVertexData streams in the .vmap's order, as
+    /// CMapMesh_NameSlotsAfterOverride (1810dcca0) leaves them with its second argument set (ledger 201), over
+    /// the inputs of all the mesh's materials:
+    /// <list type="bullet">
+    /// <item>texcoord 1 (the standard attribute row 5, 183014fa0): added after the first texcoord, zero filled,
+    /// when MaterialEditor_LowPrecisionUvInputs (1810d5f40) finds an input whose semantic the mesh semantic table
+    /// makes texcoord 1 and that starts with lowprecisionuv or uv (LowPrecisionUv1, Uv1; case-blind); removed
+    /// otherwise (1810d9930). The place after the first is measured (all 538 atixref entries matched to a mesh,
+    /// subdivided ones included).</item>
+    /// <item>Then HammerMesh_UpdateExtraAttributeStreams (1810dca50, called with 1): each of
+    /// <see cref="ExtraStreams"/> that no input names is removed (RemoveExtraAttributeStream, 1810d9e70), then
+    /// each that an input names and the mesh does not store is appended with its default
+    /// (AddExtraAttributeStream, 1810c27d0), in the table's order. Valve's s2c_coloradjust world node models
+    /// have VertexPaintTintColor, all FFFFFFFF, before VertexPaintBlendParams.</item>
+    /// </list>
     /// </summary>
     internal static MapMeshCorners.Piece WithPaintStreams(MapMeshCorners.Piece piece, IReadOnlySet<string> needs)
     {
-        var names = piece.Streams.Select(x => x.Name).ToList();
-        var blend = needs.Contains("LowPrecisionUv1");
-        if (!blend)
+        bool Reads(string name) => needs.Any(n => Io.Tier0Strings.EqualsIgnoreCase(n, name));
+        bool Stores(string name) => piece.Streams.Any(x => Io.Tier0Strings.EqualsIgnoreCase(x.Name, name));
+        var uv1 = Reads("LowPrecisionUv1") || Reads("Uv1");
+        var texcoords = piece.Streams.Count(x => x.Name == "texcoord");
+        var addTexcoord = uv1 && texcoords < 2;
+        var dropTexcoord = !uv1 && texcoords >= 2;
+        var drop = ExtraStreams.Where(x => !Reads(x.Name) && Stores(x.Name)).Select(x => x.Name).ToList();
+        var add = ExtraStreams.Where(x => Reads(x.Name) && !Stores(x.Name)).ToList();
+        if (!addTexcoord && !dropTexcoord && drop.Count == 0 && add.Count == 0)
             return piece;
-        var layout = piece.Streams.Select(x => (x.Name, x.Count, Source: (int?)x.First)).ToList();
-        if (names.Count(x => x == "texcoord") < 2)
-            layout.Insert(names.IndexOf("texcoord") + 1, ("texcoord", 2, null));
-        if (!names.Contains("VertexPaintBlendParams"))
-            layout.Add(("VertexPaintBlendParams", 4, null));
+        var layout = piece.Streams.Select(x => (x.Name, x.Count, Source: (int?)x.First, Default: (float[]?)null)).ToList();
+        var first = layout.FindIndex(x => x.Name == "texcoord");
+        if (addTexcoord)
+            layout.Insert(first + 1, ("texcoord", 2, null, null));
+        if (dropTexcoord)
+            layout.RemoveAt(layout.FindIndex(first + 1, x => x.Name == "texcoord"));
+        layout.RemoveAll(x => drop.Any(d => Io.Tier0Strings.EqualsIgnoreCase(d, x.Name)));
+        foreach (var (name, value) in add)
+            layout.Add((name, 4, null, value));
         var stride = layout.Sum(x => x.Count);
         var corners = piece.Vertices.Length / piece.Stride;
         var v = new float[corners * stride];
         for (var c = 0; c < corners; c++)
         {
             var at = c * stride;
-            foreach (var (_, count, source) in layout)
+            foreach (var (_, count, source, value) in layout)
             {
                 if (source is { } from)
                     Array.Copy(piece.Vertices, c * piece.Stride + from, v, at, count);
+                else if (value != null)
+                    Array.Copy(value, 0, v, at, count);
                 at += count;
             }
         }
         var streams = new List<Physics.MeshWeld.Stream>();
-        var first = 0;
-        foreach (var (name, count, _) in layout)
+        var offset = 0;
+        foreach (var (name, count, _, _) in layout)
         {
             var old = piece.Streams.FirstOrDefault(x => x.Name == name);
-            streams.Add(new Physics.MeshWeld.Stream(name, first, count, false, old.Name == name ? old.Type : 0));
-            first += count;
+            streams.Add(new Physics.MeshWeld.Stream(name, offset, count, false, old.Name == name ? old.Type : 0));
+            offset += count;
         }
         return piece with { Stride = stride, Vertices = v, Streams = streams };
     }

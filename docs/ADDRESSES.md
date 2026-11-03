@@ -22,7 +22,6 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `animationsystem_20261023.dll`, 9,329,816 bytes, PE time 2026-10-22 16:00 UTC
 - SHA-256 `8aa57d0c5b90cb49ad5fd9f141004710180a601b08159e50e93c4470142ea132`
 - installed: a different build
-- against the installed build (20261101_1.41.9.4.md): 9 tracked addresses: identical 9
 - 9 addresses
 
 ### s2c:entities/settle
@@ -44,7 +43,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `bc7e_20261015.dll`, 1,529,856 bytes, PE time 2022-05-26 03:42 UTC
 - SHA-256 `a340167d3d9e2576b7d0d1ade6d9a290c10b9c747ac7f621e4da3b4dfc1196ee`
 - installed: this build
-- against the installed build (20261101_1.41.9.4.md): 5 tracked addresses: identical 5
+- against the installed build (20261103_1.41.9.5.md): 5 tracked addresses: identical 5
 - 5 addresses
 
 ### s2c:baked/lighting
@@ -144,7 +143,6 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `hammer_20260924.dll`, 39,597,208 bytes, PE time 2026-09-23 22:00 UTC
 - SHA-256 `c638a81a542ab960e2a51cceaa4d5cfeaa62fa555df117be8293bdc887cb1395`
 - installed: a different build
-- against the installed build (20261101_1.41.9.4.md): 12 tracked addresses: ambiguous 1, moved 11
 - 11 addresses
 
 ### s2c:containers/compile-map
@@ -168,7 +166,6 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `materialsystem2_20261001.dll`, 1,429,144 bytes, PE time 2026-09-30 18:55 UTC
 - SHA-256 `336abe089468bd5b218f773f09da3942fa9346b7f49f24d9e3591722fc54c5e6`
 - installed: a different build
-- against the installed build (20261101_1.41.9.4.md): 16 tracked addresses: identical 9, relocated 7
 - 1 addresses
 
 ### s2c:physics/material-sampler
@@ -182,7 +179,6 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `materialsystem2_20261015.dll`, 1,429,144 bytes, PE time 2026-10-14 18:39 UTC
 - SHA-256 `b4d5c667eb65f13d9193d743a88eb1f9dfa623cc8f745cef764d9977969e38b6`
 - installed: a different build
-- against the installed build (20261101_1.41.9.4.md): 16 tracked addresses: identical 9, relocated 7
 - 16 addresses
 
 ### s2c:infra
@@ -215,8 +211,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 - file: `materialsystem2_20261029.dll`, 1,428,632 bytes, PE time 2026-10-23 21:51 UTC
 - SHA-256 `f96093bbbc3f1b6df0fba856e37af60e774d9049e4b83dfd8aa69cc6ae9ead8e`
-- installed: this build
-- against the installed build (20261101_1.41.9.4.md): 16 tracked addresses: identical 9, relocated 7
+- installed: a different build
 - 1 addresses
 
 ### s2c:infra
@@ -230,7 +225,6 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `meshsystem_20260923.dll`, 1,664,664 bytes, PE time 2026-09-21 20:51 UTC
 - SHA-256 `11203f370437e5d55dbec46f530812b6a6f92c894e8f1c85f3c3b6e8773dc1d6`
 - installed: a different build
-- against the installed build (20261101_1.41.9.4.md): 11 tracked addresses: identical 10, relocated 1
 - 7 addresses
 
 ### s2c:baked/light-keys
@@ -255,7 +249,6 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `modtools_20261015.dll`, 17,944,216 bytes, PE time 2026-10-14 18:40 UTC
 - SHA-256 `31a29e428fd5e9bacf66614e7d11a44d273cdd74636bb3c45256e541655c18d6`
 - installed: a different build
-- against the installed build (20261101_1.41.9.4.md): 20 tracked addresses: moved 19, relocated 1
 - 19 addresses
 
 ### s2c:baked/bomb
@@ -287,7 +280,6 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `modtools_20261023.dll`, 17,946,264 bytes, PE time 2026-10-22 16:02 UTC
 - SHA-256 `c9c4d68a8a235ed541f4ca07eae1f02b94830cceba94bc37f55e7cc9f1b18b68`
 - installed: a different build
-- against the installed build (20261101_1.41.9.4.md): 20 tracked addresses: moved 19, relocated 1
 - 1 addresses
 
 ### s2c:containers
@@ -301,7 +293,6 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `navsystem_20261015.dll`, 1,314,968 bytes, PE time 2026-10-14 18:39 UTC
 - SHA-256 `919803ec647ac53c95524a6be8193fb19fddede2936ed05a8b8cda984f33098e`
 - installed: a different build
-- against the installed build (20261101_1.41.9.4.md): 251 tracked addresses: identical 246, relocated 5
 - 250 addresses
 
 ### s2c:baked/navgen
@@ -564,7 +555,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `phonon_20260923.dll`, 53,322,904 bytes, PE time 2026-08-03 21:30 UTC
 - SHA-256 `a97c891d49619e6d6dc3cbad8d64db1648db8dc6efcfe1d01378e90c954161ea`
 - installed: this build
-- against the installed build (20261101_1.41.9.4.md): 29 tracked addresses: identical 29
+- against the installed build (20261103_1.41.9.5.md): 29 tracked addresses: identical 29
 - 27 addresses
 
 ### s2c:baked/steamaudio
@@ -604,7 +595,6 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `physicsbuilder_20260924.dll`, 13,936,280 bytes, PE time 2026-09-23 21:59 UTC
 - SHA-256 `1c324870ffbf4ece889329238a340cecb2fcbedd44664d06c4eedce1729c391b`
 - installed: a different build
-- against the installed build (20261101_1.41.9.4.md): 95 tracked addresses: ambiguous 1, changed 4, identical 4, moved 86
 - 89 addresses
 
 ### s2c:geometry/props
@@ -730,8 +720,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 - file: `rendersystemdx11_20261029.dll`, 4,545,688 bytes, PE time 2026-10-23 21:51 UTC
 - SHA-256 `4d517b70af02d1c835f53a2e43e9ec951f03a294102226f905763bafbe54a4ae`
-- installed: this build
-- against the installed build (20261101_1.41.9.4.md): 0 tracked addresses:
+- installed: a different build
 - 5 addresses
 
 ### s2c:infra
@@ -749,7 +738,6 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `rendersystemvulkan_20261015.dll`, 6,248,600 bytes, PE time 2026-10-14 18:39 UTC
 - SHA-256 `2febd86471b9ed1953e75875296f3e76999661f1e86cb68e928c0cb12a2afb4a`
 - installed: a different build
-- against the installed build (20261101_1.41.9.4.md): 5 tracked addresses: moved 5
 - 3 addresses
 
 ### s2c:baked/lighting
@@ -764,8 +752,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 - file: `rendersystemvulkan_20261029.dll`, 6,249,624 bytes, PE time 2026-10-23 21:51 UTC
 - SHA-256 `5b98ea77b77e4f1be27f1a8254618d06ff1659798ee9d9887e9444fe4943668d`
-- installed: this build
-- against the installed build (20261101_1.41.9.4.md): 5 tracked addresses: moved 5
+- installed: a different build
 - 1 addresses
 
 ### s2c:infra
@@ -779,8 +766,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `resourcecompiler_20260923.dll`, 56,313,496 bytes, PE time 2026-09-22 19:17 UTC
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
-- against the installed build (20261101_1.41.9.4.md): 1334 tracked addresses: ambiguous 81, changed 23, identical 7, moved 1220, relocated 3
-- 1252 addresses
+- 1259 addresses
 
 ### s2c:baked/light-keys
 
@@ -1425,7 +1411,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18105ce70` | `PhysMesh_OwnerRules` | the owner entity's physics rules | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:140`, `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:252`, `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:312` |
 | `18105d760` | `PhysMesh_Build` | a map mesh's static body and shapes | `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:33`, `src/Source2.Compiler/Maps/SettleWorld.World.cs:43` |
 | `18105dbd0` | `PhysPart_BuildFromModel` |  | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:13`, `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:50`, `src/Source2.Compiler/Maps/SettleWorld.cs:20` +6 |
-| `1810dcca0` | `CMapMesh_NameSlotsAfterOverride` |  | `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:196` |
+| `1810dcca0` | `CMapMesh_NameSlotsAfterOverride` | with arg 2 set (ledger 201): texcoord 1 by MaterialEditor_LowPrecisionUvInputs (add 181087410 attribute 5, remove 1810d9930; face textureAxisU/V 1 and textureScale 1 alongside), then HammerMesh_UpdateExtraAttributeStreams(mesh, 1) | `src/Source2.Compiler/Maps/NodeMeshEntries.cs:146`, `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:196` |
 | `1812d87e0` | `CMesh_JoinVertices` |  | `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:349` |
 | `181749980` | `BonePose_IndexOfName` | first entry whose name (+0x20, 0x30 each) equals, case ignored unless the flag | `src/Source2.Compiler/Maps/SettleWorld.WriteBack.cs:83` |
 | `181749d20` | `BonePose_Find` | a bone's transform by name hash; the aggregate pose's override (rc 18105e18a) | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:213` |
@@ -1449,7 +1435,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180d47810` | `DmeMeshToCMeshes` |  |  |
 | `180d47b90` | `DmeMeshToCMesh` | stream layout from the DMX; CMesh +0x184 = V_powf(2, the face set's lightmapScaleBias) | `src/Source2.Compiler/Maps/NodeMeshEntries.cs:53` |
 | `180d5c570` | `CMesh_WriteDmeMesh` |  |  |
-| `180f0ea90` | `MapDoc_ApplyVertexLighting` | per mesh instance, the CDmeNodeInstanceData by node path: vertexLightingData (RGBA8 per face vertex) into PerVertexLighting as byte / 255; 180f0dc80 when none matches | `src/Source2.Compiler/Maps/NodeMeshEntries.cs:17`, `src/Source2.Compiler/Maps/NodeMeshEntries.cs:223` |
+| `180f0ea90` | `MapDoc_ApplyVertexLighting` | per mesh instance, the CDmeNodeInstanceData by node path: vertexLightingData (RGBA8 per face vertex) into PerVertexLighting as byte / 255; 180f0dc80 when none matches | `src/Source2.Compiler/Maps/NodeMeshEntries.cs:17`, `src/Source2.Compiler/Maps/NodeMeshEntries.cs:253` |
 | `180f6ffc0` | `VisibilityMgr_IsNodeVisible` | the parent visible first (recursive), the manager's hidden sets, then vf 0x358 (CMapNode_PassesFilter 180f77240) with the manager's flags; force_hidden so hides a node and all below it | `src/Source2.Compiler/Maps/MapEntities.cs:299`, `src/Source2.Compiler/Maps/MapEntities.cs:360`, `src/Source2.Compiler/Maps/MapEntityList.cs:270` |
 | `180f72fb0` | `VisibilityMgr_UpdateNode` | a node's visibility state: 180f6ffc0, stored through vf 0x608 at +0x370, then the instance and target flags |  |
 | `180f74350` | `MapNode_GetMeshBuffersForwarder` |  |  |
@@ -1475,17 +1461,22 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `181076a70` | `CMapDeformer_MoveNode` | pivot o step o pivot^-1 o node (CTransform_Compose 181253510 each, renormalising), its angles through QuaternionAngles (181260200) | `src/Source2.Compiler/Maps/PathDeformer.cs:54`, `src/Source2.Compiler/Maps/PathDeformer.cs:145`, `src/Source2.Compiler/Maps/PathDeformer.cs:166` +2 |
 | `181081be0` | `CMapMesh_CopyFrom` | CMapMesh vf 0x3d8 (the collapse's node copy, 180f86650): a fixed property list without renderwithdynamic, fademindist, fademaxdist or keep_vertices (ledger 164) | `src/Source2.Compiler/Maps/NodeEntryHeader.cs:71`, `src/Source2.Compiler/Maps/NodeMeshEntries.cs:124` |
 | `181086b70` | `CMapMesh_Ctor` | fademindist -1 (+0x3b50), fademaxdist 0 (+0x3b54), renderwithdynamic 0 (+0x3b74), keep_vertices 0 (+0x3b76); CMapStaticOverlay's factory 18118fb60 runs it | `src/Source2.Compiler/Maps/NodeEntryHeader.cs:74` |
+| `181087410` | `HammerMesh_AddStandardAttribute` | standard attribute n of 183014fa0 into the grid (its slot word at +0x5b8 + 2n) when absent (ledger 201) |  |
 | `1810be450` | `CMapPath_HiddenState` | the path's +0x3c8, else 2 when a CMapPathNode child's is set; 18117aeb0 skips the recentre on non-zero | `src/Source2.Compiler/Maps/PathDeformer.cs:59` |
 | `1810c1eb0` | `HammerMesh_CopyFrom` |  |  |
+| `1810c27d0` | `AddExtraAttributeStream` | row n of 18237b480: per-vertex (+0x14 1) into the attribute grid +0xb20 (5 x 6 slots of 0x30, name +0x18, index +0x32) by name and index; a new one through 1810c1f70 with the row's type byte (+0x18) and defaults (+0x1c); an existing one keeps its data (ledger 201) | `src/Source2.Compiler/Maps/NodeMeshEntries.cs:136`, `src/Source2.Compiler/Maps/NodeMeshEntries.cs:157` |
 | `1810c4000` | `HammerMesh_ApplyDeformer` | positions (and normal / tangent streams) through PropDeformer_Transform with the node matrix; mirror flips faces | `src/Source2.Compiler/Maps/MapDeformers.cs:7`, `src/Source2.Compiler/Maps/MapDeformers.cs:102` |
 | `1810c4000` | `HammerMesh_ApplyDeformer` |  | `src/Source2.Compiler/Maps/MapDeformers.cs:7`, `src/Source2.Compiler/Maps/MapDeformers.cs:102` |
 | `1810c4e50` | `HammerMesh_TransformToWorld` | normals and tangents rotated, not renormalised | `src/Source2.Compiler/Maps/NodeMeshEntries.cs:13` |
-| `1810d5f40` | `MaterialEditor_LowPrecisionUvInputs` | shader inputs named LowPrecisionUv*/uv* by texcoord index; editor UI, not the compile |  |
+| `1810d5f40` | `MaterialEditor_LowPrecisionUvInputs` | per material input (Material_GetInputList), the texcoord index the mesh semantic table (181366d90) gives a semantic starting with lowprecisionuv or uv; CMapMesh_NameSlotsAfterOverride adds texcoord 1 when one is 1, else removes it (ledger 201) | `src/Source2.Compiler/Maps/NodeMeshEntries.cs:150` |
 | `1810d93c0` | `HammerMesh_ShiftTexcoordIslands` |  | `src/Source2.Compiler/Maps/MapMeshCorners.cs:318` |
+| `1810d9930` | `HammerMesh_RemoveStandardAttribute` | clears standard attribute n's slot (+0x5b8 + 2n) and its data (ledger 201) | `src/Source2.Compiler/Maps/NodeMeshEntries.cs:152` |
 | `1810d9ca0` | `RemoveBadFaces` | CMapMesh_ConvertMeshForBuilder: removes every face 1813a5ec0 rejects (the polygon triangulator cannot cut it whole on its own positions), triangles included | `src/Source2.Compiler/Maps/MapMeshCorners.cs:134`, `src/Source2.Compiler/Maps/MapMeshCorners.cs:160` |
+| `1810d9e70` | `RemoveExtraAttributeStream` | row n of 18237b480: the slot of that name and index removed from +0xb20 (1810d9630) and the face-vertex grid +0x1570 (1810da2a0) (ledger 201) | `src/Source2.Compiler/Maps/NodeMeshEntries.cs:155` |
 | `1810db6a0` | `HammerMesh_SnapVertices` | positions rounded to a grid of the mesh's +0x39e8 when above 0 (floor(p / g + 0.5) * g) | `src/Source2.Compiler/Maps/NodeOverlays.cs:221` |
-| `1810dca50` | `HammerMesh_UpdateExtraAttributeStreams` | adds VertexPaintTintColor / VertexPaintBlendParams / VertexPaintBlendParams1 when a material input has that name (table 18237b480); arg 2 removes unwanted ones (ledger 164) |  |
+| `1810dca50` | `HammerMesh_UpdateExtraAttributeStreams` | with arg 2 set removes VertexPaintTintColor / VertexPaintBlendParams / VertexPaintBlendParams1 no material input names, then adds the ones an input names (table 18237b480: per-vertex float4, defaults 1,1,1,1 / 0 / 0) in that order (ledgers 164, 201) | `src/Source2.Compiler/Maps/NodeMeshEntries.cs:135`, `src/Source2.Compiler/Maps/NodeMeshEntries.cs:154` |
 | `1810dff20` | `CMapMesh_ConvertMeshForBuilder` | the DMX of the mesh the builder reads; DmeMesh attributes collisionGroup, interactAs/With/Exclude; the builder record keeps collision property (+0xa0), group, as, with (+0xb8) but no exclude, then detail layers (vf 0x6b0) and the simplification error (vf 0x6c0, +0x90) | `src/Source2.Compiler/Maps/MapDeformers.cs:7`, `src/Source2.Compiler/Maps/MapMeshCorners.cs:17`, `src/Source2.Compiler/Maps/MapMeshCorners.cs:279` +1 |
+| `1810dfff0` | `ConvertMeshForBuilder_KeepsTexcoords` | inside 1810dff20: per material, bool attribute HasTexcoordTransform (0x2661694a, vf 0x48) 1, or 0x7c928c7c present and 0, stops the texcoord shift (ledger 201) |  |
 | `1810e7020` | `HammerMesh_TexcoordsOutOfRange` | outside +-1.03125 | `src/Source2.Compiler/Maps/MapMeshCorners.cs:319`, `src/Source2.Compiler/Maps/NodeMeshEntries.cs:48` |
 | `1810e9960` | `CMapMesh_SetRenderWithDynamic` | +0x3b74; the property's getter is 1810e6fa0 |  |
 | `181114940` | `MapInstance_DeltaMatrix` | AngleMatrixDouble (1811145c0) of the new placement times MatrixInvert (18125aba0) of the old |  |
@@ -1545,6 +1536,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `182080440` | `TangentSpace_TriangleTangents` |  | `src/Source2.Compiler/Maps/MeshTangents.cs:13` |
 | `1820807b0` | `TangentSpace_GroupCorners` |  | `src/Source2.Compiler/Maps/MeshTangents.cs:16` |
 | `182080a60` | `TangentSpace_Generate` | weld on equal position, normal, texcoord; triangle tangents; corner groups; angle-weighted sums; MeshTangents.cs | `src/Source2.Compiler/Maps/MeshTangents.cs:8` |
+| `18237b480` | `ExtraAttributeStreamTable` | data: 0x38-byte rows {name, index +8, +0xc, +0x10, element kind +0x14 (1 vertex, 3 face), type byte +0x18, float4 default +0x1c}: VertexPaintTintColor (1,1,1,1), VertexPaintBlendParams 0, VertexPaintBlendParams1 0, then PerVertexLighting and VertexPaintDetailWeight (outside 1810dca50's three) (ledger 201) | `src/Source2.Compiler/Maps/NodeMeshEntries.cs:135` |
+| `183014fa0` | `MeshStandardAttributeNames` | data: 23 standard mesh attributes (position, normal, tangent, color, texcoord 0, texcoord 1, materialindex, blendweight 0-3, blendindex 0-3, textureAxisU/V 0-1, textureScale 0-1, flags, lightmapScaleBias); indices at 18243e6d0, counts at 18243e730 (ledger 201) | `src/Source2.Compiler/Maps/NodeMeshEntries.cs:149` |
 
 ### s2c:geometry/overlays
 
@@ -1768,7 +1761,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180306280` | `CMeshletBuilder_BuildDraw` | meshlets per triangle range (bone 0xfffe), the new index buffer, then vertex fetch remap |  |
 | `18033f200` | `ModelCompile_WeldMeshes` | CMesh_Weld at 1e-7 over the model's meshes (via 1803447d0) |  |
 | `1803447d0` | `ModelCompile_WeldMesh` | tangents (CMesh_ComputeTangents) unless preserved, UseMikkTSpace, then CMesh_Weld at the given tolerance |  |
-| `180d46590` | `DmeMeshToCMesh_CopyAttribute` | one vertex attribute by type (+0x1c & 0x3f): float3 points through the matrix, directions turned by it and renormalised (zero length: +0s), float4 directions the same with w kept; the map path hands an identity whose zeros are all +0 | `src/Source2.Compiler/Maps/NodeMeshEntries.cs:195`, `src/Source2.Compiler/Maps/NodeMeshEntries.cs:203` |
+| `180d46590` | `DmeMeshToCMesh_CopyAttribute` | one vertex attribute by type (+0x1c & 0x3f): float3 points through the matrix, directions turned by it and renormalised (zero length: +0s), float4 directions the same with w kept; the map path hands an identity whose zeros are all +0 | `src/Source2.Compiler/Maps/NodeMeshEntries.cs:225`, `src/Source2.Compiler/Maps/NodeMeshEntries.cs:233` |
 | `180d4a120` | `Texcoords_AnyAbove16` | true when any of a two-float stream's components passes 16 in magnitude | `src/Source2.Compiler/Maps/NodeDraw.cs:48`, `src/Source2.Compiler/Maps/WrbMeshEntry.cs:76`, `src/Source2.Compiler/Maps/WrbMeshEntry.cs:80` |
 | `180dfadd0` | `InputSignature_Unserialize` | m_elems, then m_depth_elems at +0x18 |  |
 | `18126a830` | `PackedAABB_Pack` | 10 bits an axis inside the bounds, min floored, max ceiled | `src/Source2.Compiler/Meshopt/MeshletBounds.cs:31` |
@@ -2180,7 +2173,6 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `resourcecompiler_20261006.dll`, 56,323,736 bytes, PE time 2026-10-05 21:03 UTC
 - SHA-256 `e2cd4c06976ee54ab8d32a6b109e7adcb7b551c02766cd0c6954b492b0aedbe3`
 - installed: a different build
-- against the installed build (20261101_1.41.9.4.md): 1334 tracked addresses: ambiguous 81, changed 23, identical 7, moved 1220, relocated 3
 - 10 addresses
 
 ### s2c:entities
@@ -2208,7 +2200,6 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `resourcecompiler_20261015.dll`, 56,337,048 bytes, PE time 2026-10-14 18:44 UTC
 - SHA-256 `204e16e550fd3936585bd467303b9b2033fdd7de9f1038c045095b3f5e15ac78`
 - installed: a different build
-- against the installed build (20261101_1.41.9.4.md): 1334 tracked addresses: ambiguous 81, changed 23, identical 7, moved 1220, relocated 3
 - 1 addresses
 
 ### s2c:baked/nav
@@ -2222,7 +2213,6 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `resourcecompiler_20261023.dll`, 56,351,896 bytes, PE time 2026-10-22 16:05 UTC
 - SHA-256 `eee3b5a3cbb92359ce8fffdf7cf1c83e938b03202daef8277c575bda42cc8d7a`
 - installed: a different build
-- against the installed build (20261101_1.41.9.4.md): 1334 tracked addresses: ambiguous 81, changed 23, identical 7, moved 1220, relocated 3
 - 3 addresses
 
 ### s2c:containers
@@ -2237,8 +2227,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 - file: `resourcecompiler_20261029.dll`, 56,351,896 bytes, PE time 2026-10-28 15:42 UTC
 - SHA-256 `a253dd2e183296ef8b545ce53bf165185c0edb0d0cd54c72df49f6dbfa845615`
-- installed: this build
-- against the installed build (20261101_1.41.9.4.md): 1334 tracked addresses: ambiguous 81, changed 23, identical 7, moved 1220, relocated 3
+- installed: a different build
 - 2 addresses
 
 ### s2c:baked/steamaudio
@@ -2253,7 +2242,6 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `scenesystem_20261015.dll`, 7,094,936 bytes, PE time 2026-10-14 18:43 UTC
 - SHA-256 `040eb851fa7875523346b890f1ed6e158abc59e08bccbd8dc60539435277efa5`
 - installed: a different build
-- against the installed build (20261101_1.41.9.4.md): 112 tracked addresses: identical 65, relocated 47
 - 108 addresses
 
 ### s2c:baked/lighting
@@ -2379,7 +2367,6 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `scenesystem_20261023.dll`, 7,094,936 bytes, PE time 2026-10-22 16:02 UTC
 - SHA-256 `0f17ccdc083290a496e6ac13e4fe54413077ad2b83b7dfd281749cffd2733d9b`
 - installed: a different build
-- against the installed build (20261101_1.41.9.4.md): 112 tracked addresses: identical 65, relocated 47
 - 4 addresses
 
 ### s2c:baked/lighting
@@ -2474,7 +2461,6 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `smartprops_20260923.dll`, 1,511,576 bytes, PE time 2026-09-21 21:05 UTC
 - SHA-256 `383e57f1eb82a84157e537050a81fa598a4676389598778bdd9ea4167ea16545`
 - installed: a different build
-- against the installed build (20261101_1.41.9.4.md): 30 tracked addresses: identical 22, relocated 8
 - 30 addresses
 
 ### s2c:smartprops
@@ -2517,7 +2503,6 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `steamaudio_20261023.dll`, 3,547,288 bytes, PE time 2026-10-22 16:00 UTC
 - SHA-256 `50a9eb97250dd9bc09c03b8c3abadb8f2c971712dc94db020d6a1c1691de5d1c`
 - installed: a different build
-- against the installed build (20261101_1.41.9.4.md): 20 tracked addresses: identical 20
 - 17 addresses
 
 ### s2c:baked/steamaudio
@@ -2547,7 +2532,6 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `tier0_20260923.dll`, 3,979,416 bytes, PE time 2026-09-21 20:48 UTC
 - SHA-256 `4e0dcb0af3f6953f37ddaed0f4e67a56d031f1e84964a262148f8a6f80547791`
 - installed: a different build
-- against the installed build (20261101_1.41.9.4.md): 67 tracked addresses: changed 9, identical 32, missing 1, moved 22, relocated 3
 - 52 addresses
 
 ### s2c:baked/bomb
@@ -2627,7 +2611,6 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `tier0_20261015.dll`, 3,979,928 bytes, PE time 2026-10-14 18:37 UTC
 - SHA-256 `990ea56bf1626d299ba54b64b423f2e409bd592bb737c7a5edf7972ad5c7143e`
 - installed: a different build
-- against the installed build (20261101_1.41.9.4.md): 67 tracked addresses: changed 9, identical 32, missing 1, moved 22, relocated 3
 - 11 addresses
 
 ### s2c:io
@@ -2651,7 +2634,6 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `visbuilder_20260923.dll`, 1,855,640 bytes, PE time 2026-09-21 20:55 UTC
 - SHA-256 `4381c507be2cc8f783a0cd262e18759bb1ef0399ba2ca2deef6d236cde17c3cf`
 - installed: a different build
-- against the installed build (20261101_1.41.9.4.md): 201 tracked addresses: changed 36, identical 123, relocated 42
 - 200 addresses
 
 ### s2c:visibility
@@ -2864,7 +2846,6 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `vphysics2_20260924.dll`, 4,829,848 bytes, PE time 2026-09-23 21:58 UTC
 - SHA-256 `0f896375fa9233196e3de769f23ce3c21907c1adab81a786418822da75518228`
 - installed: a different build
-- against the installed build (20261101_1.41.9.4.md): 625 tracked addresses: changed 16, identical 391, moved 1, relocated 217
 - 625 addresses
 
 ### s2c:baked/bomb
@@ -3542,7 +3523,6 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `vrad3_20261001.dll`, 3,269,272 bytes, PE time 2026-09-30 18:56 UTC
 - SHA-256 `172f7513161afca8e7c28fed95bb0abe9fae58f4377b49eea1bf9ae9322b722c`
 - installed: a different build
-- against the installed build (20261101_1.41.9.4.md): 412 tracked addresses: identical 271, relocated 141
 - 410 addresses
 
 ### s2c:baked/vrad3
@@ -3965,7 +3945,6 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `worldrenderer_20261023.dll`, 2,029,720 bytes, PE time 2026-10-22 16:00 UTC
 - SHA-256 `e0b1ed04a652f8268fd9d6b75b5a97910ab57197e2cdb8a0a4966703a5ec8322`
 - installed: a different build
-- against the installed build (20261101_1.41.9.4.md): 4 tracked addresses: identical 4
 - 3 addresses
 
 ### s2c:baked/lighting

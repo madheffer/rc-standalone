@@ -311,6 +311,37 @@ public class NodeEntriesFromVmap(ITestOutputHelper output)
         Assert.Empty(problems);
     }
 
+    /// <summary>
+    /// Exploration (<c>NODEENTRIES_LAYOUTS=&lt;vmap&gt;[;...]</c>): each <see cref="NodeMeshEntries.FromWorld"/>
+    /// entry's stream list with its material's input signature, one line per entry, for diffing two builds.
+    /// </summary>
+    [Fact]
+    public void EntryStreamLists()
+    {
+        if (Environment.GetEnvironmentVariable("NODEENTRIES_LAYOUTS") is not { Length: > 0 } vmaps || CS2Fixtures.StockPak() is not { } pak)
+            return;
+        var game = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(pak)!, ".."));
+        foreach (var vmap in vmaps.Split(';'))
+        {
+            var addon = Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(vmap)))!;
+            using var content = new GameContent(pak, Path.Combine(game, "csgo_addons", addon));
+            IReadOnlyCollection<string> Signature(string material) => content.Read(material + "_c") is { } b
+                ? [.. MaterialAuthor.ExtractInputSignature(b).Select(x => x.Semantic)] : [];
+            List<NodeMeshEntries.Entry> ours;
+            try
+            {
+                ours = NodeMeshEntries.FromWorld(MapSource.Read(vmap), signature: Signature, rendersAsWorld: RendersAsWorld(game));
+            }
+            catch (Exception ex)
+            {
+                output.WriteLine($"{Path.GetFileNameWithoutExtension(vmap)}: {ex.GetType().Name} {ex.Message}");
+                continue;
+            }
+            foreach (var (e, i) in ours.Select((e, i) => (e, i)))
+                output.WriteLine($"{Path.GetFileNameWithoutExtension(vmap)} {i} node {string.Join(".", e.Instances.Append(e.NodeId))} {e.Material}: {string.Join(" ", e.Streams.Select(s => $"{s.Name}{s.Count}"))} | {string.Join(" ", Signature(e.Material))}");
+        }
+    }
+
     /// <summary>Exploration (<c>NODEENTRIES_STREAMS=1</c>): each world mesh's faceVertexData stream list, tallied.</summary>
     [Fact]
     public void VmapStreamLists()

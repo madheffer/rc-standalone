@@ -5312,7 +5312,17 @@ game can answer is raised with the user first, and runs with -insecure.
        blanked to spaces of the same length: that is Valve's build machine, not a user's compile. RC on this install
        rewrote all seven without the input and with fingerprint 0, 48 bytes smaller each.
      - Ported: ScriptAuthor (s2c compile <in.js>); ScriptAuthorTests checks all seven byte for byte. Not ported: the
-       preprocessor's pass (its config is not on any install) and .ts sources (not measured).
+       preprocessor's pass (its config is not on any install).
+     - .ts sources (2026-11-03, 1.41.9.5 tools, CS2 open; measured): RC on this install compiles no .ts. A probe with
+       types, enums, a class and imports (copy in %TEMP%/s2c_tsprobe.ts), at maps/scripts/ and at panorama/scripts/,
+       and the same file named .vts, each give "Failed to find compiler" and write nothing. RC holds a
+       CompileTypeScript compiler ("TypeScript Compiler Version") that loads
+       sdktools/bin/win64/typescriptcompiler/typescript.js, which no install here has (no sdktools/ next to game/;
+       only sdk_tools/plugins). The preprocessor (rc 1103 18011cbc0) maps resource type vjs to "js" and vts to "ts",
+       so .vts is a Panorama type. cs_script_demo's tsconfig.json is noEmit + checkJs: TypeScript is used there to
+       type-check the .js. So on a user's install a .ts script is transpiled by its author and the .js is compiled;
+       ScriptAuthor refuses .ts as RC does. Not read: why the compiler is not found (whether its registration needs
+       typescript.js).
 
 201. **s2c_coloradjust against Valve: streams a material adds, and what follows** (2026-11-02, CS2 open; measured:
      Valve's full compile of the specimen on driver 32.0.16.1088, %TEMP%/fresh_compile/s2c_coloradjust.vpk, against
@@ -5332,6 +5342,45 @@ game can answer is raised with the user first, and runs with -insecure.
        WRBMeshList_PrepareForMerge, 1802b52d0 in 0923, and its 1029 counterpart), with its fill values and
        placement; port it in place of WithPaintStreams' fitted rule; then rerun the specimen and take the nav, the
        UV density and the bake in that order.
+     - 2026-11-03 (CS2 open; resourcecompiler 0923 through ReVa and capstone; materialsystem2 1015): the streams are
+       read and ported (NodeMeshEntries.WithPaintStreams). They are not added at the merge: CMapMesh_NameSlotsAfterOverride
+       (1810dcca0), with its second argument set, over the inputs of all the mesh's materials, (1) adds texcoord 1
+       (standard attribute row 5 of 183014fa0, through 181087410) when MaterialEditor_LowPrecisionUvInputs
+       (1810d5f40) finds an input that the mesh semantic table (181366d90) makes texcoord 1 and whose semantic
+       starts with lowprecisionuv or uv, else removes it (1810d9930); (2) calls HammerMesh_UpdateExtraAttributeStreams
+       (1810dca50) with 1, which removes (RemoveExtraAttributeStream 1810d9e70) each of VertexPaintTintColor,
+       VertexPaintBlendParams and VertexPaintBlendParams1 that no input names (V_stricmp), then appends
+       (AddExtraAttributeStream 1810c27d0) each that one names and the mesh lacks, in that order. The rows (table
+       18237b480, 0x38 bytes) are per-vertex (+0x14 1) float4 (+0x18 3) with defaults (1, 1, 1, 1), 0 and 0. The only
+       direct caller is 1810dcca0 (the other references are unwind data). Not read: which of 1810dcca0's ten callers
+       the compile goes through.
+     - Checked: over 199 corpus .vmaps (153,133 entries, NodeEntriesFromVmap.EntryStreamLists) the port changes 19
+       entries against the fitted rule: s2c_coloradjust's 13, and 6 of s2c_rs_s2c_dec_ze_hold_em_p (a decompiler
+       round trip whose meshes store no paint streams; concrete_slabs_wet_1 reads VertexPaintBlendParams without
+       LowPrecisionUv1, which the fitted rule missed; not checked against Valve: resourcecompiler 1103 crashes on
+       that .vmap, exit 0xC0000005 from compile_fresh.py -world -fshallow --cs2-open, which is a lead for the map
+       decompiler). The removals change no corpus entry: per mesh, no mesh stores a
+       paint stream or a second texcoord that none of its materials reads (atixref, ze_hold_em_p, c2m2's
+       environment prefab checked per mesh).
+     - s2c_coloradjust after the port (full_compile_test.py --cs2-open --no-cubemaps): both node models' layouts are
+       Valve's (stride 40, COLOR 0 VertexPaintTintColor R8G8B8A8_UNORM at 32, every vertex FFFFFFFF), and
+       cobblestone_ground_large_1's main vertex buffer is Valve's byte for byte. Still 18 of 25 files; two causes left,
+       both OPEN:
+       - cobblestone_ground_large_1's second vertex buffer (NORMAL 0 R32_UINT, 314 x 4 = 1256 bytes): Valve stores it
+         raw (m_bMeshoptCompressed 0), ours meshopt-encoded, and our encoding is exactly 1256 bytes. That fits "keep
+         the codec's output only when smaller", the rule WorldNodeModels already uses for the index buffer, but
+         neither is read. The flag is +0xc of the buffer record (schema binder 1817b2700); its writer is not found
+         yet (a scan for the codec's 0xa0 header byte gives 40 functions).
+       - italy_cobblestone_01's texcoord 0 is shifted by Valve (11.5 -> 4.5) and not by us: the material is
+         csgo_environment with g_flTexCoordRotation1 90 and no g_nUVSet1. ConvertMeshForBuilder (1810dfff0 ..
+         1810e006c) keeps texcoords when the loaded material's bool attribute HasTexcoordTransform (0x2661694a,
+         vf 0x48) is 1. Its expression in csgo_environment is (g_nUVSet1>0 && (scale1.x!=1 || scale1.y!=1 ||
+         rotation1!=0)) ? 1 : 0 and g_nUVSet1's declared default is 1 (features, vs, ps; register Int4), so
+         KeepsTexcoords' reading (missing parameter = declared default) gives "keep", and Valve's output says the
+         attribute was 0 here. materialsystem2 1800137d0 adds a declared default (1800135f0) for an artist variable
+         the material lacks only under conditions on the description's +0xec, +0xf4 and +0xf8, and when the
+         attribute expression is evaluated against that is not read. Settle it by reading that order, or capture the
+         attribute in resourcecompiler (CS2 closed: Frida), before changing KeepsTexcoords.
 
 ## Resolved
 

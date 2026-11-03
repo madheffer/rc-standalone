@@ -1138,7 +1138,49 @@
    "addr": "1810dca50",
    "name": "HammerMesh_UpdateExtraAttributeStreams",
    "module": "s2c:geometry/mesh-export",
-   "note": "adds VertexPaintTintColor / VertexPaintBlendParams / VertexPaintBlendParams1 when a material input has that name (table 18237b480); arg 2 removes unwanted ones (ledger 164)"
+   "note": "with arg 2 set removes VertexPaintTintColor / VertexPaintBlendParams / VertexPaintBlendParams1 no material input names, then adds the ones an input names (table 18237b480: per-vertex float4, defaults 1,1,1,1 / 0 / 0) in that order (ledgers 164, 201)"
+  },
+  {
+   "addr": "1810c27d0",
+   "name": "AddExtraAttributeStream",
+   "module": "s2c:geometry/mesh-export",
+   "note": "row n of 18237b480: per-vertex (+0x14 1) into the attribute grid +0xb20 (5 x 6 slots of 0x30, name +0x18, index +0x32) by name and index; a new one through 1810c1f70 with the row's type byte (+0x18) and defaults (+0x1c); an existing one keeps its data (ledger 201)"
+  },
+  {
+   "addr": "1810d9e70",
+   "name": "RemoveExtraAttributeStream",
+   "module": "s2c:geometry/mesh-export",
+   "note": "row n of 18237b480: the slot of that name and index removed from +0xb20 (1810d9630) and the face-vertex grid +0x1570 (1810da2a0) (ledger 201)"
+  },
+  {
+   "addr": "18237b480",
+   "name": "ExtraAttributeStreamTable",
+   "module": "s2c:geometry/mesh-export",
+   "note": "data: 0x38-byte rows {name, index +8, +0xc, +0x10, element kind +0x14 (1 vertex, 3 face), type byte +0x18, float4 default +0x1c}: VertexPaintTintColor (1,1,1,1), VertexPaintBlendParams 0, VertexPaintBlendParams1 0, then PerVertexLighting and VertexPaintDetailWeight (outside 1810dca50's three) (ledger 201)"
+  },
+  {
+   "addr": "183014fa0",
+   "name": "MeshStandardAttributeNames",
+   "module": "s2c:geometry/mesh-export",
+   "note": "data: 23 standard mesh attributes (position, normal, tangent, color, texcoord 0, texcoord 1, materialindex, blendweight 0-3, blendindex 0-3, textureAxisU/V 0-1, textureScale 0-1, flags, lightmapScaleBias); indices at 18243e6d0, counts at 18243e730 (ledger 201)"
+  },
+  {
+   "addr": "181087410",
+   "name": "HammerMesh_AddStandardAttribute",
+   "module": "s2c:geometry/mesh-export",
+   "note": "standard attribute n of 183014fa0 into the grid (its slot word at +0x5b8 + 2n) when absent (ledger 201)"
+  },
+  {
+   "addr": "1810d9930",
+   "name": "HammerMesh_RemoveStandardAttribute",
+   "module": "s2c:geometry/mesh-export",
+   "note": "clears standard attribute n's slot (+0x5b8 + 2n) and its data (ledger 201)"
+  },
+  {
+   "addr": "1810dfff0",
+   "name": "ConvertMeshForBuilder_KeepsTexcoords",
+   "module": "s2c:geometry/mesh-export",
+   "note": "inside 1810dff20: per material, bool attribute HasTexcoordTransform (0x2661694a, vf 0x48) 1, or 0x7c928c7c present and 0, stops the texcoord shift (ledger 201)"
   },
   {
    "addr": "181ef9b30",
@@ -3076,7 +3118,7 @@
    "addr": "1810d5f40",
    "name": "MaterialEditor_LowPrecisionUvInputs",
    "module": "s2c:geometry/mesh-export",
-   "note": "shader inputs named LowPrecisionUv*/uv* by texcoord index; editor UI, not the compile"
+   "note": "per material input (Material_GetInputList), the texcoord index the mesh semantic table (181366d90) gives a semantic starting with lowprecisionuv or uv; CMapMesh_NameSlotsAfterOverride adds texcoord 1 when one is 1, else removes it (ledger 201)"
   },
   {
    "addr": "180233190",
@@ -4426,7 +4468,7 @@
    "addr": "1810dcca0",
    "name": "CMapMesh_NameSlotsAfterOverride",
    "module": "s2c:entities/settle",
-   "note": ""
+   "note": "with arg 2 set (ledger 201): texcoord 1 by MaterialEditor_LowPrecisionUvInputs (add 181087410 attribute 5, remove 1810d9930; face textureAxisU/V 1 and textureScale 1 alongside), then HammerMesh_UpdateExtraAttributeStreams(mesh, 1)"
   },
   {
    "addr": "1812d87e0",

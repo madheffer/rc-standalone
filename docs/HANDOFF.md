@@ -214,7 +214,8 @@ the addon).
    references, a package made only of our outputs; glTF export, model
    internals, shaders.
 11. **Map scripts (user, 2026-10-23), once visibility is 100%:** .js done 2026-11-02
-    (ledger 200, ScriptAuthor); .ts and a pre-update file left. Compile cs_script
+    (ledger 200, ScriptAuthor); .ts settled 11-03 (ledger 200: a user's RC compiles no .ts, its
+    typescript.js is not shipped; authors transpile to .js). A pre-update file left. Compile cs_script
     sources (.js/.ts) to `.vjs_c` ourselves; today resourcecompiler does it and the
     service only checks the file exists. The 1.41.9.2 update changed the compiler
     (new "Panorama Compiler Conditionals Fingerprint", every shipped `.vjs_c`
