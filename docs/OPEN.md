@@ -76,25 +76,28 @@ Embree's BVH tie order; lightmap L16 and the ameliorate repack iterations.
 
 ## 8. Resource compiler types
 
-Changed since the audit: 8.c1 / 8.c2 are no longer true for textures and materials. On the main line every
-RcReference texture, material, child texture, sound, SVG and KV3 fixture is byte-identical to resourcecompiler
-1.41.9.5 (resources agent, f6d84ec), and main now also has (11-04, 43429e0 and f453521): Box<N>, MultiplyBox /
-MultiplyNoMip, RGBM, AlphaWeighted, HemiOctNormal, HemiOctAnisoRoughness_RG_BA, MipWidth / MipHeight /
-MipDepth; the ConvertToYCoCg, EncodeRGBM, ScaleToPowerOfTwo, FillToPowerOfTwo, FillToMultipleOfFour,
-HeightToNormal and DilateColorInTransparentPixels processors; and 15 output formats (I8, IA88, A8,
-R8_UNORM = the vtex "format 33", BGRA8888, R16, RG1616, RGBA16161616, R16F, RG1616F, RGBA16161616F, R32F,
-RG3232F, RGB323232F, RGBA32323232F). 40 new RC probes (`RcReference/textures/algorithms2`) are
-byte-identical; the 20 formats RC itself refuses are refused here too. docs/TEXTURES.md on main has the rules.
+Changed since the audit: 8.c1 / 8.c2 are no longer true for textures and materials. Released as
+**Source2.Compiler 0.1.153** (box feed, tag v0.1.153, main ad2e29a, 11-04): every RcReference texture,
+material, child texture, sound, SVG and KV3 fixture is byte-identical to resourcecompiler 1.41.9.5, plus
+54 more RC probes in `RcReference/textures/algorithms2`:
+- mip algorithms: every one a CS2 shader names, for 2D textures (AnisoNormal included), and Box<N>,
+  MultiplyBox / MultiplyNoMip, RGBM (2D), AlphaWeighted, HemiOctNormal, HemiOctAnisoRoughness_RG_BA,
+  MipWidth / MipHeight / MipDepth, DepthPyramidMin / Max, AutoLevels (plain, perchannel, luminance),
+  HeightCombine (max, method2, sumnormalized), WrapGaussian;
+- image processors: Mod2XCenter, ConvertToYCoCg, EncodeRGBM, ScaleToPowerOfTwo, FillToPowerOfTwo,
+  FillToMultipleOfFour, HeightToNormal, DilateColorInTransparentPixels;
+- 15 output formats (I8, IA88, A8, R8_UNORM = the vtex "format 33", BGRA8888, R16, RG1616, RGBA16161616,
+  R16F, RG1616F, RGBA16161616F, R32F, RG3232F, RGB323232F, RGBA32323232F); the 20 formats RC itself
+  refuses are refused.
+docs/TEXTURES.md on main has every rule. Taking it into vpkstuff is its lane:
+`deploy/dep-release.sh s2c 0.1.153 --master` (output changes, so goldens re-bless), then the in-game check.
 
-Open, with RC probes already compiled in `RcReference/textures/algorithms2` (no CS2-closed time needed):
-- AnisoNormal / AnisoNormalRoughness are done (main f453521, five probes): every mip algorithm a CS2 shader
-  names is ported for 2D textures. Left are the ones no shader names:
-- Mip algorithms: HemiOctIsoRoughnessAdjustable_RG_BA (18014a080, the eight-channel chain with
-  NORMALZ), Mip2DGradient (18014dd80 -> the rsqrtps Sobel 181274380, per-vendor like NormalizeNormals; probe
-  gradient2d_rg), WrapGaussian (180152360: binomial kernel 1801521b0 indexed by |i| over 2 taps - 1, the
-  separable wrap filter 180c3a150, whose 4-wide sums need the disassembly's order), AutoLevels (180147460),
-  HeightCombine (180145330), Sharpen* (180152c00), RelaxedCones (180154570), DepthPyramidMin / Max
-  (180155950), Nice.
+Open (each refused with an error naming it; RC probes already compiled in algorithms2 where noted):
+- Mip algorithms no CS2 shader names: Mip2DGradient (18014dd80 -> the four-wide rsqrtps Sobel 181274380,
+  per vendor; probe gradient2d_rg), RelaxedCones (180154570, 900 lines), HemiOctIsoRoughnessAdjustable_RG_BA
+  (18014a080, the eight-channel chain with NORMALZ), Sharpen* and Nice (180152c00: kernel 180152880 and the
+  unsharp mask are read; the sigma and amount come from the image settings struct, +0x40, whose defaults are
+  not read), AutoLevels with GammaToLinear (180c3bc80 first).
 - Cube-only: GGXCubeMapBlur(_RGBM) (180150130), RGBM's irradiance pass, SphericalHarmonics* (RC refuses the 2D
   probe: "Invalid output texture"); cube and 3D textures in general.
 - Image processors: UniformRandom (180140320: Valve's SIMD lagged-Fibonacci stream, read; its seed is
@@ -102,8 +105,8 @@ Open, with RC probes already compiled in `RcReference/textures/algorithms2` (no 
   several processors on one input.
 - Output: BC6H (vtex 19; 180c46b20 / 180c46dd0), an sRGB texture in a non-8-bit format, colour-space conversion
   between input and output.
-- Inputs: downsizing past a shader's m_nMaxRes, the artist settings in an image's .txt and `_mipN` images,
-  PSD and colour-mapped TGA.
+- Inputs: downsizing past a shader's m_nMaxRes, mip size settings (maxmipsize / minmipsize), the artist
+  settings in an image's .txt and `_mipN` images, PSD and colour-mapped TGA.
 - Materials: a DXT5 child probe (stickers need defaults that are not installed); undeclared `Texture*` params
   (RC drops them, we refuse).
 - `.vpcf` legacy schema migration (RC_PARITY G2); `.vagrp` has no ground truth (G4).
