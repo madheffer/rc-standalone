@@ -108,6 +108,8 @@ def main():
             b = os.path.join(backup, os.path.relpath(p, game_addon))
             if not os.path.exists(p) or not filecmp.cmp(b, p, shallow=False):
                 shutil.copy2(b, p)
+            elif os.stat(p).st_mtime_ns != before[p]:
+                shutil.copystat(b, p)  # rewritten with the same bytes: keep the old time too
             assert filecmp.cmp(b, p, shallow=False), p
         shutil.rmtree(backup)
         for p in copied:
