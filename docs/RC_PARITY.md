@@ -71,6 +71,28 @@ uncompressed section and every header field, and every block the writer produces
 back to the original in both our reader and VRF's. `Kv3TreeTests` pins it on the
 RcReference outputs, a hand-built tree with every array kind, and a stock sample.
 
+### C9 — today's resourcecompiler: uint32 0 and 1 as types 26 / 27, VData identity v2 (2026-11-03)
+
+Every RcReference fixture was recompiled with the installed RC (CS2 1.41.9.5, 2026-11-03;
+`tools/re/texture/rc_probe.py`, which backs up and restores the probe addon) and all of them had
+moved from their 10-13 bytes. Two changes, both read from Valve's binaries first on the map branch
+(research/map-authoring 4075e18 and f35010e) and confirmed by the fresh compiles:
+
+- tier0 20261015's KV3 writer (node type chooser 1800c5f60) stores an unsigned 0 or 1 as
+  UINT32_ZERO / UINT32_ONE (26, 27, no payload, format 5 only; reader 1800c4120), where earlier
+  builds wrote INT64_ZERO / INT64_ONE. `Kv3V5Writer` does the same for v5 blocks and keeps 15 / 16
+  in a v4 block. The RED2 fields are RC's uint32s at 0 and 1 too: `m_nFileCRC`, the argument
+  fingerprints and the special dependencies' fingerprint and user data (a 10-13 `.vtex_c` held
+  them as INT64_ZERO / INT64_ONE; `none_rgba.vtex_c` of 11-03 holds 22 such fields as 26 / 27).
+  The vendored VRF reads them through two patches (third_party/PATCHES.md).
+- `.vdata` compiles record "VData Compiler Version" 2 and "VData ModTools Stripping Version"
+  (RC 18015adb0, the hash 18015bc50 over modtools' strip rules: weapon_lar since 1.41.9.3,
+  55841844); 1 and no such row before 1.41.9.2.
+
+After both, the 18 `.vtex`, 5 algorithm, 12 `.vmat` (with their 13 children) and 4 KV3 fixtures are
+byte for byte today's RC again. Every RED2 the compiler writes moved, so vpkstuff's goldens of
+compiled textures, sounds, vector graphics and KV3 sources move with this.
+
 ### C8 — KV3 v4 written as Valve writes it; an edit keeps the block's version (2026-10-14)
 
 Most stock materials and models still carry binary v4 blocks (pak01: 9,707 vmat DATA, about

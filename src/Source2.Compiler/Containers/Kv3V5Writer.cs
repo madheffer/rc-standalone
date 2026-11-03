@@ -9,8 +9,10 @@ namespace Source2.Compiler;
 /// comes out byte for byte as resourcecompiler's:
 /// <list type="bullet">
 /// <item>ints that fit 32 bits are INT32 / UINT32, 0 and 1 the zero and one
-/// types (an unsigned 0 or 1 too), doubles 0 and 1 likewise; an int read as
-/// INT8 or UINT8 (<see cref="Kv3WireTypes"/>) stays one while it fits;</item>
+/// types, doubles 0 and 1 likewise; an unsigned 0 or 1 is UINT32_ZERO /
+/// UINT32_ONE (26, 27) since tier0 20261015 (INT64_ZERO / INT64_ONE before,
+/// and still in a version 4 block); an int read as INT8 or UINT8
+/// (<see cref="Kv3WireTypes"/>) stays one while it fits;</item>
 /// <item>a non-empty array whose elements share one kind is typed: under 256
 /// elements a byte length, ints, uints and doubles in the auxiliary buffer
 /// (25), others in the main one (24); from 256 on ARRAY_TYPED (10). The
@@ -100,7 +102,10 @@ public static class Kv3V5Writer
         return kind is Kind.Int or Kind.UInt or Kind.Double ? Kv3Type.ArrayTypeAuxiliaryBuffer : Kv3Type.ArrayTypeByteLength;
     }
 
-    // 1800c6c20's choice for a node written with its own type byte.
+    // The choice for a node written with its own type byte: 1800c6c20 in tier0 20260923, the
+    // chooser 1800c5f60 in 20261015 and since. With the compact flag (its one caller passes 1) an
+    // int 0 / 1 is INT64_ZERO / INT64_ONE, a uint 0 / 1 UINT32_ZERO / UINT32_ONE (26, 27; the
+    // 20261006 build and earlier wrote those as 15 / 16), a double 0 / 1 DOUBLE_ZERO / DOUBLE_ONE.
     private static Kv3Type NodeType(KVObject v)
     {
         switch (KindOf(v))
@@ -116,7 +121,7 @@ public static class Kv3V5Writer
             case Kind.UInt:
             {
                 var x = UInt(v);
-                return x == 0 ? Kv3Type.Int64Zero : x == 1 ? Kv3Type.Int64One
+                return x == 0 ? Kv3Type.UInt32Zero : x == 1 ? Kv3Type.UInt32One
                     : Narrow(v) is { } w ? w : x == (uint)x ? Kv3Type.UInt32 : Kv3Type.UInt64;
             }
             case Kind.Double:
@@ -154,8 +159,15 @@ public static class Kv3V5Writer
         Kv3WireTypes.Get(v) is var t and > 0 && Kv3WireTypes.Fits(v, t) ? (Kv3Type)t : null;
 
     // Version 4 has one buffer, so an array version 5 keeps in the auxiliary buffer is a byte-length one.
-    private static Kv3Type InVersion(Context c, Kv3Type type) =>
-        c.Block.Version == 4 && type == Kv3Type.ArrayTypeAuxiliaryBuffer ? Kv3Type.ArrayTypeByteLength : type;
+    // Types 26 and 27 need format 5 (the reader 1800c4120 refuses them below), so a version 4
+    // block keeps a uint 0 / 1 as INT64_ZERO / INT64_ONE, as every v4 block Valve wrote holds it.
+    private static Kv3Type InVersion(Context c, Kv3Type type) => c.Block.Version != 4 ? type : type switch
+    {
+        Kv3Type.ArrayTypeAuxiliaryBuffer => Kv3Type.ArrayTypeByteLength,
+        Kv3Type.UInt32Zero => Kv3Type.Int64Zero,
+        Kv3Type.UInt32One => Kv3Type.Int64One,
+        _ => type,
+    };
 
     private static void Node(Context c, KVObject v)
     {
@@ -172,7 +184,7 @@ public static class Kv3V5Writer
         switch (type)
         {
             case Kv3Type.Null or Kv3Type.BooleanTrue or Kv3Type.BooleanFalse or Kv3Type.Int64Zero or Kv3Type.Int64One
-                or Kv3Type.DoubleZero or Kv3Type.DoubleOne:
+                or Kv3Type.DoubleZero or Kv3Type.DoubleOne or Kv3Type.UInt32Zero or Kv3Type.UInt32One:
                 return;
             case Kv3Type.Boolean:
                 lanes.Put((bool)v ? 1u : 0u, 1);

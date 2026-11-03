@@ -45,8 +45,8 @@ internal static class EditInfo
         return array;
     }
 
-    /// <summary><paramref name="arguments"/> as <c>m_ArgumentDependencies</c>, sorted by name. A
-    /// non-zero fingerprint is RC's uint32.</summary>
+    /// <summary><paramref name="arguments"/> as <c>m_ArgumentDependencies</c>, sorted by name. The
+    /// fingerprints are RC's uint32s, 0 included (UINT32_ZERO since tier0 20261015).</summary>
     public static KVObject Arguments(IEnumerable<Argument> arguments)
     {
         var array = KVObject.Array();
@@ -55,8 +55,8 @@ internal static class EditInfo
             var o = KVObject.Collection();
             o.Add("m_ParameterName", new KVObject(a.Name));
             o.Add("m_ParameterType", new KVObject(a.Type));
-            o.Add("m_nFingerprint", a.Fingerprint == 0 ? new KVObject(0) : new KVObject(a.Fingerprint));
-            o.Add("m_nFingerprintDefault", a.FingerprintDefault == 0 ? new KVObject(0) : new KVObject(a.FingerprintDefault));
+            o.Add("m_nFingerprint", new KVObject(a.Fingerprint));
+            o.Add("m_nFingerprintDefault", new KVObject(a.FingerprintDefault));
             array.Add(o);
         }
         return array;
@@ -90,9 +90,9 @@ internal static class EditInfo
     /// <summary>
     /// <paramref name="deps"/> as <c>m_SpecialDependencies</c>, sorted by name ignoring case (stock
     /// vmat_c: "csgo/csgo_character.vfx" before "Material Compiler Version"). Fingerprint and user
-    /// data as RC's struct writes them: 0 and 1 take the no-payload codes, anything else is UINT32
-    /// ("Texture Encode Quality" user data 3, "Texture Compiler Version" 11, "Vector Graphic Version"
-    /// 2; world.vwrld_c, n0.vwnod_c, rc_probe.vsndevts_c).
+    /// data are RC's uint32s ("Texture Encode Quality" user data 3, "Texture Compiler Version" 11,
+    /// "Vector Graphic Version" 2); a 0 or 1 takes the no-payload UINT32_ZERO / UINT32_ONE codes
+    /// since tier0 20261015 (the 11-03 RcReference compiles), which the KV3 writer picks for a uint.
     /// </summary>
     public static KVObject SpecialDependencies(IEnumerable<Source2ContainerAuthor.SpecialDep> deps)
     {
@@ -109,7 +109,7 @@ internal static class EditInfo
         return array;
     }
 
-    private static KVObject Unsigned(int value) => value is 0 or 1 ? new KVObject((long)value) : new KVObject((uint)value);
+    private static KVObject Unsigned(int value) => new((uint)value);
 
     /// <summary>
     /// The fields after <c>m_SpecialDependencies</c>, in RC's order: no special input dependencies or
