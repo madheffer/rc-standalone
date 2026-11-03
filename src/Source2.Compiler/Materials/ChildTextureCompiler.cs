@@ -35,12 +35,12 @@ internal static class ChildTextureCompiler
             decoded[file] = VtexCompiler.DecodeRgba(images[file].Bytes, file);
         }
 
-        var (levels, srgb, maxMips) = RcTextureChannels.Build(texture, decoded, vendor, texture.ChildPath);
+        var (levels, srgb, maxMips, reflectivity) = RcTextureChannels.Build(texture, decoded, vendor, texture.ChildPath);
 
         var format = texture.OutputFormat;
         var first = decoded[texture.Inputs[0].FileName];
         var (data, stored, _) = VtexCompiler.BuildTexture(levels, format, srgb,
-            noLod: false, maxMips, vendor, (first.Width, first.Height));
+            noLod: false, maxMips, vendor, (first.Width, first.Height), reflectivity);
         return VtexCompiler.WriteTexture(BuildRed2(texture, files, images, find, firstSearchPath), data, stored);
     }
 

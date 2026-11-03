@@ -13,8 +13,9 @@ namespace Source2.Compiler.RcTexture;
 /// </summary>
 internal static class RcTextureChannels
 {
-    /// <summary>The texture's levels, whether any colour channel is sRGB, and the most levels it keeps.</summary>
-    internal sealed record Result(List<RcMipChain.Level> Levels, bool Srgb, int MaxMips);
+    /// <summary>The texture's levels, whether any colour channel is sRGB, the most levels it keeps,
+    /// and its reflectivity.</summary>
+    internal sealed record Result(List<RcMipChain.Level> Levels, bool Srgb, int MaxMips, float[] Reflectivity);
 
     // The special dependencies each mip algorithm and image processor adds to a texture compile
     // (RC's children in RcReference/materials, the .vtex probes in RcReference/textures); the
@@ -72,9 +73,6 @@ internal static class RcTextureChannels
         bool box3 = texture.Channels.Any(c => c.MipAlgorithm.Equals("Box3", StringComparison.OrdinalIgnoreCase));
         if (box3 && texture.Channels.Any(c => !c.MipAlgorithm.Equals("Box3", StringComparison.OrdinalIgnoreCase)))
             throw new InvalidOperationException($"{label} mixes Box3 with other mip algorithms; not measured.");
-        bool none = texture.Channels.Any(c => c.MipAlgorithm.Equals("None", StringComparison.OrdinalIgnoreCase));
-        if (none && texture.Channels.Any(c => !c.MipAlgorithm.Equals("None", StringComparison.OrdinalIgnoreCase)))
-            throw new InvalidOperationException($"{label} mixes None with other mip algorithms; not measured.");
     }
 
     /// <summary>The texture's float levels from its decoded images.</summary>
@@ -190,6 +188,29 @@ internal static class RcTextureChannels
         // with wrapping (18013ce60; the 1x1 default metal beside 16x16 masks, a 64x64 metalness
         // beside a 128x64 colour).
         int width = chains.Max(c => c.Chain[0].Width), height = chains.Max(c => c.Chain[0].Height);
+        // The first channel group makes the texture's levels: 180133da0 leaves its output loop
+        // after level 0 when that group's algorithm made one level (None), so the texture keeps one
+        // mip (none_box_rgba). A later group with one level fills every level from its level 0
+        // (box_none_rgba, csgo_weapon's sticker normals). A later group larger than the first
+        // upsizes the levels made so far (18013ce60) and regenerates their mips when it has more
+        // than one level (character's 1x1 default metal before 16x16 masks); with only one-level
+        // groups that case is not measured.
+        bool firstIsLargest = chains[0].Chain[0].Width == width && chains[0].Chain[0].Height == height;
+        bool oneLevel = chains[0].Chain.Count == 1 && firstIsLargest;
+        if (chains[0].Chain.Count == 1 && !firstIsLargest && chains.All(c => c.Chain.Count == 1))
+            throw new InvalidOperationException($"{label}: one-level channel groups of different sizes; not measured.");
+
+        // Reflectivity, per destination channel, is the mean of its group's last level's source
+        // channel (180133da0 averages each group's last mip, 180c3bb80, then adds avg[src] into
+        // the destination's slot as it copies level 0): a None group's is its full image's mean.
+        var reflectivity = new float[4];
+        foreach (var (channel, chain) in chains)
+        {
+            var mean = VtexCompiler.Average(chain[Math.Min(chain.Count, box3 ? 3 : int.MaxValue) - 1]);
+            for (int k = 0; k < channel.DstChannels.Length; k++)
+                reflectivity["rgba".IndexOf(channel.DstChannels[k])] = mean["rgba".IndexOf(channel.SrcChannels[k])];
+        }
+
         var levels = new List<RcMipChain.Level>();
         for (int w = width, h = height; ; w = Math.Max(1, w / 2), h = Math.Max(1, h / 2))
         {
@@ -212,13 +233,10 @@ internal static class RcTextureChannels
                 }
             }
             levels.Add(new RcMipChain.Level(w, h, o));
-            // A group whose algorithm made one level (None) writes the texture's first level only
-            // (180133da0 leaves the output loop when the group's mip count is 1); Check keeps
-            // None from sharing a texture with other algorithms.
-            if ((w == 1 && h == 1) || chains.All(c => c.Chain.Count == 1))
+            if ((w == 1 && h == 1) || oneLevel)
                 break;
         }
-        return new(levels, srgb, box3 ? 3 : int.MaxValue);
+        return new(levels, srgb, box3 ? 3 : int.MaxValue, reflectivity);
     }
 
     /// <summary>

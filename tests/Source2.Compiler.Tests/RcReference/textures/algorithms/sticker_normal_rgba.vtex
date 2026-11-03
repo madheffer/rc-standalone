@@ -1,0 +1,77 @@
+<!-- dmx encoding keyvalues2_noids 1 format vtex 1 -->
+"CDmeVtex"
+{
+	"m_inputTextureArray" "element_array"
+	[
+		"CDmeInputTexture"
+		{
+			"m_name" "string" "normal"
+			"m_fileName" "string" "materials/s2calg/bumps64.png"
+			"m_colorSpace" "string" "linear"
+			"m_typeString" "string" "2D"
+			"m_imageProcessorArray" "element_array"
+			[
+				"CDmeImageProcessor"
+				{
+					"m_algorithm" "string" "NormalizeNormals"
+					"m_stringArg" "string" ""
+					"m_vFloat4Arg" "vector4" "0 0 0 0"
+				}
+			]
+		},
+		"CDmeInputTexture"
+		{
+			"m_name" "string" "rough"
+			"m_fileName" "string" "materials/s2calg/rough64.png"
+			"m_colorSpace" "string" "linear"
+			"m_typeString" "string" "2D"
+			"m_imageProcessorArray" "element_array"
+			[
+				"CDmeImageProcessor"
+				{
+					"m_algorithm" "string" "Inverse"
+					"m_stringArg" "string" ""
+					"m_vFloat4Arg" "vector4" "0 0 0 0"
+				}
+			]
+		},
+		"CDmeInputTexture"
+		{
+			"m_name" "string" "mask"
+			"m_fileName" "string" "materials/s2calg/mask64.png"
+			"m_colorSpace" "string" "linear"
+			"m_typeString" "string" "2D"
+		}
+	]
+	"m_outputTypeString" "string" "2D"
+	"m_outputFormat" "string" "RGBA8888"
+	"m_textureOutputChannelArray" "element_array"
+	[
+		"CDmeTextureOutputChannel"
+		{
+			"m_inputTextureArray" "string_array" [ "normal", "rough" ]
+			"m_srcChannels" "string" "rgb"
+			"m_dstChannels" "string" "rgb"
+			"m_mipAlgorithm" "CDmeImageProcessor"
+			{
+				"m_algorithm" "string" "HemiOctIsoRoughness_RG_B"
+				"m_stringArg" "string" ""
+				"m_vFloat4Arg" "vector4" "0 0 0 0"
+			}
+			"m_outputColorSpace" "string" "linear"
+		},
+		"CDmeTextureOutputChannel"
+		{
+			"m_inputTextureArray" "string_array" [ "mask" ]
+			"m_srcChannels" "string" "r"
+			"m_dstChannels" "string" "a"
+			"m_mipAlgorithm" "CDmeImageProcessor"
+			{
+				"m_algorithm" "string" "None"
+				"m_stringArg" "string" ""
+				"m_vFloat4Arg" "vector4" "0 0 0 0"
+			}
+			"m_outputColorSpace" "string" "linear"
+		}
+	]
+}

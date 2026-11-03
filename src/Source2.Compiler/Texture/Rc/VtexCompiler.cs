@@ -64,6 +64,7 @@ public sealed class VtexCompiler : IResourceCompiler
         List<RcMipChain.Level> levels;
         bool srgb;
         int maxMips;
+        float[]? reflectivity = null;
         if (options.MipChainBgra is { } given)
         {
             // A chain the caller made replaces the float chain RC would make from the image; the
@@ -78,7 +79,7 @@ public sealed class VtexCompiler : IResourceCompiler
         }
         else
         {
-            (levels, srgb, maxMips) = RcTextureChannels.Build(texture, decoded, options.Bc7Vendor, request.SourcePath);
+            (levels, srgb, maxMips, reflectivity) = RcTextureChannels.Build(texture, decoded, options.Bc7Vendor, request.SourcePath);
             // "Found DXT5 texture with solid 255 alpha! Saving as a DXT1!": the mips the texture
             // stores (dxt5_7x5 keeps one level, whose odd-side filter children carry alpha 1.5).
             if (format == "DXT5" && RcTextureChannels.AlphaIsSolid(levels.Take(StoredMips(levels, format, maxMips))))
@@ -87,7 +88,7 @@ public sealed class VtexCompiler : IResourceCompiler
         if (format == "BC7" && Bc7e.Unavailable(options.Bc7Vendor) is { } why)
             throw new InvalidOperationException(why);
 
-        var (data, stored, _) = BuildTexture(levels, format, srgb, settings.NoLod, maxMips, options.Bc7Vendor, (first.Width, first.Height));
+        var (data, stored, _) = BuildTexture(levels, format, srgb, settings.NoLod, maxMips, options.Bc7Vendor, (first.Width, first.Height), reflectivity);
         var special = new Dictionary<string, Source2ContainerAuthor.SpecialDep>(StringComparer.OrdinalIgnoreCase);
         foreach (var dep in Source2ContainerAuthor.TextureBaseDeps.Concat(RcTextureChannels.Deps(texture)))
             special[dep.Name] = dep;
@@ -137,7 +138,8 @@ public sealed class VtexCompiler : IResourceCompiler
     /// wrap resampler in gamma space, one level.
     /// </summary>
     internal static (byte[] Data, byte[][] Stored, bool AnyCompressed) BuildTexture(List<RcMipChain.Level> levels,
-        string format, bool srgb, bool noLod, int maxMips, Bc7Vendor vendor, (int Width, int Height)? nominal = null)
+        string format, bool srgb, bool noLod, int maxMips, Bc7Vendor vendor, (int Width, int Height)? nominal = null,
+        float[]? reflectivity = null)
     {
         int width = levels[0].Width, height = levels[0].Height;
         bool blockCompressed = format != "RGBA8888";
@@ -197,7 +199,7 @@ public sealed class VtexCompiler : IResourceCompiler
             }
         }
 
-        var reflectivity = Average(levels[^1]);
+        reflectivity ??= Average(levels[^1]);
         // FILL_TO_POWER_OF_TWO when the image was resized up: u16 0, the original width and
         // height, zeros to 128 bytes (default_ao 1x1, cx_tiny 2x2; width before height assumed).
         var (fillWidth, fillHeight) = nominal ?? (width, height);
@@ -230,7 +232,7 @@ public sealed class VtexCompiler : IResourceCompiler
     // Reflectivity: the mean of the chain's smallest level, summed in four SIMD lanes by pixel
     // index and the lanes added pairwise (ao_png's 16x16 Box3 level; the 1x1 of a full chain is
     // its pixel).
-    private static float[] Average(RcMipChain.Level level)
+    internal static float[] Average(RcMipChain.Level level)
     {
         int n = level.Width * level.Height;
         var result = new float[4];

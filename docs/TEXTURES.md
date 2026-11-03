@@ -217,13 +217,19 @@ BoxInverse, HemiOctAnisoRoughness, AnisoRoughness_RG, MipNormal, AnisoNormal (ge
 
 | algorithm | generator | what it does | special dependency |
 |---|---|---|---|
-| `None` | 180144200 | level 0 only; a texture whose groups are all None stores one mip (180133da0 leaves its output loop at a group's mip count of 1) | Mip None 1 |
+| `None` | 180144200 | level 0 only; a texture whose first group is None stores one mip (180133da0's output loop follows the first group), a later None group fills every level from its level 0 | Mip None 1 |
 | `BoxInverse` | 1801447c0 | level 0 is `v * -1 + 1` per channel, then the box chain; power of two only | Mip Box Inverse 1 |
 | `MipNormal` | 1801443f0 | the Box chain under its own name | Mip Normals 1, Mip Box 1 |
 | `PreserveCoverage` | 18014fa90 | below | Mip PreserveCoverage 5 |
 | `HemiOctAnisoRoughness` | 180148350 | the hemi-octahedral chain unshuffled (lambda 180149d20): 0 the X roughness, 1 `(x - y)/2 + 1/2`, 2 the Y roughness, 3 `(x + y)/2 + 1/2` | Mip HemiOctAnisoRoughness 3 |
 | `AnisoRoughness_RG` | 180148350 then the shuffle in 180142990 | channel 1 takes channel 2, channels 2 and 3 become 1 | Mip AnisoRoughness_RG 1, Mip HemiOctAnisoRoughness 3 |
 | `HemiOctIsoRoughness_RG_B` | as above | R = 3, G = 1, B = `(ch2 + ch0)/2`, A = 1 (docs/MATERIALS.md) | Mip HemiOctAnisoRoughness 3, Mip HemiOctIsoRoughness_RG_B 1 |
+
+Reflectivity is per channel group: 180133da0 averages each group's last level (180c3bb80) and,
+while copying level 0, adds the source channel's mean into the destination's slot, so a None
+group's channels carry its whole image's mean while a Box group's carry its 1x1 level
+(`box_none_rgba`, `none_box_rgba`, `sticker_normal_rgba` / `_bc7`: csgo_weapon's
+HemiOctIsoRoughness_RG_B beside a None alpha).
 
 `PreserveCoverage` keeps an alpha-tested texture's coverage down the chain. The coverage of
 channel 0 at a scale (18014f380): every 2x2 cell's corners scaled and clamped to [0, 1]

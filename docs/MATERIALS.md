@@ -221,9 +221,10 @@ All 13 probe children and all 12 probe materials compile identical to RC, childr
 - Intel's `rsqrtps` table is dumped and wired but has no Intel-machine RC reference to check against.
 - Done 11-03 (docs/TEXTURES.md "Mip algorithms", "Image processors"): `PreserveCoverage`
   (cx_alphatest: csgo_complex with F_ALPHA_TEST, children included, equals RC), `None`,
-  `BoxInverse`, `MipNormal`, `HemiOctAnisoRoughness`, `AnisoRoughness_RG`, `Mod2XCenter`.
+  `BoxInverse`, `MipNormal`, `HemiOctAnisoRoughness`, `AnisoRoughness_RG`, `Mod2XCenter`, and `None`
+  beside other algorithms in one texture (csgo_weapon's sticker normals).
   Not yet: `AnisoNormal` (generic), `RGBM` and `ConvertToYCoCg` (sky), artist `<name>_mipN`
-  images, a texture mixing `None` with other algorithms (csgo_weapon's sticker normals), and the
+  images, and the
   output formats CS2's shaders name beyond DXT1 / ATI1N / ATI2N / BC7: RGBA8888 (0),
   RGBA16161616F (15), DXT5 (23), BC6H (26) and R8_UNORM (67; the 1103 build's imageformat table at
   0x182fecf08, 24-byte entries, adds it after IMAGE_FORMAT_NV12).

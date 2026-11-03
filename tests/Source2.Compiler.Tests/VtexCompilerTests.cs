@@ -95,6 +95,10 @@ public class VtexCompilerTests
     [InlineData("s2calg", "mod2x_rgba")]
     [InlineData("s2calg", "mod2x_srgb_rgba")]
     [InlineData("s2calg", "detail_bc7")]
+    [InlineData("s2calg", "box_none_rgba")]
+    [InlineData("s2calg", "none_box_rgba")]
+    [InlineData("s2calg", "sticker_normal_rgba")]
+    [InlineData("s2calg", "sticker_normal_bc7")]
     public void VtexSource_WithChannelGroupsAndAlgorithms_CompilesToResourceCompilersBytes(string folder, string name)
     {
         var result = ResourceCompiler.CreateDefault().Compile(new CompileRequest($"materials/{folder}/{name}.vtex",
