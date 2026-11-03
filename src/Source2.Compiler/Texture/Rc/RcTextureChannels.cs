@@ -188,6 +188,9 @@ internal static class RcTextureChannels
         // with wrapping (18013ce60; the 1x1 default metal beside 16x16 masks, a 64x64 metalness
         // beside a 128x64 colour).
         int width = chains.Max(c => c.Chain[0].Width), height = chains.Max(c => c.Chain[0].Height);
+        // A shader's m_nMaxRes caps the output (180133da0 divides the size down); not measured yet.
+        if (texture.OutputMaxDimension > 0 && Math.Max(width, height) > texture.OutputMaxDimension)
+            throw new InvalidOperationException($"{label}: {width}x{height} is over the shader's maximum of {texture.OutputMaxDimension}; not measured.");
         // The first channel group makes the texture's levels: 180133da0 leaves its output loop
         // after level 0 when that group's algorithm made one level (None), so the texture keeps one
         // mip (none_box_rgba). A later group with one level fills every level from its level 0

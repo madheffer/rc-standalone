@@ -18,7 +18,7 @@ import subprocess
 import sys
 
 CS2 = os.environ.get("CS2_DIR", r"D:\Steam\steamapps\common\Counter-Strike Global Offensive")
-BIN = os.path.join(CS2, "game", "bin", "win64")
+BIN = os.environ.get("RC_BIN", os.path.join(CS2, "game", "bin", "win64"))  # rc_spew.py's side copy logs logical CRCs
 ADDON = os.environ.get("RC_PROBE_ADDON", "vpkstuff_rc_probe")
 
 

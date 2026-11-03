@@ -38,6 +38,9 @@ internal static class ChildTextureCompiler
         var (levels, srgb, maxMips, reflectivity) = RcTextureChannels.Build(texture, decoded, vendor, texture.ChildPath);
 
         var format = texture.OutputFormat;
+        // "Found DXT5 texture with solid 255 alpha! Saving as a DXT1!" (180133da0, every texture compile).
+        if (format == "DXT5" && RcTextureChannels.AlphaIsSolid(levels.Take(VtexCompiler.StoredMips(levels, format, maxMips))))
+            format = "DXT1";
         var first = decoded[texture.Inputs[0].FileName];
         var (data, stored, _) = VtexCompiler.BuildTexture(levels, format, srgb,
             noLod: false, maxMips, vendor, (first.Width, first.Height), reflectivity);

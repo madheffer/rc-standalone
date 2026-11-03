@@ -15,10 +15,13 @@ public sealed record MaterialTexture(string Name, GeneratedTexture? Generated, s
 /// </summary>
 public static class MaterialTextures
 {
-    // VfxVariableDescription m_outputTextureFormat, measured on csgo_complex.
+    // VfxVariableDescription m_outputTextureFormat is an ImageFormat: the index into the image
+    // format table (resourcecompiler 20261103 0x182fecf08, 24-byte entries from RGBA8888 at 0;
+    // 20 DXT1, 24 ATI1N, 25 ATI2N, 27 BC7 measured on csgo_complex). The ones the compiler encodes:
+    // RGBA8888 (0: csgo_weapon's glitter normals) and DXT5 (23: its sticker SFX masks) besides.
     private static readonly Dictionary<uint, string> ImageFormats = new()
     {
-        [20] = "DXT1", [24] = "ATI1N", [25] = "ATI2N", [27] = "BC7",
+        [0] = "RGBA8888", [20] = "DXT1", [23] = "DXT5", [24] = "ATI1N", [25] = "ATI2N", [27] = "BC7",
     };
 
     // The extensions RC tries for a shader's default image, in order (181f18f9f).
@@ -97,7 +100,7 @@ public static class MaterialTextures
         }
         if (!ImageFormats.TryGetValue(output.OutputTextureFormat, out var format))
             throw new InvalidOperationException($"{output.Name}: image format {output.OutputTextureFormat} is not measured.");
-        var generated = new GeneratedTexture(inputs, format, channels);
+        var generated = new GeneratedTexture(inputs, format, channels) { OutputMaxDimension = output.MaxRes };
         return new MaterialTexture(output.Name, generated, generated.ChildPath);
     }
 

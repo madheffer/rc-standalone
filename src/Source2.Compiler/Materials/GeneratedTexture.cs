@@ -28,6 +28,10 @@ public sealed record GeneratedTextureChannel(string SrcChannels, string DstChann
 /// <param name="Channels">Output channel groups.</param>
 public sealed record GeneratedTexture(IReadOnlyList<GeneratedTextureInput> Inputs, string OutputFormat, IReadOnlyList<GeneratedTextureChannel> Channels)
 {
+    /// <summary>The output variable's <c>m_nMaxRes</c>, the generated .vtex's
+    /// <c>m_nOutputMaxDimension</c>; 0 for none.</summary>
+    public int OutputMaxDimension { get; init; }
+
     /// <summary>The seed of the logical CRC's MurmurHash2 (181e91070).</summary>
     public const uint LogicalCrcSeed = 0x24871466;
 
@@ -58,6 +62,8 @@ public sealed record GeneratedTexture(IReadOnlyList<GeneratedTextureInput> Input
         }
         Str(b, "m_outputTypeString", "2D");
         Str(b, "m_outputFormat", OutputFormat);
+        // Printed here when the shader sets one (RC's spew for cx_weapon's glitter normal, 11-03).
+        Int(b, "m_nOutputMaxDimension", OutputMaxDimension, 0);
         b.Append($"m_textureOutputChannelArray[{Inputs.Count}]:\n");
         for (int c = 0; c < Channels.Count; c++)
         {

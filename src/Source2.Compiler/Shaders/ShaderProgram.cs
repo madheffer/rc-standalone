@@ -45,6 +45,10 @@ public sealed record ShaderVariable(
 
     /// <summary>How many of <see cref="ChannelInfoIndex"/> are used (<c>m_nChannelCount</c>).</summary>
     public int ChannelCount { get; init; }
+
+    /// <summary>The largest side an output texture may have (<c>m_nMaxRes</c>), 0 for no limit
+    /// (csgo_weapon's glitter normals: 512).</summary>
+    public int MaxRes { get; init; }
 }
 
 /// <summary>One texture channel processor (<c>m_textureChannelProcessorArray</c>): which input
@@ -211,6 +215,7 @@ public sealed class ShaderProgram
         Child(v, "m_intDefault") is { } id ? Longs(id).Select(x => (int)x).ToArray() : new int[4])
     {
         ChannelCount = Int(v, "m_nChannelCount"),
+        MaxRes = Int(v, "m_nMaxRes"),
     };
 
     private static ShaderRule ReadRule(KVObject r) => new(

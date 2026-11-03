@@ -224,10 +224,18 @@ All 13 probe children and all 12 probe materials compile identical to RC, childr
   `BoxInverse`, `MipNormal`, `HemiOctAnisoRoughness`, `AnisoRoughness_RG`, `Mod2XCenter`, and `None`
   beside other algorithms in one texture (csgo_weapon's sticker normals).
   Not yet: `AnisoNormal` (generic), `RGBM` and `ConvertToYCoCg` (sky), artist `<name>_mipN`
-  images, and the
-  output formats CS2's shaders name beyond DXT1 / ATI1N / ATI2N / BC7: RGBA8888 (0),
-  RGBA16161616F (15), DXT5 (23), BC6H (26) and R8_UNORM (67; the 1103 build's imageformat table at
-  0x182fecf08, 24-byte entries, adds it after IMAGE_FORMAT_NV12).
+  images, and the output formats RGBA16161616F (15), BC6H (26) and R8_UNORM (67; the 1103 build's
+  imageformat table at 0x182fecf08, 24-byte entries, adds it after IMAGE_FORMAT_NV12).
+- Done 11-03, cx_weapon (csgo_weapon with F_GLITTER and F_ENABLE_SFX_MASK, every child equal to
+  RC's): a shader's `m_outputTextureFormat` is that table's index, so 0 is RGBA8888 (the glitter
+  normal, two None groups) and 23 DXT5 (the sticker SFX masks; encoded as `.vtex` DXT5, with RC's
+  solid-alpha DXT1 rule, but no material probe yet); a variable's `m_nMaxRes` (512 on the glitter
+  normals) is the generated .vtex's `m_nOutputMaxDimension`, printed after `m_outputFormat` in the
+  logical text (RC's spew, `tools/re/texture/rc_spew.py`), and an input larger than it is refused
+  as unmeasured; a string attribute (type 41, `MaterialLayerType`) is searchable data as it is; and
+  DATA's `RepresentativeTextureWidth/Height` exist only when the shader has a `RepresentativeTexture`
+  attribute (18010c660 adds them when it meets one), which csgo_weapon has not. Default images are
+  sized with the TGA reader too.
 - Image `.txt` settings other than an empty `settings {}` (core's `default_normal.txt` is empty and is recorded with its CRC).
 - Channel references by variable or by file name (above).
 - The value RC uses for system combos (`S_SHADER_QUALITY`, source type 2).

@@ -53,7 +53,7 @@ public sealed class MaterialCompiler : IResourceCompiler
     public string OutputPathFor(string sourcePath) => sourcePath + "_c";
 
     // Attribute value types that land in m_SearchableUserData.
-    private const int AttrFloat = 1, AttrInt = 5, AttrBool = 9, AttrTexture = 14;
+    private const int AttrFloat = 1, AttrInt = 5, AttrBool = 9, AttrTexture = 14, AttrString = 41;
 
     /// <inheritdoc/>
     public CompileOutput Compile(CompileRequest request, ICollection<CompileDiagnostic> diagnostics)
@@ -79,8 +79,11 @@ public sealed class MaterialCompiler : IResourceCompiler
                 images[input.FileName] = Find(mounts, input.FileName)
                     ?? throw new InvalidOperationException($"{input.FileName} (for {request.SourcePath}) was not found in any content mount.");
 
-        var data = BuildData(request.SourcePath, vmat, shaders, textures, images);
-        var red2 = BuildRed2(request, settings, shaders, textures, images, mounts, Feature, values);
+        var searchable = Searchable(shaders, textures, images, Feature, values);
+        // 18010c660 adds RepresentativeTextureWidth/Height to DATA when it meets the attribute
+        // named RepresentativeTexture (csgo_weapon has none: cx_weapon's m_intAttributes is empty).
+        var data = BuildData(request.SourcePath, vmat, shaders, textures, images, searchable.ContainsKey("RepresentativeTexture"));
+        var red2 = BuildRed2(request, settings, shaders, textures, images, mounts, searchable);
 
         var container = new CompiledResource(new ResourceFile { Version = Source2ContainerAuthor.MaterialResourceVersion });
         container.SetKv3("RED2", red2, Kv3Formats.Get("generic"));
@@ -104,7 +107,8 @@ public sealed class MaterialCompiler : IResourceCompiler
     }
 
     private static KVObject BuildData(string materialPath, VmatSource vmat, ShaderSet shaders,
-        IReadOnlyList<MaterialTexture> textures, IReadOnlyDictionary<string, (string SearchPath, byte[] Bytes)> images)
+        IReadOnlyList<MaterialTexture> textures, IReadOnlyDictionary<string, (string SearchPath, byte[] Bytes)> images,
+        bool representative)
     {
         // Params as the .vmat sets them, typed by their name's prefix (RC keeps names the shader
         // does not declare: cx_order's F_SPECULAR, g_flFadeExponent), each kind sorted by name.
@@ -145,8 +149,13 @@ public sealed class MaterialCompiler : IResourceCompiler
             v => new KVObject(v) { Flag = KVFlag.Resource }));
         root.Add("m_dynamicParams", KVObject.Array());
         root.Add("m_dynamicTextureParams", KVObject.Array());
-        var (w, h) = RepresentativeSize(textures, images);
-        root.Add("m_intAttributes", VmatParams.NamedArray([("RepresentativeTextureHeight", h), ("RepresentativeTextureWidth", w)], "m_nValue", v => new KVObject(v)));
+        if (representative)
+        {
+            var (w, h) = RepresentativeSize(textures, images);
+            root.Add("m_intAttributes", VmatParams.NamedArray([("RepresentativeTextureHeight", h), ("RepresentativeTextureWidth", w)], "m_nValue", v => new KVObject(v)));
+        }
+        else
+            root.Add("m_intAttributes", KVObject.Array());
         foreach (var key in new[] { "m_floatAttributes", "m_vectorAttributes", "m_textureAttributes", "m_stringAttributes", "m_renderAttributesUsed" })
             root.Add(key, KVObject.Array());
         return Source2ContainerAuthor.NarrowIntegers(root);
@@ -160,9 +169,10 @@ public sealed class MaterialCompiler : IResourceCompiler
             ?? throw new InvalidOperationException("The material has no g_tColor; its representative texture is not measured.");
         if (color.Generated is null)
             return (1, 1);
-        using var data = SKData.CreateCopy(images[color.Generated.Inputs[0].FileName].Bytes);
-        using var codec = SKCodec.Create(data) ?? throw new InvalidDataException($"{color.Generated.Inputs[0].FileName} is not an image this compiler reads.");
-        return (codec.Info.Width, codec.Info.Height);
+        // Read the way the children read their images, TGA included (a shader's default colour).
+        var file = color.Generated.Inputs[0].FileName;
+        var (_, w, h) = VtexCompiler.DecodeRgba(images[file].Bytes, file);
+        return (w, h);
     }
 
     private static float[] ParseVector(string value, string path, string key)
@@ -178,7 +188,7 @@ public sealed class MaterialCompiler : IResourceCompiler
 
     private static KVObject BuildRed2(CompileRequest request, MaterialCompileSettings settings, ShaderSet shaders,
         IReadOnlyList<MaterialTexture> textures, IReadOnlyDictionary<string, (string SearchPath, byte[] Bytes)> images,
-        IReadOnlyList<ContentMount> mounts, Func<int, int> feature, IReadOnlyDictionary<string, string> values)
+        IReadOnlyList<ContentMount> mounts, KVObject searchable)
     {
         var root = KVObject.Collection();
 
@@ -222,7 +232,7 @@ public sealed class MaterialCompiler : IResourceCompiler
         var children = KVObject.Array();
         foreach (var path in generated.Select(g => g.ChildPath).Distinct().Order(StringComparer.Ordinal))
             children.Add(new KVObject(path));
-        EditInfo.AddTail(root, Searchable(shaders, textures, images, feature, values), children);
+        EditInfo.AddTail(root, searchable, children);
         return Source2ContainerAuthor.NarrowIntegers(root);
     }
 
@@ -276,6 +286,9 @@ public sealed class MaterialCompiler : IResourceCompiler
                         ? textures.FirstOrDefault(t => t.Name == program.Variables[a.VariableBinding].Name) is { } t ? new KVObject(t.ResourcePath) : null
                         : null,
                     AttrBool or AttrInt or AttrFloat => Evaluate(a, feature, Param),
+                    // A string attribute (type 41: csgo_weapon's MaterialLayerType "csgo_weapon"),
+                    // its value as it is (cx_weapon, RC 11-03).
+                    AttrString when a.Expression is null && a.Value is { ValueType: KVValueType.String } s => new KVObject((string)s),
                     _ => null,
                 };
                 if (value is not null)

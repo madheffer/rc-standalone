@@ -57,6 +57,7 @@ public class MaterialCompilerTests
     [InlineData("cx_metal_noise")]
     [InlineData("cx_order")]
     [InlineData("cx_alphatest")]
+    [InlineData("cx_weapon")]
     public void Vmat_CompilesToResourceCompilersBytes(string name)
     {
         if (Compile(name) is not { } result) { CS2Fixtures.Skip("shaders_pc_dir.vpk"); return; }
@@ -86,6 +87,7 @@ public class MaterialCompilerTests
     [InlineData("cx_metal_noise")]
     [InlineData("cx_order")]
     [InlineData("cx_alphatest")]
+    [InlineData("cx_weapon")]
     public void Vmat_WithChildren_CompilesToResourceCompilersFiles(string name)
     {
         if (Compile(name, children: true) is not { } result) { CS2Fixtures.Skip("shaders_pc_dir.vpk"); return; }

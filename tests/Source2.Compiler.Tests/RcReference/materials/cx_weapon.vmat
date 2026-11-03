@@ -1,0 +1,11 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "csgo_weapon.vfx"
+
+	F_GLITTER 1
+	F_ENABLE_SFX_MASK 1
+	TextureGlitterNormal "materials/s2cmat/normal.png"
+	TextureGlitterMask "materials/s2cmat/mask.png"
+}
