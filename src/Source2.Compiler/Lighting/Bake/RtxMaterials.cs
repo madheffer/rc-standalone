@@ -805,23 +805,22 @@ public sealed class RtxScene
             if (candidates.Count == 0)
                 return null;
             var d = candidates.FirstOrDefault(v => v.CompiledExpression.Length > 0 && v.VariableSource is VfxVariableSourceType.__Expression__ or VfxVariableSourceType.__SetByArtistAndExpression__) ?? candidates[0];
-            float[]? r;
+            return cache[name] = Evaluate(d);
+        }
+        float[]? Evaluate(VfxVariableDescription d)
+        {
             switch (d.VariableSource)
             {
                 case VfxVariableSourceType.__Expression__:
-                    r = VfxEval.Evaluate(ShaderUtilHelpers.ParseDynamicExpression(d.CompiledExpression), n => Value(n), features, TextureAverage);
-                    break;
+                    return VfxEval.Evaluate(ShaderUtilHelpers.ParseDynamicExpression(d.CompiledExpression), n => Value(n), features, TextureAverage);
                 case VfxVariableSourceType.__SetByArtistAndExpression__:
                 {
                     var artist = Artist(d) ?? Default(d);
-                    r = VfxEval.Evaluate(ShaderUtilHelpers.ParseDynamicExpression(d.CompiledExpression), n => Value(n, name, artist), features, TextureAverage);
-                    break;
+                    return VfxEval.Evaluate(ShaderUtilHelpers.ParseDynamicExpression(d.CompiledExpression), n => Value(n, d.Name, artist), features, TextureAverage);
                 }
                 default:
-                    r = Artist(d) ?? Default(d);
-                    break;
+                    return Artist(d) ?? Default(d);
             }
-            return cache[name] = r;
         }
         // The static combo's write sequence places every variable it uses: RegisterOffset in 4-byte words of the block.
         var all = program.Rtx.GetStaticCombo(combo).AllVariables.Fields.Where(f => f.RegisterOffset >= 0).ToList();
@@ -860,7 +859,10 @@ public sealed class RtxScene
                 log?.Invoke($"{desc.Name} @{at}: sampler {state}");
                 continue;
             }
-            var v = Value(desc.Name) ?? [0f];
+            // The write's own description (its VariableIndex): a name can have several, csgo_environment's
+            // g_mTextureColorAdjust1 one from the artist's colour values and one of constants, and vrad3's
+            // block holds the one the combo binds (captured on s2c_coloradjust, capture_host.py).
+            var v = Evaluate(desc) ?? [0f];
             Write(bytes, at, desc.VfxType, v);
             log?.Invoke($"{desc.Name} @{at}: {desc.VfxType} {string.Join(" ", v.Select(x => x.ToString("G6", System.Globalization.CultureInfo.InvariantCulture)))}");
         }

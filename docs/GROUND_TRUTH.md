@@ -5312,8 +5312,15 @@ game can answer is raised with the user first, and runs with -insecure.
        az = 0, so default materials bake as before).
      - Scope (ColorMatrixTests.NonDefaultColorAdjust): 1,120 materials of the stock pak01 have a contrast,
        saturation or brightness other than 1 or a tint other than white; ze_hold_em_p's own package none.
-     - Not measured: no capture of a material with contrast other than 1 yet, and the shader default texture of a
-       texture the material does not set is not read (both evaluators give zero then).
+     - Not measured: the shader default texture of a texture the material does not set is not read (both
+       evaluators give zero then).
+     - Captured 2026-11-04 (CS2 closed: Valve's s2c_coloradjust compile, tools/vrad3/capture_host.py on its job):
+       vrad3's block holds MatrixColorTint2(white, 1) x MatrixColorCorrect2(1, 1, 1) word for word for both
+       materials (italy_cobblestone_01's contrast 1.497 and cobblestone_ground_large_1's tint ignored). The
+       csgo_environment rtx program declares g_mTextureColorAdjust1 twice: #45 from the artist's colour values,
+       #46 of constants (`MatrixColorTint2(float3(1,1,1),1)`, `MatrixColorCorrect2(float3(1,1,1), ...)`), and the
+       static combo's write binds #46. RtxMaterials now writes each field from its own VariableIndex (a name lookup
+       took #45). s2c_coloradjust with -s2cbake: every lighting file Valve's (23 of 25, the .nav and .vwrld left).
 
 198. **Steam Audio's rebake options in a compile** (2026-11-02, CS2 open: the Ghidra project's resourcecompiler.dll
      decompile, 18013b060 and 18013af00 there, and the installed 1029 build's disassembly). READ.
