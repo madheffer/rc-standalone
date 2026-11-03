@@ -295,7 +295,9 @@ public sealed class MaterialCompiler : IResourceCompiler
         }
 
         var root = KVObject.Collection();
-        foreach (var (key, value) in entries.OrderBy(e => e.Key, StringComparer.OrdinalIgnoreCase))
+        // RC sorts the table by V_stricmp_fast at the RED2 finalize (EditInfo.Red2Sorted):
+        // cx_alphatest's _dummyReference... attributes come before AllowBackfaceCulling.
+        foreach (var (key, value) in EditInfo.Red2Sorted(entries, e => e.Key))
             root.Add(key, value);
         return root;
     }

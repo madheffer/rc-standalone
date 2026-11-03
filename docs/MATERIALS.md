@@ -135,6 +135,10 @@ writes the same bytes as the stock DLL (checked on 5 outputs).
   attributes (`LightSim_MaterialTint`) are not listed. Then the F_ values the `.vmat` sets,
   `IsChildResource` 0, `shader`, and `RepresentativeTextureHeight/Width` beside
   `RepresentativeTexture`. Sorted ignoring case. Expressions run in `Shaders.ShaderExpression`:
+  (Every one of these RED2 sorts is the RED2 finalize's, rc 18016dd80..18016df5d: MSVC std::sort
+  of each list and a member sort of each searchable table, 181ebae60 -> 181ea5d30, all comparing
+  with tier0's V_stricmp_fast, which folds A-Z to a-z. So '_' sorts before letters:
+  cx_alphatest's `_dummyReferenceAlphaTestReferenceInMainShader` comes first. `EditInfo.Red2Sorted`.)
   a material parameter is `1D` + MurmurHash2 of its lowercased name, seed `0x31415926`, its
   value the `.vmat`'s or the shader default; branch targets are absolute offsets.
 - INSG `m_elems`: the union of the VS static combo's input signatures (every dynamic combo),
@@ -215,8 +219,14 @@ All 13 probe children and all 12 probe materials compile identical to RC, childr
 
 - Which mode wins when two modes give an attribute different values (first seen, here).
 - Intel's `rsqrtps` table is dumped and wired but has no Intel-machine RC reference to check against.
-- Child mip algorithms not yet ported: `PreserveCoverage` (alpha test), `AnisoRoughness_RG`
-  and the other HemiOct variants, `Mod2XCenter` (detail textures), artist `<name>_mipN` images.
+- Done 11-03 (docs/TEXTURES.md "Mip algorithms", "Image processors"): `PreserveCoverage`
+  (cx_alphatest: csgo_complex with F_ALPHA_TEST, children included, equals RC), `None`,
+  `BoxInverse`, `MipNormal`, `HemiOctAnisoRoughness`, `AnisoRoughness_RG`, `Mod2XCenter`.
+  Not yet: `AnisoNormal` (generic), `RGBM` and `ConvertToYCoCg` (sky), artist `<name>_mipN`
+  images, a texture mixing `None` with other algorithms (csgo_weapon's sticker normals), and the
+  output formats CS2's shaders name beyond DXT1 / ATI1N / ATI2N / BC7: RGBA8888 (0),
+  RGBA16161616F (15), DXT5 (23), BC6H (26) and R8_UNORM (67; the 1103 build's imageformat table at
+  0x182fecf08, 24-byte entries, adds it after IMAGE_FORMAT_NV12).
 - Image `.txt` settings other than an empty `settings {}` (core's `default_normal.txt` is empty and is recorded with its CRC).
 - Channel references by variable or by file name (above).
 - The value RC uses for system combos (`S_SHADER_QUALITY`, source type 2).

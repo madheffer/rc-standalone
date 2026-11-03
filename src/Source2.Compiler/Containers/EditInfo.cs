@@ -25,7 +25,24 @@ internal static class EditInfo
     public readonly record struct Argument(string Name, string Type, uint Fingerprint = 0, uint FingerprintDefault = 0);
 
     /// <summary><paramref name="inputs"/> sorted by path, the order RC lists a compile's files in.</summary>
-    public static IEnumerable<Input> ByPath(IEnumerable<Input> inputs) => inputs.OrderBy(d => d.Path, StringComparer.Ordinal);
+    public static IEnumerable<Input> ByPath(IEnumerable<Input> inputs) => Red2Sorted(inputs, d => d.Path);
+
+    // The RED2 finalize (rc 18016dd80..18016df5d, 20260923) sorts each list with MSVC std::sort
+    // (18017a780, 18017a9c0, 18017abe0, 18017ae90, 18017b0a0, 18017a5a0) and each searchable table
+    // by member name (181ebae60 -> 181ea5d30 -> 181ea6ae0); every comparison is tier0's
+    // V_stricmp_fast < 0 (the comparators' import calls, 18017caac ... 18017dcc5, 181ea6c0f): A-Z
+    // folded to a-z, so '_' sorts before letters and "Abc" beside "abc".
+    internal static List<T> Red2Sorted<T>(IEnumerable<T> items, Func<T, string> key)
+    {
+        var array = items.ToArray();
+        Simulation.MsvcSort.Sort(array.AsSpan(), new StricmpLess<T>(key));
+        return [.. array];
+    }
+
+    private readonly struct StricmpLess<T>(Func<T, string> key) : Simulation.ILess<T>
+    {
+        public bool Less(in T a, in T b) => Io.Tier0Strings.StricmpFast(key(a), key(b)) < 0;
+    }
 
     /// <summary><paramref name="inputs"/>, in the order given, as an <c>m_InputDependencies</c>-shaped array.</summary>
     public static KVObject Inputs(IEnumerable<Input> inputs)
@@ -50,7 +67,7 @@ internal static class EditInfo
     public static KVObject Arguments(IEnumerable<Argument> arguments)
     {
         var array = KVObject.Array();
-        foreach (var a in arguments.OrderBy(a => a.Name, StringComparer.Ordinal))
+        foreach (var a in Red2Sorted(arguments, a => a.Name))
         {
             var o = KVObject.Collection();
             o.Add("m_ParameterName", new KVObject(a.Name));
@@ -92,12 +109,12 @@ internal static class EditInfo
     /// vmat_c: "csgo/csgo_character.vfx" before "Material Compiler Version"). Fingerprint and user
     /// data are RC's uint32s ("Texture Encode Quality" user data 3, "Texture Compiler Version" 11,
     /// "Vector Graphic Version" 2); a 0 or 1 takes the no-payload UINT32_ZERO / UINT32_ONE codes
-    /// since tier0 20261015 (the 11-03 RcReference compiles), which the KV3 writer picks for a uint.
+    /// since tier0 20261015 (the 11-03 .vtex probes), which the KV3 writer picks for a uint.
     /// </summary>
     public static KVObject SpecialDependencies(IEnumerable<Source2ContainerAuthor.SpecialDep> deps)
     {
         var array = KVObject.Array();
-        foreach (var dep in deps.OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase))
+        foreach (var dep in Red2Sorted(deps, d => d.Name))
         {
             var o = KVObject.Collection();
             o.Add("m_String", new KVObject(dep.Name));
