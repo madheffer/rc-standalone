@@ -78,7 +78,7 @@ Embree's BVH tie order; lightmap L16 and the ameliorate repack iterations.
 
 Changed since the audit: 8.c1 / 8.c2 are no longer true for textures and materials. On the main line every
 RcReference texture, material, child texture, sound, SVG and KV3 fixture is byte-identical to resourcecompiler
-1.41.9.5 (resources agent, f6d84ec), and main now also has (11-04, 43429e0): Box<N>, MultiplyBox /
+1.41.9.5 (resources agent, f6d84ec), and main now also has (11-04, 43429e0 and f453521): Box<N>, MultiplyBox /
 MultiplyNoMip, RGBM, AlphaWeighted, HemiOctNormal, HemiOctAnisoRoughness_RG_BA, MipWidth / MipHeight /
 MipDepth; the ConvertToYCoCg, EncodeRGBM, ScaleToPowerOfTwo, FillToPowerOfTwo, FillToMultipleOfFour,
 HeightToNormal and DilateColorInTransparentPixels processors; and 15 output formats (I8, IA88, A8,
@@ -87,8 +87,9 @@ RG3232F, RGB323232F, RGBA32323232F). 40 new RC probes (`RcReference/textures/alg
 byte-identical; the 20 formats RC itself refuses are refused here too. docs/TEXTURES.md on main has the rules.
 
 Open, with RC probes already compiled in `RcReference/textures/algorithms2` (no CS2-closed time needed):
-- Mip algorithms: **AnisoNormal / AnisoNormalRoughness** (18014c660, the generic shader's: the parallel moments
-  chain and the footprint search), HemiOctIsoRoughnessAdjustable_RG_BA (18014a080, the eight-channel chain with
+- AnisoNormal / AnisoNormalRoughness are done (main f453521, five probes): every mip algorithm a CS2 shader
+  names is ported for 2D textures. Left are the ones no shader names:
+- Mip algorithms: HemiOctIsoRoughnessAdjustable_RG_BA (18014a080, the eight-channel chain with
   NORMALZ), Mip2DGradient (18014dd80 -> the rsqrtps Sobel 181274380, per-vendor like NormalizeNormals; probe
   gradient2d_rg), WrapGaussian (180152360: binomial kernel 1801521b0 indexed by |i| over 2 taps - 1, the
   separable wrap filter 180c3a150, whose 4-wide sums need the disassembly's order), AutoLevels (180147460),
