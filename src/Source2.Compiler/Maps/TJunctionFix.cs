@@ -58,10 +58,57 @@ internal static class TJunctionFix
     public static void Run(IReadOnlyList<Mesh> meshes)
     {
         var records = Collect(meshes);
+        var byX = new RecordIndex(records);
         foreach (var mesh in meshes)
         {
             if (!mesh.Excluded)
-                Fix(mesh, records);
+                Fix(mesh, records, byX);
+        }
+    }
+
+    /// <summary>
+    /// The records a triangle's box can take, by x: the ones with lo.X &lt;= x &lt;= hi.X (and any NaN x, which no
+    /// x test skips), in list order, so Fix visits exactly the records and order the full scan would. Speed only.
+    /// </summary>
+    sealed class RecordIndex
+    {
+        readonly int[] order;
+        readonly float[] xs;
+        readonly int[] nan;
+        readonly int count;
+
+        public RecordIndex(List<Record> records)
+        {
+            count = records.Count;
+            nan = [.. Enumerable.Range(0, count).Where(i => float.IsNaN(records[i].Point.X))];
+            order = [.. Enumerable.Range(0, count).Where(i => !float.IsNaN(records[i].Point.X)).OrderBy(i => records[i].Point.X).ThenBy(i => i)];
+            xs = [.. order.Select(i => records[i].Point.X)];
+        }
+
+        public IEnumerable<int> Candidates(float lo, float hi)
+        {
+            if (float.IsNaN(lo) || float.IsNaN(hi))
+                return Enumerable.Range(0, count);
+            var first = LowerBound(lo);
+            var list = new List<int>(nan);
+            for (var k = first; k < xs.Length && xs[k] <= hi; k++)
+                list.Add(order[k]);
+            list.Sort();
+            return list;
+        }
+
+        int LowerBound(float x)
+        {
+            int a = 0, b = xs.Length;
+            while (a < b)
+            {
+                var m = (a + b) >> 1;
+                if (xs[m] < x)
+                    a = m + 1;
+                else
+                    b = m;
+            }
+            return a;
         }
     }
 
@@ -168,7 +215,7 @@ internal static class TJunctionFix
         return unique;
     }
 
-    static void Fix(Mesh m, List<Record> records)
+    static void Fix(Mesh m, List<Record> records, RecordIndex byX)
     {
         var twin = Twins(m);
         var original = m.Indices.Count / 3 * 3;
@@ -194,8 +241,9 @@ internal static class TJunctionFix
             var hi = new Vector3(Max(c, 0), Max(c, 1), Max(c, 2)) + new Vector3(Grid);
             var flags = new bool[3];
             var inserts = new List<Insert>();
-            foreach (var r in records)
+            foreach (var i in byX.Candidates(lo.X, hi.X))
             {
+                var r = records[i];
                 if (r.Point.X < lo.X || hi.X < r.Point.X || r.Point.Y < lo.Y || hi.Y < r.Point.Y || r.Point.Z < lo.Z || hi.Z < r.Point.Z)
                     continue;
                 Visit(m, r, ix, c, s, dirs, twin, t, flags, inserts);
