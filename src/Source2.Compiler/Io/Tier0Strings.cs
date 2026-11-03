@@ -4,7 +4,7 @@ namespace Source2.Compiler.Io;
 /// tier0's string helpers as the compile calls them (0923 build). Their case
 /// folding is ASCII only (A-Z to a-z), unlike .NET's OrdinalIgnoreCase.
 /// </summary>
-public static class Tier0Strings
+internal static class Tier0Strings
 {
     private static char Fold(char c) => c is >= 'A' and <= 'Z' ? (char)(c + 0x20) : c;
 

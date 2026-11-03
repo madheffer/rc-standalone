@@ -93,6 +93,16 @@ After both, the 18 `.vtex`, 5 algorithm, 12 `.vmat` (with their 13 children) and
 byte for byte today's RC again. Every RED2 the compiler writes moved, so vpkstuff's goldens of
 compiled textures, sounds, vector graphics and KV3 sources move with this.
 
+Also measured on 11-03 against fresh compiles of the probe addon's own sources:
+- `.svg`: RC stores the file's bytes as they are (its vector graphic compile, rc 18015e2d0, puts
+  the source buffer into the Panorama writer 1800f6960) and records their CRC. The facade's
+  `VectorGraphicCompiler` now does too (`panorama/t.svg` byte for byte); the Panorama
+  normalization the in-house builder applies is `VectorGraphicSettings.Sanitize`.
+- `.wav`: not matched. RC writes the v5 layout `ModernizeVsnd` makes (RED2, an empty DATA,
+  CTRL), but its CTRL now has five members, `m_bRegisteredVMix` and `m_nResourceName` among them
+  (the strings first appear in the 20261023 build; the Ghidra project's 0923 build has neither),
+  and RED2 probes a tenth sibling, `<name>.vmix`. Both want the 1103 sound compile read.
+
 ### C8 — KV3 v4 written as Valve writes it; an edit keeps the block's version (2026-10-14)
 
 Most stock materials and models still carry binary v4 blocks (pak01: 9,707 vmat DATA, about

@@ -1,8 +1,9 @@
 namespace Source2.Compiler.Simulation;
 
-/// <summary>A strict weak order: true when <paramref name="a"/> goes before <paramref name="b"/>.</summary>
-public interface ILess<T>
+/// <summary>A strict weak order.</summary>
+internal interface ILess<T>
 {
+    /// <summary>True when <paramref name="a"/> goes before <paramref name="b"/>.</summary>
     bool Less(in T a, in T b);
 }
 
@@ -14,7 +15,7 @@ public interface ILess<T>
 /// depth budget runs out. vphysics2 instantiates it for the Morton rebuild
 /// (FUN_180333af0, with FUN_180333970 as the median guess).
 /// </summary>
-public static class MsvcSort
+internal static class MsvcSort
 {
     private const int InsertionSortMax = 32;
 

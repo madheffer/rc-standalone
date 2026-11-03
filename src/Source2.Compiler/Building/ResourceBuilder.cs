@@ -1362,6 +1362,16 @@ public static class ResourceBuilder
     /// null records a neutral <c>vpkeditor/</c> name.</param>
     /// <param name="searchPath">The content tree RC compiled from (<c>csgo</c>, or <c>csgo_addons/&lt;addon&gt;</c>), recorded with each input dependency.</param>
     public static byte[] BuildPanoramaSvg(byte[]? templateVsvgC, byte[] svgBytes, string? sourceName = null, string searchPath = "csgo")
+        => BuildVectorGraphic(templateVsvgC, svgBytes, sourceName, searchPath, sanitize: true);
+
+    /// <summary>
+    /// The <c>.vsvg_c</c> of an SVG. With <paramref name="sanitize"/> the SVG is first normalized
+    /// for Panorama (<see cref="BuildPanoramaSvg(byte[], byte[], string, string)"/>); without it
+    /// the file's own bytes are stored, as resourcecompiler does: its vector graphic compile
+    /// (rc 18015e2d0) puts the source file's bytes into the buffer the Panorama writer (1800f6960)
+    /// stores, and RED2 records that file's CRC (panorama/images/s2cprobe/t.svg, RC 11-03).
+    /// </summary>
+    public static byte[] BuildVectorGraphic(byte[]? templateVsvgC, byte[] svgBytes, string? sourceName, string searchPath, bool sanitize)
     {
         // The DATA block: u32 CRC32 of the SVG; u16 image count; per image a
         // NUL-terminated name, u16 width, u16 height (and u32 CRC from resource
@@ -1397,7 +1407,7 @@ public static class ResourceBuilder
         // relative path data most icon CDNs emit, so this normalizes ANY icon
         // (current, future, user-uploaded) to the clean subset the engine draws.
         // The CRC is of the payload, and both VRF's reader and the engine check it.
-        var svg = SvgSanitizer.ForPanorama(svgBytes);
+        var svg = sanitize ? SvgSanitizer.ForPanorama(svgBytes) : svgBytes;
         var payload = new byte[4 + imageTable.Length + svg.Length];
         System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(payload, System.IO.Hashing.Crc32.HashToUInt32(svg));
         imageTable.CopyTo(payload, 4);

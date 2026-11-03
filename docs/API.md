@@ -38,11 +38,11 @@ foreach (var d in result.Diagnostics)
 | Source | Compiler | Output | Matches resourcecompiler |
 |---|---|---|---|
 | `.vsndevts` `.vdata` `.vpcf` `.vagrp` | `Kv3DocumentCompiler` | `<source>_c` | byte for byte (`.vpcf`: current-format sources; legacy migration is PARTICLE_MIGRATION.md; `.vagrp` has no RC ground truth) |
-| `.wav` | `SoundCompiler` | `.vsnd_c` | today's RC bytes |
-| `.svg` | `VectorGraphicCompiler` | `.vsvg_c` | today's RC bytes |
+| `.wav` | `SoundCompiler` | `.vsnd_c` | no, since a 10-2x update: RC 1.41.9.5 writes the v5 layout (`ResourceBuilder.ModernizeVsnd`'s) with two more CTRL members (`m_bRegisteredVMix`, `m_nResourceName`) and a `.vmix` sibling probe in RED2, which are not read from the new build yet (RC_PARITY.md C9) |
+| `.svg` | `VectorGraphicCompiler` | `.vsvg_c` | byte for byte: the file's own bytes, as RC stores them; `VectorGraphicSettings.Sanitize` normalizes for Panorama instead |
 | `.png` `.tga` `.jpg` `.bmp` `.webp` | `ImageTextureCompiler` | `.vtex_c` | no: the in-house path, until `.vtex` sources compile through the exact pipeline (TEXTURES.md) |
-| `.vtex` | `RcTexture.VtexCompiler` | `.vtex_c` | yes, on the measured settings (RGBA8888, DXT1/5, ATI1N/2N, BC7; one 2D input, Box mips); anything else is refused (TEXTURES.md) |
-| `.vmat` | `Materials.MaterialCompiler` | `.vmat_c` + child `.vtex_c` | yes on all 12 probes, children included: Box family, normal maps, alpha-weighted colour (MATERIALS.md) |
+| `.vtex` | `RcTexture.VtexCompiler` | `.vtex_c` | yes, on the measured settings (RGBA8888, DXT1/5, ATI1N/2N, BC7; 2D; several inputs and channel groups; the mip algorithms and image processors CS2's shaders use but AnisoNormal, RGBM and YCoCg); anything else is refused (TEXTURES.md) |
+| `.vmat` | `Materials.MaterialCompiler` | `.vmat_c` + child `.vtex_c` | yes on all 13 probes, children included: Box family, normal maps, alpha-weighted colour, alpha test (MATERIALS.md) |
 | `.vmdl` (editing) | `Meshes.CompiledModel` | `.vmdl_c` | yes: unedited models and re-stored buffers byte-identical on pak01 (meshopt v1 codecs); source compile is roadmap (MESHES.md) |
 | map sources | later, from the map branch | children of `.vpk` | |
 

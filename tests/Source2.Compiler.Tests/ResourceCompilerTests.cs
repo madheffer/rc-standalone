@@ -57,11 +57,25 @@ public class ResourceCompilerTests
     public void Svg_RoutesToTheVectorGraphicCompiler()
     {
         var svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"8\" height=\"8\"><rect width=\"8\" height=\"8\" fill=\"red\"/></svg>"u8.ToArray();
-        var result = ResourceCompiler.CreateDefault().Compile(new CompileRequest("panorama/images/x.svg", svg));
+        var result = ResourceCompiler.CreateDefault().Compile(new CompileRequest("panorama/images/x.svg", svg)
+        {
+            Settings = new VectorGraphicSettings(Sanitize: true),
+        });
         Assert.True(result.Succeeded, string.Join("\n", result.Diagnostics));
         Assert.Equal("panorama/images/x.vsvg_c", result.OutputPath);
         Assert.Equal(ResourceBuilder.BuildPanoramaSvg(null, svg, "panorama/images/x.svg"), result.Output);
         Assert.Equal("panorama/images/x.svg", result.InputDependencies[0].Path);
+    }
+
+    // RcReference/panorama/t.svg compiled by RC on 11-03 in vpkstuff_rc_probe: the file's bytes
+    // stored as they are (rc 18015e2d0), RED2 with its CRC.
+    [Fact]
+    public void Svg_CompilesToResourceCompilersBytes()
+    {
+        var result = ResourceCompiler.CreateDefault().Compile(new CompileRequest("panorama/images/s2cprobe/t.svg",
+            File.ReadAllBytes(RcReference("panorama/t.svg"))) { SearchPath = "csgo_addons/vpkstuff_rc_probe" });
+        Assert.True(result.Succeeded, string.Join("\n", result.Diagnostics));
+        Assert.Equal(File.ReadAllBytes(RcReference("panorama/t.vsvg_c")), result.Output);
     }
 
     [Fact]

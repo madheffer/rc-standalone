@@ -36,7 +36,9 @@ public sealed class SoundCompiler : IResourceCompiler
 
 /// <summary>Settings for <see cref="VectorGraphicCompiler"/>.</summary>
 /// <param name="Template">A <c>.vsvg_c</c> whose container frame to keep, or null to author one.</param>
-public sealed record VectorGraphicSettings(byte[]? Template = null);
+/// <param name="Sanitize">Normalize the SVG for Panorama's parser first (<see cref="SvgSanitizer"/>),
+/// which is not what resourcecompiler does; off, the file's own bytes are stored, as RC stores them.</param>
+public sealed record VectorGraphicSettings(byte[]? Template = null, bool Sanitize = false);
 
 /// <summary>Panorama SVG to <c>.vsvg_c</c> (same path, <c>.vsvg_c</c>).</summary>
 public sealed class VectorGraphicCompiler : IResourceCompiler
@@ -49,7 +51,10 @@ public sealed class VectorGraphicCompiler : IResourceCompiler
 
     /// <inheritdoc/>
     public CompileOutput Compile(CompileRequest request, ICollection<CompileDiagnostic> diagnostics)
-        => new(ResourceBuilder.BuildPanoramaSvg((request.Settings as VectorGraphicSettings)?.Template, request.Source, request.SourcePath, request.SearchPath));
+    {
+        var settings = request.Settings as VectorGraphicSettings ?? new VectorGraphicSettings();
+        return new(ResourceBuilder.BuildVectorGraphic(settings.Template, request.Source, request.SourcePath, request.SearchPath, settings.Sanitize));
+    }
 }
 
 /// <summary>Settings for <see cref="ImageTextureCompiler"/>: the texture options an image

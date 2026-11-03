@@ -73,7 +73,7 @@ def main():
 
     try:
         for n in names:
-            if not n.lower().endswith((".vtex", ".vmat", ".vdata", ".vsndevts", ".vpcf")):
+            if not n.lower().endswith((".vtex", ".vmat", ".vdata", ".vsndevts", ".vpcf", ".wav", ".svg")):
                 continue
             src = os.path.join(content, n)
             cmd = [os.path.join(BIN, "resourcecompiler.exe"), "-nop4", "-f", "-game", os.path.join(CS2, "game", "csgo"), "-i", src]
