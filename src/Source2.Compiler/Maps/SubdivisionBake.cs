@@ -91,7 +91,11 @@ internal static class SubdivisionBake
             }
             var data = cornerData != null && layout != null ? Enumerable.Range(0, hs.Count).Select(i => a.DataGrid(hs, i, level, cornerData, layout)).ToArray() : null;
             if (data != null)
-                TangentGrids(a, hs, level, grids, data, cornerData!, layout!, smoothingAngle);
+            {
+                var gridded = TangentGrids(a, hs, level, grids, data, cornerData!, layout!, smoothingAngle);
+                for (var i = 0; i < hs.Count; i++)
+                    a.FinishLerps(data[i], layout!, gridded[i] ? [StreamOffset(layout!, "tangent")] : []);
+            }
             return (Face: f, Corners: hs.Select(h => a.To[h]).ToArray(), Level: level, Grids: grids, Paints: paints, Data: data, Points: new int[hs.Count][]);
         }).ToList();
 
@@ -286,14 +290,17 @@ internal static class SubdivisionBake
     /// <summary>
     /// The tangent stream's patch grids (ledger 38): the patch evaluator 1813c1cc0 gives a mode 3 stream the tangent
     /// grid (1813c2090) of the corner's gathered tangents (1813bdf80), the patch's normal grid (1813c3cf0) of its
-    /// displaced position grid and each point's (u, v) = (column / n, row / n), in place of the corners' lerp.
+    /// displaced position grid and each point's (u, v) = (column / n, row / n), as 1813b82f0 writes it: lerp * 0
+    /// + grid (1813c83f0's weight 0). Which corners got a grid.
     /// </summary>
-    private static void TangentGrids(FaceArrays a, List<int> hs, int level, Vector3[][] positions, float[][][] data,
+    private static bool[] TangentGrids(FaceArrays a, List<int> hs, int level, Vector3[][] positions, float[][][] data,
                                      Func<int, float[]> cornerData, IReadOnlyList<(string Name, int Width)> layout, float smoothingAngle)
     {
+        var m = hs.Count;
+        var gridded = new bool[m];
         var to = StreamOffset(layout, "tangent");
         if (to < 0 || layout.First(x => x.Name.Split(':')[0] == "tangent").Width != 4)
-            return;
+            return gridded;
         var normals = new SubdivisionNormalGrid(a, Simulation.CrtMath.Cos(MathF.Min(smoothingAngle, 180f) * 0.017453292f));
         var n = 1 << (level - 1);
         var g = n + 1;
@@ -301,7 +308,6 @@ internal static class SubdivisionBake
         for (var r = 0; r <= n; r++)
             for (var c = 0; c <= n; c++)
                 uv[(r * g) + c] = new Vector2((float)c / n, (float)r / n);
-        var m = hs.Count;
         for (var i = 0; i < m; i++)
         {
             var loop = Enumerable.Range(0, m).Select(k => cornerData(a.CornerData[hs[(i + k) % m]])).ToArray();
@@ -310,8 +316,14 @@ internal static class SubdivisionBake
                 continue;
             var tangents = SubdivisionTangents.Grid(slots, loop[0][to + 3], grid, uv);
             for (var k = 0; k < tangents.Length; k++)
-                (data[i][k][to], data[i][k][to + 1], data[i][k][to + 2], data[i][k][to + 3]) = (tangents[k].X, tangents[k].Y, tangents[k].Z, tangents[k].W);
+            {
+                var d = data[i][k];
+                (d[to], d[to + 1], d[to + 2], d[to + 3]) = ((d[to] * 0f) + tangents[k].X, (d[to + 1] * 0f) + tangents[k].Y,
+                                                            (d[to + 2] * 0f) + tangents[k].Z, (d[to + 3] * 0f) + tangents[k].W);
+            }
+            gridded[i] = true;
         }
+        return gridded;
     }
 
     /// <summary>181384e40: a face's Newell normal over its loop from its first half-edge.</summary>

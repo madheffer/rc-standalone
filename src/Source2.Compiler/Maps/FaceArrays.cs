@@ -263,38 +263,59 @@ internal sealed class FaceArrays
         var at = 0;
         foreach (var (name, w) in layout)
         {
+            // 1813b82f0 lerps every stream; 1813c83f0's record then gives a stored grid weight 0, so a value is
+            // lerp * 0 + stored (a -0 there comes out +0 unless the lerp is negative). A stream with no grid keeps
+            // the lerp here; FinishLerps adds the record's + 0.
+            float[] Of(int h) => cornerData(CornerData[h])[at..(at + w)];
+            var mean = new float[w];
+            for (var k = 0; k < m; k++)
+            {
+                var c = Of(hs[(i + k) % m]);
+                for (var j = 0; j < w; j++)
+                    mean[j] = (c[j] * inv) + mean[j];
+            }
+            var s0 = Of(hs[i]);
+            var s1 = HalfEdgeMesh.Lerp(s0, Of(hs[(i + 1) % m]), 0.5f)!;
+            var s2 = HalfEdgeMesh.Lerp(s0, Of(hs[(i + m - 1) % m]), 0.5f)!;
+            var n = side - 1;
+            var step = 1f / n;
+            for (var r = 0; r <= n; r++)
+            {
+                var left = HalfEdgeMesh.Lerp(s0, s2, r * step)!;
+                var right = HalfEdgeMesh.Lerp(s1, mean, r * step)!;
+                for (var c = 0; c <= n; c++)
+                    Array.Copy(HalfEdgeMesh.Lerp(left, right, c * step)!, 0, points[(r * side) + c], at, w);
+            }
             if (gridStreams.TryGetValue(name, out var stored) && stored.Length > 0)
             {
                 var start = blockOf[CornerData[hs[i]]];
                 for (var k = 0; k < points.Length; k++)
-                    Array.Copy(Floats(stored[start + k]), 0, points[k], at, w);
-            }
-            else
-            {
-                float[] Of(int h) => cornerData(CornerData[h])[at..(at + w)];
-                var mean = new float[w];
-                for (var k = 0; k < m; k++)
                 {
-                    var c = Of(hs[(i + k) % m]);
+                    var s = Floats(stored[start + k]);
                     for (var j = 0; j < w; j++)
-                        mean[j] = (c[j] * inv) + mean[j];
-                }
-                var s0 = Of(hs[i]);
-                var s1 = HalfEdgeMesh.Lerp(s0, Of(hs[(i + 1) % m]), 0.5f)!;
-                var s2 = HalfEdgeMesh.Lerp(s0, Of(hs[(i + m - 1) % m]), 0.5f)!;
-                var n = side - 1;
-                var step = 1f / n;
-                for (var r = 0; r <= n; r++)
-                {
-                    var left = HalfEdgeMesh.Lerp(s0, s2, r * step)!;
-                    var right = HalfEdgeMesh.Lerp(s1, mean, r * step)!;
-                    for (var c = 0; c <= n; c++)
-                        Array.Copy(HalfEdgeMesh.Lerp(left, right, c * step)!, 0, points[(r * side) + c], at, w);
+                        points[k][at + j] = (points[k][at + j] * 0f) + s[j];
                 }
             }
             at += w;
         }
         return points;
+    }
+
+    /// <summary>
+    /// 1813b82f0's last step for a stream with no grid (1813c83f0: weight 1, stride 0, the +0 at 18243e890):
+    /// lerp * 1 + 0, so a -0 lerp comes out +0. <paramref name="gridded"/> names the stream offsets a grid wrote.
+    /// </summary>
+    public void FinishLerps(float[][] points, IReadOnlyList<(string Name, int Width)> layout, ICollection<int> gridded)
+    {
+        var at = 0;
+        foreach (var (name, w) in layout)
+        {
+            if (!HasGrid(name) && !gridded.Contains(at))
+                foreach (var p in points)
+                    for (var j = 0; j < w; j++)
+                        p[at + j] = (p[at + j] * 1f) + 0f;
+            at += w;
+        }
     }
 
     /// <summary>Whether subdivisionData stores a grid for the face-vertex stream of this DMX name.</summary>

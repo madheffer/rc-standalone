@@ -5200,7 +5200,7 @@
    "addr": "1813c83f0",
    "name": "SubdivPatch_StreamModes",
    "module": "s2c:geometry/subdivision",
-   "note": "copies a stream's descriptor (mode int, type/index short) into each of its components"
+   "note": "copies a stream's descriptor (mode int, type/index short) into each of its components, then +8 weight / +0xc stride: a stream with no grid (stride 0) weight 1.0, one with a grid weight 0 and the grid's stride (ledger 38)"
   },
   {
    "addr": "181375e20",
@@ -5392,7 +5392,7 @@
    "addr": "1813b82f0",
    "name": "SubdivisionBake_PatchPaint",
    "module": "s2c:geometry/subdivision",
-   "note": "per-face patch grid of paint"
+   "note": "per-face patch grid of every +0xb20 face-vertex stream: each float the corners lerped (rows, then columns), then mulss weight, addss the evaluator's grid value (1813c83f0's record; a stream with no grid adds the +0.0f at 18243e890), so a -0 comes out +0 (ledger 38)"
   },
   {
    "addr": "1813ba570",

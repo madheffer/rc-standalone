@@ -461,12 +461,15 @@ game can answer is raised with the user first, and runs with -insecure.
       normal grid and tangent grid of all 1,183 atixref patches equal Valve's bit for bit (TangentStreamIsValves).
       At HammerMesh_TransformToWorld (capture_subdivbake_1103.py, SubdividedTangentsProbe): 103,161 of 103,887
       corners exact, was 84,443; every curved mesh exact.
-    - Still OPEN: 726 corners on flat subdivided meshes (1367, 1372 to 1380, 6778, 6781) where our grid value has
-      a -0 that Valve's mesh has as +0 by the time it is turned. Valve's own grids give the same -0 (109 times for
-      (-1, -0, 0, -1)), so a step after the grid write (1813c94f0 into each corner's face-vertex slot, record
-      +0x44 via 181399f40) changes it; nothing in AddEdgeToFace (181376f80 -> 181376810) shows a data copy, the
-      slot handling is in its listener callbacks (topology +0xc0, vtable +0x10 edge pair, +0x30 face), not read.
-      Next: read those callbacks, or capture each corner's slot index and tangent after 1813baa40 on 1375.
+    - SETTLED 2026-11-04: the 726 flat-mesh corners whose -0 Valve has as +0. Captured (capture_subdivtangents.py,
+      rc 1103, CS2 closed): the streams leave SubdivisionBake_Bake (1813baa40) as TransformToWorld gets them, so the
+      +0 is made inside the bake. Read (rc 0923): the write-back 1813c94f0 and the evaluator 1813c1cc0 only copy;
+      the patch builder 1813b82f0 lerps every float of every stream from the corners (rows, then columns), then
+      writes `mulss lerp, weight` / `addss grid[ptr + row * stride]` (disassembly 1813b8c40-1813b8d38), the weight
+      and stride from 1813c83f0's record: a stream with no grid weight 1.0, stride 0, the pointer the +0.0f at
+      18243e890; a stored or evaluator grid weight 0 and its stride. So a grid value is lerp * 0 + grid (a -0 grid
+      value is +0 unless the lerp is negative), a plain lerp is lerp + 0. Ported (FaceArrays.DataGrid /
+      FinishLerps, SubdivisionBake.TangentGrids): 103,887 of 103,887 corners exact at TransformToWorld.
 
 39. **The vertex unpack and transform of baked props** (settled
     2026-10-01): WRB_LoadPropMeshes' floats come from meshsystem's unpack
