@@ -108,8 +108,10 @@ is already published (a release never changes) and replaces `index.json` atomica
 is tagged `v<version>` on the box. `-Commit <sha> -Import <nupkg>` publishes a package that was
 built earlier from a commit of main; the feed was seeded that way with 0.1.127 and 0.1.129, the
 packages vpkstuff's live and master builds carry. vpkstuff takes a release through its
-Dependencies tab and `deploy/dep-release.sh`; `tools/publish-to-vpkstuff.ps1` remains for a
-master-only bump until that is in place.
+Dependencies tab (which lists the feed's releases and trials one) and `deploy/dep-release.sh`:
+`--master s2c <version>` puts it on master with any changed goldens re-blessed and ships dev,
+and `s2c <version>` ships it onto live as a patch release (the live commit plus that version
+alone, through the hotfix slots). `tools/publish-to-vpkstuff.ps1` is retired.
 
 Sources consulted: [Git submodules vs subtrees vs monorepos](https://slicker.me/git/submodules-vs-subtrees-vs-monorepos.html),
 [git submodule vs subtree technical overview](https://medium.com/@Spritan/git-submodule-vs-git-subtree-quick-technical-overview-92ae10119145),

@@ -56,9 +56,10 @@ ones) is a separate API, `CompiledResource`; compiling and editing do not share 
    (TEXTURES.md). `.vmat`: the material and its child textures on every probe, normal maps and
    alpha-weighted colour included (MATERIALS.md). `.vmdl`: editing through `Meshes.CompiledModel` (MESHES.md); compiling from
    ModelDoc sources is roadmap.
-3. A NuGet package. Packs, restores and publishes into vpkstuff's folder feed with
-   `tools/publish-to-vpkstuff.ps1` (CONSUMING.md); the vendored library retires when vpkstuff
-   switches to it (VPKSTUFF_PACKAGE_HANDOFF.md, phase 1). Public API tracking (PublicApiAnalyzers) is left out while the
+3. A NuGet package, released to the feed on the box with `tools/release.ps1` (package
+   validation against the previous release; CONSUMING.md). vpkstuff takes a release with its
+   `deploy/dep-release.sh`; the vendored library retired when vpkstuff switched to the package
+   (VPKSTUFF_PACKAGE_HANDOFF.md, phase 1). Public API tracking (PublicApiAnalyzers) is left out while the
    surface is 0.x and several agents edit it.
 4. vpkstuff's call sites move onto the package, and VRF leaves vpkstuff
    (VPKSTUFF_PACKAGE_HANDOFF.md, phases 2 and 3; done by vpkstuff's side).

@@ -24,10 +24,10 @@ work does not need a live deploy of its own. Commit with the noreply identity th
   plus this document as `docs/SOURCE2_COMPILER_PACKAGE.md` (packages up to 0.1.100 also came with a
   `.snupkg`; later ones embed their symbols and have none). Build the switch
   (phase 1) on that branch.
-- **The publish command** for every later update, run from source2-compiler `main`:
-  `powershell -ExecutionPolicy Bypass -File tools\publish-to-vpkstuff.ps1`. Once phase 1 is
-  merged it also bumps the pins, refreshes the vendored adapter and runs the compiler gate, then
-  commits on a new `chore/compiler-<version>` branch. It never pushes unless `-Push`.
+- **Releases since 2026-11-03.** source2-compiler `tools/release.ps1` publishes each release
+  to the feed on the box; vpkstuff takes one with `deploy/dep-release.sh` (`--master` for master
+  and dev, the default for a patch release onto live) and lists them in the Dependencies tab.
+  The old `tools/publish-to-vpkstuff.ps1` is retired.
 - **API stability.** Between the sha vpkstuff vendored (`f93414f`) and the first package no
   public member was removed or changed; everything is additive. The global aliases in
   `dotnet/shared/CompilerAliases.cs` keep working.
