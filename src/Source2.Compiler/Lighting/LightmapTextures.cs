@@ -102,8 +102,7 @@ public static class LightmapTextures
                     return ImageFormat.Bc7;
                 if (used[1])
                     return ImageFormat.Ati2n;
-                if (!used[0])
-                    throw new NotSupportedException("direct_light_shadows with no shadow anywhere: RC sizes it to 4x4 (local_1ff0), not ported.");
+                // No channel under 1 is ATI1N too; Vtex then asks for a 4x4 texture (NoShadow).
                 return ImageFormat.Ati1n;
             case "irradiance" or "directional_irradiance_sh2_dc":
                 return compressed ? ImageFormat.Bc6h : ImageFormat.Rgba16161616F;
@@ -174,18 +173,52 @@ public static class LightmapTextures
             format = named;
             formatName = overrideName;
         }
+        // SerializeLightMap's shadow branch (0923 1801f3f40): on the ATI1N path, when no value of the first channel is under 1 either,
+        // the minimum and maximum dimension become 4 and 4 (local_1ff0 = 0x400000004), before gameinfo's override,
+        // and the texture compiler makes a 4x4 texture of it. The descriptor fingerprint takes those dimensions and
+        // the image fingerprint the bitmap as passed. How the texture compiler brings the bitmap down to its maximum
+        // is not read, so this takes only a first channel of all 1, which any downscale keeps.
+        var maxDimension = 0;
+        var fingerprinted = image;
+        if (channel == "direct_light_shadows" && options.Compressed && Format(channel, original, true) == ImageFormat.Ati1n && NoShadow(original))
+        {
+            if (mips > 1 || !AllOne(image))
+                throw new NotSupportedException("direct_light_shadows with no shadow anywhere: the texture compiler's downscale to its 4x4 maximum (with values over 1 or more than one mip) is not read.");
+            minDimension = maxDimension = 4;
+            while (image.Width > 4 || image.Height > 4)
+                image = RcMipChain.QuarterSize(image);
+        }
         var algorithm = channel != "debug_chart_color" && mips > 1 ? $"Box{mips}" : "None";
         var final = options.Quality is >= 0 and < 3 && FinalByQuality[options.Quality] != 0;
         var hueShiftFixup = format == ImageFormat.Bc6h && options.Bc6hHueShiftFixup && final;
 
         var derived = fingerprints ?? new Fingerprints(
-            DescriptorFingerprint(Descriptor("2DARRAY", LightmapArgument.Name, formatName, minDimension, 0, algorithm)),
-            ImageFingerprint(image, 1));
+            DescriptorFingerprint(Descriptor("2DARRAY", LightmapArgument.Name, formatName, minDimension, maxDimension, algorithm)),
+            ImageFingerprint(fingerprinted, 1));
         var levels = algorithm == "None" ? [image] : MipLevels(image, mips);
         // The texture compiler's quality (180133da0): 3 in a console build, 4 when final is set.
         var quality = final ? 4 : 3;
         var args = new TextureArguments(final ? 1 : 0, hueShiftFixup, options.CompileArguments, algorithm == "None" ? "None" : "Box", quality);
         return Write([levels], format, FlagTextureArray, EditInfo(LightmapArgument, searchPath, derived, args), nativeFolder, quality, hueShiftFixup);
+    }
+
+    // SerializeLightMap's scan of the first channel: no texel under 1 in any slice, row or column.
+    private static bool NoShadow(RcMipChain.Level image)
+    {
+        var rgba = image.Rgba;
+        for (var i = 0; i < rgba.Length; i += 4)
+            if (rgba[i] < 1f)
+                return false;
+        return true;
+    }
+
+    private static bool AllOne(RcMipChain.Level image)
+    {
+        var rgba = image.Rgba;
+        for (var i = 0; i < rgba.Length; i += 4)
+            if (rgba[i] != 1f)
+                return false;
+        return true;
     }
 
     // GenerateMips_Box: each level a QuarterSize of the one above.
