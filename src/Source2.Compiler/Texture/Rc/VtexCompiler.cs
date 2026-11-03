@@ -88,9 +88,12 @@ public sealed class VtexCompiler : IResourceCompiler
         if (format == "BC7" && Bc7e.Unavailable(options.Bc7Vendor) is { } why)
             throw new InvalidOperationException(why);
 
-        var (data, stored, _) = BuildTexture(levels, format, srgb, settings.NoLod, maxMips, options.Bc7Vendor, (first.Width, first.Height), reflectivity);
+        // The size FILL_TO_POWER_OF_TWO compares with is the first input's as its processor leaves it
+        // (scalepow2_rgba: a 48x40 scaled to 64x64 writes no fill record).
+        var nominal = RcImageProcessors.SizeAfter(texture.Inputs[0].ImageProcessor, first.Width, first.Height);
+        var (data, stored, _) = BuildTexture(levels, format, srgb, settings.NoLod, maxMips, options.Bc7Vendor, nominal, reflectivity);
         var special = new Dictionary<string, Source2ContainerAuthor.SpecialDep>(StringComparer.OrdinalIgnoreCase);
-        foreach (var dep in Source2ContainerAuthor.TextureBaseDeps.Concat(RcTextureChannels.Deps(texture)))
+        foreach (var dep in Source2ContainerAuthor.TextureBaseDeps.Concat(RcTextureChannels.Deps(texture, f => (decoded[f].Width, decoded[f].Height))))
             special[dep.Name] = dep;
         var red2 = Source2ContainerAuthor.BuildTextureSourceEditInfo(request.SourcePath, request.Source,
             images, [.. special.Values], request.SearchPath);

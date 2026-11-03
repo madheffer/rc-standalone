@@ -51,6 +51,10 @@ internal static class RcTextureChannels
         ["Mod2XCenter"] = [("Image Mod2X", 1)],
         ["EncodeRGBM"] = [("Image Encode RGBM", 1)],
         ["ConvertToYCoCg"] = [("Image YCoCg Conversion", 1)],
+        ["ScaleToPowerOfTwo"] = [("Image ScaleToPowerOfTwo", 1)],
+        ["FillToPowerOfTwo"] = [("Image FillToPowerOfTwo", 1)],
+        ["FillToMultipleOfFour"] = [("Image FillToPowerOfTwo", 1)],
+        ["HeightToNormal"] = [("Image HeightToNormal", 1)],
     };
 
     // Box-family mip algorithms: the 2x2 box chain; MipNormal is the Box chain under another name
@@ -68,13 +72,27 @@ internal static class RcTextureChannels
             "HemiOctIsoRoughness_RG_B", "AnisoRoughness_RG", "HemiOctAnisoRoughness", "ArtistDefinedOrAlphaWeighted", "None", "BoxInverse", "PreserveCoverage",
             "MultiplyBox", "MultiplyNoMip", "MipWidth", "MipHeight", "MipDepth", "RGBM", "HemiOctAnisoRoughness_RG_BA", "AlphaWeighted", "HemiOctNormal",
         };
-    private static readonly HashSet<string> Processors = new(StringComparer.OrdinalIgnoreCase) { "NormalizeNormals", "Inverse", "Mod2XCenter", "EncodeRGBM", "ConvertToYCoCg" };
+    private static readonly HashSet<string> Processors = new(StringComparer.OrdinalIgnoreCase) { "NormalizeNormals", "Inverse", "Mod2XCenter", "EncodeRGBM", "ConvertToYCoCg", "ScaleToPowerOfTwo", "FillToPowerOfTwo", "FillToMultipleOfFour", "HeightToNormal" };
 
     /// <summary>The special dependencies a texture's mip algorithms and image processors add.</summary>
-    internal static IEnumerable<Source2ContainerAuthor.SpecialDep> Deps(GeneratedTexture texture)
+    /// <param name="texture">Inputs and channel groups.</param>
+    /// <param name="size">Each input file's size, when known: ScaleToPowerOfTwo registers its entry only
+    /// when it resizes (18013f300 checks each frame first).</param>
+    internal static IEnumerable<Source2ContainerAuthor.SpecialDep> Deps(GeneratedTexture texture, Func<string, (int Width, int Height)>? size = null)
     {
+        static bool Pow2(int v) => v > 0 && (v & (v - 1)) == 0;
         foreach (var algorithm in texture.Channels.Select(c => c.MipAlgorithm).Concat(texture.Inputs.Select(i => i.ImageProcessor)).Where(a => a.Length > 0))
         {
+            // The resizing processors register only when a frame needs them.
+            Func<(int Width, int Height), bool>? untouched = algorithm.ToLowerInvariant() switch
+            {
+                "scaletopoweroftwo" or "filltopoweroftwo" => d => Pow2(d.Width) && Pow2(d.Height),
+                "filltomultipleoffour" => d => d.Width % 4 == 0 && d.Height % 4 == 0,
+                _ => null,
+            };
+            if (untouched is not null && size is not null
+                && texture.Inputs.Where(i => i.ImageProcessor.Equals(algorithm, StringComparison.OrdinalIgnoreCase)).All(i => untouched(size(i.FileName))))
+                continue;
             if (!AlgorithmDeps.TryGetValue(BoxCap(algorithm) is not null ? "Box" : algorithm, out var deps))
                 throw new InvalidOperationException($"Texture algorithm {algorithm} is not measured yet.");
             foreach (var (name, fp) in deps)
@@ -124,6 +142,10 @@ internal static class RcTextureChannels
                     "mod2xcenter" => RcImageProcessors.Mod2XCenter(level),
                     "encodergbm" => RcImageProcessors.EncodeRgbm(level),
                     "converttoycocg" => RcImageProcessors.ConvertToYCoCg(level),
+                    "scaletopoweroftwo" => RcImageProcessors.ScaleToPowerOfTwo(level),
+                    "filltopoweroftwo" => RcImageProcessors.FillToPowerOfTwo(level),
+                    "filltomultipleoffour" => RcImageProcessors.FillToMultipleOfFour(level),
+                    "heighttonormal" => RcImageProcessors.HeightToNormal(level),
                     _ => level,
                 };
                 loaded[key] = level;
@@ -209,6 +231,10 @@ internal static class RcTextureChannels
             // constant into the heap (mipwidth_rgba: G and B equal R, A 0). Only red is defined.
             if (algorithm is "mipwidth" or "mipheight" or "mipdepth" && channel.SrcChannels.Any(c => c != 'r'))
                 throw new InvalidOperationException($"{label}: {channel.MipAlgorithm} makes a red-only frame; RC's copy of its other channels reads past their storage.");
+            // HeightToNormal leaves an RGB frame (180c3f140 mask 7): alpha has the same past-the-storage copy
+            // (heighttonormal_rgba: alpha 0 in the stored levels, 1 in the reflectivity).
+            if (inputs.Any(i => i.ImageProcessor.Equals("HeightToNormal", StringComparison.OrdinalIgnoreCase)) && channel.SrcChannels.Contains('a'))
+                throw new InvalidOperationException($"{label}: HeightToNormal makes an RGB frame; RC's copy of its alpha reads past its storage.");
             for (int k = 0; k < channel.DstChannels.Length; k++)
             {
                 int s = "rgba".IndexOf(channel.SrcChannels[k]), d = "rgba".IndexOf(channel.DstChannels[k]);

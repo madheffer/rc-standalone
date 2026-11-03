@@ -99,4 +99,112 @@ public static class RcImageProcessors
             }
         return RcMipChain.Load(b, w, h, srgb: false);
     }
+
+    /// <summary>
+    /// <c>ScaleToPowerOfTwo</c> (inline in 18013f300, "Image ScaleToPowerOfTwo" 1 registered on the
+    /// first frame it changes): a 2D frame with a side that is not a power of two is resampled to the
+    /// next powers of two with clamping (180c43790 with 1, <see cref="RcMipChain.Resize"/>).
+    /// </summary>
+    public static RcMipChain.Level ScaleToPowerOfTwo(RcMipChain.Level level)
+    {
+        static int Next(int v) => (int)System.Numerics.BitOperations.RoundUpToPowerOf2((uint)v);
+        int w = level.Width, h = level.Height;
+        if ((w & (w - 1)) == 0 && (h & (h - 1)) == 0)
+            return level;
+        return RcMipChain.Resize(level, Next(w), Next(h), clamp: true);
+    }
+
+    /// <summary>
+    /// The size FILL_TO_POWER_OF_TWO compares the texture with, for a <paramref name="width"/> x
+    /// <paramref name="height"/> input after <paramref name="processor"/>: ScaleToPowerOfTwo's new
+    /// size (it sets no fill flag); the input's own for the fill processors, which set the flag
+    /// (FillToMultipleOfFour not for a 1x1 input, so that one is its padded size).
+    /// </summary>
+    internal static (int Width, int Height) SizeAfter(string processor, int width, int height)
+    {
+        if (processor.Equals("ScaleToPowerOfTwo", StringComparison.OrdinalIgnoreCase))
+            return (NextPowerOfTwo(width), NextPowerOfTwo(height));
+        if (processor.Equals("FillToMultipleOfFour", StringComparison.OrdinalIgnoreCase) && width == 1 && height == 1)
+            return (4, 4);
+        return (width, height);
+    }
+
+    private static int NextPowerOfTwo(int v) => (int)System.Numerics.BitOperations.RoundUpToPowerOf2((uint)v);
+
+    /// <summary>
+    /// <c>FillToPowerOfTwo</c> (180140550, "Image FillToPowerOfTwo" 1 on the first frame it
+    /// changes): a 2D frame with a side that is not a power of two goes into the top left of a
+    /// frame of the next powers of two (181277780), each row's last pixel copied right, the last
+    /// row copied down, the corner pixel filling the rest. The compile then writes a fill record
+    /// with the original size.
+    /// </summary>
+    public static RcMipChain.Level FillToPowerOfTwo(RcMipChain.Level level)
+    {
+        int w = level.Width, h = level.Height;
+        if ((w & (w - 1)) == 0 && (h & (h - 1)) == 0)
+            return level;
+        return Extend(level, NextPowerOfTwo(w), NextPowerOfTwo(h));
+    }
+
+    /// <summary>
+    /// <c>FillToMultipleOfFour</c> (180140ae0, registering the same "Image FillToPowerOfTwo" 1): a
+    /// side that is not a multiple of 4 grows by 3, 2 or 1 (its remainder 1, 2, 3), edges extended
+    /// as FillToPowerOfTwo extends them.
+    /// </summary>
+    public static RcMipChain.Level FillToMultipleOfFour(RcMipChain.Level level)
+    {
+        int w = level.Width, h = level.Height;
+        if (w % 4 == 0 && h % 4 == 0)
+            return level;
+        int[] pad = [0, 3, 2, 1];
+        return Extend(level, w + pad[w % 4], h + pad[h % 4]);
+    }
+
+    private static RcMipChain.Level Extend(RcMipChain.Level level, int nw, int nh)
+    {
+        int w = level.Width, h = level.Height;
+        var o = new float[nw * nh * 4];
+        for (int y = 0; y < nh; y++)
+            for (int x = 0; x < nw; x++)
+                Array.Copy(level.Rgba, (Math.Min(y, h - 1) * w + Math.Min(x, w - 1)) * 4, o, (y * nw + x) * 4, 4);
+        return new RcMipChain.Level(nw, nh, o);
+    }
+
+    /// <summary>
+    /// <c>HeightToNormal</c> (180141080, "Image HeightToNormal" 1): from channel 0 of a copy, a
+    /// 3x3 Sobel with wrapping per pixel, summed as the disassembly does: dx from the columns
+    /// either side, dy from the rows; a gradient longer than 1 is made unit, z = sqrt(1 - |g|^2),
+    /// and the frame becomes RGB only (180c3f140 with mask 7, alpha its constant 1):
+    /// <c>(dx, dy, z) * 0.5 + 0.5</c>.
+    /// </summary>
+    public static RcMipChain.Level HeightToNormal(RcMipChain.Level level)
+    {
+        int w = level.Width, h = level.Height;
+        float H(int x, int y) => level.Rgba[((y % h) * w + (x % w)) * 4];
+        var o = new float[w * h * 4];
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                int xl = x + w - 1, xr = x + w + 1, xc = x + w, yu = y + h - 1, yd = y + h + 1, yc = y + h;
+                float a = 0f - H(xl, yu);
+                float lc = H(xl, yc), ld = H(xl, yd);
+                float ru = H(xr, yu), rc = H(xr, yc), rd = H(xr, yd);
+                // The disassembly doubles a term once and adds it (addss x, x), which Ghidra prints as two adds.
+                float dx = ((((a - (lc + lc)) - ld) + ru) + (rc + rc)) + rd;
+                float cu = H(xc, yu), cd = H(xc, yd);
+                float dy = ((((a - (cu + cu)) - ru) + ld) + (cd + cd)) + rd;
+                float len = dy * dy + dx * dx;
+                if (1f < len)
+                {
+                    float l = MathF.Sqrt(len);
+                    dx /= l;
+                    dy /= l;
+                    len = 1f;
+                }
+                float z = MathF.Sqrt(1f - len);
+                int at = (y * w + x) * 4;
+                (o[at], o[at + 1], o[at + 2], o[at + 3]) = (dx * 0.5f + 0.5f, dy * 0.5f + 0.5f, z * 0.5f + 0.5f, 1f);
+            }
+        return new RcMipChain.Level(w, h, o);
+    }
 }

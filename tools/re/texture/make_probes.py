@@ -114,6 +114,13 @@ P = {
     "uniformrandom_rgba": one("noisy64.png", "Box", procs=[("UniformRandom32x32",)]),
     # output formats
 }
+# Groups reading only the channels a red-only / RGB-only / RG-only frame holds (11-04, second run).
+P["mipwidth_r"] = one("rect64x16.png", "MipWidth", src="r")
+P["mipheight_r"] = one("rect64x16.png", "MipHeight", src="r")
+P["mipdepth_r"] = one("rect64x16.png", "MipDepth", src="r")
+P["heighttonormal_rgb"] = one("height64.png", "Box", procs=[("HeightToNormal",)], src="rgb")
+P["gradient2d_rg"] = one("height64.png", "Mip2DGradient", src="rg")
+P["dilate_rgb"] = one("cut64.png", "Box", procs=[("DilateColorInTransparentPixels",)], src="rgb")
 for fmt in ("RGBA16161616F", "RGBA16161616", "R32F", "RGB323232F", "RGBA32323232F", "RG1616F", "RG3232F", "R16F", "R16",
             "RG1616", "BC6H", "I8", "IA88", "A8", "BGRA8888", "ABGR8888", "ARGB8888", "BGRX8888", "RGBX8888", "RGB888", "BGR888",
             "RGB565", "BGR565", "BGRA4444", "UV88", "UVWQ8888", "DXT3", "DXT1_ONEBITALPHA", "DXT5_NM", "R11G11B10_FLOAT",

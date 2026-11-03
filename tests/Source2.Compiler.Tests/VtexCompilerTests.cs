@@ -132,6 +132,13 @@ public class VtexCompilerTests
     [InlineData("alphaweighted_rgba")]
     [InlineData("artist_box_rgba")]
     [InlineData("hemioctnormal_rgba")]
+    [InlineData("scalepow2_rgba")]
+    [InlineData("fillpow2_rgba")]
+    [InlineData("fillmult4_rgba")]
+    [InlineData("heighttonormal_rgb")]
+    [InlineData("mipwidth_r")]
+    [InlineData("mipheight_r")]
+    [InlineData("mipdepth_r")]
     [InlineData("fmt_i8")]
     [InlineData("fmt_ia88")]
     [InlineData("fmt_a8")]
@@ -155,6 +162,8 @@ public class VtexCompilerTests
         var result = ResourceCompiler.CreateDefault().Compile(new CompileRequest($"materials/s2calg2/{name}.vtex",
             File.ReadAllBytes(Fixture($"algorithms2/{name}.vtex"))) { SearchPath = "csgo_addons/vpkstuff_rc_probe", Content = content });
         Assert.True(result.Succeeded, string.Join("\n", result.Diagnostics));
+        if (Environment.GetEnvironmentVariable("VTEX_DUMP") is { Length: > 0 } dump)
+            File.WriteAllBytes(Path.Combine(dump, name + ".vtex_c"), result.Output!);
         Assert.True(File.ReadAllBytes(Fixture($"algorithms2/{name}.vtex_c")).AsSpan().SequenceEqual(result.Output), $"{name}.vtex_c differs from resourcecompiler's");
     }
 
