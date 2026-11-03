@@ -26,15 +26,25 @@ internal static class RcTextureChannels
         ["ArtistDefined"] = [("Mip Box", 1)],
         ["ArtistDefinedOrAlphaWeighted"] = [("Mip AlphaWeighted", 1)],
         ["HemiOctIsoRoughness_RG_B"] = [("Mip HemiOctAnisoRoughness", 3), ("Mip HemiOctIsoRoughness_RG_B", 1)],
+        // 180142990 registers its own entry for AnisoRoughness_RG, then the shared chain its (fp 3).
+        ["AnisoRoughness_RG"] = [("Mip AnisoRoughness_RG", 1), ("Mip HemiOctAnisoRoughness", 3)],
+        ["HemiOctAnisoRoughness"] = [("Mip HemiOctAnisoRoughness", 3)],
+        ["None"] = [("Mip None", 1)],
+        ["BoxInverse"] = [("Mip Box Inverse", 1)],
+        // MipNormal registers its own entry, then runs the Box chain, which registers Box's.
+        ["MipNormal"] = [("Mip Normals", 1), ("Mip Box", 1)],
+        ["PreserveCoverage"] = [("Mip PreserveCoverage", 5)],
         ["NormalizeNormals"] = [("Image NormalizeNormals", 1)],
         ["Inverse"] = [("Image Inverse", 1)],
     };
 
-    // Box-family mip algorithms: the 2x2 box chain; Box3 keeps at most three levels (ao256: 3).
-    private static readonly HashSet<string> BoxAlgorithms = new(StringComparer.OrdinalIgnoreCase) { "Box", "Box3", "ArtistDefined" };
+    // Box-family mip algorithms: the 2x2 box chain; Box3 keeps at most three levels (ao256: 3);
+    // MipNormal is the Box chain under another name (180142990 calls 1801443f0 for it).
+    private static readonly HashSet<string> BoxAlgorithms = new(StringComparer.OrdinalIgnoreCase) { "Box", "Box3", "ArtistDefined", "MipNormal" };
 
     // Mip algorithms with their own chain and the image processors.
-    private static readonly HashSet<string> Algorithms = new(StringComparer.OrdinalIgnoreCase) { "HemiOctIsoRoughness_RG_B", "ArtistDefinedOrAlphaWeighted" };
+    private static readonly HashSet<string> Algorithms = new(StringComparer.OrdinalIgnoreCase)
+        { "HemiOctIsoRoughness_RG_B", "AnisoRoughness_RG", "HemiOctAnisoRoughness", "ArtistDefinedOrAlphaWeighted", "None", "BoxInverse", "PreserveCoverage" };
     private static readonly HashSet<string> Processors = new(StringComparer.OrdinalIgnoreCase) { "NormalizeNormals", "Inverse" };
 
     /// <summary>The special dependencies a texture's mip algorithms and image processors add.</summary>
@@ -61,6 +71,9 @@ internal static class RcTextureChannels
         bool box3 = texture.Channels.Any(c => c.MipAlgorithm.Equals("Box3", StringComparison.OrdinalIgnoreCase));
         if (box3 && texture.Channels.Any(c => !c.MipAlgorithm.Equals("Box3", StringComparison.OrdinalIgnoreCase)))
             throw new InvalidOperationException($"{label} mixes Box3 with other mip algorithms; not measured.");
+        bool none = texture.Channels.Any(c => c.MipAlgorithm.Equals("None", StringComparison.OrdinalIgnoreCase));
+        if (none && texture.Channels.Any(c => !c.MipAlgorithm.Equals("None", StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidOperationException($"{label} mixes None with other mip algorithms; not measured.");
     }
 
     /// <summary>The texture's float levels from its decoded images.</summary>
@@ -111,14 +124,20 @@ internal static class RcTextureChannels
             List<RcMipChain.Level> chain;
             switch (algorithm)
             {
-                case "hemioctisoroughness_rg_b":
+                case "hemioctisoroughness_rg_b" or "anisoroughness_rg" or "hemioctanisoroughness":
                 {
                     if (inputs.Count is < 1 or > 2 || inputs.Any(i => i.Srgb) || channel.Srgb)
                         throw new InvalidOperationException($"{label}: a normal map takes a linear normal and an optional linear roughness.");
                     var normal = Loaded(inputs[0]);
                     var rough = inputs.Count == 2 ? Loaded(inputs[1]) : null;
                     int w = Math.Max(normal.Width, rough?.Width ?? 0), h = Math.Max(normal.Height, rough?.Height ?? 0);
-                    chain = RcNormalMaps.HemiOctIsoRoughness(Fit(normal, w, h), rough is null ? null : Fit(rough, w, h));
+                    var (n, r) = (Fit(normal, w, h), rough is null ? null : Fit(rough, w, h));
+                    chain = algorithm switch
+                    {
+                        "hemioctisoroughness_rg_b" => RcNormalMaps.HemiOctIsoRoughness(n, r),
+                        "anisoroughness_rg" => RcNormalMaps.AnisoRoughness(n, r),
+                        _ => RcNormalMaps.HemiOctAnisoRoughness(n, r),
+                    };
                     break;
                 }
                 case "artistdefinedoralphaweighted":
@@ -135,9 +154,18 @@ internal static class RcTextureChannels
                     break;
                 }
                 default:
+                    // GenerateMips_Box, _BoxInverse, _PreserveCoverage and None read one input
+                    // ("Expecting 1 input texture, found %d!").
                     if (inputs.Count != 1)
                         throw new InvalidOperationException($"A channel of {label} reads {inputs.Count} inputs with {channel.MipAlgorithm}; not measured.");
-                    chain = RcMipChain.Chain(Loaded(inputs[0]));
+                    var input = Loaded(inputs[0]);
+                    chain = algorithm switch
+                    {
+                        "none" => RcMipAlgorithms.None(input),
+                        "boxinverse" => RcMipAlgorithms.BoxInverse(input),
+                        "preservecoverage" => RcMipAlgorithms.PreserveCoverage(input),
+                        _ => RcMipChain.Chain(input),
+                    };
                     break;
             }
             for (int k = 0; k < channel.DstChannels.Length; k++)
@@ -182,7 +210,10 @@ internal static class RcTextureChannels
                 }
             }
             levels.Add(new RcMipChain.Level(w, h, o));
-            if (w == 1 && h == 1)
+            // A group whose algorithm made one level (None) writes the texture's first level only
+            // (180133da0 leaves the output loop when the group's mip count is 1); Check keeps
+            // None from sharing a texture with other algorithms.
+            if ((w == 1 && h == 1) || chains.All(c => c.Chain.Count == 1))
                 break;
         }
         return new(levels, srgb, box3 ? 3 : int.MaxValue);

@@ -62,24 +62,39 @@ public class VtexCompilerTests
     }
 
     // RcReference/textures/algorithms: several inputs, image processors, channel groups and the
-    // normal-map and alpha-weighting mip algorithms, compiled by RC from materials/s2chemi.
-    private static MemoryContentSource AlgorithmImages(string folder = "algorithms", string contentFolder = "materials/s2chemi")
+    // mip algorithms, compiled by RC from materials/s2chemi (10-13) and materials/s2calg (11-03).
+    private static MemoryContentSource AlgorithmImages()
     {
         var content = new MemoryContentSource();
-        foreach (var png in Directory.GetFiles(Path.Combine(Path.GetDirectoryName(Fixture("probe.png"))!, folder), "*.png"))
-            content.Add($"{contentFolder}/" + Path.GetFileName(png), File.ReadAllBytes(png));
+        foreach (var png in Directory.GetFiles(Path.Combine(Path.GetDirectoryName(Fixture("probe.png"))!, "algorithms"), "*.png"))
+            foreach (var folder in new[] { "materials/s2chemi", "materials/s2calg" })
+                content.Add($"{folder}/" + Path.GetFileName(png), File.ReadAllBytes(png));
         return content;
     }
 
     [Theory]
-    [InlineData("hemi_bumps64")]
-    [InlineData("hemi_noisy64")]
-    [InlineData("hemi_bumps16")]
-    [InlineData("hemi_noproc64")]
-    [InlineData("aw_color64")]
-    public void VtexSource_WithChannelGroupsAndAlgorithms_CompilesToResourceCompilersBytes(string name)
+    [InlineData("s2chemi", "hemi_bumps64")]
+    [InlineData("s2chemi", "hemi_noisy64")]
+    [InlineData("s2chemi", "hemi_bumps16")]
+    [InlineData("s2chemi", "hemi_noproc64")]
+    [InlineData("s2chemi", "aw_color64")]
+    [InlineData("s2calg", "none_rgba")]
+    [InlineData("s2calg", "none_bc7")]
+    [InlineData("s2calg", "boxinv_rgba")]
+    [InlineData("s2calg", "metal_rgba")]
+    [InlineData("s2calg", "metal_ati2n")]
+    [InlineData("s2calg", "mipnormal_rgba")]
+    [InlineData("s2calg", "pc_rgba")]
+    [InlineData("s2calg", "pc_alpha_rgba")]
+    [InlineData("s2calg", "pc_alpha_bc7")]
+    [InlineData("s2calg", "hemianiso_rgba")]
+    [InlineData("s2calg", "hemianiso_bc7")]
+    [InlineData("s2calg", "hemianiso_norough_rgba")]
+    [InlineData("s2calg", "anisorough_rgba")]
+    [InlineData("s2calg", "anisorough_ati2n")]
+    public void VtexSource_WithChannelGroupsAndAlgorithms_CompilesToResourceCompilersBytes(string folder, string name)
     {
-        var result = ResourceCompiler.CreateDefault().Compile(new CompileRequest($"materials/s2chemi/{name}.vtex",
+        var result = ResourceCompiler.CreateDefault().Compile(new CompileRequest($"materials/{folder}/{name}.vtex",
             File.ReadAllBytes(Fixture($"algorithms/{name}.vtex")))
         {
             SearchPath = "csgo_addons/vpkstuff_rc_probe",

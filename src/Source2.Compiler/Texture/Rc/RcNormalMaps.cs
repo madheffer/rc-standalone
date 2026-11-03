@@ -80,14 +80,43 @@ public static class RcNormalMaps
         new(level.Width, level.Height, level.Rgba.Select(v => 1f - v).ToArray());
 
     /// <summary>
-    /// <c>HemiOctIsoRoughness_RG_B</c>: <c>GenerateMips_HemiOctAnisoRoughness</c> (180148350) then the
-    /// per-pixel shuffle in <c>GenerateMips</c>. Every level, down to 1x1, as RGBA floats: R and G
-    /// the hemi-octahedral encoding of the level's mean normal, B the roughness (the input's plus
-    /// the normals' spread), A 1. <paramref name="normal"/> is the normalised normal map
-    /// (channels 0..1), <paramref name="roughness"/> the inverted roughness input or null; both the
-    /// same power-of-two size.
+    /// <c>HemiOctIsoRoughness_RG_B</c>: <see cref="HemiOctAnisoRoughness"/> then the per-pixel
+    /// shuffle in <c>GenerateMips</c> (180142990): R = channel 3, G = channel 1,
+    /// B = <c>(ch2 + ch0) * 0.5</c>, A = 1. Every level down to 1x1.
     /// </summary>
-    public static List<RcMipChain.Level> HemiOctIsoRoughness(RcMipChain.Level normal, RcMipChain.Level? roughness)
+    public static List<RcMipChain.Level> HemiOctIsoRoughness(RcMipChain.Level normal, RcMipChain.Level? roughness) =>
+        Shuffle(HemiOctAnisoRoughness(normal, roughness), (p0, p1, p2, p3) => (p3, p1, (p2 + p0) * 0.5f, 1f));
+
+    /// <summary>
+    /// <c>AnisoRoughness_RG</c>: <see cref="HemiOctAnisoRoughness"/> then GenerateMips' shuffle
+    /// (180142990): channel 1 takes channel 2, channels 2 and 3 become 1, so R and G hold the
+    /// two roughnesses.
+    /// </summary>
+    public static List<RcMipChain.Level> AnisoRoughness(RcMipChain.Level normal, RcMipChain.Level? roughness) =>
+        Shuffle(HemiOctAnisoRoughness(normal, roughness), (p0, _, p2, _) => (p0, p2, 1f, 1f));
+
+    private static List<RcMipChain.Level> Shuffle(List<RcMipChain.Level> levels, Func<float, float, float, float, (float, float, float, float)> f)
+    {
+        foreach (var level in levels)
+        {
+            var o = level.Rgba;
+            for (int i = 0; i < o.Length; i += 4)
+                (o[i], o[i + 1], o[i + 2], o[i + 3]) = f(o[i], o[i + 1], o[i + 2], o[i + 3]);
+        }
+        return levels;
+    }
+
+    /// <summary>
+    /// <c>GenerateMips_HemiOctAnisoRoughness</c> (180148350), the chain the hemi-octahedral
+    /// algorithms share and what <c>HemiOctAnisoRoughness</c> stores as it is. Every level, down to
+    /// 1x1, as RGBA floats from the lambda (180149d20): channel 0 the X roughness (the input's
+    /// plus the normals' spread), 1 <c>(x - y) * 0.5 + 0.5</c> and 3 <c>(x + y) * 0.5 + 0.5</c> of
+    /// the level's mean normal hemi-octahedrally encoded, 2 the Y roughness.
+    /// <paramref name="normal"/> is the normalised normal map (channels 0..1),
+    /// <paramref name="roughness"/> the inverted roughness input or null; both the same
+    /// power-of-two size.
+    /// </summary>
+    public static List<RcMipChain.Level> HemiOctAnisoRoughness(RcMipChain.Level normal, RcMipChain.Level? roughness)
     {
         int w = normal.Width, h = normal.Height;
         if ((w & (w - 1)) != 0 || (h & (h - 1)) != 0)
@@ -133,12 +162,11 @@ public static class RcNormalMaps
                 float inv = 1f / ((MathF.Abs(y) + MathF.Abs(x)) + z);
                 float px = x * inv, py = y * inv;
                 float ch3 = (px + py) * 0.5f + 0.5f, ch1 = (px - py) * 0.5f + 0.5f;
-                float rx = rough.Rgba[i * 4] + s4, ry = rough.Rgba[i * 4 + 1] + s5;
-                // The _RG_B shuffle: R = ch3, G = ch1, B = (ch2 + ch0) * 0.5, A = 1.
-                o[i * 4] = ch3;
+                // Channel 0 = ch6 + ch4, 2 = ch7 + ch5 (gameinfo MinRoughness unset: no clamp).
+                o[i * 4] = rough.Rgba[i * 4] + s4;
                 o[i * 4 + 1] = ch1;
-                o[i * 4 + 2] = (ry + rx) * 0.5f;
-                o[i * 4 + 3] = 1f;
+                o[i * 4 + 2] = rough.Rgba[i * 4 + 1] + s5;
+                o[i * 4 + 3] = ch3;
             }
             levels.Add(new RcMipChain.Level(mean.Width, mean.Height, o));
             if (mean.Width == 1 && mean.Height == 1)

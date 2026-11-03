@@ -204,6 +204,39 @@ every fixture in `tests/.../RcReference/textures` (RGBA8888, DXT1, DXT5, ATI1N, 
   mip algorithms and image processors not ported, processor arguments, an sRGB group moving alpha
   to a colour channel or back, colour-space conversion, cube/3D, and an image `.txt` sibling.
 
+## Mip algorithms (`CTextureFrame::GenerateMips` 180142990)
+
+The dispatcher matches the channel group's algorithm name and calls one generator; each takes
+the group's whole input image(s) as loaded (all four channels; the channel copy picks the source
+channels afterwards) and registers its special dependency. Which algorithms CS2's shaders use
+(their `m_mipProcessingCommand` over all 103 programs of `shaders_pc_dir.vpk`): ArtistDefined,
+Box, Box3, HemiOctIsoRoughness_RG_B, ArtistDefinedOrAlphaWeighted, PreserveCoverage, None,
+BoxInverse, HemiOctAnisoRoughness, AnisoRoughness_RG, MipNormal, AnisoNormal (generic) and RGBM
+(sky). Ported and checked whole-file against RC's 11-03 compiles of `RcReference/textures/algorithms`
+(`VtexSource_WithChannelGroupsAndAlgorithms_CompilesToResourceCompilersBytes`):
+
+| algorithm | generator | what it does | special dependency |
+|---|---|---|---|
+| `None` | 180144200 | level 0 only; a texture whose groups are all None stores one mip (180133da0 leaves its output loop at a group's mip count of 1) | Mip None 1 |
+| `BoxInverse` | 1801447c0 | level 0 is `v * -1 + 1` per channel, then the box chain; power of two only | Mip Box Inverse 1 |
+| `MipNormal` | 1801443f0 | the Box chain under its own name | Mip Normals 1, Mip Box 1 |
+| `PreserveCoverage` | 18014fa90 | below | Mip PreserveCoverage 5 |
+| `HemiOctAnisoRoughness` | 180148350 | the hemi-octahedral chain unshuffled (lambda 180149d20): 0 the X roughness, 1 `(x - y)/2 + 1/2`, 2 the Y roughness, 3 `(x + y)/2 + 1/2` | Mip HemiOctAnisoRoughness 3 |
+| `AnisoRoughness_RG` | 180148350 then the shuffle in 180142990 | channel 1 takes channel 2, channels 2 and 3 become 1 | Mip AnisoRoughness_RG 1, Mip HemiOctAnisoRoughness 3 |
+| `HemiOctIsoRoughness_RG_B` | as above | R = 3, G = 1, B = `(ch2 + ch0)/2`, A = 1 (docs/MATERIALS.md) | Mip HemiOctAnisoRoughness 3, Mip HemiOctIsoRoughness_RG_B 1 |
+
+`PreserveCoverage` keeps an alpha-tested texture's coverage down the chain. The coverage of
+channel 0 at a scale (18014f380): every 2x2 cell's corners scaled and clamped to [0, 1]
+(`maxss`, `minss`), sixteen bilinear samples per cell with RC's weight table (carried as bit
+patterns), a sample counted at `v >= 0.5`, over `16 (w-1)(h-1)` (0/0 at a side of 1). Each level
+is the box of the level before; unless the input's coverage at 1 is not above 0 or the level is
+1x1, a bisection on [0, 8] (mid `(hi + lo) * 0.5`, `lo = mid` while the level's coverage there is
+below the target, until `hi - lo` is at most 0.01) gives the scale `(hi + lo) * 0.5` for channels
+0..2, clamped to [0, 1] (180142710); then, in place and row by row, a pixel whose clamped 3x3
+neighbourhood of channel 0 is wholly at least 0.5 or wholly under it takes its unscaled values
+back (18014f840). Probes: `pc_rgba` (the mask alone) and `pc_alpha_rgba` / `pc_alpha_bc7`
+(alpha weighting beside a PreserveCoverage alpha, csgo_complex's alpha-test packing).
+
 ## A mip chain made elsewhere
 
 `VtexCompileSettings.MipChainBgra` (and `TextureDef.MipChainBgra` on the in-house path) takes a
