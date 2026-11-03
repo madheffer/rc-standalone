@@ -170,7 +170,7 @@ the addon).
    Recipe and captures: PHYSICS.md step 6, tools/re/out/settle_notes/notes_joints.md.
 3. **.vmap_c**: done (ledger 119). Every Valve root byte for byte (25 lit,
    15 unlit), and Hammer's Only Entities preset whole-package exact. Left:
-   the context's +0x605 flag, unread.
+   nothing: the context's +0x605 flag settled 11-03 (ledger 119, a bake without vis byte for byte).
    - The 10-23 "reopened by 1.41.9.2" was our tooling, not Valve
      (2026-10-25): compile_fresh.py added its `-world -fshallow` default to
      the Only Entities switches. Recompiled on 1.41.9.2 with the switches
@@ -231,7 +231,27 @@ the addon).
     Debug test build; time a Release build and Valve's own step before sizing it. Any change
     that could alter bytes waits for the user's OK (parity before speed).
 
-## Latest session (2026-11-02 evening, the full compile's compile half, .vjs_c, the driver; CS2 open, below-normal)
+## Latest session (2026-11-03, 1.41.9.5 patch check, mesh vertex streams, .vmap_c bake reads; CS2 open)
+
+- 1.41.9.5: nothing to port (memory patch-check); cubehost knows the new client.dll stamp.
+- Ledger 201: mesh paint streams and texcoord 1 from Valve's code (NodeMeshEntries.WithPaintStreams), and the
+  vertex buffer meshopt rule (1802ed210 / 1802ed800 in rc 1103: the encoding kept only when smaller).
+  s2c_coloradjust is 19 of 25. Open: italy_cobblestone_01's texcoord shift. materialsystem2 reads as "keep"
+  (the attribute expressions are rewritten to indexed reads that see the declared defaults) and Valve's output
+  says "shift"; our keep branch is used by only that corpus map. CS2_CLOSED_QUEUE A.7 captures it.
+- Ledger 200: .ts settled (a user's resourcecompiler compiles none).
+- Ledger 119: a bake without vis reads norte, dumptris and debugvisgeo (CWorldRendererBuilder_Build), and the
+  bake decision reads bakelighting only in a partial build (Compile.Partial). Valve's probe01 with -world
+  -bakelighting -fshallow (%TEMP%/bake_novis) equals ours byte for byte.
+- Ledger 46: the datamodel's referrer list runs newest first (180cdf6f0), so 180f88460 visits placements in
+  reverse order of when their referencing attribute was set. When that happens during the load is still open,
+  so the lighting order keeps its fit.
+- Read, not ported: nav collector 3 (NAV.md, needs 181352fb0 and 1818e0800 and a specimen) and Steam Audio's
+  -sacustomdata (STEAM_AUDIO.md item 7). Valve's s2c_saprobe with -world -sacustomdata -fshallow wrote no
+  .custom.occlusion (compile_fresh keeps no resourcecompiler output; why is not checked, perhaps the map's
+  custom data rebake option): a specimen with that option on Auto comes first.
+
+## Earlier session (2026-11-02 evening, the full compile's compile half, .vjs_c, the driver; CS2 open, below-normal)
 
 - The user's rule: VAC, not load, is why the game closes, so heavy-only items ran now (Rules above).
 - **Full compile of ze_hold_em_p** (`full_compile_test.py s2c_rc_probe ze_hold_em_p --cs2-open`, 12 min): against
