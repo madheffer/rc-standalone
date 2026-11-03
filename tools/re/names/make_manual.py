@@ -3456,6 +3456,21 @@ RESOURCECOMPILER_1029 = [
     ("180107ca0", "CleanupBakedDataIfNeeded_lambda", SA, "the predicate: an output path with its slashes made '\\', strstr for the baked file's name; true when it is not that file"),
 ]
 
+# resourcecompiler.dll as installed since the 11-03 update, 1.41.9.5 (tools/re/binaries/resourcecompiler_20261103.dll).
+RESOURCECOMPILER_1103 = [
+    # Read from the disassembly (resourcecompiler 20261103; the Ghidra project's build has the code elsewhere): ledger 201.
+    ("1802ed210", "CResourceCompilerMesh_WriteVertexBuffer", WN, "count +4, stride +8, layout +0x18; unless the mesh's vf 0x28, gameinfo ResourceCompiler/MeshCompiler/EncodeVertexBuffer (default 0) with vertices: meshopt_encodeVertexVersion(EncodeVertexBufferVersion, default 0), the bound, encodeVertexBufferLevel at EncodeVertexBufferLevel (default 3), version -1; the encoding is kept (+0xc m_bMeshoptCompressed 1) only when smaller than count x stride, then with its byte argument Zstd'd and kept (+0xf 1) when that is smaller; else the raw buffer; an MVTX block, its index at +0"),
+    ("1802ed5a0", "CResourceCompilerMesh_PackVertexBuffer", WN, "CMesh::CreatePackedVB (181366df0) into count x stride bytes ('Unexpected packed VB size' when the sizes differ), then 1802ed210"),
+    ("1802ed800", "CResourceCompilerMesh_WriteIndexBuffer", WN, "element size 4 once any index passes 0xffff, else 2; with gameinfo ResourceCompiler/MeshCompiler/EncodeIndexBuffer (default 0): a triangle list (count % 3 == 0, its byte argument 0) through encodeIndexBuffer, anything else encodeIndexSequence (+0xd m_bMeshoptIndexSequence 1); the encoding kept (+0xc 1) only when smaller than count x element size, then the same Zstd step (+0xf); else the raw indices (16-bit packed); an MIDX block"),
+    ("1812bc1c0", "meshopt_encodeVertexBufferBound", WN, ""),
+    ("1812bc230", "meshopt_encodeVertexBufferLevel", WN, "header 0xa0 | version"),
+    ("1812bc700", "meshopt_encodeVertexVersion", WN, ""),
+    ("1812bc710", "meshopt_encodeIndexBuffer", WN, "header 0xe0 | version"),
+    ("1812bcd80", "meshopt_encodeIndexBufferBound", WN, ""),
+    ("1812bcde0", "meshopt_encodeIndexSequence", WN, ""),
+    ("1812bcee0", "meshopt_encodeIndexSequenceBound", WN, ""),
+]
+
 RESOURCECOMPILER_1023 = [
     ("18015adb0", "CompileVData_SpecialDependencyFingerprint", CT, "\"VData Compiler Version\" 2 (1 before 10-23), \"VData ModTools Stripping Version\" 18015bc50 over the strip rules the game's ModTools (183b64970, vfn 0x80) returns ({0, 0} without one), \"KV3 Compiler Version\" 2; Source2ContainerAuthor.SpecByExtension"),
     ("18015ae70", "CompileVData_ModToolsStrippingVersion", CT, "2 for the named identity, else 1: a dependency's own version check"),
@@ -3567,6 +3582,7 @@ if __name__ == "__main__":
     write("resourcecompiler_20261015.manual.json", RESOURCECOMPILER_1015)
     write("resourcecompiler_20261023.manual.json", RESOURCECOMPILER_1023)
     write("resourcecompiler_20261029.manual.json", RESOURCECOMPILER_1029)
+    write("resourcecompiler_20261103.manual.json", RESOURCECOMPILER_1103)
     write("modtools_20261023.manual.json", MODTOOLS_1023)
     write("bc7e_20261015.manual.json", BC7E)
     write("steamaudio_20261023.manual.json", STEAMAUDIO_1023)

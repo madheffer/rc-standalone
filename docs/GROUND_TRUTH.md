@@ -5364,14 +5364,19 @@ game can answer is raised with the user first, and runs with -insecure.
        environment prefab checked per mesh).
      - s2c_coloradjust after the port (full_compile_test.py --cs2-open --no-cubemaps): both node models' layouts are
        Valve's (stride 40, COLOR 0 VertexPaintTintColor R8G8B8A8_UNORM at 32, every vertex FFFFFFFF), and
-       cobblestone_ground_large_1's main vertex buffer is Valve's byte for byte. Still 18 of 25 files; two causes left,
-       both OPEN:
-       - cobblestone_ground_large_1's second vertex buffer (NORMAL 0 R32_UINT, 314 x 4 = 1256 bytes): Valve stores it
-         raw (m_bMeshoptCompressed 0), ours meshopt-encoded, and our encoding is exactly 1256 bytes. That fits "keep
-         the codec's output only when smaller", the rule WorldNodeModels already uses for the index buffer, but
-         neither is read. The flag is +0xc of the buffer record (schema binder 1817b2700); its writer is not found
-         yet (a scan for the codec's 0xa0 header byte gives 40 functions).
-       - italy_cobblestone_01's texcoord 0 is shifted by Valve (11.5 -> 4.5) and not by us: the material is
+       cobblestone_ground_large_1's main vertex buffer is Valve's byte for byte. That left two causes:
+       - SETTLED 2026-11-03 (read from the disassembly of resourcecompiler 20261103; the codec headers 0xa0 | version
+         at 1812bc291 and 0xe0 | version at 1812bc77b each have one caller): cobblestone_ground_large_1's second
+         vertex buffer (NORMAL 0 R32_UINT, 314 x 4 = 1256 bytes) is stored raw because CResourceCompilerMesh's vertex
+         buffer writer (1802ed210) keeps the codec's output (m_bMeshoptCompressed, +0xc) only when it is smaller than
+         count x stride, and ours is exactly 1256. The index writer (1802ed800) has the same strict test, so
+         WorldNodeModels' index rule stands, and its element size is 4 once any index passes 0xffff (ours was
+         "more than 0xffff vertices"; they differ only at exactly 65536). Both encode only with gameinfo
+         ResourceCompiler/MeshCompiler/EncodeVertexBuffer / EncodeIndexBuffer; a non-triangle-list index buffer goes
+         through encodeIndexSequence (+0xd), and a byte argument Zstds the encoding on top (+0xf), neither reached
+         by a world node (not traced to its callers). After the port s2c_coloradjust is 19 of 25:
+         cobblestone_ground_large_1's node model is Valve's byte for byte.
+       - OPEN: italy_cobblestone_01's texcoord 0 is shifted by Valve (11.5 -> 4.5) and not by us: the material is
          csgo_environment with g_flTexCoordRotation1 90 and no g_nUVSet1. ConvertMeshForBuilder (1810dfff0 ..
          1810e006c) keeps texcoords when the loaded material's bool attribute HasTexcoordTransform (0x2661694a,
          vf 0x48) is 1. Its expression in csgo_environment is (g_nUVSet1>0 && (scale1.x!=1 || scale1.y!=1 ||

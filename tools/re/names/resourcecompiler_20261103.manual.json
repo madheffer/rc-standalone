@@ -1,0 +1,64 @@
+{
+ "functions": [
+  {
+   "addr": "1802ed210",
+   "name": "CResourceCompilerMesh_WriteVertexBuffer",
+   "module": "s2c:geometry/world-nodes",
+   "note": "count +4, stride +8, layout +0x18; unless the mesh's vf 0x28, gameinfo ResourceCompiler/MeshCompiler/EncodeVertexBuffer (default 0) with vertices: meshopt_encodeVertexVersion(EncodeVertexBufferVersion, default 0), the bound, encodeVertexBufferLevel at EncodeVertexBufferLevel (default 3), version -1; the encoding is kept (+0xc m_bMeshoptCompressed 1) only when smaller than count x stride, then with its byte argument Zstd'd and kept (+0xf 1) when that is smaller; else the raw buffer; an MVTX block, its index at +0"
+  },
+  {
+   "addr": "1802ed5a0",
+   "name": "CResourceCompilerMesh_PackVertexBuffer",
+   "module": "s2c:geometry/world-nodes",
+   "note": "CMesh::CreatePackedVB (181366df0) into count x stride bytes ('Unexpected packed VB size' when the sizes differ), then 1802ed210"
+  },
+  {
+   "addr": "1802ed800",
+   "name": "CResourceCompilerMesh_WriteIndexBuffer",
+   "module": "s2c:geometry/world-nodes",
+   "note": "element size 4 once any index passes 0xffff, else 2; with gameinfo ResourceCompiler/MeshCompiler/EncodeIndexBuffer (default 0): a triangle list (count % 3 == 0, its byte argument 0) through encodeIndexBuffer, anything else encodeIndexSequence (+0xd m_bMeshoptIndexSequence 1); the encoding kept (+0xc 1) only when smaller than count x element size, then the same Zstd step (+0xf); else the raw indices (16-bit packed); an MIDX block"
+  },
+  {
+   "addr": "1812bc1c0",
+   "name": "meshopt_encodeVertexBufferBound",
+   "module": "s2c:geometry/world-nodes",
+   "note": ""
+  },
+  {
+   "addr": "1812bc230",
+   "name": "meshopt_encodeVertexBufferLevel",
+   "module": "s2c:geometry/world-nodes",
+   "note": "header 0xa0 | version"
+  },
+  {
+   "addr": "1812bc700",
+   "name": "meshopt_encodeVertexVersion",
+   "module": "s2c:geometry/world-nodes",
+   "note": ""
+  },
+  {
+   "addr": "1812bc710",
+   "name": "meshopt_encodeIndexBuffer",
+   "module": "s2c:geometry/world-nodes",
+   "note": "header 0xe0 | version"
+  },
+  {
+   "addr": "1812bcd80",
+   "name": "meshopt_encodeIndexBufferBound",
+   "module": "s2c:geometry/world-nodes",
+   "note": ""
+  },
+  {
+   "addr": "1812bcde0",
+   "name": "meshopt_encodeIndexSequence",
+   "module": "s2c:geometry/world-nodes",
+   "note": ""
+  },
+  {
+   "addr": "1812bcee0",
+   "name": "meshopt_encodeIndexSequenceBound",
+   "module": "s2c:geometry/world-nodes",
+   "note": ""
+  }
+ ]
+}

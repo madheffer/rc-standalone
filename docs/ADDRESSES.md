@@ -1687,7 +1687,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18025f9d0` | `WRB_UseAggregateInstances` | gameinfo ResourceCompiler/WorldRendererBuilder/UseAggregateInstances; enables agg_prop and agg_merge |  |
 | `18025fa40` | `WRB_UseStaticEnvMapForObjectsWithLightingOrigin` | gameinfo ResourceCompiler/WorldRendererBuilder/UseStaticEnvMapForObjectsWithLightingOrigin, default false |  |
 | `18025fab0` | `WRB_CompileNodeModel` | the CMesh list to an in-memory ModelDoc (1801fee20) and compiled as <name>.vmdl; meshletMaxVertices/Triangles | `src/Source2.Compiler/Maps/MapRootFile.cs:110` |
-| `180260710` | `Step_SplittingMeshWith` | Splitting mesh with %i verts %i tris | `src/Source2.Compiler/Maps/WorldNodeModels.cs:234` |
+| `180260710` | `Step_SplittingMeshWith` | Splitting mesh with %i verts %i tris | `src/Source2.Compiler/Maps/WorldNodeModels.cs:240` |
 | `1802636b0` | `CWorldRendererBuilderNode::BuildAggregateRTProxies` |  |  |
 | `180268e80` | `WRB_BuildAggregate` | Added aggregate with %i meshes, %i fragments; %s_lr%i_%s | `src/Source2.Compiler/Maps/NodePropAggregates.cs:71`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:37`, `src/Source2.Compiler/Maps/WorldNodeModels.cs:14` |
 | `18026bab0` | `WRBNode_CreateRenderObject` | name <node>_lr%i[_c%i]{_s\|_d}[_cb][_dl][_b][_kv][_nv][_bl][_rtem]_<name> | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:35`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:508` |
@@ -1746,8 +1746,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1802b6db0` | `WRBNode_PropMaterials` | the model's materials for the prop's LOD (+0x1e4) through its material group (+0x188); AddStaticProps sets prop +0x168 = 3, or 8 when one has NeedsLocalSpaceVertices (0x3b7ef4e7) | `src/Source2.Compiler/Maps/NodePropEntries.cs:72` |
 | `1802ebc20` | `CResourceCompilerMesh_RigidParts` | rigid mesh parts by bone |  |
 | `1802ec6e0` | `CResourceCompilerMesh_PackDrawVB` | allocates stride * vertices and calls CMesh_CreatePackedVB; warns when the sizes disagree |  |
-| `1802ed7f0` | `CResourceCompilerMesh::AddDrawDescriptors` | per draw: vertices renumbered by first use in the incoming index buffer, then vcache, overdraw at 1.03, UV density | `src/Source2.Compiler/Maps/WorldNodeModels.cs:354` |
-| `1802f5680` | `ModelCompile_MeshInputLayouts` | per mesh (0x148 bytes): the full layout, and with a material depth list (INSG m_depth_elems) the depth (flags \| 8) and remainder (flags \| 0x10) layouts; a fourth for non-map meshes | `src/Source2.Compiler/Maps/WorldNodeModels.cs:353` |
+| `1802ed7f0` | `CResourceCompilerMesh::AddDrawDescriptors` | per draw: vertices renumbered by first use in the incoming index buffer, then vcache, overdraw at 1.03, UV density | `src/Source2.Compiler/Maps/WorldNodeModels.cs:360` |
+| `1802f5680` | `ModelCompile_MeshInputLayouts` | per mesh (0x148 bytes): the full layout, and with a material depth list (INSG m_depth_elems) the depth (flags \| 8) and remainder (flags \| 0x10) layouts; a fourth for non-map meshes | `src/Source2.Compiler/Maps/WorldNodeModels.cs:359` |
 | `1802f6840` | `WRB_CompressTexcoordsToSnorm` | per layout stream: an unflagged two-component texcoord becomes R16G16_SNORM (0x25), four-component 0xd, when every mesh's values lie in [-1, 1] (1802fc990) | `src/Source2.Compiler/Maps/NodeDraw.cs:39`, `src/Source2.Compiler/Maps/NodePropAggregates.cs:358` |
 | `1802f69f0` | `ModelCompile_BuildDrawSets` | draw-set groups (400 bytes: four layouts, then the meshes) from the mesh list (+0x14c instanced, +0x14d), each through 1802f6840 |  |
 | `1802f9cc0` | `ModelCompile_ReadMeshArgs` | globals from the compile arguments: create_pooled_vb (18307e22c), embedded_map_mesh (18307e218), embedded_aggregate_mesh, meshlets; SceneSystem/RenderMeshlets, RayTraceProxyEnabled | `src/Source2.Compiler/Maps/MapRootFile.cs:62`, `src/Source2.Compiler/Maps/MapRootFile.cs:109`, `src/Source2.Compiler/Maps/WorldNodeModels.cs:66` |
@@ -1800,7 +1800,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `181364720` | `CMesh_BuildPackedInputLayout` | one field per mesh stream in mesh order (formats, normal 0x2a), then signature matching (181363de0): depth list, or main minus depth; unmatched fields dropped unless flags bit 2; offsets by format size |  |
 | `181365710` | `CMesh_BuildInputLayout` | thunk to 181364720 with the mesh's field list |  |
 | `181365a40` | `CMesh_CreatePackedVB` | vertex buffer written field by field through the packed input layout (181365ce0 per format) |  |
-| `181365ce0` | `CMesh_PackField` | one layout field of one vertex, a switch on the DXGI format | `src/Source2.Compiler/Maps/TangentFrame.cs:8`, `src/Source2.Compiler/Maps/WorldNodeModels.cs:468` |
+| `181365ce0` | `CMesh_PackField` | one layout field of one vertex, a switch on the DXGI format | `src/Source2.Compiler/Maps/TangentFrame.cs:8`, `src/Source2.Compiler/Maps/WorldNodeModels.cs:474` |
 | `181366d90` | `MeshSemantic_Lookup` | shader semantic or stream name in the table at 183014ae0 (0x20 rows: semantic, stream, stream index, shader index) | `src/Source2.Compiler/Maps/MaterialStreams.cs:10`, `src/Source2.Compiler/Maps/MaterialStreams.cs:23` |
 | `182067b00` | `CompressTangentFrame_SearchNormal` | third argument set: the octahedral normal by floor and search; shares the tangent part |  |
 | `182067e80` | `CompressTangentFrame` | octahedral normal 10+10 bits, tangent angle 11 bits, bitangent sign; precise path FUN_182067b00 | `src/Source2.Compiler/Lighting/Bake/SceneVertexLayout.cs:33`, `src/Source2.Compiler/Maps/TangentFrame.cs:9` |
@@ -2236,6 +2236,28 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 |---|---|---|---|
 | `180100aa0` | `CleanupBakedDataIfNeeded` | (probe type 0 reverb / 1 pathing / 2 custom data, custom data type, context): the rebake option from steamaudio vf 0x138 / 0x140 / 0x148; Manual (1) logged as deprecated and taken as Cleanup; Cleanup drops the baked file from the outputs (context vf 0x1a0 with 180107ca0) and returns true (no bake); Auto (2) returns false. Inlined in the four other builders that hold its lambda | `src/Source2.Compiler/Maps/MapCompile.cs:134` |
 | `180107ca0` | `CleanupBakedDataIfNeeded_lambda` | the predicate: an output path with its slashes made '\', strstr for the baked file's name; true when it is not that file | `src/Source2.Compiler/Maps/MapCompile.cs:198` |
+
+## resourcecompiler.dll, build 20261103
+
+- file: `resourcecompiler_20261103.dll`, 56,351,896 bytes, PE time 2026-11-02 23:38 UTC
+- SHA-256 `14bea9c54b59e7638cf15f846dda8fdba145e3a242eacc5a9f7eba0518afeb7c`
+- installed: this build
+- 10 addresses
+
+### s2c:geometry/world-nodes
+
+| address | name | what | cited in |
+|---|---|---|---|
+| `1802ed210` | `CResourceCompilerMesh_WriteVertexBuffer` | count +4, stride +8, layout +0x18; unless the mesh's vf 0x28, gameinfo ResourceCompiler/MeshCompiler/EncodeVertexBuffer (default 0) with vertices: meshopt_encodeVertexVersion(EncodeVertexBufferVersion, default 0), the bound, encodeVertexBufferLevel at EncodeVertexBufferLevel (default 3), version -1; the encoding is kept (+0xc m_bMeshoptCompressed 1) only when smaller than count x stride, then with its byte argument Zstd'd and kept (+0xf 1) when that is smaller; else the raw buffer; an MVTX block, its index at +0 | `src/Source2.Compiler/Maps/WorldNodeModels.cs:222` |
+| `1802ed5a0` | `CResourceCompilerMesh_PackVertexBuffer` | CMesh::CreatePackedVB (181366df0) into count x stride bytes ('Unexpected packed VB size' when the sizes differ), then 1802ed210 |  |
+| `1802ed800` | `CResourceCompilerMesh_WriteIndexBuffer` | element size 4 once any index passes 0xffff, else 2; with gameinfo ResourceCompiler/MeshCompiler/EncodeIndexBuffer (default 0): a triangle list (count % 3 == 0, its byte argument 0) through encodeIndexBuffer, anything else encodeIndexSequence (+0xd m_bMeshoptIndexSequence 1); the encoding kept (+0xc 1) only when smaller than count x element size, then the same Zstd step (+0xf); else the raw indices (16-bit packed); an MIDX block | `src/Source2.Compiler/Maps/WorldNodeModels.cs:213` |
+| `1812bc1c0` | `meshopt_encodeVertexBufferBound` |  |  |
+| `1812bc230` | `meshopt_encodeVertexBufferLevel` | header 0xa0 \| version |  |
+| `1812bc700` | `meshopt_encodeVertexVersion` |  |  |
+| `1812bc710` | `meshopt_encodeIndexBuffer` | header 0xe0 \| version |  |
+| `1812bcd80` | `meshopt_encodeIndexBufferBound` |  |  |
+| `1812bcde0` | `meshopt_encodeIndexSequence` |  |  |
+| `1812bcee0` | `meshopt_encodeIndexSequenceBound` |  |  |
 
 ## scenesystem.dll, build 20261015
 

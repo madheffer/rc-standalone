@@ -210,16 +210,22 @@ internal static class WorldNodeModels
                 };
                 vertexBase += g.VertexCount;
             }
-            var elementSize = totalVertices > 0xffff ? 4 : 2;
-            // The index codec's output is kept only when smaller than the raw indices.
+            // The index buffer (1802ed800): 4-byte elements once any index passes 0xffff, and the codec's
+            // output (m_bMeshoptCompressed) kept only when smaller than the raw indices.
+            var elementSize = ib.Any(i => i > 0xffff) ? 4 : 2;
             var ibBytes = MeshoptEncoder.EncodeIndexBuffer(ib.ToArray());
             var ibMeshopt = ibBytes.Length < ib.Count * elementSize;
             if (!ibMeshopt)
                 ibBytes = elementSize == 2 ? [.. ib.SelectMany(i => BitConverter.GetBytes((ushort)i))] : [.. ib.SelectMany(i => BitConverter.GetBytes(i))];
             for (var b = 0; b < bufferCount; b++)
             {
-                vertexBuffers.Add(new WorldNodeModel.VertexBuffer(totalVertices, strides[b], true, [.. slots.Where(l => l.Buffer == b).Select(l => l.Field)]));
-                buffers.Add((BlockType.MVTX, MeshoptEncoder.EncodeVertexBuffer(vbs[b], totalVertices, strides[b])));
+                // The vertex buffer (1802ed210) likewise: encoded when there are vertices, and the encoding kept
+                // only when smaller than count x stride (cobblestone_ground_large_1's 1256-byte normal buffer
+                // encodes to 1256 and is stored raw).
+                var vbBytes = totalVertices > 0 ? MeshoptEncoder.EncodeVertexBuffer(vbs[b], totalVertices, strides[b]) : [];
+                var vbMeshopt = vbBytes.Length < totalVertices * strides[b];
+                vertexBuffers.Add(new WorldNodeModel.VertexBuffer(totalVertices, strides[b], vbMeshopt, [.. slots.Where(l => l.Buffer == b).Select(l => l.Field)]));
+                buffers.Add((BlockType.MVTX, vbMeshopt ? vbBytes : vbs[b]));
                 raw.Add(vbs[b]);
             }
             indexBuffers.Add(new WorldNodeModel.IndexBuffer(ib.Count, elementSize, ibMeshopt, aggregate));
