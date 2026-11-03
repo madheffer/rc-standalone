@@ -41,7 +41,14 @@ public sealed class SoundCompiler : IResourceCompiler
 /// <param name="Template">A <c>.vsvg_c</c> whose container frame to keep, or null to author one.</param>
 /// <param name="Sanitize">Normalize the SVG for Panorama's parser first (<see cref="SvgSanitizer"/>),
 /// which is not what resourcecompiler does; off, the file's own bytes are stored, as RC stores them.</param>
-public sealed record VectorGraphicSettings(byte[]? Template = null, bool Sanitize = false);
+public sealed record VectorGraphicSettings(byte[]? Template = null, bool Sanitize = false)
+{
+    /// <summary>0.1.129's constructor, kept for binary compatibility: no sanitizing, as RC stores the file.</summary>
+    public VectorGraphicSettings(byte[]? Template) : this(Template, false) { }
+
+    /// <summary>0.1.129's deconstruction, kept for binary compatibility.</summary>
+    public void Deconstruct(out byte[]? Template) => Template = this.Template;
+}
 
 /// <summary>Panorama SVG to <c>.vsvg_c</c> (same path, <c>.vsvg_c</c>).</summary>
 public sealed class VectorGraphicCompiler : IResourceCompiler
