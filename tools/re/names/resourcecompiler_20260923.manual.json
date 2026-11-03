@@ -5152,13 +5152,55 @@
    "addr": "1813c2090",
    "name": "SubdivPatch_TangentGrid",
    "module": "s2c:geometry/subdivision",
-   "note": "patch corner tangents lerped (rows normalised), then (n x t) x n normalised; viewport and sampling only"
+   "note": "mode 3 stream: gathered corner tangents lerped by (u, v) (rows normalised), then (n x t) x n normalised; the bake's tangent stream (ledger 38, SubdivisionTangents.Grid)"
   },
   {
    "addr": "1813c3cf0",
    "name": "SubdivPatch_NormalGrid",
    "module": "s2c:geometry/subdivision",
-   "note": "patch grid normals, averaged across patch seams; viewport and sampling only"
+   "note": "mode 2 / 3: 1813be620 normals, seams averaged with the neighbour patch (1813c0960), centre the loop's 1813bd320 corner 3 sum, (0, 0) from 1813c6140 (SubdivisionNormalGrid.Grid)"
+  },
+  {
+   "addr": "1813bd320",
+   "name": "SubdivPatch_CornerNormal",
+   "module": "s2c:geometry/subdivision",
+   "note": "patch corner k's normal from the displaced corner and its two grid neighbours (table 18243e8a0); frame normal when unsubdivided"
+  },
+  {
+   "addr": "1813bdf80",
+   "name": "SubdivPatch_GatherTangents",
+   "module": "s2c:geometry/subdivision",
+   "note": "the corner's tangent, it plus next / previous normalised, the loop's sum normalised"
+  },
+  {
+   "addr": "1813be620",
+   "name": "SubdivPatch_PositionNormals",
+   "module": "s2c:geometry/subdivision",
+   "note": "position grid to normals: one triangle at the corners, two unit normals summed elsewhere"
+  },
+  {
+   "addr": "1813c0960",
+   "name": "SubdivPatch_BorderNormals",
+   "module": "s2c:geometry/subdivision",
+   "note": "a patch border's normals (side 0 row / 1 column, index 0 / n) rebuilt from the control points and displacement; returns g"
+  },
+  {
+   "addr": "1813c6140",
+   "name": "SubdivPatch_VertexCorner",
+   "module": "s2c:geometry/subdivision",
+   "note": "the vertex fan's 1813bd320 corner-0 normals from the last crease, summed; 1813850e0 when a fan face is missing or unsubdivided; normalised either way"
+  },
+  {
+   "addr": "1813c8830",
+   "name": "SubdivPatch_CornerSmooth",
+   "module": "s2c:geometry/subdivision",
+   "note": "edge flags, then the smoothing cosine against the two patches' corner-0 normals"
+  },
+  {
+   "addr": "1813c83f0",
+   "name": "SubdivPatch_StreamModes",
+   "module": "s2c:geometry/subdivision",
+   "note": "copies a stream's descriptor (mode int, type/index short) into each of its components"
   },
   {
    "addr": "181375e20",
@@ -5264,9 +5306,9 @@
   },
   {
    "addr": "181399f40",
-   "name": "HalfEdge_FaceIndex",
+   "name": "HalfEdge_FaceVertexIndex",
    "module": "s2c:geometry/subdivision",
-   "note": "face handle to dense index (level byte array +0x1b38)"
+   "note": "a half-edge's face-vertex slot (record +0x44): indexes the face-vertex streams (+0xb20 set, the level bytes +0x1b38)"
   },
   {
    "addr": "18139bd10",
@@ -5392,7 +5434,7 @@
    "addr": "1813c1cc0",
    "name": "MeshTessellation_PaintValues",
    "module": "s2c:geometry/subdivision",
-   "note": "patch grids as asked: positions (1813c7b90), normals (1813c3cf0), tangents (1813c2090); from 18102f230 and 1810c0d60"
+   "note": "patch grids by stream mode (descriptor +0x25a): 0 stored/lerp, 1 positions (1813c7b90), 2 normals (1813c3cf0), 3 tangents (1813c2090); from the bake's patch builders 1813b7750 / 1813b82f0 and from 18102f230, 1810c0d60"
   },
   {
    "addr": "1813c26a0",

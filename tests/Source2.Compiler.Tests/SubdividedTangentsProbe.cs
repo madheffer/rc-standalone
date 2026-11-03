@@ -34,49 +34,81 @@ public class SubdividedTangentsProbe(ITestOutputHelper output)
                 calls[call] = ([.. m.EnumerateArray().Select(x => x.GetString()!)], A("normal"), A("tangent"));
             }
         }
-        var ours = NodeMeshEntries.FromWorld(DmxBinary.ReadFile(vmap));
+        var ours = NodeMeshEntries.FromWorld(DmxBinary.ReadFile(vmap), signature: _ => Array.Empty<string>());
+        if (nodes.Count == 0)
+            nodes = [.. ours.Select(e => e.NodeId)];
+        int allCorners = 0, allPaired = 0, allSame = 0, zeroSign = 0;
         foreach (var node in nodes)
         {
             var entries = ours.Where(e => e.NodeId == node).ToList();
             if (entries.Count == 0)
                 continue;
             var turnBits = entries[0].Turn.Select(x => BitConverter.SingleToInt32Bits(x).ToString("x")).ToArray();
-            var hit = calls.Values.FirstOrDefault(c => c.Matrix.Select(x => Convert.ToInt32(x, 16).ToString("x")).SequenceEqual(turnBits));
-            if (hit.Normals == null || hit.Tangents == null)
+            // Several meshes share a matrix (the identity most of all): the captured call that pairs best is the node's.
+            var hits = calls.Values.Where(c => c.Normals != null && c.Tangents != null
+                                               && c.Matrix.Select(x => Convert.ToInt32(x, 16).ToString("x")).SequenceEqual(turnBits)).ToList();
+            if (hits.Count == 0)
             {
                 output.WriteLine($"node {node}: no captured call with its matrix");
                 continue;
             }
-            // Valve's corners by normal bits.
-            var byNormal = new Dictionary<(int, int, int), List<Vector4>>();
-            for (var c = 0; c < hit.Normals.Length / 3; c++)
+            static int Bits(float x) => BitConverter.SingleToInt32Bits(x);
+            (int Corners, int Paired, int Same, int ZeroSign, List<string> Shown) Score((string[] Matrix, string[]? Normals, string[]? Tangents) hit)
             {
-                var key = (Convert.ToInt32(hit.Normals[c * 3], 16), Convert.ToInt32(hit.Normals[c * 3 + 1], 16), Convert.ToInt32(hit.Normals[c * 3 + 2], 16));
-                if (!byNormal.TryGetValue(key, out var l))
-                    byNormal[key] = l = [];
-                l.Add(new Vector4(F(hit.Tangents[c * 4]), F(hit.Tangents[c * 4 + 1]), F(hit.Tangents[c * 4 + 2]), F(hit.Tangents[c * 4 + 3])));
-            }
-            int corners = 0, paired = 0, same = 0, shown = 0;
-            foreach (var e in entries)
-            {
-                var nf = e.Streams.First(x => x.Name == "normal").First;
-                var tf = e.Streams.First(x => x.Name == "tangent").First;
-                for (var c = 0; c < e.Stored.Length / e.Stride; c++)
+                // Valve's corners by normal bits.
+                var byNormal = new Dictionary<(int, int, int), List<Vector4>>();
+                for (var c = 0; c < hit.Normals!.Length / 3; c++)
                 {
-                    corners++;
-                    var at = c * e.Stride;
-                    var key = (BitConverter.SingleToInt32Bits(e.Stored[at + nf]), BitConverter.SingleToInt32Bits(e.Stored[at + nf + 1]), BitConverter.SingleToInt32Bits(e.Stored[at + nf + 2]));
-                    if (!byNormal.TryGetValue(key, out var cands))
-                        continue;
-                    paired++;
-                    var t = new Vector4(e.Stored[at + tf], e.Stored[at + tf + 1], e.Stored[at + tf + 2], e.Stored[at + tf + 3]);
-                    if (cands.Any(x => x == t))
-                        same++;
-                    else if (shown++ < 4)
-                        output.WriteLine($"  node {node} corner {c}: normal {e.Stored[at + nf]:R},{e.Stored[at + nf + 1]:R},{e.Stored[at + nf + 2]:R} ours {t} valve {string.Join(" | ", cands.Distinct().Take(3))}");
+                    var key = (Convert.ToInt32(hit.Normals[c * 3], 16), Convert.ToInt32(hit.Normals[c * 3 + 1], 16), Convert.ToInt32(hit.Normals[c * 3 + 2], 16));
+                    if (!byNormal.TryGetValue(key, out var l))
+                        byNormal[key] = l = [];
+                    l.Add(new Vector4(F(hit.Tangents![c * 4]), F(hit.Tangents[c * 4 + 1]), F(hit.Tangents[c * 4 + 2]), F(hit.Tangents[c * 4 + 3])));
                 }
+                int corners = 0, paired = 0, same = 0, signs = 0;
+                var shown = new List<string>();
+                foreach (var e in entries)
+                {
+                    var nf = e.Streams.First(x => x.Name == "normal").First;
+                    var tf = e.Streams.First(x => x.Name == "tangent").First;
+                    for (var c = 0; c < e.Stored.Length / e.Stride; c++)
+                    {
+                        corners++;
+                        var at = c * e.Stride;
+                        var key = (Bits(e.Stored[at + nf]), Bits(e.Stored[at + nf + 1]), Bits(e.Stored[at + nf + 2]));
+                        if (!byNormal.TryGetValue(key, out var cands))
+                            continue;
+                        paired++;
+                        var t = new Vector4(e.Stored[at + tf], e.Stored[at + tf + 1], e.Stored[at + tf + 2], e.Stored[at + tf + 3]);
+                        if (cands.Any(x => Bits(x.X) == Bits(t.X) && Bits(x.Y) == Bits(t.Y) && Bits(x.Z) == Bits(t.Z) && Bits(x.W) == Bits(t.W)))
+                            same++;
+                        else if (cands.Any(x => x == t))
+                            signs++;
+                        else if (shown.Count < (Environment.GetEnvironmentVariable("MESHTURN_SHOW") is { } sh ? int.Parse(sh) : 4))
+                            shown.Add($"  node {node} corner {c}: normal {e.Stored[at + nf]:R},{e.Stored[at + nf + 1]:R},{e.Stored[at + nf + 2]:R} ours {t} valve {string.Join(" | ", cands.Distinct().Take(3))} at {e.Stored[at]:R},{e.Stored[at + 1]:R},{e.Stored[at + 2]:R}");
+                    }
+                }
+                return (corners, paired, same, signs, shown);
             }
-            output.WriteLine($"node {node}: {corners} corners, {paired} paired by normal, {same} with Valve's tangent");
+            var best = hits.OrderByDescending(h => Score(h).Same).First();
+            var (corners, paired, same, signs, lines) = Score(best);
+            zeroSign += signs;
+            if (Environment.GetEnvironmentVariable("MESHTURN_HIST") == "1" && same != paired)
+            {
+                string B(float x) => BitConverter.SingleToInt32Bits(x).ToString("x8");
+                var ourBits = entries.SelectMany(e => Enumerable.Range(0, e.Stored.Length / e.Stride).Select(c => e.Stored.Skip(c * e.Stride + e.Streams.First(x => x.Name == "tangent").First).Take(4).Select(B))).Select(x => string.Join(" ", x)).GroupBy(x => x).ToDictionary(g => g.Key, g => g.Count());
+                var valveBits = Enumerable.Range(0, best.Tangents!.Length / 4).Select(c => string.Join(" ", best.Tangents.Skip(c * 4).Take(4).Select(x => Convert.ToUInt32(x, 16).ToString("x8")))).GroupBy(x => x).ToDictionary(g => g.Key, g => g.Count());
+                foreach (var k in ourBits.Keys.Union(valveBits.Keys).OrderBy(x => x).Take(30))
+                    output.WriteLine($"    {k}: ours {ourBits.GetValueOrDefault(k)} valve {valveBits.GetValueOrDefault(k)}");
+            }
+            foreach (var line in lines)
+                output.WriteLine(line);
+            if (same != paired)
+                output.WriteLine($"node {node}: {corners} corners, {paired} paired by normal, {same} with Valve's tangent");
+            allCorners += corners;
+            allPaired += paired;
+            allSame += same;
         }
+        output.WriteLine($"all: {allCorners} corners, {allPaired} paired by normal, {allSame} with Valve's tangent");
+        output.WriteLine($"of the rest, equal but for a zero's sign {zeroSign}");
     }
 }

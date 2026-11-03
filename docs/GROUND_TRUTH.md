@@ -449,11 +449,24 @@ game can answer is raised with the user first, and runs with -insecure.
       it plus the next / previous corner's normalised, t3 the loop's sum normalised (18013e340). On Valve's own inputs
       (the gather, normal grid and (u, v) of every call) it gives Valve's output bit for bit: 1,183 calls, 12,279
       points (SubdivisionTangentsCaptureTests, SUBDIVGRIDS=).
-    - Still OPEN: the normal grid it reads (1813c3cf0: the position grid's normals from 1813be620, each patch border
-      blended with the neighbouring patch's (1813c0960) when soft or when the dot passes the mesh's +0x3470 + 1e-5,
-      border corners from 1813850e0, the centre the face corners' sum through 1813bd320 mode 3); only 5,174 of its
-      12,279 values equal a final (recomputed) normal, so it needs its own port. Then (u, v) from the position grid
-      and the wiring into SubdivisionBake (the S2C_SUBDIV_TANGENT experiment there goes).
+    - 1813c3cf0 ported (SubdivisionNormalGrid, 2026-11-04): the position grid's normals (1813be620), the two seams
+      averaged with the neighbour patch's border normals (1813c0960: +1 at index 0, -1 at n, negated for a column)
+      when the edge is soft or their dot passes cos + 1e-5, an unsubdivided neighbour by the lerp of the two corner
+      normals (1813850e0, step 0.5 / n), the centre the face loop's 1813bd320 corner-3 normals summed, (0, 0) the
+      vertex fan's 1813bd320 corner-0 normals from the last crease (1813c8830) or, when a fan face is missing or
+      unsubdivided, 1813850e0, normalised again either way (1813c6140 jumps to its own normalise). On every captured
+      call from the .vmap alone: 1,183 patches, 12,279 points bit for bit (NormalGridIsValves).
+    - The bake's tangent stream (SubdivisionBake.TangentGrids): the evaluator's mode 3 output replaces the corners'
+      lerp, (u, v) = (column / n, row / n) as the position grid hands it (captured). From the .vmap alone, gather,
+      normal grid and tangent grid of all 1,183 atixref patches equal Valve's bit for bit (TangentStreamIsValves).
+      At HammerMesh_TransformToWorld (capture_subdivbake_1103.py, SubdividedTangentsProbe): 103,161 of 103,887
+      corners exact, was 84,443; every curved mesh exact.
+    - Still OPEN: 726 corners on flat subdivided meshes (1367, 1372 to 1380, 6778, 6781) where our grid value has
+      a -0 that Valve's mesh has as +0 by the time it is turned. Valve's own grids give the same -0 (109 times for
+      (-1, -0, 0, -1)), so a step after the grid write (1813c94f0 into each corner's face-vertex slot, record
+      +0x44 via 181399f40) changes it; nothing in AddEdgeToFace (181376f80 -> 181376810) shows a data copy, the
+      slot handling is in its listener callbacks (topology +0xc0, vtable +0x10 edge pair, +0x30 face), not read.
+      Next: read those callbacks, or capture each corner's slot index and tangent after 1813baa40 on 1375.
 
 39. **The vertex unpack and transform of baked props** (settled
     2026-10-01): WRB_LoadPropMeshes' floats come from meshsystem's unpack

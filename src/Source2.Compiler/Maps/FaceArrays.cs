@@ -20,6 +20,63 @@ internal sealed class FaceArrays
     private readonly object?[] gridPaint;
     private readonly object?[] paintStream;
     private readonly Dictionary<string, object?[]> gridStreams = [];
+    private readonly int[] edgeData = [], edgeFlags = [];
+
+    /// <summary>The edge flags (edgeData's flags stream: bit 0 hard, bit 1 soft) of half-edge <paramref name="h"/>'s edge.</summary>
+    public int EdgeFlags(int h) => h < edgeData.Length && edgeData[h] >= 0 && edgeData[h] < edgeFlags.Length ? edgeFlags[edgeData[h]] : 0;
+
+    /// <summary>Corner i's patch control points as 1813bda20 makes them: the corner, the next and previous sides'
+    /// midpoints and the loop's mean (each corner times 1/m added in loop order from the corner).</summary>
+    public Vector3[] PatchControls(List<int> hs, int i)
+    {
+        var m = hs.Count;
+        var inv = 1f / m;
+        float cx = 0f, cy = 0f, cz = 0f;
+        for (var k = 0; k < m; k++)
+        {
+            var v = Pos(To[hs[(i + k) % m]]);
+            cx = (inv * v.X) + cx;
+            cy = (v.Y * inv) + cy;
+            cz = (v.Z * inv) + cz;
+        }
+        var p0 = Pos(To[hs[i]]);
+        var pn = Pos(To[hs[(i + 1) % m]]);
+        var pp = Pos(To[hs[(i + m - 1) % m]]);
+        return [p0, new Vector3((p0.X + pn.X) * 0.5f, (pn.Y + p0.Y) * 0.5f, (pn.Z + p0.Z) * 0.5f),
+                new Vector3((pp.X + p0.X) * 0.5f, (pp.Y + p0.Y) * 0.5f, (pp.Z + p0.Z) * 0.5f), new Vector3(cx, cy, cz)];
+    }
+
+    /// <summary>The patch frame Displace moves points in: the loop's Newell normal N, T and B (1813bc230).</summary>
+    public (Vector3 N, Vector3 T, Vector3 B) PatchFrame(List<int> hs, int i, int face)
+    {
+        var m = hs.Count;
+        var loopPoints = new Vector3[m];
+        float cx = 0f, cy = 0f, cz = 0f;
+        var inv = 1f / m;
+        for (var k = 0; k < m; k++)
+        {
+            var v = loopPoints[k] = Pos(To[hs[(i + k) % m]]);
+            cx = (inv * v.X) + cx;
+            cy = (v.Y * inv) + cy;
+            cz = (v.Z * inv) + cz;
+        }
+        var n = PolygonTriangulator.Newell(loopPoints);
+        var e1 = First[face];
+        var a = Pos(To[e1]);
+        var b = Pos(To[Next[e1]]);
+        var dx = cx - ((b.X + a.X) * 0.5f);
+        var dy = cy - ((a.Y + b.Y) * 0.5f);
+        var dz = cz - ((b.Z + a.Z) * 0.5f);
+        var t = Unit(new Vector3((dz * n.Y) - (dy * n.Z), (dx * n.Z) - (dz * n.X), (dy * n.X) - (dx * n.Y)));
+        var bt = Unit(new Vector3((t.Y * n.Z) - (t.Z * n.Y), (t.Z * n.X) - (n.Z * t.X), (n.Y * t.X) - (t.Y * n.X)));
+        return (n, t, bt);
+    }
+
+    /// <summary>Whether this mesh stores the displacement grids the patch code reads (subdivisionData's displacement).</summary>
+    public bool HasDisplacement => Displacement.Length > 0;
+
+    /// <summary>The displacement of grid point <paramref name="k"/> of the patch at corner half-edge <paramref name="h"/>.</summary>
+    public Vector3 DisplacementAt(int h, int k) => (Vector3)Displacement[blockOf[CornerData[h]] + k]!;
 
     public FaceArrays(DmxBinary.Element data)
     {
@@ -48,6 +105,9 @@ internal sealed class FaceArrays
                 }
         }
         paintStream = Stream(data.Get<DmxBinary.Element>("faceVertexData"), "VertexPaintBlendParams");
+        edgeData = Ints(data, "edgeDataIndices");
+        edgeFlags = (data.Get<DmxBinary.Element>("edgeData")?.GetElements("streams").FirstOrDefault(x => x.Name.StartsWith("flags", StringComparison.Ordinal))
+                     ?.Get<object?[]>("data") ?? []).Select(x => x is int i ? i : 0).ToArray();
         foreach (var st in subdivision?.GetElements("streams") ?? [])
             gridStreams[st.Name] = st.Get<object?[]>("data") ?? [];
     }
