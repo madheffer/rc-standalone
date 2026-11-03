@@ -36,6 +36,7 @@ internal static class RcTextureChannels
         ["PreserveCoverage"] = [("Mip PreserveCoverage", 5)],
         ["NormalizeNormals"] = [("Image NormalizeNormals", 1)],
         ["Inverse"] = [("Image Inverse", 1)],
+        ["Mod2XCenter"] = [("Image Mod2X", 1)],
     };
 
     // Box-family mip algorithms: the 2x2 box chain; Box3 keeps at most three levels (ao256: 3);
@@ -45,7 +46,7 @@ internal static class RcTextureChannels
     // Mip algorithms with their own chain and the image processors.
     private static readonly HashSet<string> Algorithms = new(StringComparer.OrdinalIgnoreCase)
         { "HemiOctIsoRoughness_RG_B", "AnisoRoughness_RG", "HemiOctAnisoRoughness", "ArtistDefinedOrAlphaWeighted", "None", "BoxInverse", "PreserveCoverage" };
-    private static readonly HashSet<string> Processors = new(StringComparer.OrdinalIgnoreCase) { "NormalizeNormals", "Inverse" };
+    private static readonly HashSet<string> Processors = new(StringComparer.OrdinalIgnoreCase) { "NormalizeNormals", "Inverse", "Mod2XCenter" };
 
     /// <summary>The special dependencies a texture's mip algorithms and image processors add.</summary>
     internal static IEnumerable<Source2ContainerAuthor.SpecialDep> Deps(GeneratedTexture texture)
@@ -101,6 +102,7 @@ internal static class RcTextureChannels
                 {
                     "normalizenormals" => RcNormalMaps.NormalizeNormals(level, vendor),
                     "inverse" => RcNormalMaps.Inverse(level),
+                    "mod2xcenter" => RcImageProcessors.Mod2XCenter(level),
                     _ => level,
                 };
                 loaded[key] = level;

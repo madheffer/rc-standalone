@@ -237,6 +237,18 @@ neighbourhood of channel 0 is wholly at least 0.5 or wholly under it takes its u
 back (18014f840). Probes: `pc_rgba` (the mask alone) and `pc_alpha_rgba` / `pc_alpha_bc7`
 (alpha weighting beside a PreserveCoverage alpha, csgo_complex's alpha-test packing).
 
+## Image processors (`CTextureFrame::ApplyImageProcessor` 18013f300)
+
+An input's processor runs on its whole loaded image before the group's mip algorithm. CS2's
+shaders use NormalizeNormals, Inverse (docs/MATERIALS.md), Mod2XCenter (csgo_complex,
+lightmappedgeneric, 4wayblend and vertexlitgeneric detail textures) and ConvertToYCoCg (sky).
+`Mod2XCenter` (18013fee0, registering "Image Mod2X" 1): per channel in the bitmap's mask (all
+four for an RGBA8888 load) the sum of every pixel in row order, then each pixel
+`(0.5 - sum / (w*h)) + v`. `mod2x_rgba`, `mod2x_srgb_rgba` and `detail_bc7` (csgo_complex's
+g_tDetail packing) compile to RC's files. Not ported: ConvertToYCoCg (180141720),
+HeightToNormal, FillToPowerOfTwo, FillToMultipleOfFour, ScaleToPowerOfTwo,
+DilateColorInTransparentPixels, EncodeRGBM, UniformRandom (no CS2 shader names them).
+
 ## A mip chain made elsewhere
 
 `VtexCompileSettings.MipChainBgra` (and `TextureDef.MipChainBgra` on the in-house path) takes a

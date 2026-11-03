@@ -92,6 +92,9 @@ public class VtexCompilerTests
     [InlineData("s2calg", "hemianiso_norough_rgba")]
     [InlineData("s2calg", "anisorough_rgba")]
     [InlineData("s2calg", "anisorough_ati2n")]
+    [InlineData("s2calg", "mod2x_rgba")]
+    [InlineData("s2calg", "mod2x_srgb_rgba")]
+    [InlineData("s2calg", "detail_bc7")]
     public void VtexSource_WithChannelGroupsAndAlgorithms_CompilesToResourceCompilersBytes(string folder, string name)
     {
         var result = ResourceCompiler.CreateDefault().Compile(new CompileRequest($"materials/{folder}/{name}.vtex",
