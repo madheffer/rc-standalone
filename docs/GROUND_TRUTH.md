@@ -3185,8 +3185,8 @@ game can answer is raised with the user first, and runs with -insecure.
       four, the 13 lighting rows, the texture compiles' rows (minmipsize, maxmipsize, fast, final,
       hueShiftFixup, lightmapMaxResolution 0, then the texture arguments: probe volume, fog, far field
       indirection, far field atlas, lightmap), the meshlet rows, force_up_to_date_materials, the physics
-      two. MapRootFile.ReadOrder; all 25 lit and 15 unlit references byte for byte. Still open: the +0x605
-      flag; where flattenPropsWithBakedLighting is read (it ties with nothing).
+      two. MapRootFile.ReadOrder; all 25 lit and 15 unlit references byte for byte. The +0x605
+      flag settled 2026-11-03 (below). Still open: where flattenPropsWithBakedLighting is read (it ties with nothing).
     - Settled (2026-10-22, capture_argdeps.py --over --trace on Valve's Only Entities compiles of probe01 and
       cardtest): an Only Entities build compiles every entity model again and writes default_ents and the
       map root. A physics-only model reads keep_vertices and mapbuilder_entity_classname, which its own
@@ -4499,6 +4499,17 @@ game can answer is raised with the user first, and runs with -insecure.
        adds those only when vis runs, so a compile that bakes with vis off may read three arguments more than
        ours lists. Read Build's branch before changing it; no Valve compile of that switch set is in the
        corpus.
+       Settled 2026-11-03 (rc 0923 decompile, checked on a fresh Valve compile): CWorldRendererBuilder_Build
+       (1802472a0) takes vf 0x100 (+0x605) before anything else and builds the ray trace environment when it
+       or vis (vf 0xe8, 2) holds, outside an Only Entities build (+0x2d8 from vf 0xf8): norte, then unless set
+       WRB_CollectRteMeshes (1802839d0) reads dumptris and, once the .rte is written, debugvisgeo. CompileMap's
+       decision (1800fd550, at the "bakelighting" read) is (not partial or bakelighting) and not
+       nobakedlighting, left to right: bakelighting is read only in a partial build, nobakedlighting only when
+       the first half holds. Ported in MapRootFile (Compile.Partial). probe01 with -world -bakelighting
+       -fshallow (%TEMP%/bake_novis/probe01.vpk, resourcecompiler 1103) reads norte, dumptris, debugvisgeo
+       and bakelighting beside the lighting rows; our .vmap_c equals it byte for byte
+       (UnlitMapRootsEqualValves with MAPROOT_SET="bake_novis|-world -bakelighting -fshallow"), and every
+       other reference is unchanged.
      - Read, not ported: the extra vertex streams of a mesh (NodeMeshEntries.WithPaintStreams, measured on
        LowPrecisionUv1). 1810dca50 (from CMapMesh_NameSlotsAfterOverride 1810dcca0) walks each material's input
        list (181ef9b30: the material's vf 0x98, records of 0xc4 bytes, the name at +0x40) and adds

@@ -167,6 +167,16 @@ public sealed class MapCompileArgs
         }
     }
 
+    /// <summary>Whether builders were named (SelectedBuilders' partial).</summary>
+    public bool Partial
+    {
+        get
+        {
+            SelectedBuilders(out var partial);
+            return partial;
+        }
+    }
+
     /// <summary>Whether the physics settle runs: nosettle clears it.</summary>
     public bool Settle => !GetBool("nosettle");
 

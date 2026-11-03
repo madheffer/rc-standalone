@@ -28,9 +28,10 @@ public static class MapRootFile
     /// <param name="EntitiesOnly">An Only Entities build (MapCompileArgs.EntitiesOnly): no bake decision is read.</param>
     /// <param name="EntityRenderModels">The build compiles an entity model with a render mesh, or one that fails on a
     /// missing material (<see cref="ReadsMeshArguments"/>).</param>
+    /// <param name="Partial">Builders were named (MapCompileArgs.SelectedBuilders' partial): the bake decision reads bakelighting.</param>
     public sealed record Compile(string Addon, IReadOnlyList<(string Path, uint Crc)> Inputs, bool Baked, bool ProbeVolumes,
                                  IReadOnlyDictionary<string, object> Arguments, IReadOnlySet<string>? Steps = null,
-                                 bool FlattenProps = false, bool EntitiesOnly = false, bool EntityRenderModels = false)
+                                 bool FlattenProps = false, bool EntitiesOnly = false, bool EntityRenderModels = false, bool Partial = false)
     {
         public bool Runs(string step) => Steps is null ? step is "world" or "phys" or "vis" or "bakedlighting" : Steps.Contains(step);
     }
@@ -109,14 +110,13 @@ public static class MapRootFile
     // 1802f9cc0; debugColorClustering CVisibilityMeshMerger_MergeMeshes and meshletMax* the node models'
     // mesh build (18025fab0), so only with world node models; keep_vertices and mapbuilder_entity_classname
     // the physics compile; norte CWorldRendererBuilder_Build when vis is on (CMapBuilderContext vfunc 0xe8,
-    // the builder table at +0x609, index 2) or the context's +0x605 flag (vfunc 0x100, not read yet), then
-    // debugvisgeo and dumptris in CreateRayTracingEnvironment, disablevis in the vis builder;
+    // the builder table at +0x609, index 2) or the compile bakes (the context's +0x605, vfunc 0x100), then
+    // dumptris and debugvisgeo in CreateRayTracingEnvironment, disablevis in the vis builder;
     // flattenPropsWithBakedLighting 180245770 when the compile does not bake (vfunc 0x108), and bakelighting
     // when it does not. Measured on 56 Valve compiles (world only, world+phys+vis+nav, full; ledger 119).
     private static readonly string[] Always = ["force_up_to_date_materials", "skipauxfiles", "skipmapload"];
     private static readonly string[] WorldNodeModels = ["debugColorClustering", "meshletMaxTriangles", "meshletMaxVertices"];
     private static readonly string[] Physics = ["keep_vertices", "mapbuilder_entity_classname"];
-    private static readonly string[] Visibility = ["debugvisgeo", "disablevis", "dumptris", "norte"];
 
     private static readonly string[] Lighting =
     [
@@ -193,8 +193,24 @@ public static class MapRootFile
             names.AddRange(WorldNodeModels);
         if (compile.Runs("phys"))
             names.AddRange(Physics);
+        // CWorldRendererBuilder_Build (0923 1802472a0) builds the ray trace environment when vis runs or the
+        // compile bakes (context +0x605, vf 0x100), outside an Only Entities build (+0x2d8): it reads norte, and
+        // without it the RTE reads dumptris (WRB_CollectRteMeshes) and debugvisgeo. The vis builder reads disablevis.
+        if (compile.Runs("vis") || (compile.Runs("bakedlighting") && !compile.EntitiesOnly))
+        {
+            names.Add("norte");
+            // Read as MapCompileArgs.GetBool reads it: an int as is, a float truncated.
+            if (compile.Arguments.GetValueOrDefault("norte") switch { int i => i == 0, float f => (int)f == 0, _ => true })
+                names.AddRange(["dumptris", "debugvisgeo"]);
+        }
         if (compile.Runs("vis"))
-            names.AddRange(Visibility);
+            names.Add("disablevis");
+        // CompileMap's bake decision (1800fd550) outside an Only Entities build, left to right: (not partial or
+        // bakelighting) and not nobakedlighting. So bakelighting is read only in a partial build, and
+        // nobakedlighting (in Lighting when the compile bakes) only once the first half holds.
+        var decides = !compile.EntitiesOnly && compile.Runs("world");
+        if (decides && compile.Partial)
+            names.Add("bakelighting");
         if (compile.Runs("bakedlighting"))
         {
             names.AddRange(Lighting);
@@ -209,9 +225,10 @@ public static class MapRootFile
                     names.AddRange(["farfieldAtlasTextureArg", "farfieldIndirectionTextureArg"]);
             }
         }
-        else if (!compile.EntitiesOnly)
+        else if (decides)
         {
-            names.Add("bakelighting");
+            if (!compile.Partial || compile.Arguments.GetValueOrDefault("bakelighting") switch { int i => i != 0, float f => (int)f != 0, _ => false })
+                names.Add("nobakedlighting");
             if (compile.FlattenProps)
                 names.Add("flattenPropsWithBakedLighting");
         }

@@ -455,7 +455,7 @@ public static class MapCompile
             entries[rootPath] = MapRootFile.Write(new MapRootFile.Compile(addon, inputs, bakedRoot, probeVolumes, args.Arguments,
                                                                               bakes ? [.. steps, "bakedlighting"] : steps,
                                                                               !bakes && MapRootFile.ReadsStaticModelRecords(document), args.EntitiesOnly,
-                                                                              MapRootFile.ReadsMeshArguments(entityModels, failedModels)), children,
+                                                                              MapRootFile.ReadsMeshArguments(entityModels, failedModels), Partial: args.Partial), children,
                                                   MapAssets.References(document, MapSubassets.LumpOrder(walkEntities, document), schema, $"maps/{map}".ToLowerInvariant()),
                                                   MapSubassets.References(walkEntities, schema, document));
             log.WriteLine($"  map root: {rootPath}, {children.Count} children");

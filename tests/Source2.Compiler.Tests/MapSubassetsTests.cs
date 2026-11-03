@@ -215,7 +215,7 @@ public class MapRootFileTests(ITestOutputHelper output)
             var geometry = children.Any(c => c.Contains("/worldnodes/", StringComparison.Ordinal) && c.EndsWith(".vmdl", StringComparison.Ordinal));
             var steps = baked || !geometry ? null : Steps(children);
             var compile = new MapRootFile.Compile("s2c_rc_probe", inputs, baked, probes, new Dictionary<string, object>(), steps,
-                                                  steps is not null && MapRootFile.ReadsStaticModelRecords(document));
+                                                  steps is not null && MapRootFile.ReadsStaticModelRecords(document), Partial: steps is not null);
             var ours = MapRootFile.Write(compile, children,
                                          MapAssets.References(document, MapSubassets.LumpOrder(entities, document), schema, $"maps/{map}"),
                                          MapSubassets.References(entities, schema, document));
@@ -267,13 +267,19 @@ public class MapRootFileTests(ITestOutputHelper output)
             ("preset_fast", ["-world", "-skipauxfiles", "-nolightmaps", "-phys", "-nav"]),
             ("preset_entities", ["-entities", "-skipauxfiles", "-nolightmaps", "-fshallow"]),
         };
+        // MAPROOT_SET=<folder under %TEMP%>|<switches>: one more set, lit ones too (a bake without vis, ledger 119).
+        if (Environment.GetEnvironmentVariable("MAPROOT_SET") is { Length: > 0 } extra && extra.Split('|') is [var extraFolder, var extraSwitches])
+            sets = [.. sets, (extraFolder, extraSwitches.Split(' ', StringSplitOptions.RemoveEmptyEntries))];
         var failed = new List<string>();
         var compared = 0;
         using var assets = new GameContent(pak, Path.Combine(game, "csgo_addons", "s2c_rc_probe"));
         foreach (var (folder, switches) in sets)
         {
             var args = MapCompileArgs.Parse(switches);
-            var steps = args.SelectedBuilders(out _);
+            var steps = args.SelectedBuilders(out var partial);
+            // As MapCompile does: the bake joins the builders when the arguments bake (context +0x605).
+            if (args.BakesLighting)
+                steps.Add("bakedlighting");
             var dir = Path.Combine(Path.GetTempPath(), folder);
             if (!Directory.Exists(dir))
                 continue;
@@ -301,9 +307,11 @@ public class MapRootFileTests(ITestOutputHelper output)
                 // which lives in another addon, after reading the mesh arguments).
                 var failedModels = new List<string>();
                 var models = Physics.EntityPhysicsModels.Build(document, map, assets.Material, assets.CollisionProperty, schema, null, assets.SmartProp, failedModels);
-                var compile = new MapRootFile.Compile("s2c_rc_probe", inputs, false, false, args.Arguments,
+                var lit = children.Any(c => c.EndsWith("/lightmaps/irradiance.vtex", StringComparison.Ordinal));
+                var probeVolumes = children.Any(c => c.EndsWith("env_light_probe_volume_atlas.vtex", StringComparison.Ordinal));
+                var compile = new MapRootFile.Compile("s2c_rc_probe", inputs, lit, probeVolumes, args.Arguments,
                                                       steps, MapRootFile.ReadsStaticModelRecords(document), args.EntitiesOnly,
-                                                      MapRootFile.ReadsMeshArguments(models, failedModels));
+                                                      MapRootFile.ReadsMeshArguments(models, failedModels), partial);
                 var ours = MapRootFile.Write(compile, children, MapAssets.References(document, MapSubassets.LumpOrder(entities, document), schema, $"maps/{map}"),
                                              MapSubassets.References(entities, schema, document));
                 compared++;
