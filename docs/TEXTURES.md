@@ -237,6 +237,17 @@ neighbourhood of channel 0 is wholly at least 0.5 or wholly under it takes its u
 back (18014f840). Probes: `pc_rgba` (the mask alone) and `pc_alpha_rgba` / `pc_alpha_bc7`
 (alpha weighting beside a PreserveCoverage alpha, csgo_complex's alpha-test packing).
 
+## TGA inputs (`Imaging.TgaReader`)
+
+resourcecompiler loads a `.tga` through `HelperLoadFbmByFileExtension` (180c3ea20) and its TGA
+decode (180c71290): types 1/3 (colour-mapped or grey), 2 (24 or 32 bits), 9/10/11 run-length,
+rows bottom-up unless descriptor bit 0x20 is set. It reads no other descriptor bit: a
+right-to-left image is not mirrored, and the alpha bit count is ignored, a 32-bit row taking its
+fourth byte as alpha whatever the header declares (180c70da0). So a 32-bit TGA that declares 0
+alpha bits but stores zeros there compiles transparent in RC too (vpkstuff ROADMAP F23 asks for the
+opposite; following RC, the compiler keeps the bytes). `tga_rtl` and `tga_noalphabits` compile to
+RC's files. Colour-mapped TGAs, which RC reads, are still refused here.
+
 ## Image processors (`CTextureFrame::ApplyImageProcessor` 18013f300)
 
 An input's processor runs on its whole loaded image before the group's mip algorithm. CS2's

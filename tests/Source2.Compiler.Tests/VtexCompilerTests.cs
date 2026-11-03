@@ -108,6 +108,22 @@ public class VtexCompilerTests
             $"{name}.vtex_c differs from resourcecompiler's");
     }
 
+    // RcReference/textures/tga: 32-bit TGAs RC read on 11-03, one right-to-left (RC ignores that
+    // bit) and one whose descriptor declares no alpha bits (RC takes the fourth byte anyway).
+    [Theory]
+    [InlineData("tga_rtl")]
+    [InlineData("tga_noalphabits")]
+    public void VtexSource_FromTga_CompilesToResourceCompilersBytes(string name)
+    {
+        var content = new MemoryContentSource();
+        foreach (var tga in Directory.GetFiles(Path.Combine(Path.GetDirectoryName(Fixture("probe.png"))!, "tga"), "*.tga"))
+            content.Add("materials/s2ctga/" + Path.GetFileName(tga), File.ReadAllBytes(tga));
+        var result = ResourceCompiler.CreateDefault().Compile(new CompileRequest($"materials/s2ctga/{name}.vtex",
+            File.ReadAllBytes(Fixture($"tga/{name}.vtex"))) { SearchPath = "csgo_addons/vpkstuff_rc_probe", Content = content });
+        Assert.True(result.Succeeded, string.Join("\n", result.Diagnostics));
+        Assert.True(File.ReadAllBytes(Fixture($"tga/{name}.vtex_c")).AsSpan().SequenceEqual(result.Output), $"{name}.vtex_c differs from resourcecompiler's");
+    }
+
     [Fact]
     public void Bc7_IntelTable_CompilesTheSameLayout()
     {

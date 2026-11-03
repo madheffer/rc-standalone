@@ -2,7 +2,8 @@ namespace Source2.Compiler.Imaging;
 
 /// <summary>
 /// Truevision TGA to 8-bit RGBA: uncompressed and run-length (types 2, 3, 10, 11), 8, 24 and 32
-/// bits per pixel, either vertical origin. Valve's default material images are TGA, and the image
+/// bits per pixel, either vertical origin (the horizontal bit ignored, as resourcecompiler ignores it).
+/// Valve's default material images are TGA, and the image
 /// decoder the rest of the compiler uses does not read it. Colour-mapped files are refused.
 /// </summary>
 public static class TgaReader
@@ -65,15 +66,18 @@ public static class TgaReader
             }
         }
 
-        bool topDown = (descriptor & 0x20) != 0, rightToLeft = (descriptor & 0x10) != 0;
+        // resourcecompiler's TGA decode (rc 180c71290) reads one bit of the descriptor, 0x20 (rows
+        // top down); the right-to-left bit (0x10) and the alpha bit count are ignored, and a 32-bit
+        // row copies its fourth byte to alpha as it is (180c70da0). tga_rtl and tga_noalphabits
+        // (RcReference/textures/tga, RC 11-03) are read as RC reads them.
+        bool topDown = (descriptor & 0x20) != 0;
         var rgba = new byte[count * 4];
         for (int y = 0; y < height; y++)
         {
             int sy = topDown ? y : height - 1 - y;
             for (int x = 0; x < width; x++)
             {
-                int sx = rightToLeft ? width - 1 - x : x;
-                int s = (sy * width + sx) * bytesPer, d = (y * width + x) * 4;
+                int s = (sy * width + x) * bytesPer, d = (y * width + x) * 4;
                 if (grey)
                 {
                     rgba[d] = rgba[d + 1] = rgba[d + 2] = pixels[s];
