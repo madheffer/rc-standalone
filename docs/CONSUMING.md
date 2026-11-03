@@ -90,6 +90,29 @@ pushes only with `-Push`; the branch follows vpkstuff's staging and in-game chec
 vpkstuff changes on its side (the switch, then moving call sites off VRF, then exact texture
 and material compiles) is in docs/VPKSTUFF_PACKAGE_HANDOFF.md.
 
+**Update 2026-11-03 (a release feed; this repository stops editing vpkstuff).** A release is
+published, and each consumer decides when to take it, the way an upstream library and its
+users work. `tools/release.ps1` is the one command after a merge to `main`. It refuses unless
+HEAD is `box/main` and clean, packs `0.1.<commit count>` with package validation against the
+previous release (a breaking public-API change stops it unless `-AllowBreaking`, which records
+the CP diagnostics), and publishes to the feed on the box, `/srv/storage/data500/s2c-feed`:
+
+    index.json                          every release, newest first (version, sha, date, breaking)
+    releases/<version>/release.json     files + SHA-256, dependency floors, API verdict, notes
+    releases/<version>/Source2.Compiler.<version>.nupkg
+    releases/<version>/adapter.tar      src/Source2.Compiler.Vrf at the release commit
+
+The notes are the lines `CHANGELOG.md` gained since the previous release. `tools/feed_index.py`
+runs on the box: it checks every uploaded file against `release.json`, refuses a version that
+is already published (a release never changes) and replaces `index.json` atomically. The commit
+is tagged `v<version>` on the box. `-Commit <sha> -Import <nupkg>` publishes a package that was
+built earlier from a commit of main; the feed was seeded that way with 0.1.127 and 0.1.129, the
+packages vpkstuff's live and master builds carry. vpkstuff takes a release through its
+Dependencies tab (which lists the feed's releases and trials one) and `deploy/dep-release.sh`:
+`--master s2c <version>` puts it on master with any changed goldens re-blessed and ships dev,
+and `s2c <version>` ships it onto live as a patch release (the live commit plus that version
+alone, through the hotfix slots). `tools/publish-to-vpkstuff.ps1` is retired.
+
 Sources consulted: [Git submodules vs subtrees vs monorepos](https://slicker.me/git/submodules-vs-subtrees-vs-monorepos.html),
 [git submodule vs subtree technical overview](https://medium.com/@Spritan/git-submodule-vs-git-subtree-quick-technical-overview-92ae10119145),
 [Referencing a local private NuGet package](https://weblog.west-wind.com/posts/2022/Sep/11/Referencing-a-Local-Private-NuGet-Package-in-your-Solution),
