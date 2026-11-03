@@ -5321,6 +5321,12 @@ game can answer is raised with the user first, and runs with -insecure.
        #46 of constants (`MatrixColorTint2(float3(1,1,1),1)`, `MatrixColorCorrect2(float3(1,1,1), ...)`), and the
        static combo's write binds #46. RtxMaterials now writes each field from its own VariableIndex (a name lookup
        took #45). s2c_coloradjust with -s2cbake: every lighting file Valve's (23 of 25, the .nav and .vwrld left).
+     - Read and captured 2026-11-04: the default hit group block of a translucent material (scenesystem 180098cd0,
+       flag 2) takes texture attribute 0xfa77b522 (LightSim_Opacity_A) through vf 0x80 as its opacity texture at
+       +20, the opacity at +12 staying 1; without one, float attribute LightSim_Opacity (0xe2945d83, vf 0x58), 0
+       when absent, clamped to 0..1. A constant LightSim_Opacity_A (csgo_water_fancy's 1) is no texture.
+       capture_host.py on Valve's atixref job: every material block is ours but the bindless indices
+       (hr_glass_001, inferno_fountain, italy_windows_glass_01a included).
 
 198. **Steam Audio's rebake options in a compile** (2026-11-02, CS2 open: the Ghidra project's resourcecompiler.dll
      decompile, 18013b060 and 18013af00 there, and the installed 1029 build's disassembly). READ.

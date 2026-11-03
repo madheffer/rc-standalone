@@ -738,9 +738,9 @@ public sealed class RtxScene
     /// else RepresentativeTexture; -1 without), the opacity texture at +20
     /// (-1), the material flags at +24 (180098660's 1, 2, 5), zero at +28. The
     /// shader reads the albedo, the colour texture times the instance colour.
-    /// Not ported (they throw): LightSim_Albedo (vf 0x70's width not read) and
-    /// a translucent material's opacity (texture 0xfa77b522, not named, else
-    /// LightSim_Opacity).
+    /// A translucent material's opacity: texture 0xfa77b522 (not named) at +20,
+    /// else LightSim_Opacity at +12. Not ported (it throws): LightSim_Albedo
+    /// (vf 0x70's width not read).
     /// </summary>
     private static byte[] DefaultBlock(string material, SettleWorld.MaterialInfo? info, uint flags, IReadOnlyList<RtxShaderLibrary.Attribute> attributes,
                                        Func<string?, bool, bool, int> texture)
@@ -759,7 +759,37 @@ public sealed class RtxScene
             BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(16), texture(path, colour.BindingSrgb, false));
         }
         if ((flags & 2) != 0)
-            throw new NotSupportedException($"{material}: a translucent material's default hit group opacity (texture 0xfa77b522 or LightSim_Opacity) is not ported");
+        {
+            // 180098cd0 with flag 2: texture attribute 0xfa77b522 (LightSim_Opacity_A, vf 0x80) gives the opacity texture's bindless index at
+            // +20, the opacity staying 1; without it float attribute LightSim_Opacity (0xe2945d83, vf 0x58), 0 when the
+            // material has none, clamped to 0..1, at +12.
+            // 0xfa77b522 is LightSim_Opacity_A; a constant one (csgo_water_fancy's 1) is not a texture attribute.
+            var opacityTexture = attributes.FirstOrDefault(a => a.Murmur == 0xfa77b522 && a.Binding != null);
+            if (opacityTexture is not null)
+            {
+                if (info == null || !info.Textures.TryGetValue(opacityTexture.Binding!, out var path))
+                    throw new NotSupportedException($"{material}: LightSim_Opacity_A binds {opacityTexture.Binding}, which the material does not set (the shader default is not ported)");
+                BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(20), texture(path, opacityTexture.BindingSrgb, false));
+            }
+            else
+            {
+                var opacity = attributes.FirstOrDefault(a => a.Murmur == 0xe2945d83);
+                if (opacity is not null && (opacity.Expression != null || opacity.Binding != null))
+                    throw new NotSupportedException($"{material}: LightSim_Opacity from an expression or variable is not ported");
+                var value = opacity?.Constant switch
+                {
+                    null => 0f,
+                    float f => f,
+                    int i => i,
+                    var other => throw new NotSupportedException($"{material}: LightSim_Opacity as {other.GetType().Name} is not ported"),
+                };
+                if (value <= 0f)
+                    value = 0f;
+                if (1f <= value)
+                    value = 1f;
+                BinaryPrimitives.WriteSingleLittleEndian(bytes.AsSpan(12), value);
+            }
+        }
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(24), flags);
         return bytes;
     }
