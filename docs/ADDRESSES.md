@@ -772,7 +772,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `resourcecompiler_20260923.dll`, 56,313,496 bytes, PE time 2026-09-22 19:17 UTC
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
-- 1259 addresses
+- 1265 addresses
 
 ### s2c:baked/light-keys
 
@@ -1281,6 +1281,11 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18024d9c0` | `TemplatePass_BuildLumps` | a lump for every template entity | `src/Source2.Compiler/Maps/EntityLumpSet.cs:166` |
 | `18024e890` | `WRB_PushProbeRecord` | appends a 0x8c0-byte cubemap/probe record |  |
 | `1803670b0` | `EntityIOConnection_SchemaBind` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:419` |
+| `180cd7820` | `CDataModel_FirstReferrer` | vf 0x3b8 (handle): the element's inline referrer record (element +0x38; -1 means none), or a search of the undo table when the element is gone (ledger 46) |  |
+| `180cd99e0` | `CDataModel_NextReferrer` | vf 0x3c0 (record): record +8 |  |
+| `180cd9bd0` | `CDataModel_AddReferrer` | (handle, attribute): marks the element referenced (+8 bit 0) and adds the attribute's owner through 180cdf6f0; from the DmAttribute element setters (ledger 46) |  |
+| `180cdd8e0` | `CDataModel_RegisterElementReferences` | every element-typed attribute (type 1) of an element added to (180cdf6f0) or removed from (180ce2e50) its target's referrers; 0x21 element arrays likewise |  |
+| `180cdf6f0` | `DmReferrers_Add` | the new referrer into the inline slot, the old one moved to a new 0x10-byte record right behind it: newest first (ledger 46) |  |
 | `180d7c3f0` | `MapDoc_UpgradeTo38` |  | `src/Source2.Compiler/Maps/MapEntities.cs:266` |
 | `180d7f9c0` | `MapDoc_UpgradeSimplification` | upgrade step 27 (vmap 27 to 28): physicsSimplificationError becomes its square root, the override set | `src/Source2.Compiler/Physics/WorldCollision.cs:919` |
 | `180dcab50` | `Fgd_IsClassName` | case-blind class name test | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:382` |
@@ -1364,6 +1369,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `181c1ee80` | `EntityLump_FixupResource` | a resource reference as the lump writer fixes it | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:915`, `src/Source2.Compiler/Maps/ResourcePath.cs:4` |
 | `181eb82c0` | `Kv3_SetColor` | the KV3 colour setter | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:907` |
 | `181eb8970` | `KV3_SetMemberInt` | find or append member, type 3 with the given subtype | `src/Source2.Compiler/Lighting/PathTraceScene.cs:182` |
+| `1822ae350` | `CDataModel::vftable` | data: the datamodel linked into resourcecompiler (VDataModelVersion001, QueryInterface 180cda040 at slot 2); vf 0x3b8 180cd7820, vf 0x3c0 180cd99e0 (ledger 46) |  |
 | `182349b48` | `CMapInstance_Vtable` | data: vtable; slot 0x860 (vf268) calls the collapse |  |
 | `18234a700` | `CMapPrefab::vftable` | vf 0x860 CMapPrefab_Collapse (180f96d40), vf 0x868 1800de990 (false): a prefab whose collapse makes no group is deleted (ledger 183) |  |
 | `182fe7b08` | `MapDoc_UpgradeTable` | data: vmap upgrade steps; slot 36 is the vmap<38 worldspawn step |  |

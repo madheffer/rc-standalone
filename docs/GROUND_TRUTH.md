@@ -148,6 +148,16 @@ game can answer is raised with the user first, and runs with -insecure.
     reference it starts from its own (180f82b60). Left to read: the order of the datamodel's
     referencing list (which placement comes first: the measured "first placement last to first" should
     fall out of it) and who appends to +0x6b8.
+    Read 2026-11-03 (rc 0923; the datamodel is linked into resourcecompiler, CDataModel vftable 1822ae350):
+    vf 0x3b8 (180cd7820) returns the element's inline referrer record (element +0x38, handle; -1 none) and
+    vf 0x3c0 (180cd99e0) the record's next (+8). The add (180cdf6f0) puts the new referrer in the inline slot
+    and moves the old one into a new record right behind it, so the list runs newest first. A referrer is
+    added when an element-typed attribute is set (180cd9bd0, from the DmAttribute setters 180ce5810,
+    180d01160, 180d03430, 180d19000) or when references are rebuilt (180cdd4e0 / 180cdd8e0 over an
+    element's attributes). So 180f88460 visits a node's referrers in reverse order of when their
+    attributes were set. Still open, so EntityLumpAuthor.Lighting keeps its fit: when each placement's
+    referencing attribute is set during the load (and whether the light preprocess runs before the bake's
+    copies add referrers of their own), and the +0x6b8 appender.
 
 47. **Order of baked props within a model.** NodePropEntries orders a
     model's baked props last to first in the walk (measured on atixref's

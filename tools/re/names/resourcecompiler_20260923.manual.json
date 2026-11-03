@@ -7117,6 +7117,42 @@
    "note": "Preprocessing Lights: brightness units, lightcookie, precompute keys"
   },
   {
+   "addr": "1822ae350",
+   "name": "CDataModel::vftable",
+   "module": "s2c:entities/lump",
+   "note": "data: the datamodel linked into resourcecompiler (VDataModelVersion001, QueryInterface 180cda040 at slot 2); vf 0x3b8 180cd7820, vf 0x3c0 180cd99e0 (ledger 46)"
+  },
+  {
+   "addr": "180cd7820",
+   "name": "CDataModel_FirstReferrer",
+   "module": "s2c:entities/lump",
+   "note": "vf 0x3b8 (handle): the element's inline referrer record (element +0x38; -1 means none), or a search of the undo table when the element is gone (ledger 46)"
+  },
+  {
+   "addr": "180cd99e0",
+   "name": "CDataModel_NextReferrer",
+   "module": "s2c:entities/lump",
+   "note": "vf 0x3c0 (record): record +8"
+  },
+  {
+   "addr": "180cdf6f0",
+   "name": "DmReferrers_Add",
+   "module": "s2c:entities/lump",
+   "note": "the new referrer into the inline slot, the old one moved to a new 0x10-byte record right behind it: newest first (ledger 46)"
+  },
+  {
+   "addr": "180cd9bd0",
+   "name": "CDataModel_AddReferrer",
+   "module": "s2c:entities/lump",
+   "note": "(handle, attribute): marks the element referenced (+8 bit 0) and adds the attribute's owner through 180cdf6f0; from the DmAttribute element setters (ledger 46)"
+  },
+  {
+   "addr": "180cdd8e0",
+   "name": "CDataModel_RegisterElementReferences",
+   "module": "s2c:entities/lump",
+   "note": "every element-typed attribute (type 1) of an element added to (180cdf6f0) or removed from (180ce2e50) its target's referrers; 0x21 element arrays likewise"
+  },
+  {
    "addr": "180f1c660",
    "name": "MapDoc_GatherLights",
    "module": "s2c:baked/light-keys",
