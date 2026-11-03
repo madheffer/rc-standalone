@@ -89,8 +89,9 @@ material, child texture, sound, SVG and KV3 fixture is byte-identical to resourc
 - 15 output formats (I8, IA88, A8, R8_UNORM = the vtex "format 33", BGRA8888, R16, RG1616, RGBA16161616,
   R16F, RG1616F, RGBA16161616F, R32F, RG3232F, RGB323232F, RGBA32323232F); the 20 formats RC itself
   refuses are refused.
-docs/TEXTURES.md on main has every rule. Taking it into vpkstuff is its lane:
-`deploy/dep-release.sh s2c 0.1.153 --master` (output changes, so goldens re-bless), then the in-game check.
+docs/TEXTURES.md on main has every rule. vpkstuff master carries it (11-04, lane `--master` c075c60d0 and
+the fix-forward cb34705fb); dev is shipped. Left: the operator's in-game check on dev, then the live lane
+(`dep-release.sh s2c 0.1.153 --verified-in-game`).
 
 Open (each refused with an error naming it; RC probes already compiled in algorithms2 where noted):
 - Mip algorithms no CS2 shader names: Mip2DGradient (18014dd80 -> the four-wide rsqrtps Sobel 181274380,
