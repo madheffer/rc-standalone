@@ -5397,7 +5397,8 @@ game can answer is raised with the user first, and runs with -insecure.
          through encodeIndexSequence (+0xd), and a byte argument Zstds the encoding on top (+0xf), neither reached
          by a world node (not traced to its callers). After the port s2c_coloradjust is 19 of 25:
          cobblestone_ground_large_1's node model is Valve's byte for byte.
-       - OPEN: italy_cobblestone_01's texcoord 0 is shifted by Valve (11.5 -> 4.5) and not by us: the material is
+       - SETTLED by ledger 210 (the reading below had the direction wrong: we shifted, Valve kept).
+         italy_cobblestone_01's texcoord 0 is shifted by Valve (11.5 -> 4.5) and not by us: the material is
          csgo_environment with g_flTexCoordRotation1 90 and no g_nUVSet1. ConvertMeshForBuilder (1810dfff0 ..
          1810e006c) keeps texcoords when the loaded material's bool attribute HasTexcoordTransform (0x2661694a,
          vf 0x48) is 1. Its expression in csgo_environment is (g_nUVSet1>0 && (scale1.x!=1 || scale1.y!=1 ||
@@ -5435,7 +5436,24 @@ game can answer is raised with the user first, and runs with -insecure.
            resourcecompiler italy_cobblestone_01's HasTexcoordTransform is 1, the materialsystem2 reading above
            holds (defaults seen), ConvertMeshForBuilder does not shift its texcoords, and KeepsTexcoords agrees.
            The material pointers were matched to names by their entry counts (the names were not found in
-           memory). Still OPEN: what moves its texcoord 0 by (-7, -2) in Valve's output; it is not this shift.
+           memory). Settled by ledger 210: the shift was ours, not Valve's.
+
+210. **The world node path keeps a kept material's texcoords** (2026-11-03, CS2 closed but nothing attached; no new
+     reading: rc 20261103 1810e11f0 .. 1810e126c disassembled again, and the 11-03 capture of ledger 201 re-read).
+     - The (-7, -2) of ledger 201 ran the other way: per vertex (VertexStreamProbe, VTXALL=1, positions all 172
+       equal) Valve's italy_cobblestone_01 texcoords are the .vmap's own (island boxes such as u -19.5 .. 4.5) and
+       ours were island-shifted (u -12.5 .. 11.5), by a different integer pair per island.
+     - Cause: WorldNodeBuild.WorldEntries called NodeMeshEntries.FromWorld without keepsTexcoords, so every world
+       node entry was shifted; only the physics path (WorldCollision) passed KeepsTexcoords. ConvertMeshForBuilder
+       writes one DMX per mesh for every builder (its only caller of HammerMesh_ShiftTexcoordIslands is 1810e0483
+       in 0923), so the render path gets the same keep. Ported: WorldEntries passes MapMeshCorners.KeepsTexcoords
+       per material (this also reaches Vrad3Job's scene, which reads WorldEntries).
+     - Capture re-read: the 2-entry material answered found 1, value 1 (no 0x7c928c7c read follows, as the
+       disassembly's je 1810e126c says), and the .vmap holds italy_cobblestone_01 on exactly 2 meshes.
+     - Verified: full_compile_test.py s2c_rc_probe s2c_coloradjust --cs2-open --no-cubemaps against
+       %TEMP%/fresh_compile/s2c_coloradjust.vpk: 20 of 25 files (from 19), every vmdl_c (8 of 8) byte for byte,
+       n0_lr0_agg_merge_italy_cobblestone_01_0 included. Left: the three lightmap textures (the bake), the .nav
+       (Valve's nav varies run to run, ledger 57; not checked against a second Valve run) and the .vwrld stamp.
 
 ## Resolved
 
