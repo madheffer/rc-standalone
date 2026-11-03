@@ -5428,6 +5428,14 @@ game can answer is raised with the user first, and runs with -insecure.
          - Our rule's "keep" branch has never been checked against Valve: MaterialInfoProbe.KeptTexcoords finds
            158 stock materials it keeps (5 csgo_environment, 153 csgo_environment_blend), and of the 199 corpus
            .vmaps only s2c_coloradjust uses one. CS2_CLOSED_QUEUE A.7 captures the answer.
+         - Captured 2026-11-03 (tools/re/capture_texcoordtransform.py, Frida on resourcecompiler 1103 compiling
+           s2c_coloradjust -world -fshallow, the hooks after 1810e1227 and 1810e1250): 23 HasTexcoordTransform
+           reads over six materials. Two store it: one answers 0 on 13 entries (cobblestone_ground_large_1's 13),
+           one answers 1 on 2 (italy_cobblestone_01's 2); the tools materials do not store it. So in
+           resourcecompiler italy_cobblestone_01's HasTexcoordTransform is 1, the materialsystem2 reading above
+           holds (defaults seen), ConvertMeshForBuilder does not shift its texcoords, and KeepsTexcoords agrees.
+           The material pointers were matched to names by their entry counts (the names were not found in
+           memory). Still OPEN: what moves its texcoord 0 by (-7, -2) in Valve's output; it is not this shift.
 
 ## Resolved
 
