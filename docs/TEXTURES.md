@@ -252,5 +252,17 @@ particles store four), and stock particle sheets read and write back to their ow
 1. The settings refused above, each measured against RC before it is accepted.
 2. The vpkstuff texture goldens: every one moves, so re-bless win-x64 and linux-x64 with the
    cause and check in game.
-3. The DXT5 fallback in game (CS2 closed): a built texture at a fresh path, with
-   `mat_texture_streaming` limits forcing the fallback, showing the image and not noise.
+3. The DXT5 fallback in game. No setting holds a texture on its fallback, so the only sign is
+   the frames between a texture's creation and its first streamed mip. Read in
+   `rendersystemvulkan_20261015.dll` on 2026-11-03:
+   - every `r_texture_stream_*` / `r_texture_budget_*` convar registers with flags 0, and the
+     convar setup (180237010) adds devonly (`| 0x100000002`) to such a convar unless the command
+     line has the parameter whose MurmurHash2 (seed 0x31415926) is 0x0bc4f1a2, `-tools`. Retail
+     CS2 refuses them; Workshop Tools accepts them;
+   - `r_texture_stream_max_resolution` (callback 1800f49e0 -> 180102dd0) rounds to a power of two
+     and clamps to at least 64;
+   - `r_texture_stream_mip_bias` is applied in the per-texture pass (180104b80) as
+     `mips - bias`, clamped to at least 1, so one real mip always stays wanted;
+   - `r_texture_stream_throttle_count` / `_amount` (180106150) stop a frame's streaming only after
+     a texture has streamed, so even 0 streams one texture per frame, and loading is unthrottled.
+   Helm (11-03): the compiler's texture loads and draws in GFL's hitmarker particle (red `+`).
