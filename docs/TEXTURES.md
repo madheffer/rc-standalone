@@ -190,9 +190,19 @@ every fixture in `tests/.../RcReference/textures` (RGBA8888, DXT1, DXT5, ATI1N, 
   `runtimes/<rid>/native`). `VtexCompileSettings.Bc7Vendor` picks the table, AMD by default.
   Block input: `ROUND(clamp(x)*255)` to nearest even, sRGB channels encoded first, a block past
   the edge repeating the last row and column. It needs an x64 CPU with AVX2 and FMA.
+- Several inputs, image processors and output channel groups compile through the same code as a
+  material's children (`RcTextureChannels`, docs/MATERIALS.md "Child textures"): each group runs
+  its mip algorithm on its inputs' whole images (`CTextureFrame::GenerateMips` 180142990, called
+  from 180133da0 before the channel copy 181277690), a channel names its inputs and reads the
+  first input with that name, and the RED2 lists each mip algorithm's and processor's special
+  dependency. The four `algorithms/hemi_*` probes and `aw_color64` (NormalizeNormals, Inverse,
+  HemiOctIsoRoughness_RG_B, ArtistDefinedOrAlphaWeighted beside a Box alpha) compile to RC's whole
+  files.
+- DXT5 becomes DXT1 when every stored mip's alpha is exactly 1 (180133da0 tests plane 3 of the
+  mips it keeps; a 7x5 image stores one level, though its odd-side children carry alpha 1.5).
 - Anything not measured is refused with an error naming the setting: other `.vtex` attributes,
-  several inputs or channels, channel remapping, mip algorithms other than Box, colour-space
-  conversion, cube/3D, and an image `.txt` sibling.
+  mip algorithms and image processors not ported, processor arguments, an sRGB group moving alpha
+  to a colour channel or back, colour-space conversion, cube/3D, and an image `.txt` sibling.
 
 ## A mip chain made elsewhere
 

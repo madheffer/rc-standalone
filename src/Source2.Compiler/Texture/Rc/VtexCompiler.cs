@@ -39,32 +39,60 @@ public sealed class VtexCompiler : IResourceCompiler
     {
         var vtex = Keyvalues2Text.Parse(request.Source);
         var settings = VtexSettings.Read(vtex, request.SourcePath);
+        var texture = settings.Texture;
 
+        // Every distinct image, read once; an image settings .txt beside one is not measured.
+        var files = texture.Inputs.Select(i => i.FileName).Distinct().ToList();
         var content = request.Content ?? throw new InvalidOperationException(
-            $"{request.SourcePath} refers to {settings.ImagePath}; compile it with a content source to read that from.");
-        var imageBytes = content.Read(settings.ImagePath)
-            ?? throw new InvalidOperationException($"{settings.ImagePath} (named by {request.SourcePath}) was not found.");
-        if (content.Read(Path.ChangeExtension(settings.ImagePath, ".txt")) is not null)
-            throw new InvalidOperationException(
-                $"{Path.ChangeExtension(settings.ImagePath, ".txt")} exists; RC reads it as image settings, which this compiler has not measured yet.");
+            $"{request.SourcePath} refers to {files[0]}; compile it with a content source to read that from.");
+        var images = new List<(string Path, byte[] Bytes)>();
+        var decoded = new Dictionary<string, (byte[] Rgba, int Width, int Height)>(StringComparer.Ordinal);
+        foreach (var file in files)
+        {
+            var bytes = content.Read(file)
+                ?? throw new InvalidOperationException($"{file} (named by {request.SourcePath}) was not found.");
+            if (content.Read(Path.ChangeExtension(file, ".txt")) is not null)
+                throw new InvalidOperationException(
+                    $"{Path.ChangeExtension(file, ".txt")} exists; RC reads it as image settings, which this compiler has not measured yet.");
+            images.Add((file, bytes));
+            decoded[file] = DecodeRgba(bytes, file);
+        }
 
-        var (rgba, width, height) = DecodeRgba(imageBytes, settings.ImagePath);
-        var format = settings.Format;
-        // "Found DXT5 texture with solid 255 alpha! Saving as a DXT1!"
-        if (format == "DXT5" && AlphaIsSolid(rgba))
-            format = "DXT1";
         var options = request.Settings as VtexCompileSettings ?? new VtexCompileSettings();
+        var first = decoded[texture.Inputs[0].FileName];
+        var format = settings.Format;
+        List<RcMipChain.Level> levels;
+        bool srgb;
+        int maxMips;
+        if (options.MipChainBgra is { } given)
+        {
+            // A chain the caller made replaces the float chain RC would make from the image; the
+            // image's own alpha decides DXT5 as before.
+            if (!settings.IsSingleBox)
+                throw new InvalidOperationException($"{request.SourcePath}: a given mip chain stands in for one input's Box chain only.");
+            srgb = texture.Inputs[0].Srgb;
+            levels = GivenChain(given, first.Width, first.Height, srgb);
+            maxMips = int.MaxValue;
+            if (format == "DXT5" && AlphaIsSolid(first.Rgba))
+                format = "DXT1";
+        }
+        else
+        {
+            (levels, srgb, maxMips) = RcTextureChannels.Build(texture, decoded, options.Bc7Vendor, request.SourcePath);
+            // "Found DXT5 texture with solid 255 alpha! Saving as a DXT1!": the mips the texture
+            // stores (dxt5_7x5 keeps one level, whose odd-side filter children carry alpha 1.5).
+            if (format == "DXT5" && RcTextureChannels.AlphaIsSolid(levels.Take(StoredMips(levels, format, maxMips))))
+                format = "DXT1";
+        }
         if (format == "BC7" && Bc7e.Unavailable(options.Bc7Vendor) is { } why)
             throw new InvalidOperationException(why);
 
-        // A chain the caller made replaces the float chain RC would make from the image.
-        var levels = options.MipChainBgra is { } given
-            ? GivenChain(given, width, height, settings.Srgb)
-            : RcMipChain.Chain(RcMipChain.Load(rgba, width, height, settings.Srgb));
-        var (data, stored, _) = BuildTexture(levels, format, settings.Srgb, settings.NoLod, int.MaxValue, options.Bc7Vendor);
-        var specialDeps = Source2ContainerAuthor.TextureDeps("Box");
+        var (data, stored, _) = BuildTexture(levels, format, srgb, settings.NoLod, maxMips, options.Bc7Vendor, (first.Width, first.Height));
+        var special = new Dictionary<string, Source2ContainerAuthor.SpecialDep>(StringComparer.OrdinalIgnoreCase);
+        foreach (var dep in Source2ContainerAuthor.TextureBaseDeps.Concat(RcTextureChannels.Deps(texture)))
+            special[dep.Name] = dep;
         var red2 = Source2ContainerAuthor.BuildTextureSourceEditInfo(request.SourcePath, request.Source,
-            [(settings.ImagePath, imageBytes)], specialDeps, request.SearchPath);
+            images, [.. special.Values], request.SearchPath);
         return new(WriteTexture(red2, data, stored));
     }
 
@@ -131,13 +159,7 @@ public sealed class VtexCompiler : IResourceCompiler
         }
         else
         {
-            int mips = 1;
-            if (blockCompressed)
-                while (mips < levels.Count && Math.Min(levels[mips].Width, levels[mips].Height) >= 4)
-                    mips++;
-            else
-                mips = levels.Count;
-            mips = Math.Min(mips, maxMips);
+            int mips = StoredMips(levels, format, maxMips);
             mipData = new byte[mips][];
             for (int i = 0; i < mips; i++)
                 mipData[i] = EncodeLevel(levels[i], format, srgb, srgb, vendor);
@@ -189,6 +211,20 @@ public sealed class VtexCompiler : IResourceCompiler
         var data = BuildData(outWidth, outHeight, FormatCodes[format], mipData.Length, flags, reflectivity, fallback, fill,
             mipSizes ? stored.Select(x => x.Length).ToArray() : null, anyCompressed ? 1u : 0u);
         return (data, stored, anyCompressed);
+    }
+
+    /// <summary>How many levels the texture stores: every one for RGBA8888; for a block format
+    /// the chain stops before a side would go under 4 (one level when level 0 already has such a
+    /// side); never more than <paramref name="maxMips"/>.</summary>
+    internal static int StoredMips(IReadOnlyList<RcMipChain.Level> levels, string format, int maxMips)
+    {
+        int mips = 1;
+        if (format != "RGBA8888")
+            while (mips < levels.Count && Math.Min(levels[mips].Width, levels[mips].Height) >= 4)
+                mips++;
+        else
+            mips = levels.Count;
+        return Math.Min(mips, maxMips);
     }
 
     // Reflectivity: the mean of the chain's smallest level, summed in four SIMD lanes by pixel
@@ -356,47 +392,3 @@ public sealed record VtexCompileSettings(Bc7Vendor Bc7Vendor = Bc7Vendor.Amd)
     public IReadOnlyList<byte[]>? MipChainBgra { get; init; }
 }
 
-/// <summary>The part of a <c>.vtex</c> this compiler implements; anything else is refused.</summary>
-internal sealed record VtexSettings(string ImagePath, string Format, bool Srgb, bool NoLod)
-{
-    private static readonly HashSet<string> KnownRoot = new(StringComparer.OrdinalIgnoreCase)
-        { "m_inputTextureArray", "m_outputTypeString", "m_outputFormat", "m_textureOutputChannelArray", "m_bNoLod" };
-
-    public static VtexSettings Read(DmxElement vtex, string sourcePath)
-    {
-        if (vtex.Type != "CDmeVtex")
-            throw new InvalidOperationException($"{sourcePath} is a {vtex.Type}, not a CDmeVtex.");
-        foreach (var (name, _) in vtex.Attributes)
-            if (!KnownRoot.Contains(name))
-                throw new InvalidOperationException($"{sourcePath}: setting '{name}' is not compiled here yet.");
-
-        var inputs = vtex.Elements("m_inputTextureArray");
-        if (inputs.Count != 1)
-            throw new InvalidOperationException($"{sourcePath}: {inputs.Count} input textures; one is compiled here so far.");
-        var input = inputs[0];
-        var file = input.String("m_fileName") ?? throw new InvalidOperationException($"{sourcePath}: the input has no m_fileName.");
-        if ((input.String("m_typeString") ?? "2D") != "2D" || (vtex.String("m_outputTypeString") ?? "2D") != "2D")
-            throw new InvalidOperationException($"{sourcePath}: only 2D textures are compiled here so far.");
-
-        var channels = vtex.Elements("m_textureOutputChannelArray");
-        if (channels.Count != 1)
-            throw new InvalidOperationException($"{sourcePath}: {channels.Count} output channels; one rgba channel is compiled here so far.");
-        var ch = channels[0];
-        if (ch.String("m_srcChannels") != "rgba" || ch.String("m_dstChannels") != "rgba")
-            throw new InvalidOperationException($"{sourcePath}: channel mapping {ch.String("m_srcChannels")} -> {ch.String("m_dstChannels")} is not compiled here yet.");
-        var mip = ch["m_mipAlgorithm"]?.Element;
-        if (mip is not null && (mip.String("m_algorithm") ?? "Box") != "Box")
-            throw new InvalidOperationException($"{sourcePath}: mip algorithm {mip.String("m_algorithm")} is not compiled here yet.");
-
-        var inSpace = input.String("m_colorSpace") ?? "srgb";
-        var outSpace = ch.String("m_outputColorSpace") ?? inSpace;
-        if (!inSpace.Equals(outSpace, StringComparison.OrdinalIgnoreCase) || inSpace is not ("srgb" or "linear"))
-            throw new InvalidOperationException($"{sourcePath}: colour space {inSpace} -> {outSpace} is not compiled here yet.");
-
-        var format = vtex.String("m_outputFormat") ?? "DXT5";
-        if (!new[] { "RGBA8888", "DXT1", "DXT5", "ATI1N", "ATI2N", "BC7" }.Contains(format, StringComparer.OrdinalIgnoreCase))
-            throw new InvalidOperationException($"{sourcePath}: output format {format} is not compiled here yet.");
-
-        return new(file.Replace('\\', '/'), format.ToUpperInvariant(), inSpace == "srgb", vtex.Bool("m_bNoLod"));
-    }
-}

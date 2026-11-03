@@ -61,6 +61,35 @@ public class VtexCompilerTests
         Assert.Contains(result.InputDependencies, d => d.Path.EndsWith(".txt") && d.Optional && !d.Exists);
     }
 
+    // RcReference/textures/algorithms: several inputs, image processors, channel groups and the
+    // normal-map and alpha-weighting mip algorithms, compiled by RC from materials/s2chemi.
+    private static MemoryContentSource AlgorithmImages(string folder = "algorithms", string contentFolder = "materials/s2chemi")
+    {
+        var content = new MemoryContentSource();
+        foreach (var png in Directory.GetFiles(Path.Combine(Path.GetDirectoryName(Fixture("probe.png"))!, folder), "*.png"))
+            content.Add($"{contentFolder}/" + Path.GetFileName(png), File.ReadAllBytes(png));
+        return content;
+    }
+
+    [Theory]
+    [InlineData("hemi_bumps64")]
+    [InlineData("hemi_noisy64")]
+    [InlineData("hemi_bumps16")]
+    [InlineData("hemi_noproc64")]
+    [InlineData("aw_color64")]
+    public void VtexSource_WithChannelGroupsAndAlgorithms_CompilesToResourceCompilersBytes(string name)
+    {
+        var result = ResourceCompiler.CreateDefault().Compile(new CompileRequest($"materials/s2chemi/{name}.vtex",
+            File.ReadAllBytes(Fixture($"algorithms/{name}.vtex")))
+        {
+            SearchPath = "csgo_addons/vpkstuff_rc_probe",
+            Content = AlgorithmImages(),
+        });
+        Assert.True(result.Succeeded, string.Join("\n", result.Diagnostics));
+        Assert.True(File.ReadAllBytes(Fixture($"algorithms/{name}.vtex_c")).AsSpan().SequenceEqual(result.Output),
+            $"{name}.vtex_c differs from resourcecompiler's");
+    }
+
     [Fact]
     public void Bc7_IntelTable_CompilesTheSameLayout()
     {

@@ -2,6 +2,7 @@ using System.IO.Hashing;
 using System.Numerics;
 using SkiaSharp;
 using Source2.Compiler.Compiling;
+using Source2.Compiler.RcTexture;
 using Source2.Compiler.Shaders;
 using ValvePak;
 using ValveKeyValue;
@@ -51,19 +52,6 @@ public sealed class MaterialCompiler : IResourceCompiler
     /// <inheritdoc/>
     public string OutputPathFor(string sourcePath) => sourcePath + "_c";
 
-    // The special dependencies each mip algorithm and image processor adds to a texture compile
-    // (RC's children in RcReference/materials).
-    private static readonly Dictionary<string, (string Name, int Fingerprint)[]> AlgorithmDeps = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["Box"] = [("Mip Box", 1)],
-        ["Box3"] = [("Mip Box", 1)],
-        ["ArtistDefined"] = [("Mip Box", 1)],
-        ["ArtistDefinedOrAlphaWeighted"] = [("Mip AlphaWeighted", 1)],
-        ["HemiOctIsoRoughness_RG_B"] = [("Mip HemiOctAnisoRoughness", 3), ("Mip HemiOctIsoRoughness_RG_B", 1)],
-        ["NormalizeNormals"] = [("Image NormalizeNormals", 1)],
-        ["Inverse"] = [("Image Inverse", 1)],
-    };
-
     // Attribute value types that land in m_SearchableUserData.
     private const int AttrFloat = 1, AttrInt = 5, AttrBool = 9, AttrTexture = 14;
 
@@ -105,18 +93,6 @@ public sealed class MaterialCompiler : IResourceCompiler
             foreach (var g in textures.Where(t => t.Generated is not null).Select(t => t.Generated!).DistinctBy(g => g.ChildPath))
                 children.Add(new(g.ChildPath + "_c", ChildTextureCompiler.Compile(g, path => Find(mounts, path), request.SearchPath, settings.Bc7Vendor)));
         return new(container.Write(), children);
-    }
-
-    /// <summary>The special dependencies a generated texture's mip algorithms and image processors add.</summary>
-    internal static IEnumerable<Source2ContainerAuthor.SpecialDep> TextureDeps(GeneratedTexture texture)
-    {
-        foreach (var algorithm in texture.Channels.Select(c => c.MipAlgorithm).Concat(texture.Inputs.Select(i => i.ImageProcessor)).Where(a => a.Length > 0))
-        {
-            if (!AlgorithmDeps.TryGetValue(algorithm, out var deps))
-                throw new InvalidOperationException($"Texture algorithm {algorithm} is not measured yet.");
-            foreach (var (name, fp) in deps)
-                yield return new("Texture Compiler Version " + name, "CompileTexture", fp);
-        }
     }
 
     internal static (string SearchPath, byte[] Bytes)? Find(IEnumerable<ContentMount> mounts, string path)
@@ -233,7 +209,7 @@ public sealed class MaterialCompiler : IResourceCompiler
             foreach (var dep in Source2ContainerAuthor.TextureBaseDeps)
                 Special(dep);
         foreach (var g in generated)
-            foreach (var dep in TextureDeps(g))
+            foreach (var dep in RcTextureChannels.Deps(g))
                 Special(dep);
         var recorded = settings.RecordedShaderPackage
             ?? settings.ShaderPackage.Replace("_dir.vpk", ".vpk", StringComparison.OrdinalIgnoreCase).Replace('/', '\\');
