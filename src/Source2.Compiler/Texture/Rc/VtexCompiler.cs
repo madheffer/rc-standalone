@@ -142,7 +142,9 @@ public sealed class VtexCompiler : IResourceCompiler
         float[]? reflectivity = null)
     {
         int width = levels[0].Width, height = levels[0].Height;
-        bool blockCompressed = format != "RGBA8888";
+        bool blockCompressed = format != "RGBA8888" && !RcFormats.Handles(format);
+        if (srgb && RcFormats.Handles(format))
+            throw new InvalidOperationException($"An sRGB texture in {format} is not measured.");
         // A capped algorithm (Box3) makes only that many levels; reflectivity and the fallback
         // then come from the shorter chain (ao_png: 64, 32, 16).
         if (levels.Count > maxMips)
@@ -210,7 +212,7 @@ public sealed class VtexCompiler : IResourceCompiler
             BinaryPrimitives.WriteUInt16LittleEndian(fill.AsSpan(2), (ushort)fillWidth);
             BinaryPrimitives.WriteUInt16LittleEndian(fill.AsSpan(4), (ushort)fillHeight);
         }
-        var data = BuildData(outWidth, outHeight, FormatCodes[format], mipData.Length, flags, reflectivity, fallback, fill,
+        var data = BuildData(outWidth, outHeight, FormatCodes.TryGetValue(format, out var code) ? code : RcFormats.VtexCodes[format], mipData.Length, flags, reflectivity, fallback, fill,
             mipSizes ? stored.Select(x => x.Length).ToArray() : null, anyCompressed ? 1u : 0u);
         return (data, stored, anyCompressed);
     }
@@ -221,7 +223,7 @@ public sealed class VtexCompiler : IResourceCompiler
     internal static int StoredMips(IReadOnlyList<RcMipChain.Level> levels, string format, int maxMips)
     {
         int mips = 1;
-        if (format != "RGBA8888")
+        if (format != "RGBA8888" && !RcFormats.Handles(format))
             while (mips < levels.Count && Math.Min(levels[mips].Width, levels[mips].Height) >= 4)
                 mips++;
         else
@@ -253,6 +255,8 @@ public sealed class VtexCompiler : IResourceCompiler
     {
         if (format == "BC7")
             return Bc7e.EncodeBlocks(Bc7Blocks(level, encodeSrgb), perceptual, vendor);
+        if (RcFormats.Handles(format))
+            return RcFormats.Write(level, format);
         var rgba8 = RcMipChain.WriteRgba8(level, encodeSrgb);
         return format switch
         {

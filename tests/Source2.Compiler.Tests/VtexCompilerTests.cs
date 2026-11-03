@@ -112,6 +112,52 @@ public class VtexCompilerTests
             $"{name}.vtex_c differs from resourcecompiler's");
     }
 
+    // RcReference/textures/algorithms2: the rest of GenerateMips' algorithms, the image processors
+    // and the output formats, compiled by RC (1.41.9.5) from materials/s2calg2 on 11-04
+    // (make_probes.py's set; the formats RC refuses, "Unsupported image format", have no row).
+    [Theory]
+    [InlineData("box1_rgba")]
+    [InlineData("box2_rgba")]
+    [InlineData("box5_rgba")]
+    [InlineData("box9_rgba")]
+    [InlineData("multiplybox_rgba")]
+    [InlineData("multiplynomip_rgba")]
+    [InlineData("rgbm_rgba")]
+    [InlineData("rgbm_srgb_rgba")]
+    [InlineData("encodergbm_rgba")]
+    [InlineData("ycocg_rgba")]
+    [InlineData("ycocg_srgb_rgba")]
+    [InlineData("ycocg_dxt5")]
+    [InlineData("hemianisoba_rgba")]
+    [InlineData("alphaweighted_rgba")]
+    [InlineData("artist_box_rgba")]
+    [InlineData("hemioctnormal_rgba")]
+    [InlineData("fmt_i8")]
+    [InlineData("fmt_ia88")]
+    [InlineData("fmt_a8")]
+    [InlineData("fmt_r8_unorm")]
+    [InlineData("fmt_bgra8888")]
+    [InlineData("fmt_r16")]
+    [InlineData("fmt_rg1616")]
+    [InlineData("fmt_rgba16161616")]
+    [InlineData("fmt_r16f")]
+    [InlineData("fmt_rg1616f")]
+    [InlineData("fmt_rgba16161616f")]
+    [InlineData("fmt_r32f")]
+    [InlineData("fmt_rg3232f")]
+    [InlineData("fmt_rgb323232f")]
+    [InlineData("fmt_rgba32323232f")]
+    public void VtexSource_RemainingAlgorithms_CompileToResourceCompilersBytes(string name)
+    {
+        var content = new MemoryContentSource();
+        foreach (var png in Directory.GetFiles(Path.Combine(Path.GetDirectoryName(Fixture("probe.png"))!, "algorithms2"), "*.png"))
+            content.Add("materials/s2calg2/" + Path.GetFileName(png), File.ReadAllBytes(png));
+        var result = ResourceCompiler.CreateDefault().Compile(new CompileRequest($"materials/s2calg2/{name}.vtex",
+            File.ReadAllBytes(Fixture($"algorithms2/{name}.vtex"))) { SearchPath = "csgo_addons/vpkstuff_rc_probe", Content = content });
+        Assert.True(result.Succeeded, string.Join("\n", result.Diagnostics));
+        Assert.True(File.ReadAllBytes(Fixture($"algorithms2/{name}.vtex_c")).AsSpan().SequenceEqual(result.Output), $"{name}.vtex_c differs from resourcecompiler's");
+    }
+
     // RcReference/textures/tga: 32-bit TGAs RC read on 11-03, one right-to-left (RC ignores that
     // bit) and one whose descriptor declares no alpha bits (RC takes the fourth byte anyway).
     [Theory]

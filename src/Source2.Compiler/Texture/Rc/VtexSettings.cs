@@ -92,7 +92,7 @@ internal sealed record VtexSettings(GeneratedTexture Texture, string Format, boo
             throw new InvalidOperationException($"{sourcePath}: two output channels write the same destination; not measured.");
 
         var format = (vtex.String("m_outputFormat") ?? "DXT5").ToUpperInvariant();
-        if (!Formats.Contains(format))
+        if (!Formats.Contains(format) && !RcFormats.Handles(format))
             throw new InvalidOperationException($"{sourcePath}: output format {format} is not compiled here yet.");
         return new(new(inputs, format, channels), format, vtex.Bool("m_bNoLod"));
     }

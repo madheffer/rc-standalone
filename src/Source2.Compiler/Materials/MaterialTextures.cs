@@ -22,6 +22,11 @@ public static class MaterialTextures
     private static readonly Dictionary<uint, string> ImageFormats = new()
     {
         [0] = "RGBA8888", [20] = "DXT1", [23] = "DXT5", [24] = "ATI1N", [25] = "ATI2N", [27] = "BC7",
+        // The uncompressed formats RcFormats writes, by their place in the same table (1103's
+        // jump table and names; R8_UNORM is the table's new last entry, 67).
+        [5] = "I8", [6] = "IA88", [7] = "A8", [9] = "BGRA8888", [15] = "RGBA16161616F", [16] = "RGBA16161616",
+        [17] = "R32F", [18] = "RGB323232F", [19] = "RGBA32323232F", [33] = "RG1616F", [34] = "RG3232F",
+        [39] = "R16F", [49] = "RG1616", [50] = "R16", [67] = "R8_UNORM",
     };
 
     // The extensions RC tries for a shader's default image, in order (181f18f9f).

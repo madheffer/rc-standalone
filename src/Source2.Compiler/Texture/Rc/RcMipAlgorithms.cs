@@ -23,6 +23,96 @@ public static class RcMipAlgorithms
         return RcMipChain.Chain(new RcMipChain.Level(input.Width, input.Height, input.Rgba.Select(v => v * -1f + 1f).ToArray()));
     }
 
+    /// <summary>
+    /// <c>GenerateMips_Multiply</c> (180144ce0, for <c>MultiplyBox</c> and <c>MultiplyNoMip</c>):
+    /// level 0 is the first input with each channel multiplied by the second input's same channel
+    /// (the second resized to the first's size with clamping, 180c43790), then the 2x2 box chain
+    /// (180c43450) for MultiplyBox, one level for MultiplyNoMip. When the first input is the
+    /// smaller, RC sizes the levels by the larger but copies the first input unresized; refused.
+    /// MultiplyBox needs power-of-two sides ("Cannot filter non-power-of-two texture when creating mips").
+    /// </summary>
+    public static List<RcMipChain.Level> Multiply(RcMipChain.Level a, RcMipChain.Level b, bool mips)
+    {
+        if (b.Width > a.Width || b.Height > a.Height)
+            throw new InvalidOperationException($"Multiply with a first input smaller than the second ({a.Width}x{a.Height} and {b.Width}x{b.Height}) is not measured.");
+        if (mips)
+            RequirePowerOfTwo(a, "MultiplyBox");
+        if (b.Width != a.Width || b.Height != a.Height)
+            b = RcMipChain.Resize(b, a.Width, a.Height, clamp: true);
+        var top = new float[a.Rgba.Length];
+        for (int i = 0; i < top.Length; i++)
+            top[i] = b.Rgba[i] * a.Rgba[i];
+        var level = new RcMipChain.Level(a.Width, a.Height, top);
+        return mips ? RcMipChain.Chain(level) : [level];
+    }
+
+    /// <summary>
+    /// <c>GenerateMips_MipSize</c> (18014e260, for <c>MipWidth</c>, <c>MipHeight</c>, <c>MipDepth</c>):
+    /// the input's pixels are not read; every level of the full chain is a red-only frame
+    /// (180c3f140 with mask 1, alpha 1) filled with <c>logf(side) / logf(2) * 0.0625</c> for that
+    /// level's width, height or depth (sides halved, at least 1). Power-of-two sizes only.
+    /// </summary>
+    public static List<RcMipChain.Level> MipSize(RcMipChain.Level input, int axis)
+    {
+        RequirePowerOfTwo(input, axis switch { 0 => "MipWidth", 1 => "MipHeight", _ => "MipDepth" });
+        var levels = new List<RcMipChain.Level>();
+        int w = input.Width, h = input.Height, d = 1;
+        // 180c49440: the full chain's count, down to 1x1.
+        int n = 1 + System.Numerics.BitOperations.Log2((uint)Math.Max(w, h));
+        for (int k = 0; k < n; k++)
+        {
+            float v = MathF.Log(axis switch { 0 => w, 1 => h, _ => d }) / MathF.Log(2f) * 0.0625f;
+            var px = new float[w * h * 4];
+            for (int i = 0; i < w * h; i++)
+                (px[i * 4], px[i * 4 + 3]) = (v, 1f);
+            levels.Add(new RcMipChain.Level(w, h, px));
+            w = Math.Max(1, w / 2);
+            h = Math.Max(1, h / 2);
+        }
+        return levels;
+    }
+
+    /// <summary>
+    /// <c>GenerateMips_RGBM</c> (180151310) on a 2D texture: level 0 is a four-channel frame
+    /// (180c3f140, mask 0xf) taking the input's channels 0..2 (181277690) with alpha 1, each later
+    /// level the 2x2 box of the one before (180c43450), then every level RGBM-encoded (180150f60).
+    /// The six-face irradiance pass that follows for cubemaps is not ported. Power-of-two only.
+    /// </summary>
+    public static List<RcMipChain.Level> Rgbm(RcMipChain.Level input)
+    {
+        RequirePowerOfTwo(input, "RGBM");
+        var top = (float[])input.Rgba.Clone();
+        for (int i = 3; i < top.Length; i += 4)
+            top[i] = 1f;
+        var levels = RcMipChain.Chain(new RcMipChain.Level(input.Width, input.Height, top));
+        foreach (var level in levels)
+            EncodeRgbm(level.Rgba);
+        return levels;
+    }
+
+    /// <summary>
+    /// 180150f60, per pixel: each colour channel clamped to [0, 36] (<c>v &lt;= 0</c> gives +0),
+    /// its root times 1/6 clamped to [0, 1]; M = <c>ceilf(max(r, g, max(b, 1/6)) * 255) / 255</c>
+    /// (the maxima taken as RC compares them); the pixel becomes (r / M, g / M, b / M, M).
+    /// </summary>
+    internal static void EncodeRgbm(float[] px)
+    {
+        const float Sixth = 0.16666667f;
+        static float Clamp(float v, float hi) => v <= 0f ? 0f : (hi <= v ? hi : v);
+        for (int i = 0; i < px.Length; i += 4)
+        {
+            float r = Clamp(MathF.Sqrt(Clamp(px[i], 36f)) * Sixth, 1f);
+            float g = Clamp(MathF.Sqrt(Clamp(px[i + 1], 36f)) * Sixth, 1f);
+            float b = Clamp(MathF.Sqrt(Clamp(px[i + 2], 36f)) * Sixth, 1f);
+            float m = r <= g ? g : r;
+            float bb = b <= Sixth ? Sixth : b;
+            if (m <= bb)
+                m = bb;
+            m = MathF.Ceiling(m * 255f) / 255f;
+            (px[i], px[i + 1], px[i + 2], px[i + 3]) = (r / m, g / m, b / m, m);
+        }
+    }
+
     // CTextureFrame's coverage samples (18014f380): 16 points per 2x2 cell, each four bilinear
     // weights for the corners (x+1,y), (x+1,y+1), (x,y), (x,y+1), carried as RC's bit patterns.
     private static readonly uint[] CoverageWeightBits =

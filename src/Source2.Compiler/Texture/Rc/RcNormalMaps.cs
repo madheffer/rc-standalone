@@ -95,6 +95,44 @@ public static class RcNormalMaps
     public static List<RcMipChain.Level> AnisoRoughness(RcMipChain.Level normal, RcMipChain.Level? roughness) =>
         Shuffle(HemiOctAnisoRoughness(normal, roughness), (p0, _, p2, _) => (p0, p2, 1f, 1f));
 
+    /// <summary>
+    /// <c>HemiOctAnisoRoughness_RG_BA</c> (180148100): <see cref="HemiOctAnisoRoughness"/> then
+    /// per pixel R = channel 3, G = channel 1, B = channel 0, A = channel 2, so R and G hold the
+    /// hemi-octahedral normal and B and A the two roughnesses.
+    /// </summary>
+    public static List<RcMipChain.Level> HemiOctAnisoRoughnessRgBa(RcMipChain.Level normal, RcMipChain.Level? roughness) =>
+        Shuffle(HemiOctAnisoRoughness(normal, roughness), (p0, p1, p2, p3) => (p3, p1, p0, p2));
+
+    /// <summary>
+    /// <c>GenerateMips_HemiOctNormal</c> (18014c050): the input's 2x2 box chain (level 0 a copy,
+    /// 180c3c3c0; then 180c43450), every level then encoded per pixel from x = 2 ch0 - 1 and
+    /// y = 2 ch1 - 1: z = sqrt(clamp(1 - (x x + y y), 0, 1)), p = (x, y) / ((|x| + |y|) + z),
+    /// G = <c>(px - py) * 0.5 + 0.5</c>, A = <c>(px + py) * 0.5 + 0.5</c>, and R and B gameinfo's
+    /// <c>ResourceCompiler/TextureCompiler/MinRoughness</c> (unset in CS2's gameinfo, so 0).
+    /// Power-of-two only ("Cannot box filter non-power-of-two texture").
+    /// </summary>
+    public static List<RcMipChain.Level> HemiOctNormal(RcMipChain.Level input, float minRoughness = 0f)
+    {
+        int w = input.Width, h = input.Height;
+        if ((w & (w - 1)) != 0 || (h & (h - 1)) != 0)
+            throw new InvalidOperationException($"RC cannot box filter a non-power-of-two normal map ({w}x{h}).");
+        var levels = RcMipChain.Chain(input);
+        foreach (var level in levels)
+        {
+            var o = level.Rgba;
+            for (int i = 0; i < o.Length; i += 4)
+            {
+                float x = (o[i] + o[i]) - 1f, y = (o[i + 1] + o[i + 1]) - 1f;
+                float zz = 1f - (x * x + y * y);
+                float z = MathF.Sqrt(0f <= zz ? (zz <= 1f ? zz : 1f) : 0f);
+                float inv = 1f / ((MathF.Abs(x) + MathF.Abs(y)) + z);
+                float py = inv * y, px = inv * x;
+                (o[i], o[i + 1], o[i + 2], o[i + 3]) = (minRoughness, (px - py) * 0.5f + 0.5f, minRoughness, (px + py) * 0.5f + 0.5f);
+            }
+        }
+        return levels;
+    }
+
     private static List<RcMipChain.Level> Shuffle(List<RcMipChain.Level> levels, Func<float, float, float, float, (float, float, float, float)> f)
     {
         foreach (var level in levels)

@@ -23,38 +23,59 @@ internal static class RcTextureChannels
     private static readonly Dictionary<string, (string Name, int Fingerprint)[]> AlgorithmDeps = new(StringComparer.OrdinalIgnoreCase)
     {
         ["Box"] = [("Mip Box", 1)],
-        ["Box3"] = [("Mip Box", 1)],
         ["ArtistDefined"] = [("Mip Box", 1)],
         ["ArtistDefinedOrAlphaWeighted"] = [("Mip AlphaWeighted", 1)],
+        // ArtistDefinedOrAlphaWeighted with no artist setting re-dispatches as AlphaWeighted
+        // (180142990), which runs GenerateMips_AlphaWeighted (18014e680) directly.
+        ["AlphaWeighted"] = [("Mip AlphaWeighted", 1)],
+        ["HemiOctNormal"] = [("Mip HemiOctNormal", 1)],
         ["HemiOctIsoRoughness_RG_B"] = [("Mip HemiOctAnisoRoughness", 3), ("Mip HemiOctIsoRoughness_RG_B", 1)],
         // 180142990 registers its own entry for AnisoRoughness_RG, then the shared chain its (fp 3).
         ["AnisoRoughness_RG"] = [("Mip AnisoRoughness_RG", 1), ("Mip HemiOctAnisoRoughness", 3)],
         ["HemiOctAnisoRoughness"] = [("Mip HemiOctAnisoRoughness", 3)],
+        // 180148100 registers its own entry, then calls the shared chain (180148350).
+        ["HemiOctAnisoRoughness_RG_BA"] = [("Mip HemiOctAnisoRoughness_RG_BA", 1), ("Mip HemiOctAnisoRoughness", 3)],
         ["None"] = [("Mip None", 1)],
         ["BoxInverse"] = [("Mip Box Inverse", 1)],
         // MipNormal registers its own entry, then runs the Box chain, which registers Box's.
         ["MipNormal"] = [("Mip Normals", 1), ("Mip Box", 1)],
         ["PreserveCoverage"] = [("Mip PreserveCoverage", 5)],
+        ["MultiplyBox"] = [("Mip Multiply", 1)],
+        ["MultiplyNoMip"] = [("Mip Multiply", 1)],
+        ["MipWidth"] = [("Mip MipSize", 1)],
+        ["MipHeight"] = [("Mip MipSize", 1)],
+        ["MipDepth"] = [("Mip MipSize", 1)],
+        ["RGBM"] = [("Mip RGBM", 3)],
         ["NormalizeNormals"] = [("Image NormalizeNormals", 1)],
         ["Inverse"] = [("Image Inverse", 1)],
         ["Mod2XCenter"] = [("Image Mod2X", 1)],
+        ["EncodeRGBM"] = [("Image Encode RGBM", 1)],
+        ["ConvertToYCoCg"] = [("Image YCoCg Conversion", 1)],
     };
 
-    // Box-family mip algorithms: the 2x2 box chain; Box3 keeps at most three levels (ao256: 3);
-    // MipNormal is the Box chain under another name (180142990 calls 1801443f0 for it).
-    private static readonly HashSet<string> BoxAlgorithms = new(StringComparer.OrdinalIgnoreCase) { "Box", "Box3", "ArtistDefined", "MipNormal" };
+    // Box-family mip algorithms: the 2x2 box chain; MipNormal is the Box chain under another name
+    // (180142990 calls 1801443f0 for it). "Box<N>" (V_sscanf "Box%d") is the chain cut to
+    // min(N, the full count) levels (1801443f0's last argument; ao256: Box3 keeps 3).
+    private static readonly HashSet<string> BoxAlgorithms = new(StringComparer.OrdinalIgnoreCase) { "Box", "ArtistDefined", "MipNormal" };
+
+    /// <summary>The level cap of a "Box&lt;N&gt;" algorithm (N at least 1), else null.</summary>
+    internal static int? BoxCap(string algorithm) =>
+        algorithm.Length > 3 && algorithm.StartsWith("Box", StringComparison.Ordinal) && int.TryParse(algorithm.AsSpan(3), System.Globalization.NumberStyles.None, null, out var n) && n >= 1 ? n : null;
 
     // Mip algorithms with their own chain and the image processors.
     private static readonly HashSet<string> Algorithms = new(StringComparer.OrdinalIgnoreCase)
-        { "HemiOctIsoRoughness_RG_B", "AnisoRoughness_RG", "HemiOctAnisoRoughness", "ArtistDefinedOrAlphaWeighted", "None", "BoxInverse", "PreserveCoverage" };
-    private static readonly HashSet<string> Processors = new(StringComparer.OrdinalIgnoreCase) { "NormalizeNormals", "Inverse", "Mod2XCenter" };
+        {
+            "HemiOctIsoRoughness_RG_B", "AnisoRoughness_RG", "HemiOctAnisoRoughness", "ArtistDefinedOrAlphaWeighted", "None", "BoxInverse", "PreserveCoverage",
+            "MultiplyBox", "MultiplyNoMip", "MipWidth", "MipHeight", "MipDepth", "RGBM", "HemiOctAnisoRoughness_RG_BA", "AlphaWeighted", "HemiOctNormal",
+        };
+    private static readonly HashSet<string> Processors = new(StringComparer.OrdinalIgnoreCase) { "NormalizeNormals", "Inverse", "Mod2XCenter", "EncodeRGBM", "ConvertToYCoCg" };
 
     /// <summary>The special dependencies a texture's mip algorithms and image processors add.</summary>
     internal static IEnumerable<Source2ContainerAuthor.SpecialDep> Deps(GeneratedTexture texture)
     {
         foreach (var algorithm in texture.Channels.Select(c => c.MipAlgorithm).Concat(texture.Inputs.Select(i => i.ImageProcessor)).Where(a => a.Length > 0))
         {
-            if (!AlgorithmDeps.TryGetValue(algorithm, out var deps))
+            if (!AlgorithmDeps.TryGetValue(BoxCap(algorithm) is not null ? "Box" : algorithm, out var deps))
                 throw new InvalidOperationException($"Texture algorithm {algorithm} is not measured yet.");
             foreach (var (name, fp) in deps)
                 yield return new("Texture Compiler Version " + name, "CompileTexture", fp);
@@ -68,11 +89,11 @@ internal static class RcTextureChannels
             if (!Processors.Contains(input.ImageProcessor))
                 throw new InvalidOperationException($"Image processor {input.ImageProcessor} ({label}) is not compiled here yet.");
         foreach (var channel in texture.Channels)
-            if (!BoxAlgorithms.Contains(channel.MipAlgorithm) && !Algorithms.Contains(channel.MipAlgorithm))
+            if (!BoxAlgorithms.Contains(channel.MipAlgorithm) && !Algorithms.Contains(channel.MipAlgorithm) && BoxCap(channel.MipAlgorithm) is null)
                 throw new InvalidOperationException($"Mip algorithm {channel.MipAlgorithm} ({label}) is not compiled here yet.");
-        bool box3 = texture.Channels.Any(c => c.MipAlgorithm.Equals("Box3", StringComparison.OrdinalIgnoreCase));
-        if (box3 && texture.Channels.Any(c => !c.MipAlgorithm.Equals("Box3", StringComparison.OrdinalIgnoreCase)))
-            throw new InvalidOperationException($"{label} mixes Box3 with other mip algorithms; not measured.");
+        var caps = texture.Channels.Select(c => BoxCap(c.MipAlgorithm)).ToList();
+        if (caps.Any(c => c is not null) && caps.Distinct().Count() > 1)
+            throw new InvalidOperationException($"{label} mixes a capped Box<N> with other mip algorithms; not measured.");
     }
 
     /// <summary>The texture's float levels from its decoded images.</summary>
@@ -84,7 +105,7 @@ internal static class RcTextureChannels
         Bc7Vendor vendor, string label)
     {
         Check(texture, label);
-        bool box3 = texture.Channels.Any(c => c.MipAlgorithm.Equals("Box3", StringComparison.OrdinalIgnoreCase));
+        var cap = BoxCap(texture.Channels[0].MipAlgorithm) ?? int.MaxValue;
 
         // Each input is loaded as RC loads it (its own colour space and width rule) at its own size
         // and run through its image processor.
@@ -101,6 +122,8 @@ internal static class RcTextureChannels
                     "normalizenormals" => RcNormalMaps.NormalizeNormals(level, vendor),
                     "inverse" => RcNormalMaps.Inverse(level),
                     "mod2xcenter" => RcImageProcessors.Mod2XCenter(level),
+                    "encodergbm" => RcImageProcessors.EncodeRgbm(level),
+                    "converttoycocg" => RcImageProcessors.ConvertToYCoCg(level),
                     _ => level,
                 };
                 loaded[key] = level;
@@ -124,7 +147,7 @@ internal static class RcTextureChannels
             List<RcMipChain.Level> chain;
             switch (algorithm)
             {
-                case "hemioctisoroughness_rg_b" or "anisoroughness_rg" or "hemioctanisoroughness":
+                case "hemioctisoroughness_rg_b" or "anisoroughness_rg" or "hemioctanisoroughness" or "hemioctanisoroughness_rg_ba":
                 {
                     if (inputs.Count is < 1 or > 2 || inputs.Any(i => i.Srgb) || channel.Srgb)
                         throw new InvalidOperationException($"{label}: a normal map takes a linear normal and an optional linear roughness.");
@@ -136,11 +159,12 @@ internal static class RcTextureChannels
                     {
                         "hemioctisoroughness_rg_b" => RcNormalMaps.HemiOctIsoRoughness(n, r),
                         "anisoroughness_rg" => RcNormalMaps.AnisoRoughness(n, r),
+                        "hemioctanisoroughness_rg_ba" => RcNormalMaps.HemiOctAnisoRoughnessRgBa(n, r),
                         _ => RcNormalMaps.HemiOctAnisoRoughness(n, r),
                     };
                     break;
                 }
-                case "artistdefinedoralphaweighted":
+                case "artistdefinedoralphaweighted" or "alphaweighted":
                 {
                     if (inputs.Count != 2)
                         throw new InvalidOperationException($"{label}: alpha weighting reads a colour and a weight input.");
@@ -153,8 +177,15 @@ internal static class RcTextureChannels
                     chain = RcAlphaWeighted.Mips(new RcMipChain.Level(color.Width, color.Height, work));
                     break;
                 }
+                case "multiplybox" or "multiplynomip":
+                {
+                    if (inputs.Count != 2)
+                        throw new InvalidOperationException($"{label}: {channel.MipAlgorithm} reads two inputs (\"Expecting 2 input textures\").");
+                    chain = RcMipAlgorithms.Multiply(Loaded(inputs[0]), Loaded(inputs[1]), mips: algorithm == "multiplybox");
+                    break;
+                }
                 default:
-                    // GenerateMips_Box, _BoxInverse, _PreserveCoverage and None read one input
+                    // GenerateMips_Box, _BoxInverse, _PreserveCoverage, _MipSize and None read one input
                     // ("Expecting 1 input texture, found %d!").
                     if (inputs.Count != 1)
                         throw new InvalidOperationException($"A channel of {label} reads {inputs.Count} inputs with {channel.MipAlgorithm}; not measured.");
@@ -164,10 +195,20 @@ internal static class RcTextureChannels
                         "none" => RcMipAlgorithms.None(input),
                         "boxinverse" => RcMipAlgorithms.BoxInverse(input),
                         "preservecoverage" => RcMipAlgorithms.PreserveCoverage(input),
+                        "mipwidth" => RcMipAlgorithms.MipSize(input, 0),
+                        "mipheight" => RcMipAlgorithms.MipSize(input, 1),
+                        "mipdepth" => RcMipAlgorithms.MipSize(input, 2),
+                        "rgbm" => RcMipAlgorithms.Rgbm(input),
+                        "hemioctnormal" => RcNormalMaps.HemiOctNormal(input),
                         _ => RcMipChain.Chain(input),
                     };
                     break;
             }
+            // MipSize's frames hold red alone; RC copies a group's channel with a memcpy of the
+            // destination's size (181277690), so reading an absent channel runs past its 16-byte
+            // constant into the heap (mipwidth_rgba: G and B equal R, A 0). Only red is defined.
+            if (algorithm is "mipwidth" or "mipheight" or "mipdepth" && channel.SrcChannels.Any(c => c != 'r'))
+                throw new InvalidOperationException($"{label}: {channel.MipAlgorithm} makes a red-only frame; RC's copy of its other channels reads past their storage.");
             for (int k = 0; k < channel.DstChannels.Length; k++)
             {
                 int s = "rgba".IndexOf(channel.SrcChannels[k]), d = "rgba".IndexOf(channel.DstChannels[k]);
@@ -209,7 +250,7 @@ internal static class RcTextureChannels
         var reflectivity = new float[4];
         foreach (var (channel, chain) in chains)
         {
-            var mean = VtexCompiler.Average(chain[Math.Min(chain.Count, box3 ? 3 : int.MaxValue) - 1]);
+            var mean = VtexCompiler.Average(chain[Math.Min(chain.Count, cap) - 1]);
             for (int k = 0; k < channel.DstChannels.Length; k++)
                 reflectivity["rgba".IndexOf(channel.DstChannels[k])] = mean["rgba".IndexOf(channel.SrcChannels[k])];
         }
@@ -239,7 +280,7 @@ internal static class RcTextureChannels
             if ((w == 1 && h == 1) || oneLevel)
                 break;
         }
-        return new(levels, srgb, box3 ? 3 : int.MaxValue, reflectivity);
+        return new(levels, srgb, cap, reflectivity);
     }
 
     /// <summary>

@@ -225,6 +225,24 @@ BoxInverse, HemiOctAnisoRoughness, AnisoRoughness_RG, MipNormal, AnisoNormal (ge
 | `AnisoRoughness_RG` | 180148350 then the shuffle in 180142990 | channel 1 takes channel 2, channels 2 and 3 become 1 | Mip AnisoRoughness_RG 1, Mip HemiOctAnisoRoughness 3 |
 | `HemiOctIsoRoughness_RG_B` | as above | R = 3, G = 1, B = `(ch2 + ch0)/2`, A = 1 (docs/MATERIALS.md) | Mip HemiOctAnisoRoughness 3, Mip HemiOctIsoRoughness_RG_B 1 |
 
+Ported 2026-11-04 and checked whole-file against RC's 11-04 compiles of `RcReference/textures/algorithms2`
+(`make_probes.py`'s set, `VtexSource_RemainingAlgorithms_CompileToResourceCompilersBytes`):
+
+| algorithm | generator | what it does | special dependency |
+|---|---|---|---|
+| `Box<N>` | 1801443f0 | `V_sscanf("Box%d")`: the Box chain cut to min(N, full) levels; Box1, 2, 5, 9 probed | Mip Box 1 |
+| `MultiplyBox`, `MultiplyNoMip` | 180144ce0 | level 0 the first input times the second per channel (second resized with clamp), then the box chain or one level; a smaller first input is refused (RC copies it unresized) | Mip Multiply 1 |
+| `RGBM` | 180151310 | 2D: RGB with alpha 1, box chain, every level RGBM-encoded (180150f60: clamp [0, 36], sqrt/6, M = ceilf(max(r, g, b, 1/6) 255)/255); the cube irradiance pass is not ported | Mip RGBM 3 |
+| `HemiOctAnisoRoughness_RG_BA` | 180148100 | the shared chain, then (c3, c1, c0, c2) | Mip HemiOctAnisoRoughness_RG_BA 1, Mip HemiOctAnisoRoughness 3 |
+| `AlphaWeighted` | 18014e680 | what ArtistDefinedOrAlphaWeighted becomes with no artist setting (180142990 re-dispatches) | Mip AlphaWeighted 1 |
+| `HemiOctNormal` | 18014c050 | the box chain, every level hemi-oct encoded into G and A; R and B gameinfo MinRoughness (unset: 0) | Mip HemiOctNormal 1 |
+| `MipWidth`, `MipHeight`, `MipDepth` | 18014e260 | a red-only frame per level of `logf(side)/logf(2)*0.0625`; a group may read only `r` (below) | Mip MipSize 1 |
+
+A red-only frame (MipSize; Mip2DGradient's red+green) is copied into the texture by a memcpy of the
+destination's size (181277690), so a group reading an absent channel reads past its 16-byte constant
+into the heap: `mipwidth_rgba` comes out (v, v, v, 0). Such groups are refused unless they read only
+the frame's own channels.
+
 Reflectivity is per channel group: 180133da0 averages each group's last level (180c3bb80) and,
 while copying level 0, adds the source channel's mean into the destination's slot, so a None
 group's channels carry its whole image's mean while a Box group's carry its 1x1 level
@@ -262,9 +280,38 @@ lightmappedgeneric, 4wayblend and vertexlitgeneric detail textures) and ConvertT
 `Mod2XCenter` (18013fee0, registering "Image Mod2X" 1): per channel in the bitmap's mask (all
 four for an RGBA8888 load) the sum of every pixel in row order, then each pixel
 `(0.5 - sum / (w*h)) + v`. `mod2x_rgba`, `mod2x_srgb_rgba` and `detail_bc7` (csgo_complex's
-g_tDetail packing) compile to RC's files. Not ported: ConvertToYCoCg (180141720),
-HeightToNormal, FillToPowerOfTwo, FillToMultipleOfFour, ScaleToPowerOfTwo,
-DilateColorInTransparentPixels, EncodeRGBM, UniformRandom (no CS2 shader names them).
+g_tDetail packing) compile to RC's files.
+`ConvertToYCoCg` (180141720, "Image YCoCg Conversion" 1): the frame written to 8-bit RGBA with no
+gamma (180c41d70), integer YCoCg per pixel (Co in R, Cg in G, Y in A), each 4x4 block's chroma scaled
+by 4 (B 24) or 2 (B 8) when its largest |chroma - 128| is under 32 or 64, then loaded back linear
+(180c3f4e0's last argument 1; 2 would be the gamma table) whatever the input's colour space:
+`ycocg_rgba`, `ycocg_srgb_rgba`, `ycocg_dxt5`. `EncodeRGBM` (180142040, "Image Encode RGBM" 1): the
+RGBM mip encode on the loaded image: `encodergbm_rgba`.
+Not ported: HeightToNormal (180141080), FillToPowerOfTwo (180140550), FillToMultipleOfFour (180140ae0),
+ScaleToPowerOfTwo, DilateColorInTransparentPixels (180141be0), UniformRandom (no CS2 shader names them;
+probes in algorithms2).
+
+## Output formats
+
+180133da0 maps the internal ImageFormat (the 24- or 32-byte table at 0923 0x182fe4eb0, 1103 0x182fecf08)
+to the vtex header byte, and `FloatBitMap_t::WriteToBuffer` (0923 180c45cf0, 1103 180c46cb0) writes
+each level. `RcFormats` holds the uncompressed ones, every probe byte-identical (`fmt_*` in algorithms2):
+
+| format | vtex | writer |
+|---|---|---|
+| I8 | 3 | `(int)((B*0.114 + (R*0.299 + G*0.587))*1023 + 0.5)` clamped to 1023, >> 2 (single precision) |
+| IA88 | 22 | the I8 luminance, then alpha by the 1023 rule (180c34a30) |
+| A8, R8_UNORM | 32, 33 | 1103 only (table entries 7 and 67): alpha or red, `(int)(min(1, v)*255 + 0.5)`, 0 under 0 |
+| BGRA8888 | 28 | each channel clamped, `*255 + 0.5`, stored B G R A (180c35550) |
+| R16, RG1616, RGBA16161616 | 5, 6, 7 | `(int)(v*65535 + 0.5)` clamped to [0, 65535] |
+| R16F, RG1616F, RGBA16161616F | 8, 9, 10 | Valve's float to half (1802ea750): clamp to 65504, truncated mantissa, its own denormals |
+| R32F, RG3232F, RGB323232F, RGBA32323232F | 11, 12, 13, 14 | the floats as they are |
+
+Every one stores the whole chain to 1x1, as RGBA8888 does. RC refuses (`Unsupported image format`)
+ABGR8888, ARGB8888, BGRX8888, RGBX8888, RGB888, BGR888, RGB565, BGR565, BGRA4444, UV88, UVWQ8888,
+DXT3, DXT1_ONEBITALPHA, DXT5_NM, R11G11B10_FLOAT, RGBA1010102, BGRA1010102, R8_UINT, R9G9B9E5_FLOAT,
+RGBA8888_LINEAR, so refusing them is parity. BC6H (vtex 19, internal 26, 180c46b20 / 180c46dd0) is not
+ported; neither is an sRGB texture in one of these formats.
 
 ## A mip chain made elsewhere
 
