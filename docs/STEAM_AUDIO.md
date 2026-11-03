@@ -219,3 +219,13 @@ In order of the plan (the user's call, 10-28: the rest of the pipeline first, Em
    ambisonics orders above 1; the KV3 conversions between value types for worldspawn keys; directivity callbacks;
    long-range CRT argument reduction; NaN / denormal paths.
 7. **`-sacustomdata`** (occlusion, dimensions, materials), reverb compression and clustering, `-steamaudio_gpu`.
+   Read 2026-11-03 (rc 0923): BuildSACustomOcclusion (180103b10, compilemap.cpp) names the output
+   `<map>.custom.occlusion` (steamaudio vf 0x148 / 0x150), applies the rebake option as the other builders do
+   (Manual logged as deprecated, taken as Cleanup), reads `sacustomdata_probes_spacing` and
+   `sacustomdata_probes_height` (int, defaults from its argument) and `sacustombake_threads`, gathers probes
+   through the shared probe helper (180100e40 with probe type 2, as CleanupBakedDataIfNeeded's "custom data"),
+   then has steamaudio.dll make a baker (vf 0x70; "Could not create scene") and bake "%d x %d probe pairs" of
+   occlusion through its vf 0x38 with a progress callback (180101da0), `sabakestrictmode`, and the result's size
+   logged before it is written (vf 0x1a8). Not read: steamaudio.dll's occlusion baker (vf 0x38 of the object vf
+   0x70 returns) and the file's layout. A Valve reference needs only a standalone resourcecompiler run
+   (`compile_fresh.py ... -- -world -sacustomdata`), which may run with CS2 open.
