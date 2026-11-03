@@ -106,7 +106,7 @@ public class ShaderAttributeProbe(ITestOutputHelper output)
                     var key = $"{attribute.Name} 0x{attribute.Murmur32:x8} {attribute.VfxType}";
                     if (!seen.TryGetValue(key, out var values))
                         seen[key] = values = [];
-                    values.Add(attribute.DynExpression != null ? $"{attribute.ToString().Trim()} @ {config}" : $"{attribute.ConstValue} @ {config}");
+                    values.Add(attribute.DynExpression != null ? $"{attribute.ToString().Trim()}{(Environment.GetEnvironmentVariable("SHADERATTR_HEX") == "1" ? " bytes " + Convert.ToHexString(attribute.DynExpression) : "")} @ {config}" : $"{attribute.ConstValue} @ {config}");
                 }
             }
             output.WriteLine($"== {shader}: {program.StaticComboEntries.Count} static combos");

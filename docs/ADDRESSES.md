@@ -179,12 +179,14 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `materialsystem2_20261015.dll`, 1,429,144 bytes, PE time 2026-10-14 18:39 UTC
 - SHA-256 `b4d5c667eb65f13d9193d743a88eb1f9dfa623cc8f745cef764d9977969e38b6`
 - installed: a different build
-- 16 addresses
+- 22 addresses
 
 ### s2c:infra
 
 | address | name | what | cited in |
 |---|---|---|---|
+| `18000e690` | `CMaterial2_MergeProgramAttributes` | a render mode's program attributes into the material's store: expressions through VfxEval with a context of the short table (+0x40), records (+0x48, stride 0x40) and no hash table (+0x18 0); a failed evaluation stores 0; 'does not match value set in another mode' when two modes disagree (ledger 157, 201) | `src/Source2.Compiler/Maps/MaterialAttributes.cs:72` |
+| `1800137d0` | `MaterialParameters_AddDeclaredDefaults` | per program variable: source (+0xec) 0 or 7 and not in the material (180012ab0): its declared default (1800135f0) appended as a 0x40-byte value record when the type (+0xf4) is not 13..16 or 22..23 and the register type (+0xf8) is 1..3; the variable's short is that record's index, or 0xffff; source 6 only ORs +0x104 into the material's +0x6c (ledger 201) |  |
 | `180080f40` | `Vector3_Normalize` | length sqrt((y y + z z) + x x); within 1e-17..1e17 times its reciprocal | `src/Source2.Compiler/Lighting/ColorMatrices.cs:97` |
 | `180081020` | `Matrix4_Set` | 16 floats row by row |  |
 | `180081100` | `Matrix4_Multiply` | row-major a x b, each element dpps: (a0 b0 + a1 b1) + (a2 b2 + a3 b3) | `src/Source2.Compiler/Lighting/ColorMatrices.cs:7`, `src/Source2.Compiler/Lighting/ColorMatrices.cs:24` |
@@ -199,6 +201,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18009bf90` | `VfxEval_MatrixMultiply` | two 4x4 off the stack, product through 180081100 | `src/Source2.Compiler/Lighting/ColorMatrices.cs:5`, `src/Source2.Compiler/Lighting/Bake/RtxMaterials.cs:193` |
 | `18009c090` | `VfxEval_MatrixColorCorrect2` | (contrast, saturation, brightness), average colour -> 180081260 (Lighting/ColorMatrices.Correct2) | `src/Source2.Compiler/Lighting/ColorMatrices.cs:5`, `src/Source2.Compiler/Lighting/Bake/RtxMaterials.cs:194` |
 | `18009c3c0` | `VfxEval_MatrixColorTint2` | (tint, amount) -> 1800818d0 (Lighting/ColorMatrices.Tint2; white equals ColorCorrect(1, 1, 1) word for word) | `src/Source2.Compiler/Lighting/ColorMatrices.cs:5`, `src/Source2.Compiler/Lighting/Bake/RtxMaterials.cs:193` |
+| `18009c9c0` | `VfxEval_Interpret` | the stack machine over a compiled expression; opcodes through 0x22 (table 18009e24c). 0x1D (parameter by murmur) looks the hash up in the context's table at +0x18 and its +0xc8 / +0xc0 chains, and fails the evaluation (18009e19c, false) when it is missing or the table is null; 0x20 (parameter by index) reads the context's short table +0x40, the records +0x48 with stride +0x58, a negative short failing; a record is four floats unless +0x1c bit 16 or +0x18 / +0x20 make it an expression of its own (ledger 201) |  |
+| `18009e320` | `VfxEval_ReadsMaterialParameter` | true when the expression holds an 0x1D or 0x20 |  |
+| `18009e3d0` | `VfxEval_ResolveParameterIndices` | (bytes, length, variables, count, flag): each 0x1D whose murmur matches a variable's name (murmur2 seed 0x31415926, 0x218-byte descriptions) becomes 0x20 with the variable's index; an unknown hash returns false at once unless flag bit 0 (ledger 201) |  |
+| `1800ad440` | `VfxProgram_ResolveAttributeExpressions` | every program attribute with an expression (records +0x208, 0x58 bytes, length +0x34, bytes +0x38) through 18009e3d0 against the program's variables (+0x138 / +0x130), flag 0 (ledger 201) |  |
 | `1800fa000` | `VfxEval_FunctionTable` | 24-byte entries {name, argument count, flag, function}: SrgbGammaToLinear, TextureAverageColor, MatrixMultiply, MatrixColorCorrect2, MatrixColorTint2 and the rest | `src/Source2.Compiler/Lighting/Bake/RtxMaterials.cs:192` |
 
 ### s2c:visibility

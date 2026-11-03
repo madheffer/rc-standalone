@@ -46,6 +46,15 @@ heavy runs with the game open at below-normal priority):
 6. **Steam Audio, the nav coverage appender** (ledger 186): a specimen where a random point survives, captured
    with `capture_randomstream.py --pin SEED`.
 
+7. **HasTexcoordTransform in resourcecompiler** (ledger 201, italy_cobblestone_01's texcoord shift). Frida on a
+   standalone resourcecompiler compiling s2c_coloradjust (`compile_fresh.py s2c_rc_probe s2c_coloradjust -world
+   -fshallow`): log CMaterial2::GetBoolAttribute (materialsystem2 vf 0x48) for key 0x2661694a with the material's
+   name and the answer, and whether the attribute merge (18000e690 in 20261015; find it in the installed build with
+   patch_check) runs for italy_cobblestone_01 at all. A merge that runs and stores 0 means the rewrite (1800ad440)
+   left a 0x1D; no merge means resourcecompiler reads only the vmat_c, and KeepsTexcoords becomes "never" for
+   these shaders. Then the same for one csgo_environment_blend material with a transform (a specimen like
+   coloradjust_specimen.py, e.g. materials/concrete/vertigo_concretefloorc_blend.vmat).
+
 ## B. CS2 and Steam closed (cubehost)
 
 1. **The colour-adjust cubes** (after A.3): `python tools/cubehost/run_probe.py --map s2c_coloradjust --out

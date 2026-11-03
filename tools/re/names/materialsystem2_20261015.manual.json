@@ -7,6 +7,42 @@
    "note": "vf 0x50: the key in chunks of 12 hashes at +0x180 (values 12 slots on), then the chunk list at +0x68, then the parent set at +0x60 (ledger 165)"
   },
   {
+   "addr": "18009c9c0",
+   "name": "VfxEval_Interpret",
+   "module": "s2c:infra",
+   "note": "the stack machine over a compiled expression; opcodes through 0x22 (table 18009e24c). 0x1D (parameter by murmur) looks the hash up in the context's table at +0x18 and its +0xc8 / +0xc0 chains, and fails the evaluation (18009e19c, false) when it is missing or the table is null; 0x20 (parameter by index) reads the context's short table +0x40, the records +0x48 with stride +0x58, a negative short failing; a record is four floats unless +0x1c bit 16 or +0x18 / +0x20 make it an expression of its own (ledger 201)"
+  },
+  {
+   "addr": "18009e320",
+   "name": "VfxEval_ReadsMaterialParameter",
+   "module": "s2c:infra",
+   "note": "true when the expression holds an 0x1D or 0x20"
+  },
+  {
+   "addr": "18009e3d0",
+   "name": "VfxEval_ResolveParameterIndices",
+   "module": "s2c:infra",
+   "note": "(bytes, length, variables, count, flag): each 0x1D whose murmur matches a variable's name (murmur2 seed 0x31415926, 0x218-byte descriptions) becomes 0x20 with the variable's index; an unknown hash returns false at once unless flag bit 0 (ledger 201)"
+  },
+  {
+   "addr": "1800ad440",
+   "name": "VfxProgram_ResolveAttributeExpressions",
+   "module": "s2c:infra",
+   "note": "every program attribute with an expression (records +0x208, 0x58 bytes, length +0x34, bytes +0x38) through 18009e3d0 against the program's variables (+0x138 / +0x130), flag 0 (ledger 201)"
+  },
+  {
+   "addr": "1800137d0",
+   "name": "MaterialParameters_AddDeclaredDefaults",
+   "module": "s2c:infra",
+   "note": "per program variable: source (+0xec) 0 or 7 and not in the material (180012ab0): its declared default (1800135f0) appended as a 0x40-byte value record when the type (+0xf4) is not 13..16 or 22..23 and the register type (+0xf8) is 1..3; the variable's short is that record's index, or 0xffff; source 6 only ORs +0x104 into the material's +0x6c (ledger 201)"
+  },
+  {
+   "addr": "18000e690",
+   "name": "CMaterial2_MergeProgramAttributes",
+   "module": "s2c:infra",
+   "note": "a render mode's program attributes into the material's store: expressions through VfxEval with a context of the short table (+0x40), records (+0x48, stride 0x40) and no hash table (+0x18 0); a failed evaluation stores 0; 'does not match value set in another mode' when two modes disagree (ledger 157, 201)"
+  },
+  {
    "addr": "1800fa000",
    "name": "VfxEval_FunctionTable",
    "module": "s2c:infra",

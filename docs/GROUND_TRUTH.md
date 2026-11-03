@@ -5386,6 +5386,27 @@ game can answer is raised with the user first, and runs with -insecure.
          the material lacks only under conditions on the description's +0xec, +0xf4 and +0xf8, and when the
          attribute expression is evaluated against that is not read. Settle it by reading that order, or capture the
          attribute in resourcecompiler (CS2 closed: Frida), before changing KeepsTexcoords.
+         Read 2026-11-03 (materialsystem2 20261015, decompile and disassembly), still OPEN:
+         - 1800137d0's conditions: source (+0xec) 0 or 7, not found in the material (180012ab0), type (+0xf4) not
+           13..16 or 22..23, register type (+0xf8) 1..3. g_nUVSet1 is source 0, type 5 (Int), register 2 (Int4), so
+           its default 1 is added. It fills a short per variable (0xffff when missing and not defaulted) indexing
+           the 0x40-byte value records.
+         - HasTexcoordTransform's bytes (all 72 static combos of the vs and ps) read the three parameters with
+           opcode 0x1D (by murmur, A8627835 for g_nUVSet1). 1800ad440 rewrites every program attribute
+           expression (records +0x208, 0x58 bytes, length +0x34, bytes +0x38) through 18009e3d0: each 0x1D whose
+           hash names one of the program's variables (murmur2 seed 0x31415926 over +0x138 / +0x130) becomes 0x20
+           with the variable's index; with its flag 0 the first unknown hash stops the rewrite.
+         - The attribute merge (18000e690) evaluates them through VfxEval (18009c9c0) with a context whose +0x18
+           (the hash table 0x1D needs) is always 0, and whose +0x40 / +0x48 / +0x58 are the short table, the value
+           records and 0x40. A 0x1D left unrewritten fails the evaluation (18009e19c), and the merge stores the
+           untouched output, 0; a 0x20 reads the record's four floats (or its own expression, record +0x1c bit 16).
+         - So on this reading a rewritten expression sees g_nUVSet1 = 1 and gives 1 (keep), and Valve's output
+           says 0. Not read: whether resourcecompiler loads the material's programs at all (no programs, no merge,
+           and the vmat_c stores no HasTexcoordTransform: MaterialInfoProbe.ScanAttribute finds it in none of the
+           1,535 csgo_environment materials), and which program's variable list 1800ad440 is handed.
+         - Our rule's "keep" branch has never been checked against Valve: MaterialInfoProbe.KeptTexcoords finds
+           158 stock materials it keeps (5 csgo_environment, 153 csgo_environment_blend), and of the 199 corpus
+           .vmaps only s2c_coloradjust uses one. CS2_CLOSED_QUEUE A.7 captures the answer.
 
 ## Resolved
 
