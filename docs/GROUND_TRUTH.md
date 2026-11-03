@@ -3186,7 +3186,7 @@ game can answer is raised with the user first, and runs with -insecure.
       hueShiftFixup, lightmapMaxResolution 0, then the texture arguments: probe volume, fog, far field
       indirection, far field atlas, lightmap), the meshlet rows, force_up_to_date_materials, the physics
       two. MapRootFile.ReadOrder; all 25 lit and 15 unlit references byte for byte. The +0x605
-      flag settled 2026-11-03 (below). Still open: where flattenPropsWithBakedLighting is read (it ties with nothing).
+      flag settled 2026-11-03 (below). flattenPropsWithBakedLighting is read in EntityLump_StaticModelRecord (180245770, when the compile does not bake); its place in the read order is not captured, and it ties with no other name, so it cannot move a row.
     - Settled (2026-10-22, capture_argdeps.py --over --trace on Valve's Only Entities compiles of probe01 and
       cardtest): an Only Entities build compiles every entity model again and writes default_ents and the
       map root. A physics-only model reads keep_vertices and mapbuilder_entity_classname, which its own
