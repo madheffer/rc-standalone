@@ -151,7 +151,7 @@ $release = [ordered]@{
   nupkg = "Source2.Compiler.$version.nupkg"
   adapter = [ordered]@{ tar = "adapter.tar"; path = "src/Source2.Compiler.Vrf" }
   dependencies = $deps
-  api = [ordered]@{ baseline = $(if ($previous) { $previous.version } else { $null }); breaking = $breaking; diagnostics = $diagnostics }
+  api = [ordered]@{ baseline = $(if ($previous) { $previous.version } else { $null }); validated = [bool]($baseline); breaking = $breaking; diagnostics = $diagnostics }
   notes = $notes
 }
 if (Test-Path (Join-Path $work "baseline.nupkg")) { Remove-Item (Join-Path $work "baseline.nupkg") -Confirm:$false }
