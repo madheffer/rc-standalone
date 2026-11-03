@@ -113,7 +113,7 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
         var missing = new SortedSet<string>();
         for (var i = 0; i < scene.Instances.Count; i++)
         {
-            if (rtx.ShaderOf(i) is not { } shader)
+            if (rtx.GpuShaderOf(i) is not { } shader)
             {
                 missing.Add(scene.Instances[i].Material.Name);
                 continue;

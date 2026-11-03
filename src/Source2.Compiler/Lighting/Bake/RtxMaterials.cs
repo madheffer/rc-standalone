@@ -101,7 +101,12 @@ public sealed class RtxShaderLibrary(params string[] packages) : IDisposable
         if (Get(info.Shader) is not { } p)
             return null;
         var f = info.Params.Where(x => x.Key.StartsWith("F_", StringComparison.Ordinal)).ToDictionary(x => x.Key, x => (byte)x.Value);
-        return (p, ValveResourceFormat.IO.ShaderDataProvider.GetStaticConfiguration_ForFeatureState(p.Features, p.Rtx, f).StaticComboId);
+        var (config, id) = ValveResourceFormat.IO.ShaderDataProvider.GetStaticConfiguration_ForFeatureState(p.Features, p.Rtx, f);
+        // A configuration the file does not carry is reduced as MaterialAttributes reduces the pc programs' (the
+        // trace flags built on that equal Valve's .rte); the material blocks then check it against vrad3's.
+        if (!p.Rtx.StaticComboEntries.ContainsKey(id) && ValveResourceFormat.IO.ShaderDataProvider.TryReduceStaticConfiguration(p.Rtx, config, out var reduced))
+            id = new ValveResourceFormat.CompiledShader.ComboConfigMapping(p.Rtx).CalcComboIdFromValues(reduced);
+        return (p, id);
     }
 
     /// <summary>One shader attribute of a material's static combo: its constant or expression, and the variable it binds (with that variable's SrgbRead).</summary>
@@ -475,6 +480,27 @@ public sealed class VfxEval
                 return Zip(a[0], a[1], MathF.Max);
             case "saturate":
                 return Map(a[0], x => Math.Clamp(x, 0f, 1f));
+            case "normalize":
+            {
+                // materialsystem2 18009b6e0 -> 180080f40, mathlib's VectorNormalize on xyz (w as it was): the squares
+                // y, z, x summed, times 1 / length inside 1e-17 .. 1e17, zero stays zero. The double path past that
+                // range (1800834c0) is not read.
+                var v = (float[])a[0].Clone();
+                if (v.Length < 3)
+                    throw new NotSupportedException($"VfxEval: normalize of {v.Length} components");
+                var len = MathF.Sqrt(v[1] * v[1] + v[2] * v[2] + v[0] * v[0]);
+                if (len != 0f && !(1e-17f <= len && len <= 1e17f))
+                    throw new NotSupportedException("VfxEval: normalize outside 1e-17 .. 1e17 (180080f40's double path) is not ported");
+                if (len != 0f)
+                {
+                    var inv = 1f / len;
+                    (v[0], v[1], v[2]) = (inv * v[0], inv * v[1], inv * v[2]);
+                }
+                return v;
+            }
+            case "log":
+                // materialsystem2 18009a240: tier0's V_logf on each component (MathF.Log's, Tier0MathTests).
+                return Map(a[0], MathF.Log);
             case "lerp":
                 return Zip(Zip(a[0], a[1], (x, y) => y - x), a[2], (d, t) => d * t) is var d2 ? Zip(a[0], d2, (x, y) => x + y) : a[0];
             case "dot":
@@ -566,6 +592,14 @@ public sealed class RtxScene
     /// <summary>The instance's hit group, or null (the caller shades it).</summary>
     public HitShader? ShaderOf(int instance) => _shaders[instance];
 
+    /// <summary>
+    /// The hit group the GPU bake runs for an instance: <see cref="ShaderOf"/>, or for a material whose rtx combo
+    /// is not transpiled a <see cref="GpuOnlyHitShader"/> naming Valve's program and combo.
+    /// </summary>
+    public HitShader? GpuShaderOf(int instance) => GpuShaders is { } g ? g[instance] : _shaders[instance];
+
+    private HitShader?[]? GpuShaders { get; init; }
+
     /// <summary>The content reader the scene was built with (the GPU oracle uploads the same files).</summary>
     public Func<string, byte[]?>? ContentRead { get; private init; }
 
@@ -653,6 +687,7 @@ public sealed class RtxScene
         }
         var data = new List<byte>();
         var blocks = new Dictionary<string, (HitShader Shader, uint Offset)?>(StringComparer.OrdinalIgnoreCase);
+        var gpuOnly = new Dictionary<string, (HitShader Shader, uint Offset)>(StringComparer.OrdinalIgnoreCase);
         (HitShader, uint)? Block(string material)
         {
             if (blocks.TryGetValue(material, out var b))
@@ -676,7 +711,17 @@ public sealed class RtxScene
             {
                 var shader = HitShaders.All.FirstOrDefault(h => h.Name == $"{program.Shader}_vulkan_60_rtx" && h.Combo == combo);
                 if (shader == null)
-                    notes.Add($"{material}: {program.Shader} rtx combo {combo} is not transpiled; the default hit group stands in");
+                {
+                    // Not transpiled: the CPU bake stands the default hit group in; the GPU bake runs Valve's own
+                    // hit group on the block the combo's write sequence lays out (no C# layout for its pads).
+                    notes.Add($"{material}: {program.Shader} rtx combo {combo} is not transpiled; the CPU bake stands the default hit group in");
+                    var bytes = MaterialBlock(program, combo, info, Texture, Sampler, Reflectivity,
+                        Environment.GetEnvironmentVariable("CPUBAKE_MATDUMP") == "1" ? line => notes.Add($"  {material} {line}") : null);
+                    while (data.Count % 16 != 0)
+                        data.Add(0);
+                    gpuOnly[material] = (new GpuOnlyHitShader($"{program.Shader}_vulkan_60_rtx", combo), (uint)data.Count);
+                    data.AddRange(bytes);
+                }
                 else
                 {
                     // CPUBAKE_MATDUMP=1: every variable the block writes, as a note (a check against the vmat).
@@ -697,11 +742,15 @@ public sealed class RtxScene
         }
         var instances = new PackedRtxInstanceData_t_natural[scene.Instances.Count];
         var hit = new HitShader?[scene.Instances.Count];
+        var gpu = new HitShader?[scene.Instances.Count];
         for (var i = 0; i < instances.Length; i++)
         {
             var inst = scene.Instances[i];
             var block = Block(inst.Material.Name);
             hit[i] = block?.Item1;
+            gpu[i] = block?.Item1;
+            if (block == null && gpuOnly.TryGetValue(inst.Material.Name, out var g))
+                (gpu[i], block) = (g.Shader, (g.Shader, g.Offset));
             instances[i] = new PackedRtxInstanceData_t_natural
             {
                 nSrgbColor = inst.SrgbColor, nTriangleGeometry = (uint)inst.Mesh, nMaterialData = block?.Item2 ?? 0,
@@ -714,6 +763,10 @@ public sealed class RtxScene
                 light.Cookie = Texture(cookie, CookieSrgb, false);
         while (data.Count % 4 != 0)
             data.Add(0);
+        // A hit group loads its whole struct, pads included; with no C# layout for a GPU-only block's pads,
+        // zeros past the buffer's end keep the last one's load inside it (only when there is such a block).
+        if (gpuOnly.Count > 0)
+            data.AddRange(new byte[4096]);
         var raw = data.ToArray();
         var matF = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(raw).ToArray();
         var matI = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, int>(raw).ToArray();
@@ -725,7 +778,7 @@ public sealed class RtxScene
             Instances = instances, Geometries = geometries, VerticesF = vf, VerticesU = vu, Indices = ib,
             MatF = matF, MatI = matI, MatU = matU, Textures = tex, Samplers = smp,
         };
-        return new RtxScene(scene, hit, Factory, notes, textureSources) { ContentRead = read };
+        return new RtxScene(scene, hit, Factory, notes, textureSources) { ContentRead = read, GpuShaders = gpu };
     }
 
     /// <summary>
@@ -822,8 +875,20 @@ public sealed class RtxScene
                 return [vec.X, vec.Y, vec.Z, vec.W];
             return null;
         }
-        float[] Default(VfxVariableDescription v) => v.VfxType is VfxVariableType.Int or VfxVariableType.Int2 or VfxVariableType.Int3 or VfxVariableType.Int4 or VfxVariableType.Bool
-            ? [.. v.IntDefs.Select(x => (float)x)] : [.. v.FloatDefs];
+        // The type's own components of the stored defaults (a Float's [1, 0, 0, 0] is 1), as ProgramGlobals.Default
+        // takes them: float3(contrast, saturation, brightness) over defaulted scalars must see three scalars.
+        float[] Default(VfxVariableDescription v)
+        {
+            var n = v.VfxType switch
+            {
+                VfxVariableType.Float or VfxVariableType.Int or VfxVariableType.Bool => 1,
+                VfxVariableType.Float2 or VfxVariableType.Int2 => 2,
+                VfxVariableType.Float3 or VfxVariableType.Int3 => 3,
+                _ => 4,
+            };
+            return v.VfxType is VfxVariableType.Int or VfxVariableType.Int2 or VfxVariableType.Int3 or VfxVariableType.Int4 or VfxVariableType.Bool
+                ? [.. v.IntDefs.Take(n).Select(x => (float)x)] : [.. v.FloatDefs.Take(n)];
+        }
         float[]? Value(string name, string? self = null, float[]? selfValue = null)
         {
             if (name == self)
@@ -1071,4 +1136,13 @@ public sealed class RtxScene
 
     // System.Numerics' row-vector matrix as GLSL's mat4x3 (columns: the basis images and the translation).
     internal static mat4x3 Mat(Matrix4x4 m) => new(new vec3(m.M11, m.M12, m.M13), new vec3(m.M21, m.M22, m.M23), new vec3(m.M31, m.M32, m.M33), new vec3(m.M41, m.M42, m.M43));
+}
+
+/// <summary>An rtx program and static combo with no C# transpile: only the GPU bake can run it (Valve's SPIR-V).</summary>
+public sealed class GpuOnlyHitShader(string name, long combo) : HitShader
+{
+    public override string Name { get; } = name;
+    public override long Combo { get; } = combo;
+    public override MaterialField[] Layout => [];
+    public override void ClosestHit(HitContext ctx) => throw new NotSupportedException($"{Name} combo {Combo} is not transpiled (the GPU bake runs it)");
 }

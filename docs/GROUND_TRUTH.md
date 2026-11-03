@@ -5327,6 +5327,16 @@ game can answer is raised with the user first, and runs with -insecure.
        when absent, clamped to 0..1. A constant LightSim_Opacity_A (csgo_water_fancy's 1) is no texture.
        capture_host.py on Valve's atixref job: every material block is ours but the bindless indices
        (hr_glass_001, inferno_fountain, italy_windows_glass_01a included).
+     - 2026-11-04 later: an rtx combo with no C# transpile now bakes on the GPU (GpuOnlyHitShader: Valve's SPIR-V,
+       the block from the combo's write sequence; the CPU bake still stands the default hit group in); a feature
+       state the rtx file lacks is reduced as MaterialAttributes reduces the pc programs'; a SetByArtist default is
+       the type's own components (a Float's [1, 0, 0, 0] gave float3(contrast, saturation, brightness) the wrong
+       scalars); VfxEval gained log (18009a240, V_logf) and normalize (18009b6e0 -> 180080f40). Against vrad3's
+       capture every atixref block is ours but bindless indices, words past a blend block's last field, and
+       g_flDetailBlendFactor on two csgo_vertexlitgeneric combo 16 materials (Valve the default 1, ours the
+       material's; not read). atixref's GPU bake runs: lightmap_chart_color byte for byte, the other three
+       EXRs differ all over the atlas (direct_light_shadows 31,171 texels), cause open. probe01, cardtest,
+       probe_classes, s2c_coloradjust and ze_hold_em_p still give vrad3's four EXRs byte for byte.
 
 198. **Steam Audio's rebake options in a compile** (2026-11-02, CS2 open: the Ghidra project's resourcecompiler.dll
      decompile, 18013b060 and 18013af00 there, and the installed 1029 build's disassembly). READ.

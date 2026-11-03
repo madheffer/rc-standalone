@@ -456,14 +456,18 @@ public class CpuBakeTests(ITestOutputHelper output)
             var vmat = File.ReadAllBytes(matFile);
             var vinst = File.ReadAllBytes(instFile);
             var omat = Bytes(ctx.MatU);
+            var ourOffsets = ctx.Instances.Select(x => x.nMaterialData).Distinct().Order().ToList();
             var seen = new HashSet<(uint, uint)>();
             for (var i = 0; i < scene.Instances.Count; i++)
             {
                 var vo = BitConverter.ToUInt32(vinst, i * 32 + 8);
                 var oo = ctx.Instances[i].nMaterialData;
-                if (!seen.Add((vo, oo)) || rtx.ShaderOf(i) is not { } shader)
+                if (!seen.Add((vo, oo)) || rtx.GpuShaderOf(i) is not { } shader)
                     continue;
-                var size = shader.Layout.Length == 0 ? 0x20 : shader.Layout.Max(f => f.Offset) + 16;
+                // A GPU-only hit group has no C# layout: its block runs to our next block.
+                var size = shader is Source2.Compiler.Lighting.Bake.GpuOnlyHitShader
+                    ? (int)(ourOffsets.FirstOrDefault(o => o > oo, (uint)omat.Length) - oo)
+                    : shader.Layout.Length == 0 ? 0x20 : shader.Layout.Max(f => f.Offset) + 16;
                 var diffs = new List<string>();
                 for (var at = 0; at + 4 <= size && vo + at + 4 <= vmat.Length && oo + at + 4 <= omat.Length; at += 4)
                 {
