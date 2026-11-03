@@ -61,4 +61,46 @@ public class SubdivisionTangentsCaptureTests(ITestOutputHelper output)
         Assert.True(calls > 0);
         Assert.Equal(0, wrong);
     }
+
+    /// <summary>
+    /// SubdivisionTangents.PositionNormals (1813be620) on each captured normal grid call's position grid, against the
+    /// normal grid Valve wrote, by region: inside, border rows and columns, corners (the normal grid's border pass,
+    /// 1813c3cf0, changes the borders afterwards).
+    /// </summary>
+    [Fact]
+    public void PositionNormalsMatchTheInterior()
+    {
+        if (Environment.GetEnvironmentVariable("SUBDIVGRIDS") is not { Length: > 0 } path)
+            return;
+        static float F(JsonElement e) => BitConverter.Int32BitsToSingle(unchecked((int)Convert.ToUInt32(e.GetString(), 16)));
+        static float[] Fs(JsonElement a) => [.. a.EnumerateArray().Select(F)];
+        var tally = new Dictionary<string, (int Same, int All)>();
+        foreach (var line in File.ReadLines(path))
+        {
+            var d = JsonDocument.Parse(line).RootElement;
+            if (d.GetProperty("kind").GetString() != "normal")
+                continue;
+            var count = d.GetProperty("count").GetInt32();
+            var g = (int)Math.Round(Math.Sqrt(count));
+            if (g * g != count || g < 2)
+                continue;
+            var p = Fs(d.GetProperty("positions"));
+            var v = Fs(d.GetProperty("normals"));
+            var grid = Enumerable.Range(0, count).Select(i => new Vector3(p[i * 3], p[i * 3 + 1], p[i * 3 + 2])).ToArray();
+            var ours = SubdivisionTangents.PositionNormals(grid, g - 1);
+            for (var i = 0; i < count; i++)
+            {
+                int r = i / g, c = i % g;
+                var region = (r == 0 || r == g - 1) && (c == 0 || c == g - 1) ? $"corner({(r == 0 ? 0 : 1)},{(c == 0 ? 0 : 1)})"
+                    : r == 0 ? "row0" : r == g - 1 ? "rown" : c == 0 ? "col0" : c == g - 1 ? "coln" : "inside";
+                var same = Enumerable.Range(0, 3).All(k => BitConverter.SingleToInt32Bits(ours[i][k]) == BitConverter.SingleToInt32Bits(v[i * 3 + k]));
+                var t = tally.GetValueOrDefault(region);
+                tally[region] = (t.Same + (same ? 1 : 0), t.All + 1);
+            }
+        }
+        foreach (var (k, (same, all)) in tally.OrderBy(x => x.Key))
+            output.WriteLine($"{k}: {same} of {all} bit for bit");
+        Assert.True(tally.Count > 0);
+        Assert.Equal(tally["inside"].All, tally["inside"].Same);
+    }
 }

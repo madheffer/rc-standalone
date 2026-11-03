@@ -61,6 +61,52 @@ internal static class SubdivisionTangents
         return result;
     }
 
+    /// <summary>
+    /// 1813be620: a patch's position grid (side g = n + 1, row-major) to its normals. Each corner takes one triangle,
+    /// every other point the sum of two unit triangle normals made unit, each a cross product of differences from the
+    /// point P: (0, 0) (right - P) x (diagonal - P), through 18013e340; (0, n) (below - P) x (below-left - P);
+    /// (n, 0) (above - P) x (above-right - P); (n, n) (left - P) x (above-left - P); row 0 (right - P) x (below - P)
+    /// and (P - left) x (below - P); column 0 (right - P) x (below - P) and (right - P) x (P - above); inside
+    /// (right - P) x (below - P) and (P - left) x (P - above); column n (P - left) x (below - P) and
+    /// (P - left) x (P - above); row n (right - P) x (P - above) and (P - left) x (P - above).
+    /// </summary>
+    public static Vector3[] PositionNormals(IReadOnlyList<Vector3> grid, int n)
+    {
+        var g = n + 1;
+        var normals = new Vector3[g * g];
+        Vector3 P(int r, int c) => grid[r * g + c];
+        static Vector3 Cross(Vector3 a, Vector3 b) => new(a.Y * b.Z - a.Z * b.Y, a.Z * b.X - a.X * b.Z, a.X * b.Y - a.Y * b.X);
+        static Vector3 Sub(Vector3 a, Vector3 b) => new(a.X - b.X, a.Y - b.Y, a.Z - b.Z);
+        static Vector3 Two(Vector3 a, Vector3 b)
+        {
+            var x = Normalise(a);
+            var y = Normalise(b);
+            return Normalise(new Vector3(x.X + y.X, x.Y + y.Y, x.Z + y.Z));
+        }
+        for (var r = 0; r <= n; r++)
+            for (var c = 0; c <= n; c++)
+            {
+                var p = P(r, c);
+                Vector3 Right() => Sub(P(r, c + 1), p);
+                Vector3 Below() => Sub(P(r + 1, c), p);
+                Vector3 FromLeft() => Sub(p, P(r, c - 1));
+                Vector3 FromAbove() => Sub(p, P(r - 1, c));
+                normals[r * g + c] = (r, c) switch
+                {
+                    (0, 0) => Normalise(Cross(Right(), Sub(P(1, 1), p))),
+                    (0, _) when c == n => Normalise(Cross(Below(), Sub(P(1, n - 1), p))),
+                    (_, 0) when r == n => Normalise(Cross(Sub(P(n - 1, 0), p), Sub(P(n - 1, 1), p))),
+                    _ when r == n && c == n => Normalise(Cross(Sub(P(n, n - 1), p), Sub(P(n - 1, n - 1), p))),
+                    (0, _) => Two(Cross(Right(), Below()), Cross(FromLeft(), Below())),
+                    (_, 0) => Two(Cross(Right(), Below()), Cross(Right(), FromAbove())),
+                    _ when r == n => Two(Cross(Right(), FromAbove()), Cross(FromLeft(), FromAbove())),
+                    _ when c == n => Two(Cross(FromLeft(), Below()), Cross(FromLeft(), FromAbove())),
+                    _ => Two(Cross(Right(), Below()), Cross(FromLeft(), FromAbove())),
+                };
+            }
+        return normals;
+    }
+
     // mathlib's VectorNormalize as these functions inline it (and 18013e340): the squared length (z z + y y) + x x,
     // times the reciprocal of its root within 1e-17 .. 1e17, zero at zero, else VectorNormalize_Slow (18125d000).
     internal static Vector3 Normalise(Vector3 d)
