@@ -116,6 +116,9 @@ internal sealed class HalfEdgeMesh
 
     public HalfEdge He(int h) => HalfEdges[h];
 
+    /// <summary>For tests: each operation the bake calls, with its handle arguments, as capture_bake.py --ops logs Valve's.</summary>
+    internal static Action<HalfEdgeMesh, string, int[]>? OpLog;
+
     /// <summary>The half-edges of a face, from its first.</summary>
     public IEnumerable<int> Loop(int face)
     {
@@ -264,6 +267,7 @@ internal sealed class HalfEdgeMesh
     /// <summary>18137a050: a vertex on edge a-b at t from a.</summary>
     public int AddVertexToEdge(int a, int b, float t)
     {
+        OpLog?.Invoke(this, "AddVertexToEdge", [a, b]);
         var h = Between(a, b);
         if (h == Null)
             return Null;

@@ -3328,6 +3328,23 @@ SERVER_1015 = [
 
 # resourcecompiler.dll 20261103: addresses the geometry agent's work cites (written to its own file so it
 # cannot overwrite RESOURCECOMPILER_1103's).
+# resourcecompiler.dll 20260923 (the ReVa program): the half-edge collapse the geometry agent ported (ledger 211).
+GEOMETRY_AGENT_0923 = [
+    ("181383600", "HalfEdge_CollapseEdgeWithAttributes", SUB, "vertex snapshot of (A, B) 1813a3d50, corner snapshots 1813a3f40 (face(e): prev(e), e; face(twin): twin, prev(twin)) at t, 181382170, then writes them to V and to each surviving face's corner at V (18138be80); SubdivisionBake.CollapseEdge"),
+    ("181382170", "HalfEdge_CollapseEdgeTopology", SUB, "link test over A's fan (common neighbours must be the e/twin triangles' edges), new vertex 18137ad80, 1813ab3b0 A then B, unlink e/twin, A and B freed, e and twin freed, 1813a71a0 on each former triangle (e side first), 1813adf00 on both faces; SubdivisionBake.Collapse"),
+    ("181384060", "HalfEdge_CollapseFaceCore", SUB, "the face's vertices from its first; from vertex 0, collapse the edge to each next vertex (lower handle of the pair) and continue from the result; SubdivisionBake.CollapseInner"),
+    ("1813a71a0", "HalfEdge_DissolveTwoGon", SUB, "p.next q, q.next p, one face, distinct twins: face cleared (181389630) and freed (1813aca90), new pair 18137a900 takes the twins' places, p, p', q, q' freed; SubdivisionBake.DissolveTwoGon"),
+    ("1813ab3b0", "HalfEdge_ReplaceVertex", SUB, "every half-edge into the old vertex points at the new one; the new one's out is the last fan half-edge visited"),
+    ("18137ad80", "HalfEdge_AddVertex", SUB, "a new vertex handle (FIFO), out null"),
+    ("1813a3d50", "HalfEdge_SnapshotVertexBlend", SUB, "vertex attributes (b - a) t + a"),
+    ("1813a3f40", "HalfEdge_SnapshotCornerBlend", SUB, "face-vertex attributes of two half-edges, (b - a) t + a per stream type (1813a4470 .. 1813a53e0)"),
+    ("1813aca90", "HalfEdge_RemoveFace", SUB, "loop listed; each half-edge loses the face, an edge whose twin has no face goes through 1813ad160 on the twin; face freed (1813995a0)"),
+    ("1813ad160", "HalfEdge_RemoveEdge", SUB, "faces first if any; then 1813892f0 on h and twin (leave the origin's fan, free an orphan vertex with removeOrphans) and 1813997a0 (free h then twin)"),
+    ("1813892f0", "HalfEdge_UnlinkFromOrigin", SUB, "twin.next == h: origin out null (and freed); else the half-edge before h leads to twin.next, origin out twin.next, twin.next h"),
+    ("1813997a0", "HalfEdge_FreeEdgePair", SUB, "frees h, then its twin (1813ac860)"),
+    ("180d54520", "HalfEdge_ListFacesDense", SUB, "the face handles in dense order; HammerMesh_BakeAllSubdivision (1810c6520) bakes in this order"),
+]
+
 GEOMETRY_AGENT_1103 = [
     ("1810e11f0", "ConvertMeshForBuilder_KeepsTexcoordsLoop", G, "per mesh material (1810d6020): vf 0x48 HasTexcoordTransform 0x2661694a == 1 -> keep (je 1810e126c); else 0x7c928c7c (default 1) == 0 -> keep; one DMX for every builder, the world renderer's too (ledger 210, WorldNodeBuild.WorldEntries)"),
 ]
@@ -3614,4 +3631,5 @@ if __name__ == "__main__":
     write("worldrenderer_20261023.manual.json", WORLDRENDERER_1023)
     write("server_20261021.manual.json", SERVER_1021)
     write("resourcecompiler_20261103_geometry_agent.manual.json", GEOMETRY_AGENT_1103)
+    write("resourcecompiler_20260923_geometry_agent.manual.json", GEOMETRY_AGENT_0923)
     print(len(RESOURCECOMPILER), len(VPHYSICS2), len(PHYSICSBUILDER), len(VISBUILDER), len(SMARTPROPS), len(TIER0), len(HAMMER))

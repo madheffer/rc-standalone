@@ -88,10 +88,22 @@ internal static class SubdivisionBake
                 mesh.Vertices[from].Out = h;
         }
 
-        // 1. Gather by level, face order within a level; grids from the corners.
+        // ConvertMeshForBuilder's RemoveBadFaces (1810d9ca0) runs before the bake: each face, by
+        // handle, that the polygon triangulator cannot cut whole on the mesh's own positions
+        // (1813a5ec0) is removed (1813acf00 -> 1813aca90 with orphans removed).
+        for (var f = 0; f < a.First.Length; f++)
+        {
+            var loop = a.Loop(f);
+            if (loop.Count < 3 || PolygonTriangulator.Triangulate([.. loop.Select(h => a.Pos(a.To[h]))]).Length != (loop.Count - 2) * 3)
+                RemoveFace(mesh, f);
+        }
+
+        // 1. Gather by level, faces in dense order within a level (HammerMesh_BakeAllSubdivision
+        // 1810c6520 lists them from the dense face array, 180d54520); grids from the corners.
         var order = new List<int>();
+        var dense = mesh.Faces.Handles.ToArray();
         for (var level = 1; level <= 5; level++)
-            for (var f = 0; f < a.First.Length; f++)
+            foreach (var f in dense)
                 if (a.Level(a.First[f]) == level)
                     order.Add(f);
         var jobs = order.Select(f =>
@@ -179,6 +191,7 @@ internal static class SubdivisionBake
 
         // The wrapper then merges the baked faces' vertices that lie within
         // 1e-6 of each other (HalfEdge_MergeVertices 1813a8ae0).
+        BeforeMerge?.Invoke(mesh);
         MergeVertices(mesh, a);
         AfterMerge?.Invoke(mesh);
 
@@ -500,6 +513,7 @@ internal static class SubdivisionBake
     /// <summary>181376f80 -> 181376810: an edge from a to b across <paramref name="face"/>, unless one is there.</summary>
     private static int AddEdgeToFace(HalfEdgeMesh mesh, int face, int a, int b)
     {
+        HalfEdgeMesh.OpLog?.Invoke(mesh, "AddEdgeToFace", [face, a, b]);
         if (a == b || mesh.Between(a, b) != HalfEdgeMesh.Null)
             return HalfEdgeMesh.Null;
         int ca = mesh.Corner(face, a), cb = mesh.Corner(face, b);
@@ -509,88 +523,35 @@ internal static class SubdivisionBake
     }
 
     /// <summary>
-    /// 181384470: the inner face (bounded by <paramref name="e"/>) and the m
-    /// triangles between it and the corner regions collapse to one centre
-    /// vertex. Faces leave the dense array as the edge collapses (181382170)
-    /// empty them: the triangle at each step, the inner face with the
-    /// second-last, the last two triangles last.
+    /// CollapseFace (181384470) on the inner face (bounded by <paramref name="e"/>):
+    /// its core (181384060) lists the face's vertices from its first half-edge,
+    /// then from the first vertex collapses, in order, the edge to each next
+    /// vertex (1813937a0, taken as the pair's lower half-edge handle) by the
+    /// edge collapse (<see cref="Collapse"/>), continuing from the vertex each
+    /// returns; a refused collapse ends it. The wrapper's vertex snapshot (the
+    /// face vertices' average, 18137ea40) is overwritten by the patch grid
+    /// writes, so the centre's position is left to them.
     /// </summary>
     private static int CollapseInner(HalfEdgeMesh mesh, int[] e)
     {
-        var m = e.Length;
-        // The inner face holds e[0] -> e[1]; the triangle beside it runs e[1] -> e[0].
         var inner = mesh.He(mesh.Between(e[0], e[1])).Face;
-        // The triangles [e[k-1], mid, e[k]] by k.
-        var triangles = new int[m];
-        for (var k = 0; k < m; k++)
+        HalfEdgeMesh.OpLog?.Invoke(mesh, "CollapseFace", [inner]);
+        var verts = mesh.Loop(inner).Select(h => mesh.He(h).Vertex).ToArray();
+        var cur = verts[0];
+        for (var i = 1; i < verts.Length; i++)
         {
-            var from = e[(k + m - 1) % m];
-            var h = mesh.Between(e[k], from);
-            triangles[k] = mesh.He(h).Face;
-        }
-        var centre = mesh.Vertices.Add(new HalfEdgeMesh.Vertex());
-        var gone = e.ToHashSet();
-        // Each triangle's two outer edges become one edge from the centre.
-        var dead = new List<int>();
-        foreach (var t in triangles)
-        {
-            var loop = mesh.Loop(t).ToList();
-            foreach (var h in loop)
-                dead.Add(h);
-            // loop: e[k-1] -> mid, mid -> e[k], e[k] -> e[k-1] (some rotation)
-            var outer = loop.Where(h => !(gone.Contains(mesh.He(h).Vertex) && gone.Contains(mesh.He(mesh.He(h).Twin).Vertex))).ToList();
-            var o1 = mesh.He(outer[0]).Twin;
-            var o2 = mesh.He(outer[1]).Twin;
-            mesh.He(o1).Twin = o2;
-            mesh.He(o2).Twin = o1;
-            foreach (var h in outer)
-            {
-                // h runs e -> mid: its twin, mid -> e, survives as the mid's outgoing edge.
-                var toMid = mesh.He(h).Vertex;
-                if (!gone.Contains(toMid))
-                    mesh.Vertices[toMid].Out = mesh.He(h).Twin;
-            }
-        }
-        foreach (var h in mesh.Loop(inner).ToList())
-            dead.Add(h);
-        foreach (var handle in mesh.HalfEdges.Handles.ToList())
-        {
-            if (dead.Contains(handle))
+            var edge = mesh.Between(cur, verts[i]);
+            if (edge == HalfEdgeMesh.Null)
                 continue;
-            var he = mesh.He(handle);
-            if (gone.Contains(he.Vertex))
-                he.Vertex = centre;
+            var twin = mesh.He(edge).Twin;
+            if (twin <= edge)
+                edge = twin;
+            var v = Collapse(mesh, edge);
+            if (v == HalfEdgeMesh.Null)
+                break;
+            cur = v;
         }
-        mesh.Vertices[centre].Out = FindOut(mesh, centre, dead);
-        foreach (var h in dead)
-            mesh.HalfEdges.Remove(h);
-        // Faces in the order the edge collapses empty them.
-        for (var i = 1; i < m; i++)
-        {
-            mesh.Faces.Remove(triangles[i - 1]);
-            if (i == m - 2)
-                mesh.Faces.Remove(inner);
-            if (i == m - 1)
-                mesh.Faces.Remove(triangles[m - 1]);
-        }
-        if (m == 2)
-            mesh.Faces.Remove(inner);
-        foreach (var v in e)
-            mesh.Vertices.Remove(v);
-        return centre;
-    }
-
-    private static int FindOut(HalfEdgeMesh mesh, int v, List<int> dead)
-    {
-        foreach (var handle in mesh.HalfEdges.Handles)
-        {
-            if (dead.Contains(handle))
-                continue;
-            var t = mesh.He(handle).Twin;
-            if (t != HalfEdgeMesh.Null && mesh.He(t).Vertex == v)
-                return handle;
-        }
-        return HalfEdgeMesh.Null;
+        return cur;
     }
 
     /// <summary>
@@ -600,6 +561,9 @@ internal static class SubdivisionBake
     /// </summary>
     /// <summary>For tests: the mesh as the vertex merge leaves it.</summary>
     internal static Action<HalfEdgeMesh>? AfterMerge;
+
+    /// <summary>For tests: the mesh as the bake leaves it, before the vertex merge.</summary>
+    internal static Action<HalfEdgeMesh>? BeforeMerge;
 
     /// <summary>
     /// <c>HalfEdge_MergeVertices</c> (1813a8ae0) as the bake wrapper calls it
@@ -665,6 +629,9 @@ internal static class SubdivisionBake
             var sum = new Vector3[clusters.Count];
             var open = new bool[clusters.Count];
             var merged = new bool[list.Count];
+            // The cluster's vertex: its first, then whatever each merge returns (1813a8ae0 passes
+            // 1813a8840's out vertex as the next merge's first argument).
+            var rep = clusters.Select(cl => list[cl[0]]).ToArray();
             for (var c = 0; c < clusters.Count; c++)
             {
                 count[c] = 1;
@@ -679,14 +646,17 @@ internal static class SubdivisionBake
                     if (!open[c])
                         continue;
                     var fails = 0;
-                    var first = list[clusters[c][0]];
                     foreach (var j in clusters[c].Skip(1))
                     {
                         if (merged[j])
                             continue;
                         var other = at[j];
-                        if (MergePair(mesh, first, list[j]))
+                        var collapses = mesh.Between(rep[c], list[j]) != HalfEdgeMesh.Null;
+                        var into = MergePair(mesh, rep[c], list[j]);
+                        HalfEdgeMesh.OpLog?.Invoke(mesh, collapses ? "MergeVertexPair(collapse)" : "MergeVertexPair", [rep[c], list[j], into]);
+                        if (into != HalfEdgeMesh.Null)
                         {
+                            rep[c] = into;
                             sum[c] = new Vector3(other.X + sum[c].X, other.Y + sum[c].Y, other.Z + sum[c].Z);
                             count[c]++;
                             merged[j] = true;
@@ -707,7 +677,7 @@ internal static class SubdivisionBake
             var next = new List<int>();
             for (var c = 0; c < clusters.Count; c++)
             {
-                var first = list[clusters[c][0]];
+                var first = rep[c];
                 var inv = 1f / count[c];
                 mesh.Vertices[first].Position = new Vector3(inv * sum[c].X, inv * sum[c].Y, inv * sum[c].Z);
                 // Valve's merged vertex is new and its old first is gone, so
@@ -731,21 +701,23 @@ internal static class SubdivisionBake
     /// one; otherwise, unless the two share a neighbour (18137e2d0), the two
     /// boundary loops are spliced at the merged vertex. The merged vertex keeps
     /// <paramref name="keep"/>'s handle (Valve's is new; the export numbers
-    /// vertices by first use, so the handle does not show). An edge between
-    /// the two takes the edge collapse (181382170), which is not ported.
+    /// vertices by first use, so the handle does not show). An edge from
+    /// keep to gone (1813937a0) takes the edge collapse instead
+    /// (<see cref="CollapseEdge"/>). Returns the merged vertex, or Null.
     /// </summary>
-    private static bool MergePair(HalfEdgeMesh mesh, int keep, int gone)
+    private static int MergePair(HalfEdgeMesh mesh, int keep, int gone)
     {
         if (keep == gone)
-            return true;
-        if (mesh.Between(keep, gone) != HalfEdgeMesh.Null || mesh.Between(gone, keep) != HalfEdgeMesh.Null)
-            throw new NotSupportedException($"subdivision bake: vertices {keep} and {gone} within 1e-6 share an edge; Valve collapses it (181382170), which is not ported");
+            return keep;
+        var edge = mesh.Between(keep, gone);
+        if (edge != HalfEdgeMesh.Null)
+            return CollapseEdge(mesh, edge, 0.5f);
         var outKeep = BoundaryOut(mesh, keep);
         var outGone = BoundaryOut(mesh, gone);
         if (outKeep == HalfEdgeMesh.Null || outGone == HalfEdgeMesh.Null)
-            return false;
+            return HalfEdgeMesh.Null;
         if (mesh.He(mesh.He(outKeep).Twin).Face == mesh.He(mesh.He(outGone).Twin).Face)
-            return false;
+            return HalfEdgeMesh.Null;
 
         // The far end of one boundary half-edge joined to the other by a
         // boundary edge: zip the two edges.
@@ -753,20 +725,20 @@ internal static class SubdivisionBake
         if (reach != HalfEdgeMesh.Null)
         {
             if (mesh.He(reach).Face != HalfEdgeMesh.Null)
-                return false;
+                return HalfEdgeMesh.Null;
             Zip(mesh, keep, gone, outKeep, reach);
-            return true;
+            return keep;
         }
         reach = mesh.Between(mesh.He(outGone).Vertex, keep);
         if (reach != HalfEdgeMesh.Null)
         {
             if (mesh.He(reach).Face != HalfEdgeMesh.Null)
-                return false;
+                return HalfEdgeMesh.Null;
             Zip(mesh, keep, gone, outGone, reach);
-            return true;
+            return keep;
         }
         if (ShareNeighbour(mesh, keep, gone))
-            return false;
+            return HalfEdgeMesh.Null;
 
         // Splice the boundary loops at the merged vertex.
         var intoKeep = mesh.Previous(outKeep);
@@ -774,7 +746,231 @@ internal static class SubdivisionBake
         mesh.He(intoKeep).Next = outGone;
         mesh.He(intoGone).Next = outKeep;
         Repoint(mesh, gone, keep);
-        return true;
+        return keep;
+    }
+
+    /// <summary>
+    /// CollapseEdge (181383600) over CHalfEdgeMesh's collapse (181382170) for
+    /// half-edge e (A to B), blending at t (0.5 with averaging, 1813a8ae0).
+    /// The link test: for each neighbour X of A (circling A's out half-edges)
+    /// with an edge X to B, the pair must be the other two edges of a
+    /// triangle on e or its twin (either direction), or lie in one such face,
+    /// else nothing changes (Null). Then a new vertex V (18137ad80) takes
+    /// every half-edge into A, then into B (1813ab3b0, V's out the last one
+    /// circled); e and its twin leave their loops (faces' firsts and V's out
+    /// moved to e's next), A and B are freed (1813ae290), e and the twin
+    /// freed in that order (1813ad160 -> 1813997a0); then each side that was
+    /// a triangle, now a two-sided loop, is dissolved (<see cref="DissolveTwoGon"/>,
+    /// e's side first). V's position is the blend of A and B (1813a3d50), and
+    /// a face that survives on either side gets at V the blend of its two old
+    /// corners (1813a3f40: e's face prev(e) then e, the twin's twin then
+    /// prev(twin)), each (b - a) t + a.
+    /// </summary>
+    private static int CollapseEdge(HalfEdgeMesh mesh, int e, float t)
+    {
+        const int Null = HalfEdgeMesh.Null;
+        var twin = mesh.He(e).Twin;
+        int a = mesh.He(twin).Vertex, b = mesh.He(e).Vertex;
+        int fE = mesh.He(e).Face, fT = mesh.He(twin).Face;
+        // The snapshots, taken before anything moves.
+        var position = HalfEdgeMesh.Lerp(mesh.Vertices[a].Position, mesh.Vertices[b].Position, t);
+        int ePrev = mesh.Previous(e), tPrev = mesh.Previous(twin);
+        var cornerE = (Paint: HalfEdgeMesh.Lerp(mesh.He(ePrev).Paint, mesh.He(e).Paint, t), Data: HalfEdgeMesh.Lerp(mesh.He(ePrev).Data, mesh.He(e).Data, t));
+        var cornerT = (Paint: HalfEdgeMesh.Lerp(mesh.He(twin).Paint, mesh.He(tPrev).Paint, t), Data: HalfEdgeMesh.Lerp(mesh.He(twin).Data, mesh.He(tPrev).Data, t));
+        // The bake's write stamp of the new vertex: the first argument's, as the merge path keeps it.
+        var written = mesh.Vertices[a].Written;
+        // The collapse itself runs on the pair's lower half-edge handle (181383600: the twin when its
+        // index is not above e's, as 1810a8520 picks), the snapshots on e as given.
+        var v = Collapse(mesh, twin <= e ? twin : e);
+        if (v == Null)
+            return Null;
+        mesh.Vertices[v].Position = position;
+        mesh.Vertices[v].Written = written;
+        // The write-back of the corner snapshots where the faces survive (18138be80).
+        if (fE != Null && mesh.Faces.Alive(fE) && mesh.Corner(fE, v) is var ce && ce != Null)
+            (mesh.He(ce).Paint, mesh.He(ce).Data) = cornerE;
+        if (fT != Null && mesh.Faces.Alive(fT) && mesh.Corner(fT, v) is var ct && ct != Null)
+            (mesh.He(ct).Paint, mesh.He(ct).Data) = cornerT;
+        return v;
+    }
+
+    /// <summary>181382170, CHalfEdgeMesh's edge collapse (the topology of <see cref="CollapseEdge"/>, no attributes).</summary>
+    private static int Collapse(HalfEdgeMesh mesh, int e)
+    {
+        const int Null = HalfEdgeMesh.Null;
+        var twin = mesh.He(e).Twin;
+        int a = mesh.He(twin).Vertex, b = mesh.He(e).Vertex;
+        int fE = mesh.He(e).Face, fT = mesh.He(twin).Face;
+        int eN = Null, eP = Null, tN = Null, tP = Null;
+        if (mesh.He(mesh.He(mesh.He(e).Next).Next).Next == e)
+            (eN, eP) = (mesh.He(e).Next, mesh.He(mesh.He(e).Next).Next);
+        if (mesh.He(mesh.He(mesh.He(twin).Next).Next).Next == twin)
+            (tN, tP) = (mesh.He(twin).Next, mesh.He(mesh.He(twin).Next).Next);
+
+        var start = mesh.Vertices[a].Out;
+        var h = start;
+        do
+        {
+            var found = mesh.Between(mesh.He(h).Vertex, b);
+            if (found != Null)
+            {
+                int ht = mesh.He(h).Twin, ft = mesh.He(found).Twin;
+                var matched = (h == eN && found == eP) || (h == eP && found == eN) || (h == tN && found == tP) || (h == tP && found == tN)
+                              || (ft == eN && ht == eP) || (ft == eP && ht == eN) || (ft == tN && ht == tP) || (ft == tP && ht == tN);
+                if (!matched)
+                {
+                    int hf = mesh.He(h).Face, ff = mesh.He(found).Face;
+                    var inFace = hf == ff && hf != Null && ((hf == fE && (h == eN || h == eP)) || (hf == fT && (h == tN || h == tP)));
+                    if (!inFace)
+                    {
+                        int tf = mesh.He(ft).Face, htf = mesh.He(ht).Face;
+                        if (tf != htf || tf == Null)
+                            return Null;
+                        if (!((tf == fE && (ft == eN || ft == eP)) || (tf == fT && (ft == tN || ft == tP))))
+                            return Null;
+                    }
+                }
+            }
+            h = mesh.He(mesh.He(h).Twin).Next;
+        }
+        while (h != start);
+
+        var v = mesh.Vertices.Add(new HalfEdgeMesh.Vertex());
+        Replace(a);
+        Replace(b);
+        int eNext = mesh.He(e).Next, ePrev = mesh.Previous(e), tNext = mesh.He(twin).Next, tPrev = mesh.Previous(twin);
+        mesh.He(tPrev).Next = tNext;
+        mesh.He(ePrev).Next = eNext;
+        if (fE != Null)
+            mesh.Faces[fE].First = eNext;
+        if (fT != Null)
+            mesh.Faces[fT].First = tNext;
+        if (mesh.Vertices[v].Out == e || mesh.Vertices[v].Out == twin)
+            mesh.Vertices[v].Out = eNext;
+        mesh.Vertices.Remove(a);
+        mesh.Vertices.Remove(b);
+        mesh.HalfEdges.Remove(e);
+        mesh.HalfEdges.Remove(twin);
+        DissolveTwoGon(mesh, eN, eP);
+        DissolveTwoGon(mesh, tN, tP);
+        // 1813adf00 on both faces: a surviving face with a loop that doubles back on itself.
+        foreach (var f in new[] { fE, fT })
+            if (f != Null && mesh.Faces.Alive(f) && mesh.Loop(f).Any(x => mesh.He(x).Next == mesh.He(x).Twin))
+                throw new NotSupportedException("subdivision bake: an edge collapse leaves a face folded on itself (1813adf00 -> 1813ad160), which is not ported");
+        return v;
+
+        void Replace(int old)
+        {
+            var first = mesh.Vertices[old].Out;
+            var o = first;
+            do
+            {
+                mesh.He(mesh.He(o).Twin).Vertex = v;
+                mesh.Vertices[v].Out = o;
+                o = mesh.He(mesh.He(o).Twin).Next;
+            }
+            while (o != first);
+        }
+    }
+
+    /// <summary>
+    /// 1813a71a0: a two-sided loop p (u to w), q (w to u), p.next q and q.next
+    /// p in one face, with twins p' and q' distinct, is dissolved. The face is
+    /// cleared and freed (181389630, 1813aca90). A new pair n1, n2
+    /// (18137a900, n1 allocated first) takes p''s and q''s places: n1 copies
+    /// p''s vertex, next and face, the half-edge before p' now leads to n1,
+    /// n1's end vertex leaves by n2, and n1 becomes its face's first where p'
+    /// was; then n2 likewise from q'. p, p', q, q' are freed in that order
+    /// (1813997a0 twice). A pair left with no face on either side or doubling
+    /// back on itself goes too (1813ad160), which is refused here. The pair's
+    /// edge data and corners come through the mesh's attribute observer
+    /// (+0xc0 vf 0x10 with p' and q'), taken here as n1 from p', n2 from q'.
+    /// </summary>
+    /// <summary>
+    /// RemoveFace (1813acf00 -> 1813aca90, orphans removed): the face's loop
+    /// is listed from its first; each half-edge in turn loses the face, and
+    /// when its twin has no face either the edge goes, removed from the twin's
+    /// side (<see cref="RemoveFreeEdge"/> on the twin); then the face is freed.
+    /// </summary>
+    private static void RemoveFace(HalfEdgeMesh mesh, int face)
+    {
+        foreach (var h in mesh.Loop(face).ToArray())
+        {
+            mesh.He(h).Face = HalfEdgeMesh.Null;
+            if (mesh.He(mesh.He(h).Twin).Face == HalfEdgeMesh.Null)
+                RemoveFreeEdge(mesh, mesh.He(h).Twin);
+        }
+        mesh.Faces.Remove(face);
+    }
+
+    /// <summary>
+    /// 1813ad160 for an edge with no face on either side, orphans removed:
+    /// each half (h, then its twin; 1813892f0) leaves its origin's fan. When
+    /// the twin's next is h the origin keeps no edge: its out is cleared and
+    /// the vertex freed (1813ae290). Otherwise the half-edge before h now
+    /// leads to the twin's next, which becomes the origin's out, and the
+    /// twin's next becomes h. Then h and its twin are freed (1813997a0).
+    /// </summary>
+    private static void RemoveFreeEdge(HalfEdgeMesh mesh, int h)
+    {
+        var t = mesh.He(h).Twin;
+        void Unlink(int x, int xt)
+        {
+            var origin = mesh.He(xt).Vertex;
+            if (mesh.He(xt).Next == x)
+            {
+                mesh.Vertices[origin].Out = HalfEdgeMesh.Null;
+                mesh.Vertices.Remove(origin);
+                return;
+            }
+            var before = mesh.Previous(x);
+            mesh.He(before).Next = mesh.He(xt).Next;
+            mesh.Vertices[origin].Out = mesh.He(xt).Next;
+            mesh.He(xt).Next = x;
+        }
+        Unlink(h, t);
+        Unlink(t, h);
+        mesh.HalfEdges.Remove(h);
+        mesh.HalfEdges.Remove(t);
+    }
+
+    private static void DissolveTwoGon(HalfEdgeMesh mesh, int p, int q)
+    {
+        const int Null = HalfEdgeMesh.Null;
+        if (p == Null || q == Null || !mesh.HalfEdges.Alive(p) || !mesh.HalfEdges.Alive(q))
+            return;
+        if (mesh.He(p).Next != q || mesh.He(q).Next != p || mesh.He(p).Face != mesh.He(q).Face)
+            return;
+        int pt = mesh.He(p).Twin, qt = mesh.He(q).Twin;
+        if (mesh.He(pt).Vertex != mesh.He(q).Vertex || mesh.He(qt).Vertex != mesh.He(p).Vertex || pt == qt)
+            return;
+        var face = mesh.He(p).Face;
+        if (face != Null)
+        {
+            foreach (var x in mesh.Loop(face).ToArray())
+                mesh.He(x).Face = Null;
+            mesh.Faces.Remove(face);
+        }
+        var (n1, n2) = mesh.NewPair();
+        void Take(int n, int old, int other)
+        {
+            var src = mesh.He(old);
+            var dst = mesh.He(n);
+            (dst.Vertex, dst.Next, dst.Face) = (src.Vertex, src.Next, src.Face);
+            (dst.Paint, dst.Data, dst.Flags, dst.Added) = (src.Paint, src.Data, src.Flags, src.Added);
+            mesh.He(mesh.Previous(old)).Next = n;
+            mesh.Vertices[dst.Vertex].Out = other;
+            if (dst.Face != Null && mesh.Faces[dst.Face].First == old)
+                mesh.Faces[dst.Face].First = n;
+        }
+        Take(n1, pt, n2);
+        Take(n2, qt, n1);
+        mesh.HalfEdges.Remove(p);
+        mesh.HalfEdges.Remove(pt);
+        mesh.HalfEdges.Remove(q);
+        mesh.HalfEdges.Remove(qt);
+        if ((mesh.He(n1).Face == Null && mesh.He(n2).Face == Null) || mesh.He(n1).Next == n2 || mesh.He(n2).Next == n1)
+            throw new NotSupportedException("subdivision bake: a dissolved two-sided loop leaves a free or folded edge (1813a71a0 -> 1813ad160), which is not ported");
     }
 
     // Two boundary half-edges, first (u to x) then second (x to w), with u
