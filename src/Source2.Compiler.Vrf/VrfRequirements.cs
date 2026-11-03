@@ -45,6 +45,10 @@ public static class VrfRequirements
         "vrf-vbib-serialize-passthrough",
         // Reading community content: an all-bits UInt64 mesh-group mask.
         "vrf-kv3-integer-array-unchecked-uint64",
+        // Reading what tier0 writes since 20261015 (and this library's writer too): an unsigned 0
+        // or 1 as KV3 types 26 / 27.
+        "vrf-kv3-uint32-zero-one-enum",
+        "vrf-kv3-uint32-zero-one-read",
         // Guards, because this compiler is driven by files strangers upload.
         "vrf-kv3-depth-guard-field",
         "vrf-kv3-depth-guard-readbinaryvalue",

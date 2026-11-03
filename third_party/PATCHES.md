@@ -2,7 +2,7 @@
 
 `third_party/ValveResourceFormat/` is not committed. `dotnet run tools/vendor.cs`
 fetches the exact upstream commit pinned in [`VENDORED.json`](VENDORED.json) and
-then applies the thirteen patches in [`patches/`](patches/) to it.
+then applies the patches in [`patches/`](patches/) to it.
 
 Each patch is a literal find-and-replace against one file. The `find` snippet
 must occur **exactly once** in the pristine upstream file; zero matches or more
@@ -45,6 +45,18 @@ upstream's own `GetUnsignedIntegerArray` already handles it. Still needed at
 `d9926fcb`: `GetIntegerArray` became `GetArray<long>`, which goes through
 `Convert.ChangeType` on a ValveKeyValue `KVObject`, and that still throws on
 `UInt64.MaxValue` (checked with ValveKeyValue 0.71.0.528).
+
+| id | file |
+|---|---|
+| `vrf-kv3-uint32-zero-one-enum` | `Resource/ResourceTypes/BinaryKV3.NodeType.cs` |
+| `vrf-kv3-uint32-zero-one-read` | `Resource/ResourceTypes/BinaryKV3.cs` |
+
+tier0 20261015 added two binary KV3 node types, UINT32_ZERO (26) and UINT32_ONE (27),
+with no payload and only from format 5 (reader 1800c4120); its writer (1800c5f60) picks
+them for every unsigned 0 and 1, where earlier builds wrote INT64_ZERO / INT64_ONE. Every
+resource Valve compiles since carries them in RED2 (file CRCs, fingerprints, user data),
+and so does this library's writer, so VRF needs them to read either. Taken from the map
+branch's patches (research/map-authoring 4075e18).
 
 ### Writing other block types
 

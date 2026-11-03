@@ -184,6 +184,22 @@
       "find": "vrf-rerl-count-guard.find.txt",
       "replace": "vrf-rerl-count-guard.replace.txt",
       "description": "Refuse a RERL entry count larger than its block can hold (16 bytes an entry) before ResourceRefInfoList.EnsureCapacity reserves space for it. SECURITY (s2c fuzz, 2026-10-13): a mutated vpcf_c reserved gigabytes from one hostile count. Raises InvalidDataException."
+    },
+    {
+      "id": "vrf-kv3-uint32-zero-one-enum",
+      "clone": "vrf",
+      "file": "ValveResourceFormat/Resource/ResourceTypes/BinaryKV3.NodeType.cs",
+      "find": "vrf-kv3-uint32-zero-one-enum.find.txt",
+      "replace": "vrf-kv3-uint32-zero-one-enum.replace.txt",
+      "description": "KV3 binary node types 26 and 27, UINT32_ZERO and UINT32_ONE (no payload, format 5 on): tier0's reader 1800c4120 (20261015 build) makes an unsigned 0 or 1 of them, and its writer chooses them for every unsigned 0 and 1 (1800c5f60), where earlier builds wrote INT64_ZERO and INT64_ONE. Without them every resource Valve compiles from 2026-10-15 on fails to read. Taken from research/map-authoring (4075e18)."
+    },
+    {
+      "id": "vrf-kv3-uint32-zero-one-read",
+      "clone": "vrf",
+      "file": "ValveResourceFormat/Resource/ResourceTypes/BinaryKV3.cs",
+      "find": "vrf-kv3-uint32-zero-one-read.find.txt",
+      "replace": "vrf-kv3-uint32-zero-one-read.replace.txt",
+      "description": "As vrf-kv3-uint32-zero-one-enum: the reader returns an unsigned 0 or 1 for the two types."
     }
   ]
 }
