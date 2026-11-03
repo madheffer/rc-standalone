@@ -3,7 +3,7 @@
 What waits for CS2 to be closed, in the order to take it. Everything else is done with CS2 open: decompiles,
 ports and offline tests ([HANDOFF.md](HANDOFF.md) "Rules"). Run heavy jobs through `tools/re/heavy.py`, delete any
 crash dumps the game or resourcecompiler leaves, and kill everything you started when done. Each item names the
-ledger or doc that is waiting for its result. Last updated 2026-11-02.
+ledger or doc that is waiting for its result. Last updated 2026-11-04.
 
 Steam has to be closed too for anything run in cubehost (part B). Part A needs only CS2 closed; A.1's in-game
 step needs Steam open, since it launches the game.
@@ -29,7 +29,9 @@ heavy runs with the game open at below-normal priority):
    magenta, wrong reflections and broken triggers. Report what the game showed.
 2. ~~Steam Audio's reverb through compile-map's builder~~ (ledger 199): done 2026-11-02 with CS2 open. 73 probes,
    the only differing probe the Embree tie (65), as SaprobeReverbFromTheMap.
-3. **The colour-adjust specimen, Valve's compile** (ledger 197; nothing measured yet for a contrast other than 1
+3. ~~The colour-adjust specimen, Valve's compile~~ (done 2026-11-04, ledger 197: %TEMP%/fresh_compile/s2c_coloradjust.vpk
+   and its job; capture_host.py showed vrad3 bakes the constant colour matrix; ours now equals every lighting file).
+   Was: (ledger 197; nothing measured yet for a contrast other than 1
    or a coloured tint). The specimen is made: `content/csgo_addons/s2c_rc_probe/maps/s2c_coloradjust.vmap`
    (`tools/cubehost/coloradjust_specimen.py`: probe01 with cobblestone_ground_large_1 and italy_cobblestone_01).
    ```
@@ -55,7 +57,8 @@ heavy runs with the game open at below-normal priority):
    these shaders. Then the same for one csgo_environment_blend material with a transform (a specimen like
    coloradjust_specimen.py, e.g. materials/concrete/vertigo_concretefloorc_blend.vmat).
 
-8. **Subdivided entries' tangents** (ledger 38; 24 of 538 atixref entries differ by tangents alone). Frida on a
+8. ~~Subdivided entries' tangents~~ (done 2026-11-04, ledger 38: capture_subdivtangents.py showed the bake makes the +0;
+   1813b82f0's lerp * weight + grid, ported; 103,887 of 103,887 corners). Was: (ledger 38; 24 of 538 atixref entries differ by tangents alone). Frida on a
    standalone resourcecompiler (not cubehost) compiling atixref `-world -fshallow` (compile_fresh.py pattern, package
    backed up and cmp-restored as capture_texcoordtransform.py does). Find the 1103 addresses of
    HammerMesh_BakeAllSubdivision (0923 1810c6520, called in ConvertMeshForBuilder when 1813c83d0 says the mesh has
@@ -76,7 +79,11 @@ heavy runs with the game open at below-normal priority):
 
 ## B. CS2 and Steam closed (cubehost)
 
-1. **The colour-adjust cubes** (after A.3): `python tools/cubehost/run_probe.py --map s2c_coloradjust --out
+1. ~~The colour-adjust cubes~~ (done 2026-11-04): three cubehost runs of Valve's s2c_coloradjust package
+   (%TEMP%/cubehost_run/coloradjust_int, _int2, _int3) give three different arrays: the two map materials' seams
+   follow their heap order (CUBEMAPS "The order within a layer"), up to 2,214 pixels a face. Our build-cubemaps of the
+   same package: every pixel equals one of the runs, and every pixel the runs agree on is exact (the variance
+   rule). Was: (after A.3): `python tools/cubehost/run_probe.py --map s2c_coloradjust --out
    coloradjust`, then a second run with `--renderdoc 1`. Compare the EXRs with our render
    (`CubemapFaceRenderer`; tools/cubehost/exr_diff.py) and the csgo_environment `$Globals` with the capture
    (`CUBEREPLAY_MATERIAL`, CubemapFaceInputsProbe.MaterialGlobals). This checks ColorMatrices' HSV path and

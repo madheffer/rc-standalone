@@ -54,7 +54,7 @@ public sealed class CubemapFaceInputsProbe(ITestOutputHelper output)
         output.WriteLine($"{program.Name}: SPIR-V {(program.Spirv.AsSpan().SequenceEqual(captured) ? "equals" : "DIFFERS from")} the capture's module");
         var attributes = (Environment.GetEnvironmentVariable("CUBEREPLAY_ATTRS") ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries)
             .Select(a => a.Split('=')).ToDictionary(a => a[0], a => Gpu.VfxExpression.Value.Of(float.Parse(a[1], System.Globalization.CultureInfo.InvariantCulture)));
-        var ours = new byte[128];
+        var ours = new byte[Math.Max(128, program.Constants.Select(c => c.Offset + 64).DefaultIfEmpty(0).Max())];
         var idColors = Gpu.ProgramGlobals.ShaderIdColors(File.ReadAllText(Path.Combine(game, "csgo", "gameinfo.gi")));
         var (r, g, b) = idColors.GetValueOrDefault(mat.ShaderName, (0, 0, 0));
         var asked = new AskedAttributes(attributes);

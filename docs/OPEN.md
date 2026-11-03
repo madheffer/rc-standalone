@@ -11,16 +11,13 @@ Valve's own run-to-run heap order where it is proven (settle, the far field dila
 
 ## 1. World geometry
 
-Changed since the audit: **1.c1 subdivided tangents** is mostly closed (ledger 38, f01a454). The bake's
-tangent stream is the patch evaluator's mode 3 output; the normal grid (1813c3cf0) and the tangent grid
-(1813c2090) are bit for bit on all 1,183 captured atixref patches, and at HammerMesh_TransformToWorld 103,161
-of 103,887 corners match (was 84,443).
+Changed since the audit: **1.c1 subdivided tangents is closed** (ledger 38, f01a454 and d2fe461, 11-04). The
+bake's tangent stream is the patch evaluator's mode 3 output, and the patch builder 1813b82f0 writes every
+face-vertex float as lerp * weight + grid (1813c83f0: weight 0 for a grid, 1 and a +0.0f for a stream with
+none), which is what turns the flat meshes' -0 into +0. atixref at HammerMesh_TransformToWorld: 103,887 of
+103,887 corners (capture_subdivtangents.py on rc 1103, CS2 closed).
 
 Open:
-- 1.c1 rest: 726 corners on flat subdivided meshes (atixref 1367, 1372-1380, 6778, 6781) have -0 where Valve's
-  mesh has +0. Valve's grids give the same -0, so a step after the grid write changes it; AddEdgeToFace and its
-  listener copies (1813b2a40 -> 181387c70) are plain copies, so it is elsewhere. Next: a capture of each
-  corner's face-vertex slot and tangent after 1813baa40 on node 1375 (CS2 closed).
 - 1.c2 overlay tangents (about 30 small atixref models, packed NORMAL holds a default tangent).
 - 1.c3 95 agg_prop models' tangent angle (Valve's encoder NaN path vs ours, a last-bit source difference).
 - 1.c4 two agg_nomerge aggregates' later meshlets; 1.c5 the missing-material rule (cardtest teleport02).
@@ -59,13 +56,18 @@ output; 5.b1 / 5.b2 entity list layouts that refuse.
 
 ## 6. Own lighting
 
-ze_hold_em_p's lit package is 55 of 56 on the same driver (the .vwrld stamp). Open: 6.c6 -s2cbake not compared
-on cardtest, c2m2 and atixref; 6.a1 / 6.a2 the material block layout is measured; 6.a3 half rounding in
-lightmap_image_save; 6.b1 hit groups not transpiled refuse; 6.b3-6.b7 unported vrad3 features; 6.c4 one probe
-volume band; 6.c5 s2c_coloradjust (CS2_CLOSED_QUEUE A.3).
-Uncommitted on research/map-authoring, not verified yet: the sky branches in SceneLights, QUAD and TUBE light
-read-back (Lighting/Bake/Light.cs), PathTraceProps' lodlevel grouping. Waiting runs: atixref with a longer
-timeout, prefabprobe5 and probe_classes without nav, the sky specimens s2c_skytint / s2c_skylightonly.
+ze_hold_em_p's lit package is 55 of 56 on the same driver (the .vwrld stamp). Done 11-04 (CS2 closed, against
+Valve's compiles on the 11-01 driver): the sky light's tinted env_sky, sky_lightingonly_name and uniform sky
+colour, QUAD and TUBE lights and lodlevel props (ea32f68): scene_info.kv3 byte for byte on s2c_skytint,
+s2c_skylightonly, probe_classes, s2c_prefabprobe5, atixref and s2c_coloradjust, and with -s2cbake every
+lighting file of s2c_skytint, probe_classes and s2c_coloradjust is Valve's. The colour adjust (ledger 197,
+68e77a7): vrad3's material block holds the rtx program's constant g_mTextureColorAdjust1, which the static
+combo binds; ours took the artist one by name.
+
+Open: 6.c6 -s2cbake not compared on c2m2; s2c_prefabprobe5's lighting differs where its world geometry does
+(scene_meshes.kv3 and the packing differ with it: 1.c5's teleport02 and two agg_merge models); 6.a1 / 6.a2 the
+material block layout is measured; 6.a3 half rounding in lightmap_image_save; 6.b1 hit groups not transpiled
+refuse; 6.b3-6.b7 unported vrad3 features; 6.c4 one probe volume band.
 
 ## 7. Baked outputs (nav, bomb damage, cubemaps, Steam Audio)
 
