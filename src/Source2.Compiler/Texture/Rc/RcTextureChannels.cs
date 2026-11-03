@@ -55,6 +55,7 @@ internal static class RcTextureChannels
         ["FillToPowerOfTwo"] = [("Image FillToPowerOfTwo", 1)],
         ["FillToMultipleOfFour"] = [("Image FillToPowerOfTwo", 1)],
         ["HeightToNormal"] = [("Image HeightToNormal", 1)],
+        ["DilateColorInTransparentPixels"] = [("Image Dilate Color", 1)],
     };
 
     // Box-family mip algorithms: the 2x2 box chain; MipNormal is the Box chain under another name
@@ -72,7 +73,7 @@ internal static class RcTextureChannels
             "HemiOctIsoRoughness_RG_B", "AnisoRoughness_RG", "HemiOctAnisoRoughness", "ArtistDefinedOrAlphaWeighted", "None", "BoxInverse", "PreserveCoverage",
             "MultiplyBox", "MultiplyNoMip", "MipWidth", "MipHeight", "MipDepth", "RGBM", "HemiOctAnisoRoughness_RG_BA", "AlphaWeighted", "HemiOctNormal",
         };
-    private static readonly HashSet<string> Processors = new(StringComparer.OrdinalIgnoreCase) { "NormalizeNormals", "Inverse", "Mod2XCenter", "EncodeRGBM", "ConvertToYCoCg", "ScaleToPowerOfTwo", "FillToPowerOfTwo", "FillToMultipleOfFour", "HeightToNormal" };
+    private static readonly HashSet<string> Processors = new(StringComparer.OrdinalIgnoreCase) { "NormalizeNormals", "Inverse", "Mod2XCenter", "EncodeRGBM", "ConvertToYCoCg", "ScaleToPowerOfTwo", "FillToPowerOfTwo", "FillToMultipleOfFour", "HeightToNormal", "DilateColorInTransparentPixels" };
 
     /// <summary>The special dependencies a texture's mip algorithms and image processors add.</summary>
     /// <param name="texture">Inputs and channel groups.</param>
@@ -146,6 +147,7 @@ internal static class RcTextureChannels
                     "filltopoweroftwo" => RcImageProcessors.FillToPowerOfTwo(level),
                     "filltomultipleoffour" => RcImageProcessors.FillToMultipleOfFour(level),
                     "heighttonormal" => RcImageProcessors.HeightToNormal(level),
+                    "dilatecolorintransparentpixels" => RcImageProcessors.DilateColorInTransparentPixels(level),
                     _ => level,
                 };
                 loaded[key] = level;

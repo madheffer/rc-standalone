@@ -287,9 +287,21 @@ by 4 (B 24) or 2 (B 8) when its largest |chroma - 128| is under 32 or 64, then l
 (180c3f4e0's last argument 1; 2 would be the gamma table) whatever the input's colour space:
 `ycocg_rgba`, `ycocg_srgb_rgba`, `ycocg_dxt5`. `EncodeRGBM` (180142040, "Image Encode RGBM" 1): the
 RGBM mip encode on the loaded image: `encodergbm_rgba`.
-Not ported: HeightToNormal (180141080), FillToPowerOfTwo (180140550), FillToMultipleOfFour (180140ae0),
-ScaleToPowerOfTwo, DilateColorInTransparentPixels (180141be0), UniformRandom (no CS2 shader names them;
-probes in algorithms2).
+`ScaleToPowerOfTwo` (inline in 18013f300): an NPOT 2D frame resampled to the next powers of two with
+clamping; its entry is registered only when it resizes, and the scaled size is what the fill record
+compares with, so it writes none (`scalepow2_rgba`). `FillToPowerOfTwo` (180140550) and
+`FillToMultipleOfFour` (180140ae0, sides grow by 3, 2, 1 for remainders 1, 2, 3; it registers the same
+"Image FillToPowerOfTwo" entry): the frame in the top left, edges extended, and a fill record with the
+original size (`fillpow2_rgba`, `fillmult4_rgba`). `HeightToNormal` (180141080): a wrapping 3x3 Sobel on
+channel 0 with the disassembly's grouping (a doubled term added once), the gradient clamped to unit
+length, `(dx, dy, sqrt(1 - |g|^2)) * 0.5 + 0.5` in an RGB-only frame (`heighttonormal_rgb`).
+`DilateColorInTransparentPixels` (180141be0): a pixel with alpha exactly 0 takes the mean colour of its
+clamped 3x3 neighbours with alpha not 0 (`dilate_rgba`, `dilate_rgb`).
+A group reading a channel its frame does not hold (alpha after HeightToNormal, anything but red after
+MipSize) is refused: RC's copy reads past the channel's storage (`heighttonormal_rgba`, `mipwidth_rgba`).
+Not ported: UniformRandom (180140320: Valve's SIMD lagged-Fibonacci stream, 182066650 / 182066560, seeded by
+MurmurHash2 with 0x3501a674 of a string the compile context returns through vtable +0x170, which is not
+identified yet).
 
 ## Output formats
 

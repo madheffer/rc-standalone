@@ -207,4 +207,42 @@ public static class RcImageProcessors
             }
         return new RcMipChain.Level(w, h, o);
     }
+
+    /// <summary>
+    /// <c>DilateColorInTransparentPixels</c> (180141be0, "Image Dilate Color" 1), in place over a
+    /// four-channel frame: a pixel whose alpha is exactly 0 takes the mean colour of its 3x3
+    /// neighbours (coordinates clamped to the frame, rows outer, columns inner) whose alpha is not
+    /// 0, when there is one; alpha is never changed, so the pixels already filled do not count.
+    /// </summary>
+    public static RcMipChain.Level DilateColorInTransparentPixels(RcMipChain.Level level)
+    {
+        int w = level.Width, h = level.Height;
+        var o = (float[])level.Rgba.Clone();
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                if (o[(y * w + x) * 4 + 3] != 0f)
+                    continue;
+                float n = 0f, r = 0f, g = 0f, b = 0f;
+                for (int dy = -1; dy < 2; dy++)
+                    for (int dx = -1; dx < 2; dx++)
+                    {
+                        int nx = Math.Clamp(x + dx, 0, w - 1), ny = Math.Clamp(y + dy, 0, h - 1);
+                        int at = (ny * w + nx) * 4;
+                        if (o[at + 3] != 0f)
+                        {
+                            n += 1f;
+                            r += o[at];
+                            g += o[at + 1];
+                            b += o[at + 2];
+                        }
+                    }
+                if (0f < n)
+                {
+                    int at = (y * w + x) * 4;
+                    (o[at], o[at + 1], o[at + 2]) = (r / n, g / n, b / n);
+                }
+            }
+        return new RcMipChain.Level(w, h, o);
+    }
 }

@@ -136,6 +136,8 @@ public class VtexCompilerTests
     [InlineData("fillpow2_rgba")]
     [InlineData("fillmult4_rgba")]
     [InlineData("heighttonormal_rgb")]
+    [InlineData("dilate_rgba")]
+    [InlineData("dilate_rgb")]
     [InlineData("mipwidth_r")]
     [InlineData("mipheight_r")]
     [InlineData("mipdepth_r")]
