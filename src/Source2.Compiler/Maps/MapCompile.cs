@@ -352,6 +352,7 @@ public static class MapCompile
             log.WriteLine($"  physics: {world.ModelPath}, {world.ManifestPath}");
         }
         NavCompile.Nav? generatedNav = null;
+        var navSkipped = false;
         if (steps.Contains("nav"))
         {
             // resourcecompiler's nav step (1800fc370): no point_nav_walkable seeds and no
@@ -373,6 +374,7 @@ public static class MapCompile
                 catch (NotSupportedException ex) when (skipUnported)
                 {
                     log.WriteLine($"  skipped (not ported): nav generation ({ex.Message})");
+                    navSkipped = true;
                 }
             }
         }
@@ -405,7 +407,12 @@ public static class MapCompile
             if (sites.Count > 0)
             {
                 if (!entries.TryGetValue(navPath, out var navBytes) || !entries.TryGetValue(physicsPath, out var physicsBytes))
+                {
+                    // --skip-unported: a nav it skipped leaves bomb damage nothing to sample, so that is skipped too.
+                    if (navSkipped && !entries.ContainsKey(navPath))
+                        throw new NotSupportedException("the nav it samples was skipped");
                     return Fail(log, $"bomb damage: the package has no {navPath} or {physicsPath} to sample");
+                }
                 var areas = generatedNav is { } nav ? NavCompile.Areas(nav.Mesh) : NavCompile.Areas(navBytes);
                 var file = NavCompile.BombDamageFile(areas, sites, NavCompile.World(physicsBytes), addon, map)!;
                 entries[$"maps/{map}/baked_bomb_damage.vdata_c".ToLowerInvariant()] = file;
