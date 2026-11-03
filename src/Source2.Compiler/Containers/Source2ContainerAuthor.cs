@@ -431,6 +431,10 @@ public static partial class Source2ContainerAuthor
             noExt + ".mp3",
             noExt + ".rts",
             noExt + ".txt",
+            // Since a 10-2x build: sounds/s2cprobe/t.wav compiled by RC 1.41.9.5 on 11-03 also
+            // records an absent t.vmix (the build that added vmix sound containers, see
+            // ResourceBuilder.ModernizeVsnd). Where RC lists the siblings is not located yet.
+            noExt + ".vmix",
             noExt + ".vsnd",
         ];
     }

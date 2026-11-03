@@ -67,6 +67,18 @@ public class ResourceCompilerTests
         Assert.Equal("panorama/images/x.svg", result.InputDependencies[0].Path);
     }
 
+    // RcReference/sounds/t.wav compiled by RC 1.41.9.5 on 11-03 in vpkstuff_rc_probe: the v5
+    // layout with the 20261023 schema's CTRL and the .vmix sibling probe.
+    [Fact]
+    public void Wav_CompilesToResourceCompilersBytes()
+    {
+        var result = ResourceCompiler.CreateDefault().Compile(new CompileRequest("sounds/s2cprobe/t.wav",
+            File.ReadAllBytes(RcReference("sounds/t.wav"))) { SearchPath = "csgo_addons/vpkstuff_rc_probe" });
+        Assert.True(result.Succeeded, string.Join("\n", result.Diagnostics));
+        Assert.Equal("sounds/s2cprobe/t.vsnd_c", result.OutputPath);
+        Assert.Equal(File.ReadAllBytes(RcReference("sounds/t.vsnd_c")), result.Output);
+    }
+
     // RcReference/panorama/t.svg compiled by RC on 11-03 in vpkstuff_rc_probe: the file's bytes
     // stored as they are (rc 18015e2d0), RED2 with its CRC.
     [Fact]

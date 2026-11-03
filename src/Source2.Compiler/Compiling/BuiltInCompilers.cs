@@ -20,7 +20,9 @@ public sealed class Kv3DocumentCompiler : IResourceCompiler
 /// <param name="Template">A <c>.vsnd_c</c> whose container frame to keep, or null to author one.</param>
 public sealed record SoundSettings(byte[]? Template = null);
 
-/// <summary>PCM WAV to <c>.vsnd_c</c> (same path, <c>.vsnd_c</c>).</summary>
+/// <summary>PCM WAV to <c>.vsnd_c</c> (same path, <c>.vsnd_c</c>), in the version 5 layout
+/// resourcecompiler writes (RED2, an empty DATA, the CVoiceContainerDefault CTRL;
+/// <see cref="ResourceBuilder.ModernizeVsnd"/>).</summary>
 public sealed class SoundCompiler : IResourceCompiler
 {
     /// <inheritdoc/>
@@ -31,7 +33,8 @@ public sealed class SoundCompiler : IResourceCompiler
 
     /// <inheritdoc/>
     public CompileOutput Compile(CompileRequest request, ICollection<CompileDiagnostic> diagnostics)
-        => new(ResourceBuilder.BuildSound((request.Settings as SoundSettings)?.Template, request.Source, request.SourcePath, request.SearchPath));
+        => new(ResourceBuilder.ModernizeVsnd(
+            ResourceBuilder.BuildSound((request.Settings as SoundSettings)?.Template, request.Source, request.SourcePath, request.SearchPath)));
 }
 
 /// <summary>Settings for <see cref="VectorGraphicCompiler"/>.</summary>

@@ -98,10 +98,12 @@ Also measured on 11-03 against fresh compiles of the probe addon's own sources:
   the source buffer into the Panorama writer 1800f6960) and records their CRC. The facade's
   `VectorGraphicCompiler` now does too (`panorama/t.svg` byte for byte); the Panorama
   normalization the in-house builder applies is `VectorGraphicSettings.Sanitize`.
-- `.wav`: not matched. RC writes the v5 layout `ModernizeVsnd` makes (RED2, an empty DATA,
-  CTRL), but its CTRL now has five members, `m_bRegisteredVMix` and `m_nResourceName` among them
-  (the strings first appear in the 20261023 build; the Ghidra project's 0923 build has neither),
-  and RED2 probes a tenth sibling, `<name>.vmix`. Both want the 1103 sound compile read.
+- `.wav`: RC writes the v5 layout `ModernizeVsnd` makes (RED2, an empty DATA, CTRL), so the
+  facade's `SoundCompiler` now returns that. Since the 20261023 build `CVoiceContainerBase`'s
+  schema starts with `m_bRegisteredVMix` and `m_nResourceName` (field table 18304f840 in the
+  20261103 dll; neither string is in any earlier build), saved after `_class` as false and "",
+  and RED2 probes a tenth sibling, `<name>.vmix` (from RC's RED2; where the list is built is not
+  located). `sounds/t.wav` byte for byte.
 
 ### C8 — KV3 v4 written as Valve writes it; an edit keeps the block's version (2026-10-14)
 

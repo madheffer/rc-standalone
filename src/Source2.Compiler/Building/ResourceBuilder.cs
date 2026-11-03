@@ -1933,8 +1933,16 @@ public static class ResourceBuilder
         vsound.Add("m_nStreamingSize", new KVObject((uint)snd.StreamingDataSize));
         vsound.Add("m_nLoopEnd", new KVObject(snd.LoopStart < 0 ? 0 : snd.LoopEnd));
 
+        // CVoiceContainerDefault adds no fields to CVoiceContainerBase, whose schema in
+        // resourcecompiler 20261023 and since (field table 18304f840 in the 20261103 build) is
+        // m_bRegisteredVMix (bool, +0x10), m_nResourceName (+0x14), m_vSound (+0x30),
+        // m_pEnvelopeAnalyzer (+0x70), saved in that order after _class; a .wav compile leaves the
+        // first two at false and "" (sounds/s2cprobe/t.wav, RC 11-03). Before that build the base
+        // had only the last two.
         var ctrlRoot = new KVObject();
         ctrlRoot.Add("_class", new KVObject("CVoiceContainerDefault"));
+        ctrlRoot.Add("m_bRegisteredVMix", new KVObject(false));
+        ctrlRoot.Add("m_nResourceName", new KVObject(""));
         ctrlRoot.Add("m_vSound", vsound);
         ctrlRoot.Add("m_pEnvelopeAnalyzer", KVObject.Null());
 
