@@ -15,8 +15,11 @@ param(
   [switch]$Release,
   [switch]$SkipTests,
   [string]$ValveKeyValueVersion = "0.70.0.499",
-  # An exact version (tools/publish-to-vpkstuff.ps1 passes 0.1.<commit count>); overrides -Release.
-  [string]$Version = ""
+  # An exact version (tools/release.ps1 passes 0.1.<commit count>); overrides -Release.
+  [string]$Version = "",
+  # The previous release's .nupkg: package validation then fails the pack on a breaking change to the
+  # public API against it (the CP0001-CP0021 diagnostics).
+  [string]$BaselinePackage = ""
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
@@ -34,6 +37,9 @@ if ($Version) {
 } elseif (-not $Release) {
   $sha = (git -C $root rev-parse --short HEAD).Trim()
   $suffix = @("/p:VersionSuffix=dev.$(Get-Date -Format yyyyMMdd).$sha")
+}
+if ($BaselinePackage) {
+  $suffix += @("/p:EnablePackageValidation=true", "/p:PackageValidationBaselinePath=$BaselinePackage")
 }
 New-Item -ItemType Directory -Force $out | Out-Null
 dotnet pack (Join-Path $root "src\Source2.Compiler") -c Release -o $out $kv @suffix --nologo
