@@ -55,6 +55,16 @@ heavy runs with the game open at below-normal priority):
    these shaders. Then the same for one csgo_environment_blend material with a transform (a specimen like
    coloradjust_specimen.py, e.g. materials/concrete/vertigo_concretefloorc_blend.vmat).
 
+8. **Subdivided entries' tangents** (ledger 38; 24 of 538 atixref entries differ by tangents alone). Frida on a
+   standalone resourcecompiler (not cubehost) compiling atixref `-world -fshallow` (compile_fresh.py pattern, package
+   backed up and cmp-restored as capture_texcoordtransform.py does). Find the 1103 addresses of
+   HammerMesh_BakeAllSubdivision (0923 1810c6520, called in ConvertMeshForBuilder when 1813c83d0 says the mesh has
+   subdivided faces) and HammerMesh_TransformToWorld with patch_check; on entry and exit of the bake and at
+   TransformToWorld's entry, dump the half-edge mesh's tangent stream (and normal, position, texcoord) per face
+   vertex for nodes 1370, 6516, 6778 and 1367 (match the mesh by its node id; tools/vis capture_meshturn.py already
+   hooks TransformToWorld and gives the jsonl SubdividedTangentsProbe reads, MESHTURN=). The entry/exit pair tells
+   whether the bake writes the tangents (then read its tangent step) or they come in from the load.
+
 ## B. CS2 and Steam closed (cubehost)
 
 1. **The colour-adjust cubes** (after A.3): `python tools/cubehost/run_probe.py --map s2c_coloradjust --out

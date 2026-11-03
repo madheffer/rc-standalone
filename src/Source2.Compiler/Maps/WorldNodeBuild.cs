@@ -34,7 +34,13 @@ internal static class WorldNodeBuild
     {
         IReadOnlyCollection<string> Signature(string material) => content.Read(material + "_c") is { } b
             ? [.. Source2.Compiler.MaterialAuthor.ExtractInputSignature(b).Select(x => x.Semantic)] : [];
-        var entries = NodeMeshEntries.FromWorld(doc, signature: Signature, rendersAsWorld: rendersAsWorld);
+        // ConvertMeshForBuilder's shift test (rc 20261103 1810e11f0 .. 1810e126c) runs once per mesh for every
+        // builder, the world renderer's too: a material with HasTexcoordTransform 1 keeps the mesh's texcoords
+        // (captured 11-03 for italy_cobblestone_01, ledger 210).
+        var keeps = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        bool Keeps(string material) => keeps.TryGetValue(material, out var k) ? k
+            : keeps[material] = content.Material(material) is { } info && MapMeshCorners.KeepsTexcoords(info);
+        var entries = NodeMeshEntries.FromWorld(doc, Keeps, signature: Signature, rendersAsWorld: rendersAsWorld);
         var copyIds = NodePropEntries.CopyIds(doc, content);
         string NodeKey(NodeMeshEntries.Entry o) => NodePropEntries.Key(o.Source!, o.Instances);
         var bounds = new Dictionary<string, (Vector3 Min, Vector3 Max)>();

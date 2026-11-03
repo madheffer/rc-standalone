@@ -46,8 +46,12 @@ public class VertexStreamProbe(ITestOutputHelper output)
         var y = Read(b);
         var same = x.Zip(y).Count(p => p.First.SequenceEqual(p.Second));
         output.WriteLine($"{same} of {Math.Min(x.Length, y.Length)} equal");
+        // Per-vertex differences, rounded to 1e-3 and counted (a uniform shift shows as one line).
+        foreach (var g in x.Zip(y).GroupBy(p => string.Join(",", p.First.Zip(p.Second).Select(q => Math.Round(q.First - q.Second, 3)))).OrderByDescending(g => g.Count()).Take(12))
+            output.WriteLine($"  a - b = {g.Key}: {g.Count()} vertices");
         var shown = 0;
-        for (var v = 0; v < Math.Min(x.Length, y.Length) && shown < 8; v++)
+        var all = Environment.GetEnvironmentVariable("VTXALL") == "1";
+        for (var v = 0; v < Math.Min(x.Length, y.Length) && (all || shown < 8); v++)
             if (!x[v].SequenceEqual(y[v]))
             {
                 shown++;

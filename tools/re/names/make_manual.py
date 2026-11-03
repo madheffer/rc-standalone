@@ -3326,6 +3326,13 @@ SERVER_1015 = [
 ]
 
 
+# resourcecompiler.dll 20261103: addresses the geometry agent's work cites (written to its own file so it
+# cannot overwrite RESOURCECOMPILER_1103's).
+GEOMETRY_AGENT_1103 = [
+    ("1810e11f0", "ConvertMeshForBuilder_KeepsTexcoordsLoop", G, "per mesh material (1810d6020): vf 0x48 HasTexcoordTransform 0x2661694a == 1 -> keep (je 1810e126c); else 0x7c928c7c (default 1) == 0 -> keep; one DMX for every builder, the world renderer's too (ledger 210, WorldNodeBuild.WorldEntries)"),
+]
+
+
 def write(name, rows):
     with open(os.path.join(HERE, name), "w", encoding="utf-8", newline="\n") as f:
         json.dump({"functions": [{"addr": a, "name": n, "module": m, "note": note} for a, n, m, note in rows]}, f, indent=1)
@@ -3606,4 +3613,5 @@ if __name__ == "__main__":
     write("client_20261029.manual.json", CLIENT_1029)
     write("worldrenderer_20261023.manual.json", WORLDRENDERER_1023)
     write("server_20261021.manual.json", SERVER_1021)
+    write("resourcecompiler_20261103_geometry_agent.manual.json", GEOMETRY_AGENT_1103)
     print(len(RESOURCECOMPILER), len(VPHYSICS2), len(PHYSICSBUILDER), len(VISBUILDER), len(SMARTPROPS), len(TIER0), len(HAMMER))
