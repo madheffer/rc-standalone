@@ -14,7 +14,7 @@ from PIL import Image
 out, images = sys.argv[1], sys.argv[2]
 os.makedirs(out, exist_ok=True)
 REL = "materials/s2calg2"
-for n in ("noisy64", "color64", "bumps64", "rough64", "mask64", "trans64"):
+for n in ("noisy64", "color64", "bumps64", "rough64", "mask64", "trans64", "rough16"):
     shutil.copyfile(os.path.join(images, n + ".png"), os.path.join(out, n + ".png"))
 
 rng = random.Random(1104)
@@ -121,6 +121,10 @@ P["mipdepth_r"] = one("rect64x16.png", "MipDepth", src="r")
 P["heighttonormal_rgb"] = one("height64.png", "Box", procs=[("HeightToNormal",)], src="rgb")
 P["gradient2d_rg"] = one("height64.png", "Mip2DGradient", src="rg")
 P["dilate_rgb"] = one("cut64.png", "Box", procs=[("DilateColorInTransparentPixels",)], src="rgb")
+# AnisoNormal beside the generic shader's processing (11-04, third run).
+P["anisonormal_proc_bc7"] = two("bumps64.png", "rough64.png", "AnisoNormal", p1=[("NormalizeNormals",)], fmt="BC7")
+P["anisonormal_mixed_rgba"] = two("bumps64.png", "rough16.png", "AnisoNormal", p1=[("NormalizeNormals",)])
+P["anisonormal_rect_rgba"] = two("rect64x16.png", "rect64x16.png", "AnisoNormalRoughness")
 for fmt in ("RGBA16161616F", "RGBA16161616", "R32F", "RGB323232F", "RGBA32323232F", "RG1616F", "RG3232F", "R16F", "R16",
             "RG1616", "BC6H", "I8", "IA88", "A8", "BGRA8888", "ABGR8888", "ARGB8888", "BGRX8888", "RGBX8888", "RGB888", "BGR888",
             "RGB565", "BGR565", "BGRA4444", "UV88", "UVWQ8888", "DXT3", "DXT1_ONEBITALPHA", "DXT5_NM", "R11G11B10_FLOAT",

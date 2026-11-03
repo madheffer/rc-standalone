@@ -133,6 +133,57 @@ public static class RcNormalMaps
         return levels;
     }
 
+    /// <summary>
+    /// <c>GenerateMips_AnisoNormal_Internal</c> (18014c660; <c>AnisoNormal</c> with
+    /// <paramref name="invertRoughness"/>, <c>AnisoNormalRoughness</c> without, "Mip AnisoNormals" 5):
+    /// two inputs, each resized to the larger with clamping (180c43790), power-of-two and 2D only.
+    /// Every level of the full chain is an eight-channel frame: level 0 takes the normal's channels
+    /// 0 / 1 into 6 / 7 and their squares into 4 / 5, the roughness input's channels 0 / 1 into 2 / 3
+    /// (as <c>1 - v</c> when inverting), and 0 in channels 0 and 1; each later level is the 2x2 box of
+    /// the one before in channels 2..7 (18127a9c0), then channels 0 and 1 the doubled deviations
+    /// <c>2 sqrt(max(0, ch4 - ch6^2))</c> and <c>2 sqrt(max(0, ch5 - ch7^2))</c> (1812775a0 with 2).
+    /// The texture's RGBA is channels 0..3. The rest of 18014c660 is a debug dump behind a log level.
+    /// </summary>
+    public static List<RcMipChain.Level> AnisoNormal(RcMipChain.Level normal, RcMipChain.Level roughness, bool invertRoughness)
+    {
+        int w = normal.Width, h = normal.Height;
+        if ((w & (w - 1)) != 0 || (h & (h - 1)) != 0)
+            throw new InvalidOperationException($"RC cannot filter a non-power-of-two normal map ({w}x{h}).");
+        int n = w * h;
+        var moments = new RcMipChain.Level(w, h, new float[n * 4]);  // 6, 7, 4, 5
+        var rough = new RcMipChain.Level(w, h, new float[n * 4]);    // 2, 3
+        for (int i = 0; i < n; i++)
+        {
+            float x = normal.Rgba[i * 4], y = normal.Rgba[i * 4 + 1];
+            (moments.Rgba[i * 4], moments.Rgba[i * 4 + 1], moments.Rgba[i * 4 + 2], moments.Rgba[i * 4 + 3]) = (x, y, x * x, y * y);
+            float r0 = roughness.Rgba[i * 4], r1 = roughness.Rgba[i * 4 + 1];
+            (rough.Rgba[i * 4], rough.Rgba[i * 4 + 1]) = invertRoughness ? (1f - r0, 1f - r1) : (r0, r1);
+        }
+        var levels = new List<RcMipChain.Level>();
+        bool first = true;
+        while (true)
+        {
+            int m = moments.Width * moments.Height;
+            var o = new float[m * 4];
+            for (int i = 0; i < m; i++)
+            {
+                if (!first)
+                {
+                    o[i * 4] = MathF.Sqrt(MathF.Max(0f, moments.Rgba[i * 4 + 2] - moments.Rgba[i * 4] * moments.Rgba[i * 4])) * 2f;
+                    o[i * 4 + 1] = MathF.Sqrt(MathF.Max(0f, moments.Rgba[i * 4 + 3] - moments.Rgba[i * 4 + 1] * moments.Rgba[i * 4 + 1])) * 2f;
+                }
+                o[i * 4 + 2] = rough.Rgba[i * 4];
+                o[i * 4 + 3] = rough.Rgba[i * 4 + 1];
+            }
+            levels.Add(new RcMipChain.Level(moments.Width, moments.Height, o));
+            if (moments.Width == 1 && moments.Height == 1)
+                return levels;
+            moments = RcMipChain.QuarterSize(moments);
+            rough = RcMipChain.QuarterSize(rough);
+            first = false;
+        }
+    }
+
     private static List<RcMipChain.Level> Shuffle(List<RcMipChain.Level> levels, Func<float, float, float, float, (float, float, float, float)> f)
     {
         foreach (var level in levels)

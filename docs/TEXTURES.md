@@ -209,7 +209,7 @@ every fixture in `tests/.../RcReference/textures` (RGBA8888, DXT1, DXT5, ATI1N, 
 The dispatcher matches the channel group's algorithm name and calls one generator; each takes
 the group's whole input image(s) as loaded (all four channels; the channel copy picks the source
 channels afterwards) and registers its special dependency. Which algorithms CS2's shaders use
-(their `m_mipProcessingCommand` over all 103 programs of `shaders_pc_dir.vpk`): ArtistDefined,
+(their `m_mipProcessingCommand` over all 103 programs of `shaders_pc_dir.vpk`; all are ported for 2D textures, except that ArtistDefined ignores an image .txt (refused) and RGBM lacks its cubemap irradiance pass): ArtistDefined,
 Box, Box3, HemiOctIsoRoughness_RG_B, ArtistDefinedOrAlphaWeighted, PreserveCoverage, None,
 BoxInverse, HemiOctAnisoRoughness, AnisoRoughness_RG, MipNormal, AnisoNormal (generic) and RGBM
 (sky). Ported and checked whole-file against RC's 11-03 compiles of `RcReference/textures/algorithms`
@@ -236,6 +236,7 @@ Ported 2026-11-04 and checked whole-file against RC's 11-04 compiles of `RcRefer
 | `HemiOctAnisoRoughness_RG_BA` | 180148100 | the shared chain, then (c3, c1, c0, c2) | Mip HemiOctAnisoRoughness_RG_BA 1, Mip HemiOctAnisoRoughness 3 |
 | `AlphaWeighted` | 18014e680 | what ArtistDefinedOrAlphaWeighted becomes with no artist setting (180142990 re-dispatches) | Mip AlphaWeighted 1 |
 | `HemiOctNormal` | 18014c050 | the box chain, every level hemi-oct encoded into G and A; R and B gameinfo MinRoughness (unset: 0) | Mip HemiOctNormal 1 |
+| `AnisoNormal`, `AnisoNormalRoughness` | 18014c660 | two inputs resized to the larger (clamp); an eight-channel chain: level 0 holds the normal's X / Y in 6 / 7 and their squares in 4 / 5, the roughness (AnisoNormal: `1 - v`) in 2 / 3, zeros in 0 / 1; later levels box channels 2..7 (18127a9c0) and set 0 / 1 to `2 sqrt(max(0, ch4 - ch6^2))`, `2 sqrt(max(0, ch5 - ch7^2))` (1812775a0); RGBA is channels 0..3. Probes with NormalizeNormals + BC7, a 16x16 roughness beside a 64x64 normal, 64x16 | Mip AnisoNormals 5 |
 | `MipWidth`, `MipHeight`, `MipDepth` | 18014e260 | a red-only frame per level of `logf(side)/logf(2)*0.0625`; a group may read only `r` (below) | Mip MipSize 1 |
 
 A red-only frame (MipSize; Mip2DGradient's red+green) is copied into the texture by a memcpy of the

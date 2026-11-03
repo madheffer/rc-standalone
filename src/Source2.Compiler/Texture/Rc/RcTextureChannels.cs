@@ -29,6 +29,8 @@ internal static class RcTextureChannels
         // (180142990), which runs GenerateMips_AlphaWeighted (18014e680) directly.
         ["AlphaWeighted"] = [("Mip AlphaWeighted", 1)],
         ["HemiOctNormal"] = [("Mip HemiOctNormal", 1)],
+        ["AnisoNormal"] = [("Mip AnisoNormals", 5)],
+        ["AnisoNormalRoughness"] = [("Mip AnisoNormals", 5)],
         ["HemiOctIsoRoughness_RG_B"] = [("Mip HemiOctAnisoRoughness", 3), ("Mip HemiOctIsoRoughness_RG_B", 1)],
         // 180142990 registers its own entry for AnisoRoughness_RG, then the shared chain its (fp 3).
         ["AnisoRoughness_RG"] = [("Mip AnisoRoughness_RG", 1), ("Mip HemiOctAnisoRoughness", 3)],
@@ -71,7 +73,7 @@ internal static class RcTextureChannels
     private static readonly HashSet<string> Algorithms = new(StringComparer.OrdinalIgnoreCase)
         {
             "HemiOctIsoRoughness_RG_B", "AnisoRoughness_RG", "HemiOctAnisoRoughness", "ArtistDefinedOrAlphaWeighted", "None", "BoxInverse", "PreserveCoverage",
-            "MultiplyBox", "MultiplyNoMip", "MipWidth", "MipHeight", "MipDepth", "RGBM", "HemiOctAnisoRoughness_RG_BA", "AlphaWeighted", "HemiOctNormal",
+            "MultiplyBox", "MultiplyNoMip", "MipWidth", "MipHeight", "MipDepth", "RGBM", "HemiOctAnisoRoughness_RG_BA", "AlphaWeighted", "HemiOctNormal", "AnisoNormal", "AnisoNormalRoughness",
         };
     private static readonly HashSet<string> Processors = new(StringComparer.OrdinalIgnoreCase) { "NormalizeNormals", "Inverse", "Mod2XCenter", "EncodeRGBM", "ConvertToYCoCg", "ScaleToPowerOfTwo", "FillToPowerOfTwo", "FillToMultipleOfFour", "HeightToNormal", "DilateColorInTransparentPixels" };
 
@@ -199,6 +201,16 @@ internal static class RcTextureChannels
                     for (int p = 0; p < color.Width * color.Height; p++)
                         work[p * 4 + 3] = weight.Rgba[p * 4];
                     chain = RcAlphaWeighted.Mips(new RcMipChain.Level(color.Width, color.Height, work));
+                    break;
+                }
+                case "anisonormal" or "anisonormalroughness":
+                {
+                    if (inputs.Count != 2)
+                        throw new InvalidOperationException($"{label}: {channel.MipAlgorithm} reads a normal and a roughness input (\"Expecting 2 input textures\").");
+                    var normal = Loaded(inputs[0]);
+                    var rough = Loaded(inputs[1]);
+                    int w = Math.Max(normal.Width, rough.Width), h = Math.Max(normal.Height, rough.Height);
+                    chain = RcNormalMaps.AnisoNormal(Fit(normal, w, h), Fit(rough, w, h), invertRoughness: algorithm == "anisonormal");
                     break;
                 }
                 case "multiplybox" or "multiplynomip":
