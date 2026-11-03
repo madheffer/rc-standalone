@@ -435,6 +435,25 @@ game can answer is raised with the user first, and runs with -insecure.
     0 to 1,305 of each mesh's corners. 24 of 538 atixref entries differ by
     tangents alone. Next: a capture of the half-edge mesh's tangent
     stream after BakeSubdivisionForFaces and after ConvertMeshForBuilder.
+    Read and captured 2026-11-03 (rc 0923 decompile; Frida on rc 1103 compiling atixref, CS2 closed:
+    tools/vis/capture_subdivbake_1103.py and tools/vis/capture_subdivgrids.py):
+    - The bake writes the tangents: on all 21 baked atixref meshes BakeAllSubdivision's output tangent stream reaches
+      TransformToWorld unchanged, and on curved meshes most of its values are in no input corner.
+    - The patch evaluator 1813c1cc0 (from the patch builders 1813b7750 / 1813b82f0, so the bake does reach it; the
+      "viewport only" note above was wrong) gives each face-vertex stream by its mode (1813c83f0, the attribute
+      descriptor's first int): 0 the corners lerped, 1 the position grid (1813c7b90), 2 the normal grid (1813c3cf0),
+      3 the tangent grid (1813c2090). The tangent stream is mode 3: 35,796 of the 38,166 baked tangents are tangent
+      grid outputs (the rest unbaked corners and w = 0 corners).
+    - 1813c2090 ported (SubdivisionTangents.Grid) with its corner gather 1813bdf80 (Gather): A = |lerp(t0, t2, v)|,
+      B = |lerp(t1, t3, v)|, T = lerp(A, B, u), out |(n x T) x n| with the corner's w; t0 the corner's tangent, t1 / t2
+      it plus the next / previous corner's normalised, t3 the loop's sum normalised (18013e340). On Valve's own inputs
+      (the gather, normal grid and (u, v) of every call) it gives Valve's output bit for bit: 1,183 calls, 12,279
+      points (SubdivisionTangentsCaptureTests, SUBDIVGRIDS=).
+    - Still OPEN: the normal grid it reads (1813c3cf0: the position grid's normals from 1813be620, each patch border
+      blended with the neighbouring patch's (1813c0960) when soft or when the dot passes the mesh's +0x3470 + 1e-5,
+      border corners from 1813850e0, the centre the face corners' sum through 1813bd320 mode 3); only 5,174 of its
+      12,279 values equal a final (recomputed) normal, so it needs its own port. Then (u, v) from the position grid
+      and the wiring into SubdivisionBake (the S2C_SUBDIV_TANGENT experiment there goes).
 
 39. **The vertex unpack and transform of baked props** (settled
     2026-10-01): WRB_LoadPropMeshes' floats come from meshsystem's unpack
