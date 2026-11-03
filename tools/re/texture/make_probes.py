@@ -125,6 +125,12 @@ P["dilate_rgb"] = one("cut64.png", "Box", procs=[("DilateColorInTransparentPixel
 P["anisonormal_proc_bc7"] = two("bumps64.png", "rough64.png", "AnisoNormal", p1=[("NormalizeNormals",)], fmt="BC7")
 P["anisonormal_mixed_rgba"] = two("bumps64.png", "rough16.png", "AnisoNormal", p1=[("NormalizeNormals",)])
 P["anisonormal_rect_rgba"] = two("rect64x16.png", "rect64x16.png", "AnisoNormalRoughness")
+# Rarer algorithms' variants (11-04, fourth run).
+P["heightcombine_r"] = vtex([("a", "height64.png", "linear", []), ("b", "noisy64.png", "linear", [])], [(["a", "b"], "r", "r", "HeightCombine", "linear")])
+P["heightcombinemethod2_r"] = vtex([("a", "height64.png", "linear", []), ("b", "noisy64.png", "linear", [])], [(["a", "b"], "r", "r", "HeightCombineMethod2", "linear")])
+P["heightcombinesum_r"] = vtex([("a", "height64.png", "linear", []), ("b", "rough16.png", "linear", [])], [(["a", "b"], "r", "r", "HeightCombineSumNormalized", "linear")])
+P["autolevelsperchannel_rgba"] = one("color64.png", "AutoLevelsPerChannel")
+P["autolevelsluminance_rgba"] = one("color64.png", "AutoLevelsLuminance")
 for fmt in ("RGBA16161616F", "RGBA16161616", "R32F", "RGB323232F", "RGBA32323232F", "RG1616F", "RG3232F", "R16F", "R16",
             "RG1616", "BC6H", "I8", "IA88", "A8", "BGRA8888", "ABGR8888", "ARGB8888", "BGRX8888", "RGBX8888", "RGB888", "BGR888",
             "RGB565", "BGR565", "BGRA4444", "UV88", "UVWQ8888", "DXT3", "DXT1_ONEBITALPHA", "DXT5_NM", "R11G11B10_FLOAT",

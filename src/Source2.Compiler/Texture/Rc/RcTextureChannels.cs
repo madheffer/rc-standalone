@@ -31,6 +31,12 @@ internal static class RcTextureChannels
         ["HemiOctNormal"] = [("Mip HemiOctNormal", 1)],
         ["AnisoNormal"] = [("Mip AnisoNormals", 5)],
         ["AnisoNormalRoughness"] = [("Mip AnisoNormals", 5)],
+        ["DepthPyramidMin"] = [("Mip Box", 1)],
+        // 180147460 registers its own entry, then runs the Box chain, which registers Box's.
+        ["AutoLevels"] = [("Mip Auto Levels", 1), ("Mip Box", 1)],
+        ["HeightCombine"] = [("Mip Height Combine", 1)],
+        ["WrapGaussian"] = [("Mip WrapGaussian", 1)],
+        ["DepthPyramidMax"] = [("Mip Box", 1)],
         ["HemiOctIsoRoughness_RG_B"] = [("Mip HemiOctAnisoRoughness", 3), ("Mip HemiOctIsoRoughness_RG_B", 1)],
         // 180142990 registers its own entry for AnisoRoughness_RG, then the shared chain its (fp 3).
         ["AnisoRoughness_RG"] = [("Mip AnisoRoughness_RG", 1), ("Mip HemiOctAnisoRoughness", 3)],
@@ -65,6 +71,12 @@ internal static class RcTextureChannels
     // min(N, the full count) levels (1801443f0's last argument; ao256: Box3 keeps 3).
     private static readonly HashSet<string> BoxAlgorithms = new(StringComparer.OrdinalIgnoreCase) { "Box", "ArtistDefined", "MipNormal" };
 
+    // "AutoLevels<options>" (_V_StringAfterPrefix in 180142990).
+    internal static bool IsAutoLevels(string algorithm) => algorithm.StartsWith("AutoLevels", StringComparison.OrdinalIgnoreCase);
+
+    // "HeightCombine<options>" (_V_StringAfterPrefix in 180142990).
+    internal static bool IsHeightCombine(string algorithm) => algorithm.StartsWith("HeightCombine", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>The level cap of a "Box&lt;N&gt;" algorithm (N at least 1), else null.</summary>
     internal static int? BoxCap(string algorithm) =>
         algorithm.Length > 3 && algorithm.StartsWith("Box", StringComparison.Ordinal) && int.TryParse(algorithm.AsSpan(3), System.Globalization.NumberStyles.None, null, out var n) && n >= 1 ? n : null;
@@ -73,7 +85,7 @@ internal static class RcTextureChannels
     private static readonly HashSet<string> Algorithms = new(StringComparer.OrdinalIgnoreCase)
         {
             "HemiOctIsoRoughness_RG_B", "AnisoRoughness_RG", "HemiOctAnisoRoughness", "ArtistDefinedOrAlphaWeighted", "None", "BoxInverse", "PreserveCoverage",
-            "MultiplyBox", "MultiplyNoMip", "MipWidth", "MipHeight", "MipDepth", "RGBM", "HemiOctAnisoRoughness_RG_BA", "AlphaWeighted", "HemiOctNormal", "AnisoNormal", "AnisoNormalRoughness",
+            "MultiplyBox", "MultiplyNoMip", "MipWidth", "MipHeight", "MipDepth", "RGBM", "HemiOctAnisoRoughness_RG_BA", "AlphaWeighted", "HemiOctNormal", "AnisoNormal", "AnisoNormalRoughness", "DepthPyramidMin", "DepthPyramidMax", "WrapGaussian",
         };
     private static readonly HashSet<string> Processors = new(StringComparer.OrdinalIgnoreCase) { "NormalizeNormals", "Inverse", "Mod2XCenter", "EncodeRGBM", "ConvertToYCoCg", "ScaleToPowerOfTwo", "FillToPowerOfTwo", "FillToMultipleOfFour", "HeightToNormal", "DilateColorInTransparentPixels" };
 
@@ -96,7 +108,7 @@ internal static class RcTextureChannels
             if (untouched is not null && size is not null
                 && texture.Inputs.Where(i => i.ImageProcessor.Equals(algorithm, StringComparison.OrdinalIgnoreCase)).All(i => untouched(size(i.FileName))))
                 continue;
-            if (!AlgorithmDeps.TryGetValue(BoxCap(algorithm) is not null ? "Box" : algorithm, out var deps))
+            if (!AlgorithmDeps.TryGetValue(BoxCap(algorithm) is not null ? "Box" : IsAutoLevels(algorithm) ? "AutoLevels" : IsHeightCombine(algorithm) ? "HeightCombine" : algorithm, out var deps))
                 throw new InvalidOperationException($"Texture algorithm {algorithm} is not measured yet.");
             foreach (var (name, fp) in deps)
                 yield return new("Texture Compiler Version " + name, "CompileTexture", fp);
@@ -110,7 +122,7 @@ internal static class RcTextureChannels
             if (!Processors.Contains(input.ImageProcessor))
                 throw new InvalidOperationException($"Image processor {input.ImageProcessor} ({label}) is not compiled here yet.");
         foreach (var channel in texture.Channels)
-            if (!BoxAlgorithms.Contains(channel.MipAlgorithm) && !Algorithms.Contains(channel.MipAlgorithm) && BoxCap(channel.MipAlgorithm) is null)
+            if (!BoxAlgorithms.Contains(channel.MipAlgorithm) && !Algorithms.Contains(channel.MipAlgorithm) && BoxCap(channel.MipAlgorithm) is null && !IsAutoLevels(channel.MipAlgorithm) && !IsHeightCombine(channel.MipAlgorithm))
                 throw new InvalidOperationException($"Mip algorithm {channel.MipAlgorithm} ({label}) is not compiled here yet.");
         var caps = texture.Channels.Select(c => BoxCap(c.MipAlgorithm)).ToList();
         if (caps.Any(c => c is not null) && caps.Distinct().Count() > 1)
@@ -213,6 +225,15 @@ internal static class RcTextureChannels
                     chain = RcNormalMaps.AnisoNormal(Fit(normal, w, h), Fit(rough, w, h), invertRoughness: algorithm == "anisonormal");
                     break;
                 }
+                case var hc when IsHeightCombine(hc):
+                {
+                    if (inputs.Count != 2)
+                        throw new InvalidOperationException($"{label}: HeightCombine reads two inputs (\"Expecting 2 input textures\").");
+                    if (channel.SrcChannels.Any(c => c != 'r'))
+                        throw new InvalidOperationException($"{label}: HeightCombine writes red alone; its other channels are never written in RC.");
+                    chain = RcMipAlgorithms.HeightCombine(Loaded(inputs[0]), Loaded(inputs[1]), channel.MipAlgorithm["HeightCombine".Length..]);
+                    break;
+                }
                 case "multiplybox" or "multiplynomip":
                 {
                     if (inputs.Count != 2)
@@ -236,6 +257,10 @@ internal static class RcTextureChannels
                         "mipdepth" => RcMipAlgorithms.MipSize(input, 2),
                         "rgbm" => RcMipAlgorithms.Rgbm(input),
                         "hemioctnormal" => RcNormalMaps.HemiOctNormal(input),
+                        _ when IsAutoLevels(algorithm) => RcMipAlgorithms.AutoLevels(input, channel.MipAlgorithm["AutoLevels".Length..]),
+                        "wrapgaussian" => RcMipAlgorithms.WrapGaussian(input),
+                        "depthpyramidmin" => RcMipAlgorithms.DepthPyramid(input, min: true),
+                        "depthpyramidmax" => RcMipAlgorithms.DepthPyramid(input, min: false),
                         _ => RcMipChain.Chain(input),
                     };
                     break;
