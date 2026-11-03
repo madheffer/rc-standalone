@@ -246,6 +246,12 @@ the addon).
 - compile-map --skip-unported skips bomb damage when it skipped the nav (45c2738); TJunctionFix's record walk
   indexed by x (byte-neutral, 4.6x on atixref's replay). atixref's -world stage still takes far longer than
   Valve's 24 minutes for the whole compile; the next profile should say where.
+- Later (cc475d5): GPU-only hit groups for untranspiled rtx combos, combo reduction, SetByArtist defaults at the
+  type's width (a real bug: float3 over defaulted scalars), VfxEval log / normalize. atixref bakes on the GPU but
+  three of its four EXRs differ (OPEN.md section 6); probe01, cardtest, probe_classes, s2c_coloradjust and
+  ze_hold_em_p re-baked byte for byte. Valve's atixref host capture: %TEMP%/hostcap_atixref.
+- The three map-reference tests (MapRootFileTests, MapSubassetsTests, MapAssetsTests) fail at b14fb43 too: the
+  s2c_dec_* / s2c_rtprefab* / s2c_sanavcover packages on disk, not today's code.
 - Found, not ported: the particle snapshot (.vsnap) generator (OPEN.md 5.b10, addresses there); the missing-
   material rule 1.c5 still needs a capture design.
 

@@ -71,10 +71,16 @@ lighting file of s2c_skytint, probe_classes and s2c_coloradjust is Valve's. The 
 68e77a7): vrad3's material block holds the rtx program's constant g_mTextureColorAdjust1, which the static
 combo binds; ours took the artist one by name.
 
+Done 11-04 later (cc475d5): rtx combos with no C# transpile bake on the GPU (Valve's SPIR-V, the block from the
+combo's write sequence), so 6.b1 no longer refuses a GPU bake; a translucent material's default hit group opacity
+(8e5d8c3). atixref now bakes: lightmap_chart_color byte for byte, irradiance / directional / direct shadows differ
+all over the atlas (31,171 shadow texels). Every atixref material block equals vrad3's captured one but bindless
+indices, words past a blend block's last field and g_flDetailBlendFactor on two csgo_vertexlitgeneric combo 16
+materials. Next for atixref: localise the differing texels to instances (charts -> meshes) before guessing.
+
 Open: 6.c6 -s2cbake not compared on c2m2; s2c_prefabprobe5's lighting differs where its world geometry does
 (scene_meshes.kv3 and the packing differ with it: 1.c5's teleport02 and two agg_merge models); 6.a1 / 6.a2 the
-material block layout is measured; 6.a3 half rounding in lightmap_image_save; 6.b1 hit groups not transpiled
-refuse; 6.b3-6.b7 unported vrad3 features; 6.c4 one probe volume band.
+material block layout is measured; 6.a3 half rounding in lightmap_image_save; 6.b1 the CPU bake still stands the default hit group in for an untranspiled combo; 6.b3-6.b7 unported vrad3 features; 6.c4 one probe volume band.
 
 ## 7. Baked outputs (nav, bomb damage, cubemaps, Steam Audio)
 
