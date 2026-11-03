@@ -169,8 +169,11 @@ Open:
 - **An edge between two coincident baked vertices:** MergeVertices
   (1813a8840) takes CollapseEdge (181383600 -> 181382170, with the
   attribute snapshots 1813a3d50 and 1813a3f40) on Hammer's 22-bit handle
-  tables; not ported, no specimen. The rest of the bake wrapper (1810c65c0:
-  merge at 1e-6, AssignSmoothingModeToEdges soft, normals) is.
+  tables; ported 2026-11-03 with the face collapse it builds on and the
+  bake's bad-face removal (ledger 211; specimens s2c_edgecollapse and
+  s2c_edgecollapse2, tools/physics/edge_collapse_map.py). The rest of the bake
+  wrapper (1810c65c0: merge at 1e-6, AssignSmoothingModeToEdges soft,
+  normals) was already.
 - **Instances inside a prefab's map:** their copies' brush entity and cable
   models are built by the lump's rules (ledger 128), with no Valve probe yet.
 - **ze_hold_em_p's six doors:** a toolsclip mesh ships no hull, because the

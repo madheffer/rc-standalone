@@ -5455,6 +5455,42 @@ game can answer is raised with the user first, and runs with -insecure.
        n0_lr0_agg_merge_italy_cobblestone_01_0 included. Left: the three lightmap textures (the bake), the .nav
        (Valve's nav varies run to run, ledger 57; not checked against a second Valve run) and the .vwrld stamp.
 
+211. **The bake's face collapse, edge collapse and bad-face removal, read** (2026-11-03; rc 0923 decompiles,
+     capture_bake.py --ops on a standalone resourcecompiler 1103 with CS2 closed; specimens s2c_edgecollapse and
+     s2c_edgecollapse2, tools/physics/edge_collapse_map.py: probe01 with node 92 subdivided at level 1 and vertex 0
+     moved onto vertex 12, exactly or 5e-7 above it). Addresses: GEOMETRY_AGENT_0923 in make_manual.py.
+     - RemoveBadFaces (1810d9ca0) runs on the half-edge mesh before the bake: each face, by handle, that the
+       triangulator cannot cut whole is removed (1813aca90: each loop half-edge loses the face; an edge left with no
+       face goes through 1813ad160 on the twin: unlink both halves from their origins, 1813892f0, an orphan vertex
+       freed, then the twin and the half-edge freed). The bake then lists faces in dense order (1810c6520 ->
+       180d54520). Ported in SubdivisionBake.Bake (RemoveFace, RemoveFreeEdge).
+     - CollapseFace (181384470 -> 181384060) is a chain of edge collapses (181382170) from the face's first vertex,
+       each on the pair's lower half-edge handle; this replaces ledger 6's model of the face collapse
+       (SubdivisionBake.CollapseInner). The edge collapse (link test, new vertex, unlink, frees, two-gon
+       dissolves 1813a71a0) and MergeVertices' wrapper 181383600 (vertex and corner snapshots at t) are ported
+       (SubdivisionBake.Collapse, CollapseEdge, DissolveTwoGon); MergeVertices keeps each merge's returned vertex
+       as the cluster's first argument, as 1813a8ae0 does.
+     - Verified on s2c_edgecollapse: every face list after each of the 483 bake operations equals the capture's
+       (BakeBeforeMergeProbe), the mesh after the merge equals it (BakeMergeCaptureTests, Valve's merge there is a
+       splice, MergeVertexPair(0, 12)), and world_physics.vmdl_c is Valve's byte for byte. The export of all 92
+       subdivided meshes of c2m2 (environment prefab, multi, c2m2, coaster) and atixref is unchanged from before
+       (SubdivisionBakeHashProbe), so the faithful face collapse gives the modelled one's output there.
+     - Verified on s2c_edgecollapse2 (a 5e-7 edge: the merge collapses two edges, Valve's MergeVertexPair(12, 70)
+       -> 122 and (122, 0) -> 125 as ours; capture_bake.py --ops now logs each merge's face list): both merges'
+       face lists (handles, loops, dense order) equal the capture's, the merged mesh equals it, and
+       world_physics.vmdl_c is Valve's byte for byte. The rule that got there: 181383600 hands 181382170 the
+       pair's lower half-edge (the twin when its index is not above e's, as 1810a8520 picks), while the
+       snapshots use e as given. The 92-mesh export check above is unchanged with it.
+     - Not exercised by either specimen, so ported from the decompile but unchecked against Valve: the corner
+       snapshot write-back (both sides were triangles, so no face survived), a collapse the link test refuses.
+       Refused by name: a face left folded on itself (1813adf00 -> 1813ad160) and a free or folded edge after a
+       dissolve (1813a71a0 -> 1813ad160). Not read: the new vertex's write stamp, ours only (the physics weld's
+       latest rule, MeshWeld), taken from the first argument; it decides only when the merged vertex welds with
+       another within 1/32.
+     - Seen, not worked on (world geometry, the main session's): the specimens' agg_merge_reflectivity_30 render
+       model differs (s2c_edgecollapse: 235 Valve vertices against our 228; normals and two positions on the
+       subdivided box).
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

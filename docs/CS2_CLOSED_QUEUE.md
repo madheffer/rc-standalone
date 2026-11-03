@@ -65,6 +65,15 @@ heavy runs with the game open at below-normal priority):
    hooks TransformToWorld and gives the jsonl SubdividedTangentsProbe reads, MESHTURN=). The entry/exit pair tells
    whether the bake writes the tangents (then read its tangent step) or they come in from the load.
 
+9. ~~The edge collapse on s2c_edgecollapse2~~ (done 2026-11-03 with CS2 closed, ledger 211). Frida on a standalone resourcecompiler only:
+   back up game/csgo_addons/s2c_rc_probe/maps/s2c_edgecollapse2.vpk, then from tools/physics with
+   S2C_BINARIES pointing at the main checkout's tools/re/binaries:
+   `python capture_bake.py s2c_rc_probe s2c_edgecollapse2 %TEMP%/geomagent_ec2/bake_ops.jsonl --ops`; restore and
+   cmp the package. Then BAKEBEFORE=<vmap>|<jsonl> (BakeBeforeMergeProbe: our MergeVertexPair calls against
+   Valve's) and BAKEMERGE (BakeMergeCaptureTests). If the merge calls agree but the "after" faces do not, add a
+   faces snapshot to capture_bake.py's MergeVertexPair hook (the faces() helper, as opHook sends) and compare
+   after each merge.
+
 ## B. CS2 and Steam closed (cubehost)
 
 1. **The colour-adjust cubes** (after A.3): `python tools/cubehost/run_probe.py --map s2c_coloradjust --out

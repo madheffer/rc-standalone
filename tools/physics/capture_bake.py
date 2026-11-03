@@ -133,10 +133,13 @@ function hook() {
   // The wrapper's vertex merge (1813a8ae0) and each pair it merges
   // (1813a8840: mesh, &a, &b, weight, &out), whether or not --ops is set.
   Interceptor.attach(m.base.add(RVA['0x13a8840']), {
-    onEnter(args) { this.a = [args[1].readU32() & 0x3fffff, args[2].readU32() & 0x3fffff]; this.out = args[4]; },
+    onEnter(args) { this.mesh = args[0]; this.a = [args[1].readU32() & 0x3fffff, args[2].readU32() & 0x3fffff]; this.out = args[4]; },
     onLeave(ret) {
+      // The face list after the merge too (ledger 211), when the mesh reads as the wrapper's does.
+      let f = null;
+      try { f = faces(this.mesh); } catch (e) {}
       send({op: 'MergeVertexPair', args: this.a, ret: ret.toInt32() & 0xff,
-            result: this.out.isNull() ? -1 : (this.out.readU32() & 0x3fffff)});
+            result: this.out.isNull() ? -1 : (this.out.readU32() & 0x3fffff), faces: f});
     }
   });
   Interceptor.attach(m.base.add(RVA['0x13a8ae0']), {
