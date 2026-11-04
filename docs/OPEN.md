@@ -29,7 +29,11 @@ Open:
   pointers fall in that order is not read: CS2_CLOSED_QUEUE A.11. Not ported until then.
 - 1.c7 atixref `-world` ParityReport, 11-04 from the .vmap: 434 of 553 files (63.6% of bytes): lumps 11/11,
   index 3/3, entity models 143/144, world nodes 277/395; the misses are the agg_prop draw order (1.c6), the
-  tangent angle (1.c3) and n0.vwnod.
+  tangent angle (1.c3) and n0.vwnod. Of the 264 aggregate models 217 are Valve's; 12 also differ in CTRL: Valve
+  keeps a TEXCOORD4 VertexPaintBlendParams stream (R8G8B8A8, 28-byte vertices, e.g.
+  agg_prop_inferno_plaster_facade_01_dirty_0) that ours lacks, since NodePropEntries carries a fixed 18-float
+  vertex. Next: decode Valve's MVTX there to tell a copied model stream from a synthesized default, then read
+  WRB_LoadPropMeshes for the extra streams.
 - 1.a1-1.a9 measured, not read: the SIMD transform and the renormalise before WRB_CollectMeshEntries, field and
   aggregate list order, AllowBackfaceCulling's parent set (materialsystem2 +0x60, written at 1800364c3).
 - 1.b refusals ZE maps can reach: foliage (NeedsLocalSpaceVertices), clutter, smart prop skips; detail grass
