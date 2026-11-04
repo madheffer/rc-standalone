@@ -1720,7 +1720,7 @@
    "addr": "181360310",
    "name": "OverlayDesc::OverlayDesc",
    "module": "s2c:geometry/overlays",
-   "note": ""
+   "note": "+0x64..+0x6c FLT_MAX (the overlay entry's +0x80 origin), +0x70 empty (ledger 245)"
   },
   {
    "addr": "181360610",
@@ -2626,7 +2626,31 @@
    "addr": "1802ed7f0",
    "name": "CResourceCompilerMesh::AddDrawDescriptors",
    "module": "s2c:geometry/world-nodes",
-   "note": "per draw: vertices renumbered by first use in the incoming index buffer, then vcache, overdraw at 1.03, UV density"
+   "note": "per draw: vertices renumbered by first use in the incoming index buffer, then vcache, overdraw at 1.03, UV density; m_vTintColor = V_powf(c, 2.2) (18126a260) of the CMesh tint +0x154 when UseTintColor +0x14f (ledger 245)"
+  },
+  {
+   "addr": "18126a260",
+   "name": "V_powf_Gamma22",
+   "module": "s2c:geometry/world-nodes",
+   "note": "V_powf(x, 2.2f)"
+  },
+  {
+   "addr": "1812e5580",
+   "name": "CMesh_SetTint",
+   "module": "s2c:geometry/world-nodes",
+   "note": "+0x14f UseTintColor = 1, +0x154 the tint (ledger 245)"
+  },
+  {
+   "addr": "180296ed0",
+   "name": "std_sort_AggregateMeshes",
+   "module": "s2c:geometry/world-nodes",
+   "note": "BuildAggregate's mesh list (16-byte refs), comparator as 1802a0ff0 (ledger 244)"
+  },
+  {
+   "addr": "1802a0ff0",
+   "name": "std_insertion_sort_AggregateMeshes",
+   "module": "s2c:geometry/world-nodes",
+   "note": "comparator: CMesh +0x58 ascending, vertex count +0x18 descending, memcmp of count x stride +0x1c floats (ledger 244)"
   },
   {
    "addr": "1812b9370",
@@ -2767,6 +2791,24 @@
    "note": "Added aggregate with %i meshes, %i fragments; %s_lr%i_%s"
   },
   {
+   "addr": "1802619c0",
+   "name": "WRB_AggregateStreamUnion",
+   "module": "s2c:geometry/world-nodes",
+   "note": "the union of a (CMesh, ref) list's streams (name case-blind, index, count, +0x1d), first seen first, offsets summed; every mesh not in that layout relaid by 1812e4040 (ledger 244)"
+  },
+  {
+   "addr": "1812e4040",
+   "name": "CMesh_RelayoutStreams",
+   "module": "s2c:geometry/world-nodes",
+   "note": "a mesh into a given stream table: stride max(offset + count), zeroed buffer, floats copied from the stream of the same index, count and name, else 0 (ledger 244)"
+  },
+  {
+   "addr": "1801d4dc0",
+   "name": "WRB_LoadMaterials",
+   "module": "s2c:geometry/world-nodes",
+   "note": "names + '.vmat' through the resource system (vf 0x70) into handles; a missing one resolves to materials/error.vmat (ledger 42)"
+  },
+  {
    "addr": "180296ed0",
    "name": "std_sort_AggregateFragments",
    "module": "s2c:geometry/world-nodes",
@@ -2776,7 +2818,7 @@
    "addr": "180296c80",
    "name": "std_sort_AggregateEntries",
    "module": "s2c:geometry/world-nodes",
-   "note": "the run's 0x238 entries by their CMesh, the fragments' comparator"
+   "note": "the run's 0x238 entries by their CMesh, the fragments' comparator (1802a0ff0's; ledger 244)"
   },
   {
    "addr": "18025fab0",
@@ -2812,7 +2854,7 @@
    "addr": "18026ed20",
    "name": "CClassifiedMeshList::CompileInstanced",
    "module": "s2c:geometry/world-nodes",
-   "note": "vf 0x38: entries hashed by (+0x40 node id, +0xa8); a group all CanAggregate with +0x21 goes to the stash, else one object %s%d_%s (global counter DAT_183bb3764), cluster 0"
+   "note": "vf 0x38: entries hashed by (+0x40 node id, +0xa8); a group all CanAggregate with +0x21 goes to the stash, else one object %s%d_%s (global counter DAT_183bb3764), cluster 0; the object takes the first entry's +0xb0/+0xb4/+0x80 (fades, origin) and SetTint per tinted entry (ledger 245)"
   },
   {
    "addr": "180271160",

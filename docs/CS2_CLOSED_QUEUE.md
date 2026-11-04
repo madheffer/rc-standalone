@@ -3,7 +3,7 @@
 What waits for CS2 to be closed, in the order to take it. Everything else is done with CS2 open: decompiles,
 ports and offline tests ([HANDOFF.md](HANDOFF.md) "Rules"). Run heavy jobs through `tools/re/heavy.py`, delete any
 crash dumps the game or resourcecompiler leaves, and kill everything you started when done. Each item names the
-ledger or doc that is waiting for its result. Last updated 2026-11-04 (A.12).
+ledger or doc that is waiting for its result. Last updated 2026-11-04 evening (A.10-A.12 done).
 
 Steam has to be closed too for anything run in cubehost (part B). Part A needs only CS2 closed; A.1's in-game
 step needs Steam open, since it launches the game.
@@ -76,7 +76,9 @@ heavy runs with the game open at below-normal priority):
    Valve's) and BAKEMERGE (BakeMergeCaptureTests). If the merge calls agree but the "after" faces do not, add a
    faces snapshot to capture_bake.py's MergeVertexPair hook (the faces() helper, as opHook sends) and compare
    after each merge.
-10. **The missing-material fallback** (OPEN 1.c5, GROUND_TRUTH 42; queued 2026-11-04). A material the content
+10. ~~The missing-material fallback~~ (done 2026-11-04, GROUND_TRUTH 42: tools/re/capture_missingmaterial.py showed
+   teleport02 resolves to materials/error.vmat, core's; next is CS2-open work, its flags through the shader
+   attribute probe). Was: (OPEN 1.c5, GROUND_TRUTH 42; queued 2026-11-04). A material the content
    lacks (cardtest's teleport02, which lives in another addon) reaches the world node with attribute flags
    0x160100000 and a 256x256 representative texture, which is none of error.vmat, error_indicator.vmat or
    materialforerrormodel.vmat; ours gives it the empty set. No string anchors the fallback in materialsystem2
@@ -85,7 +87,8 @@ heavy runs with the game open at below-normal priority):
    handle for the .vmat path) for "teleport02", log the returned material's resource name, its shader and its
    representative texture; then the flags follow from that material (CS2-open work: shader attribute probe).
 
-11. **The prop aggregate draw order** (OPEN 1.c6; queued 2026-11-04). Valve's agg_prop draws come in
+11. ~~The prop aggregate draw order~~ (done 2026-11-04 by decompile, 8beaa82: WRB_BuildAggregate's sorts key on
+   CMesh +0x58, welded vertex count descending, then the vertex floats, not the pointer). Was: (OPEN 1.c6; queued 2026-11-04). Valve's agg_prop draws come in
    non-increasing vertex count (56 of 56 multi-draw scene objects, atixref, deterministic over two compiles), and
    CAggregateMeshList::Compile sorts by (attribute bits 0x6000000000, the mesh pointer +0x0) (180290090). Frida on
    a standalone resourcecompiler compiling atixref -world -fshallow: at 180290090's comparator (or on entry to
@@ -94,7 +97,9 @@ heavy runs with the game open at below-normal priority):
    question is what puts the pointers in descending size: allocation order (which then needs porting) or a size
    class of the allocator.
 
-12. **An aggregate's missing stream as zeros** (OPEN 1.c7, ledger 243; queued 2026-11-04). atixref's
+12. ~~An aggregate's missing stream as zeros~~ (done 2026-11-04, ledger 244: tools/re/capture_aggstreams.py showed the
+   same CMesh goes stride 18 -> 22 inside WRB_BuildAggregate; 1802619c0's stream union and 1812e4040's
+   zero-filled relayout read; port open, OPEN 1.c7). Was: (OPEN 1.c7, ledger 243; queued 2026-11-04). atixref's
    agg_prop_inferno_concrete_trim_weathered_dirt_blend_01_0 is one vertex buffer in Valve's output with
    VertexPaintBlendParams = 0 for the inferno_fountain_01 draw, whose CMesh (WRB_LoadPropMeshes) has no such
    stream. Ruled out statically: CMesh_Concatenate (1812dd570), InputLayout_MatchSignature (181363de0),

@@ -773,7 +773,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `resourcecompiler_20260923.dll`, 56,313,496 bytes, PE time 2026-09-22 19:17 UTC
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
-- 1291 addresses
+- 1298 addresses
 
 ### s2c:baked/light-keys
 
@@ -1586,13 +1586,13 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18129c490` | `Quad_Bilinear` | (lerp(c1, c2, t) - lerp(c0, c3, t)) * s + lerp(c0, c3, t) | `src/Source2.Compiler/Maps/OverlayProjector.cs:229` |
 | `1812a5bf0` | `Line_ClosestApproach` | distances along two lines to their closest approach | `src/Source2.Compiler/Maps/OverlayProjector.cs:462` |
 | `181360220` | `COverlayProjector::COverlayProjector` | N faces of 0x4a0, back-face angle 90, box empty |  |
-| `181360310` | `OverlayDesc::OverlayDesc` |  |  |
+| `181360310` | `OverlayDesc::OverlayDesc` | +0x64..+0x6c FLT_MAX (the overlay entry's +0x80 origin), +0x70 empty (ledger 245) | `src/Source2.Compiler/Maps/WorldNodeBuild.cs:246` |
 | `181360610` | `OverlayDesc_Assign` | mode +0, far +4, render order +8, back faces +0xc, angle +0x10, +0x14, +0x15, tint +0x18, material +0x20, target ids +0x28, faces +0x48 (0x78 each), material adjust nibbles +0x60, +0x64 x3, +0x70 string |  |
 | `181360c40` | `COverlayProjector_Init` | faces set, box = face points and the points pushed by far along each face normal, grown by 1 |  |
 | `181361000` | `COverlayProjector_BuildMesh` | target streams weighted per point, position, overlay texcoord, normal turned, VertexGenericIntegerData, OverlayProjectionDirection | `src/Source2.Compiler/Maps/OverlayProjector.cs:142` |
 | `181361d40` | `COverlayProjector_SetOverlay` | Init from a descriptor: faces +0x48/+0x50, far +4, back faces +0xc, angle +0x10, +0x14, tint +0x18, material +0x20, +0x60 |  |
 | `181361db0` | `OverlayDesc_HasTarget` | mode 3: node id in the descriptor's hash set (+0x28) |  |
-| `181362050` | `COverlayProjector_ProjectOntoTarget` | target triangles to world, culled against the box, ProjectPolygonsOntoTriangles, mesh built (181361000), tint, material |  |
+| `181362050` | `COverlayProjector_ProjectOntoTarget` | target triangles to world, culled against the box, ProjectPolygonsOntoTriangles, mesh built (181361000), tint, material | `src/Source2.Compiler/Maps/WorldNodeModels.cs:245` |
 | `181363100` | `COverlayProjector_ProjectTargets` | one mesh per target record (0x50) with a result |  |
 | `181363320` | `OverlayDesc_SetFace` | copies a face's positions, texcoords and optional streams into the descriptor's 0x78-byte face record |  |
 | `181367ed0` | `ProjectPolygonsOntoTriangles_Job` | per face (atomic counter) the target triangles in batches of 0xfff, results appended under a mutex in completion order; texcoords (18136cd60) and the vec4 streams (181367460) from the point dropped onto the plane | `src/Source2.Compiler/Maps/OverlayProjector.cs:8` |
@@ -1689,10 +1689,11 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `1800d3020` | `NullSub_ret0` | vf 0x28 of the instanced, no-split and baked prop lists: they stash per (node, +0xa8) group in vf 0x38 | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:252` |
+| `1800d3020` | `NullSub_ret0` | vf 0x28 of the instanced, no-split and baked prop lists: they stash per (node, +0xa8) group in vf 0x38 | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:253` |
 | `1800e00b0` | `CUtlRBTree_NextInorder` |  | `src/Source2.Compiler/Maps/NodePropEntries.cs:45` |
-| `1801d3050` | `WRB_MaterialAttributeBySemantic` | the material's vertex attribute (0xc4 records) whose semantic name (+0x80) and index (+0xc0) match; its name at +0x40 | `src/Source2.Compiler/Lighting/MeshGeometry.cs:120`, `src/Source2.Compiler/Lighting/MeshGeometry.cs:123`, `src/Source2.Compiler/Maps/NodePropEntries.cs:237` +1 |
+| `1801d3050` | `WRB_MaterialAttributeBySemantic` | the material's vertex attribute (0xc4 records) whose semantic name (+0x80) and index (+0xc0) match; its name at +0x40 | `src/Source2.Compiler/Lighting/MeshGeometry.cs:120`, `src/Source2.Compiler/Lighting/MeshGeometry.cs:123`, `src/Source2.Compiler/Maps/NodePropEntries.cs:234` +1 |
 | `1801d30d0` | `WRB_LoadPropMeshes` | a model's draw calls as CMeshes of 18 floats a vertex (position, normal, tangent, texcoord, color, texcoord) plus the extra fields; vertices from the resource system's geometry info (vf 0xf0), unpacked there; the color stream renamed by the colour field's shader semantic or the material's attribute (1801d3050) when the material has a signature, extras named the same way, typed 0x22 (DXGI 0x2a/0x2b) or by component count (ledger 243) | `src/Source2.Compiler/Lighting/PathTraceProps.cs:19`, `src/Source2.Compiler/Lighting/PathTraceProps.cs:105`, `src/Source2.Compiler/Lighting/PathTraceProps.cs:178` +1 |
+| `1801d4dc0` | `WRB_LoadMaterials` | names + '.vmat' through the resource system (vf 0x70) into handles; a missing one resolves to materials/error.vmat (ledger 42) |  |
 | `1801fee20` | `WRB_MeshesToModelDoc` | (CMesh, group) pairs into meshSet_%i nodes by (CMesh +0x58, group); ConvertFromCMesh each |  |
 | `18022bec0` | `UtlHashtable_Rehash` | power of two at least 32, old slots re-placed last to first through 18022b530 | `src/Source2.Compiler/Maps/UtlHashtable.cs:5`, `src/Source2.Compiler/Maps/UtlHashtable.cs:132` |
 | `18022c170` | `UtlHashtable_Bump` | moves an entry to the first free slot past its chain | `src/Source2.Compiler/Maps/UtlHashtable.cs:5`, `src/Source2.Compiler/Maps/UtlHashtable.cs:83` |
@@ -1710,8 +1711,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180257b50` | `WRBNode_TakeLightmapResEntries` | entries with attribute bit 10 (toolslightmapres) taken out, their vertex positions as importance hulls {count, points, scale 1} to node +0x160; bit 36 dropped; then the processor's vf 0x48 (1801f86f0) takes the list | `src/Source2.Compiler/Maps/WorldNodeBuild.cs:112` |
 | `180257d20` | `WRB_MergeMeshes` | CMesh merge of the group (FUN_1812dd570) |  |
 | `180257ff0` | `WRBNode_MergeEntries` | one new entry from the group, fields from the first |  |
-| `180258310` | `WRBMeshList_KeepTexcoordPrecision` | a mesh list: when one texcoord stream is flagged (+0x1d) or passes 16 (180d4a120), every texcoord stream of every mesh gets +0x1d (kept float32); from WRBMeshList_GroupAggregates; BuildPropAggregates inlines it per run | `src/Source2.Compiler/Maps/NodeDraw.cs:46`, `src/Source2.Compiler/Maps/NodePropAggregates.cs:365`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:579` |
-| `180258450` | `WRBMeshList_PromoteTangentPrecision` | inlined in GroupAggregates: one tangent stream with +0x1d set sets it on every tangent stream of the name group | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:579` |
+| `180258310` | `WRBMeshList_KeepTexcoordPrecision` | a mesh list: when one texcoord stream is flagged (+0x1d) or passes 16 (180d4a120), every texcoord stream of every mesh gets +0x1d (kept float32); from WRBMeshList_GroupAggregates; BuildPropAggregates inlines it per run | `src/Source2.Compiler/Maps/NodeDraw.cs:46`, `src/Source2.Compiler/Maps/NodePropAggregates.cs:424`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:583` |
+| `180258450` | `WRBMeshList_PromoteTangentPrecision` | inlined in GroupAggregates: one tangent stream with +0x1d set sets it on every tangent stream of the name group | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:583` |
 | `180258570` | `WRBNode_MergeMeshes` | greedy: later compatible entries while verts < 0x200000 and indices < 0x400000 |  |
 | `180259b00` | `Step_RemovingTrianglesInside` | culling boxes |  |
 | `180259d30` | `CWorldRendererBuilderNode::FixTJunctionEdgeCracks` | on in CS2 (csgo_core); two thread pool jobs: collect edges, then fix | `src/Source2.Compiler/Maps/TJunctionFix.cs:7` |
@@ -1726,68 +1727,71 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18025f9d0` | `WRB_UseAggregateInstances` | gameinfo ResourceCompiler/WorldRendererBuilder/UseAggregateInstances; enables agg_prop and agg_merge |  |
 | `18025fa40` | `WRB_UseStaticEnvMapForObjectsWithLightingOrigin` | gameinfo ResourceCompiler/WorldRendererBuilder/UseStaticEnvMapForObjectsWithLightingOrigin, default false |  |
 | `18025fab0` | `WRB_CompileNodeModel` | the CMesh list to an in-memory ModelDoc (1801fee20) and compiled as <name>.vmdl; meshletMaxVertices/Triangles | `src/Source2.Compiler/Maps/MapRootFile.cs:111` |
-| `180260710` | `Step_SplittingMeshWith` | Splitting mesh with %i verts %i tris | `src/Source2.Compiler/Maps/WorldNodeModels.cs:241` |
+| `180260710` | `Step_SplittingMeshWith` | Splitting mesh with %i verts %i tris | `src/Source2.Compiler/Maps/WorldNodeModels.cs:257` |
+| `1802619c0` | `WRB_AggregateStreamUnion` | the union of a (CMesh, ref) list's streams (name case-blind, index, count, +0x1d), first seen first, offsets summed; every mesh not in that layout relaid by 1812e4040 (ledger 244) |  |
 | `1802636b0` | `CWorldRendererBuilderNode::BuildAggregateRTProxies` |  |  |
 | `180268e80` | `WRB_BuildAggregate` | Added aggregate with %i meshes, %i fragments; %s_lr%i_%s | `src/Source2.Compiler/Maps/NodePropAggregates.cs:72`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:37`, `src/Source2.Compiler/Maps/WorldNodeModels.cs:14` |
-| `18026bab0` | `WRBNode_CreateRenderObject` | name <node>_lr%i[_c%i]{_s\|_d}[_cb][_dl][_b][_kv][_nv][_bl][_rtem]_<name> | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:35`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:508` |
-| `18026c150` | `WRBMeshList_GroupRenderObjects` | runs of equal cubemap, probe, flags & 0x10420000, +0x1a6, object flags; named %s_cm%02d_lp%02d | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:338` |
+| `18026bab0` | `WRBNode_CreateRenderObject` | name <node>_lr%i[_c%i]{_s\|_d}[_cb][_dl][_b][_kv][_nv][_bl][_rtem]_<name> | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:35`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:512` |
+| `18026c150` | `WRBMeshList_GroupRenderObjects` | runs of equal cubemap, probe, flags & 0x10420000, +0x1a6, object flags; named %s_cm%02d_lp%02d | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:339`, `src/Source2.Compiler/Maps/WorldNodeModels.cs:246` |
 | `18026d4a0` | `WRBMeshEntry_CanAggregate` | attribute 0x40000000 and none of 0x800e01, object flags without 0x200, no instance stream, lighting origin, overlay order or fade | `src/Source2.Compiler/Maps/MeshLists.cs:56` |
-| `18026d7a0` | `WRBNode_PropCanAggregate` | false with a lighting origin (UseStaticEnvMapForObjectsWithLightingOrigin, prop +0x208), no model, not a prop_static (+0x17e), lodlevel (+0x1e4) not -1, renderwithdynamic (+0x171), fademindist or fademaxdist (+0x160/+0x164) above 0, or extra vertex streams (+0x100) without node +5; else every material's SupportsAggregateInstancing (0x67d9d859) | `src/Source2.Compiler/Maps/NodePropAggregates.cs:15`, `src/Source2.Compiler/Maps/NodePropAggregates.cs:303` |
+| `18026d7a0` | `WRBNode_PropCanAggregate` | false with a lighting origin (UseStaticEnvMapForObjectsWithLightingOrigin, prop +0x208), no model, not a prop_static (+0x17e), lodlevel (+0x1e4) not -1, renderwithdynamic (+0x171), fademindist or fademaxdist (+0x160/+0x164) above 0, or extra vertex streams (+0x100) without node +5; else every material's SupportsAggregateInstancing (0x67d9d859) | `src/Source2.Compiler/Maps/NodePropAggregates.cs:15`, `src/Source2.Compiler/Maps/NodePropAggregates.cs:339` |
 | `18026e490` | `WRB_RemoveZeroExtraAttributeStreams` | Removed %i all-zero extra attribute streams |  |
-| `18026e840` | `CClassifiedMeshList::MoveAggregates` | vf 0x28: aggregatable entries moved to the aggregate member list | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:18`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:250` |
-| `18026ed20` | `CClassifiedMeshList::CompileInstanced` | vf 0x38: entries hashed by (+0x40 node id, +0xa8); a group all CanAggregate with +0x21 goes to the stash, else one object %s%d_%s (global counter DAT_183bb3764), cluster 0 | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:458` |
-| `18026f590` | `WRBMeshList_GroupAggregates` | runs of equal material name and attribute bits 0x6000000000 / 0x100000, up to 0x7ffb meshes, into the aggregate builder | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:31`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:547` |
-| `180270430` | `WRBMeshList_FlushStash` | vf 0x40: GroupAggregates, then the leftovers through vf 0x20, per render box by their bounds centre | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:211`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:709` |
+| `18026e840` | `CClassifiedMeshList::MoveAggregates` | vf 0x28: aggregatable entries moved to the aggregate member list | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:18`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:251` |
+| `18026ed20` | `CClassifiedMeshList::CompileInstanced` | vf 0x38: entries hashed by (+0x40 node id, +0xa8); a group all CanAggregate with +0x21 goes to the stash, else one object %s%d_%s (global counter DAT_183bb3764), cluster 0; the object takes the first entry's +0xb0/+0xb4/+0x80 (fades, origin) and SetTint per tinted entry (ledger 245) | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:55`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:459`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:489` +1 |
+| `18026f590` | `WRBMeshList_GroupAggregates` | runs of equal material name and attribute bits 0x6000000000 / 0x100000, up to 0x7ffb meshes, into the aggregate builder | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:31`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:551` |
+| `180270430` | `WRBMeshList_FlushStash` | vf 0x40: GroupAggregates, then the leftovers through vf 0x20, per render box by their bounds centre | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:212`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:713` |
 | `180270720` | `CMeshList::Accepts` | vf 0x50: (attribute & want) == want and (attribute & exclude) == 0 | `src/Source2.Compiler/Maps/MeshLists.cs:44` |
 | `180270740` | `CMeshList_TaggedMembers` | each entry with a tag: 1 with attribute bit 37, else 2 with bit 38, else 0 |  |
 | `1802709f0` | `CBaseMeshList::Compile` | vf 0x20: groups as "mesh_base" |  |
 | `180271090` | `COverlayMeshList::COverlayMeshList` | want 0x1000; the no-split overlay list adds 4 |  |
-| `180271110` | `COverlayMeshList::CompileBucket` | vf 0x30: vf 0x20 at the running index, returns it advanced by the groups added | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:161` |
+| `180271110` | `COverlayMeshList::CompileBucket` | vf 0x30: vf 0x20 at the running index, returns it advanced by the groups added | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:162` |
 | `180271150` | `COverlayMeshList::OnAdd` | vf 0x58: object flag 0x2000 |  |
-| `180271160` | `COverlayMeshList::Compile` | vf 0x20: groups (0x28) by render order +0xac, flags & 0x80, attribute bit 23; bit 1 a closed group; +0xe aggregatable | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:387` |
-| `180271780` | `COverlayMeshList::Flush` | vf 0x40: aggregatable groups through GroupAggregates as agg_overlay, then each group GroupRenderObjects mesh_%soverlay%d (ns for the no-split list); objects take +0x74 order and flags | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:208`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:415` |
+| `180271160` | `COverlayMeshList::Compile` | vf 0x20: groups (0x28) by render order +0xac, flags & 0x80, attribute bit 23; bit 1 a closed group; +0xe aggregatable | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:388` |
+| `180271780` | `COverlayMeshList::Flush` | vf 0x40: aggregatable groups through GroupAggregates as agg_overlay, then each group GroupRenderObjects mesh_%soverlay%d (ns for the no-split list); objects take +0x74 order and flags | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:209`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:416` |
 | `180272060` | `COverlayMeshList::Report` | vf 0x48: Created %i+%i overlay sceneobjects |  |
-| `1802723d0` | `CWorldSpaceTextureMeshList::Compile` | vf 0x20: mesh_worldspace_texture_blend, object flag 0x40 | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:316` |
+| `1802723d0` | `CWorldSpaceTextureMeshList::Compile` | vf 0x20: mesh_worldspace_texture_blend, object flag 0x40 | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:317` |
 | `180272480` | `CSkyboxMeshList::Compile` | vf 0x20: one mesh_skybox object, flags 0x400 |  |
-| `180272620` | `CSkyboxMaterialMeshList::Compile` | vf 0x20: entries grouped by +0x1c0 (skyboxslot, CUtlString ==, first seen), each group mesh_skyboxslot_%s, flags 0x400 | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:310` |
+| `180272620` | `CSkyboxMaterialMeshList::Compile` | vf 0x20: entries grouped by +0x1c0 (skyboxslot, CUtlString ==, first seen), each group mesh_skyboxslot_%s, flags 0x400 | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:311` |
 | `180272aa0` | `CAggregateMeshList::Accepts` | vf 0x50: enabled, the flag test, then WRBMeshEntry_CanAggregate | `src/Source2.Compiler/Maps/MeshLists.cs:45` |
-| `180272ae0` | `CAggregateMeshList::Compile` | vf 0x20: sorts the entries (180290090: (+0x1b0 & 0x6000000000), then the mesh pointer +0x0), then groups | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:289` |
+| `180272ae0` | `CAggregateMeshList::Compile` | vf 0x20: sorts the entries (180290090: (+0x1b0 & 0x6000000000), then the mesh pointer +0x0), then groups | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:290` |
 | `180272b70` | `CInstancedMeshList::CInstancedMeshList` | want 2 (never merge), exclude 1; reads UseAggregateInstances |  |
 | `180272c60` | `WRBInstancedMeshList_Compile` | vf 0x20: calls vf 0x38 (18026ed20) on the list's entries |  |
 | `180272c80` | `CInstancedMeshList::OnAdd` | vf 0x58: mesh +0x14c = 1 |  |
 | `180272c90` | `CBakedPropLODMeshList::OnAdd` | vf 0x58: clears attribute bit 2, mesh +0x14c = 0 |  |
 | `180272cb0` | `WRBNoSplitMeshList_Compile` | vf 0x20 of the third keyed list |  |
 | `180272ce0` | `WRBNode_BuildPropAggregates` | with UseAggregateInstances: models of node +0x190 (CUtlOrderedMap, CDefStringLess) in order; a model's props without materialoverride, deformer or +0x1e8 that pass 18026d7a0, by LOD (1802b4ab0): one entry per prop and mesh (180255470, 180252ae0), +0x204 the centre of the LOD's mesh bounds placed by the prop matrix; a model joins only if every entry CanAggregate; buckets by entry +0x20; if any and the summed +0x24 > 863: per bucket PrepareForMerge, Morton order (180274be0), stable sort, runs into aggregates; agg_prop | `src/Source2.Compiler/Maps/NodePropAggregates.cs:9`, `src/Source2.Compiler/Maps/NodePropAggregates.cs:40` |
-| `180274be0` | `WRBMeshList_SortMorton` | entries by a 32-bit Morton key of ((long)(centre.x - node.min.x) >> 4, (long)(centre.y - node.min.y) >> 4), 16 bits each, y in the odd bits; std::sort (180299b60) on the key alone | `src/Source2.Compiler/Maps/NodePropAggregates.cs:313` |
+| `180274be0` | `WRBMeshList_SortMorton` | entries by a 32-bit Morton key of ((long)(centre.x - node.min.x) >> 4, (long)(centre.y - node.min.y) >> 4), 16 bits each, y in the odd bits; std::sort (180299b60) on the key alone | `src/Source2.Compiler/Maps/NodePropAggregates.cs:349` |
 | `180275080` | `WRBNode_FinishLists` | UseAggregateInstances: WRBNode_BuildPropAggregates (180272ce0) first |  |
 | `180277ab0` | `CWorldRendererBuilderNode::CompileNode` | worldnodes
 %d: mesh lists by entry flags, render clusters, each list compiled per cluster, then vertex override streams; with vis clustering three lists each go through CVisibilityMeshMerger::MergeMeshes (call at 180278812): the unclustered entries replace the list for Step_BuildingRenderClusters, each non-empty bucket is compiled as a cluster (list vf 0x28/0x30) | `src/Source2.Compiler/Maps/MeshLists.cs:4`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:7` |
 | `180281100` | `CWorldRendererBuilderNode::PostCompileNode` |  |  |
 | `180282bf0` | `RenderClusters_SplitBoxes` | recursive centroid split along the longest axis (minimum triangles, size, size-split flag, depth below 64); a box appended per leaf | `src/Source2.Compiler/Maps/RenderClusters.cs:30`, `src/Source2.Compiler/Maps/RenderClusters.cs:48` |
-| `180282ef0` | `Step_BuildingRenderClusters` | VisibilityGuidedMeshClustering; centroids of the entries whose attributes & 0x131 is not 1, boxes by 180282bf0, each grown by 1/32 | `src/Source2.Compiler/Maps/RenderClusters.cs:22`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:16`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:645` |
-| `180283520` | `CWorldRendererBuilderNode_BoxGrid` | the node's box grid: ceil(extent / m_flMinDrawVolumeSize) cells, far corner to whole cells; past 0x1000 cells cbrt(volume / 4096) cells clamped 1..64; grown by 0.01, x fastest; CompileNode's clusters without vis (180278555) and its render boxes of last resort (180278b57) | `src/Source2.Compiler/Maps/RenderClusters.cs:174`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:22`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:122` |
+| `180282ef0` | `Step_BuildingRenderClusters` | VisibilityGuidedMeshClustering; centroids of the entries whose attributes & 0x131 is not 1, boxes by 180282bf0, each grown by 1/32 | `src/Source2.Compiler/Maps/RenderClusters.cs:22`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:16`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:649` |
+| `180283520` | `CWorldRendererBuilderNode_BoxGrid` | the node's box grid: ceil(extent / m_flMinDrawVolumeSize) cells, far corner to whole cells; past 0x1000 cells cbrt(volume / 4096) cells clamped 1..64; grown by 0.01, x fastest; CompileNode's clusters without vis (180278555) and its render boxes of last resort (180278b57) | `src/Source2.Compiler/Maps/RenderClusters.cs:174`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:22`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:123` |
 | `180287320` | `CWorldRendererBuilderNode::LoadMaterialsInMeshList` |  |  |
 | `18028f100` | `UtlHashtable_Insert_NodeKey` | tier1 CUtlHashtable insert for the (+0x40, +0xa8) key of 18026ed20: bit 31 empty, bit 30 last of chain | `src/Source2.Compiler/Maps/UtlHashtable.cs:4` |
-| `18028f2c0` | `WRBMeshList_GroupAggregates_Less` | insertion step of the stable sort: instance stream kinds, bits 0x6000000000 / 0x100000, CMesh name (V_stricmp), stream layout hash as int | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:548` |
+| `18028f2c0` | `WRBMeshList_GroupAggregates_Less` | insertion step of the stable sort: instance stream kinds, bits 0x6000000000 / 0x100000, CMesh name (V_stricmp), stream layout hash as int | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:552` |
 | `1802902e0` | `std_insertion_sort_MeshEntries` | the stable sort's insertion pass (33 or fewer) |  |
 | `180290b20` | `std_stable_sort_MeshEntries` | buffered merge sort of 0x238 entries (buffer 18028ef30), comparator as 180290090 |  |
 | `180291a00` | `CUtlRBTree_FindString` | byte strcmp on the 0x20-byte nodes' key (+0x10); left +0, right +4 | `src/Source2.Compiler/Maps/NodePropEntries.cs:42` |
 | `180294bb0` | `WRBNode_SortEdgeInserts` | std::sort of the inserts by edge, then t |  |
-| `180296c80` | `std_sort_AggregateEntries` | the run's 0x238 entries by their CMesh, the fragments' comparator | `src/Source2.Compiler/Maps/WorldNodeModels.cs:14` |
-| `180296ed0` | `std_sort_AggregateFragments` | MSVC introsort of the (CMesh, ref) fragments: CMesh +0x58 ascending, vertex count +0x18 descending, then memcmp of the vertices | `src/Source2.Compiler/Maps/WorldNodeModels.cs:14` |
+| `180296c80` | `std_sort_AggregateEntries` | the run's 0x238 entries by their CMesh, the fragments' comparator (1802a0ff0's; ledger 244) | `src/Source2.Compiler/Maps/NodePropAggregates.cs:375`, `src/Source2.Compiler/Maps/NodePropAggregates.cs:403`, `src/Source2.Compiler/Maps/WorldNodeModels.cs:14` |
+| `180296ed0` | `std_sort_AggregateMeshes` | BuildAggregate's mesh list (16-byte refs), comparator as 1802a0ff0 (ledger 244) | `src/Source2.Compiler/Maps/NodePropAggregates.cs:374`, `src/Source2.Compiler/Maps/NodePropAggregates.cs:403`, `src/Source2.Compiler/Maps/WorldNodeModels.cs:14` |
+| `180296ed0` | `std_sort_AggregateFragments` | MSVC introsort of the (CMesh, ref) fragments: CMesh +0x58 ascending, vertex count +0x18 descending, then memcmp of the vertices | `src/Source2.Compiler/Maps/NodePropAggregates.cs:374`, `src/Source2.Compiler/Maps/NodePropAggregates.cs:403`, `src/Source2.Compiler/Maps/WorldNodeModels.cs:14` |
 | `180299b60` | `std_sort_MortonKeys` | MSVC introsort of (uint key, int index) pairs by key; insertion sort at 32 or fewer |  |
+| `1802a0ff0` | `std_insertion_sort_AggregateMeshes` | comparator: CMesh +0x58 ascending, vertex count +0x18 descending, memcmp of count x stride +0x1c floats (ledger 244) | `src/Source2.Compiler/Maps/NodePropAggregates.cs:375` |
 | `1802b3060` | `WRBNode_BakePropMeshes` | one model LOD's meshes (1801d30d0) per prop: material overrides, the deformer (1812d7510), then an entry per draw call (180255470) |  |
 | `1802b4ab0` | `WRBNode_GroupPropsByLod` | the baked props of one model grouped by lodlevel (+0x1e4) | `src/Source2.Compiler/Lighting/PathTraceProps.cs:104` |
 | `1802b4d50` | `WRBMeshList_MaterialStreams` | a material's 0xc4-byte inputs (semantic at +0x40) to (stream, index) pairs through 181366d90; unknown semantics as their own name at 0 | `src/Source2.Compiler/Maps/MaterialStreams.cs:13` |
-| `1802b52d0` | `WRBMeshList_PrepareForMerge` | per list before MergeMeshes: meshes deduplicated by pointer, cleaned (1812e03a0) | `src/Source2.Compiler/Maps/MaterialStreams.cs:7`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:153` |
+| `1802b52d0` | `WRBMeshList_PrepareForMerge` | per list before MergeMeshes: meshes deduplicated by pointer, cleaned (1812e03a0) | `src/Source2.Compiler/Maps/MaterialStreams.cs:7`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:154` |
 | `1802b6130` | `CMesh_StreamLayoutHash` | boost hash_combine from the stream count over murmur2(name), murmur2(+8), +0x10, +0x14, +0x18, +0x1c, +0x1d | `src/Source2.Compiler/Maps/WrbMeshEntry.cs:98` |
 | `1802b63b0` | `WRBMeshEntry_CanMerge` | same attribute flags, material, overlay order, object flags, probe/cubemap, matrix +0x1c8 within 1e-5, ... | `src/Source2.Compiler/Maps/WrbMeshEntry.cs:7` |
 | `1802b6db0` | `WRBNode_PropMaterials` | the model's materials for the prop's LOD (+0x1e4) through its material group (+0x188); AddStaticProps sets prop +0x168 = 3, or 8 when one has NeedsLocalSpaceVertices (0x3b7ef4e7) | `src/Source2.Compiler/Maps/NodePropEntries.cs:74` |
 | `1802ebc20` | `CResourceCompilerMesh_RigidParts` | rigid mesh parts by bone |  |
 | `1802ec6e0` | `CResourceCompilerMesh_PackDrawVB` | allocates stride * vertices and calls CMesh_CreatePackedVB; warns when the sizes disagree |  |
-| `1802ed7f0` | `CResourceCompilerMesh::AddDrawDescriptors` | per draw: vertices renumbered by first use in the incoming index buffer, then vcache, overdraw at 1.03, UV density | `src/Source2.Compiler/Maps/WorldNodeModels.cs:361` |
-| `1802f5680` | `ModelCompile_MeshInputLayouts` | per mesh (0x148 bytes): the full layout, and with a material depth list (INSG m_depth_elems) the depth (flags \| 8) and remainder (flags \| 0x10) layouts; a fourth for non-map meshes | `src/Source2.Compiler/Maps/WorldNodeModels.cs:360` |
-| `1802f6840` | `WRB_CompressTexcoordsToSnorm` | per layout stream: an unflagged two-component texcoord becomes R16G16_SNORM (0x25), four-component 0xd, when every mesh's values lie in [-1, 1] (1802fc990) | `src/Source2.Compiler/Maps/NodeDraw.cs:39`, `src/Source2.Compiler/Maps/NodePropAggregates.cs:365` |
+| `1802ed7f0` | `CResourceCompilerMesh::AddDrawDescriptors` | per draw: vertices renumbered by first use in the incoming index buffer, then vcache, overdraw at 1.03, UV density; m_vTintColor = V_powf(c, 2.2) (18126a260) of the CMesh tint +0x154 when UseTintColor +0x14f (ledger 245) | `src/Source2.Compiler/Maps/WorldNodeModels.cs:242`, `src/Source2.Compiler/Maps/WorldNodeModels.cs:377` |
+| `1802f5680` | `ModelCompile_MeshInputLayouts` | per mesh (0x148 bytes): the full layout, and with a material depth list (INSG m_depth_elems) the depth (flags \| 8) and remainder (flags \| 0x10) layouts; a fourth for non-map meshes | `src/Source2.Compiler/Maps/WorldNodeModels.cs:376` |
+| `1802f6840` | `WRB_CompressTexcoordsToSnorm` | per layout stream: an unflagged two-component texcoord becomes R16G16_SNORM (0x25), four-component 0xd, when every mesh's values lie in [-1, 1] (1802fc990) | `src/Source2.Compiler/Maps/NodeDraw.cs:39`, `src/Source2.Compiler/Maps/NodePropAggregates.cs:424` |
 | `1802f69f0` | `ModelCompile_BuildDrawSets` | draw-set groups (400 bytes: four layouts, then the meshes) from the mesh list (+0x14c instanced, +0x14d), each through 1802f6840 |  |
 | `1802f9cc0` | `ModelCompile_ReadMeshArgs` | globals from the compile arguments: create_pooled_vb (18307e22c), embedded_map_mesh (18307e218), embedded_aggregate_mesh, meshlets; SceneSystem/RenderMeshlets, RayTraceProxyEnabled | `src/Source2.Compiler/Maps/MapRootFile.cs:63`, `src/Source2.Compiler/Maps/MapRootFile.cs:110`, `src/Source2.Compiler/Maps/WorldNodeModels.cs:66` |
 | `1802f9cc0` | `WRB_MeshletSettings` | SceneSystem/MeshletMaxVertexCount 255, MeshletMaxTriangleCount 48 | `src/Source2.Compiler/Maps/MapRootFile.cs:63`, `src/Source2.Compiler/Maps/MapRootFile.cs:110`, `src/Source2.Compiler/Maps/WorldNodeModels.cs:66` |
@@ -1803,6 +1807,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180d46590` | `DmeMeshToCMesh_CopyAttribute` | one vertex attribute by type (+0x1c & 0x3f): float3 points through the matrix, directions turned by it and renormalised (zero length: +0s), float4 directions the same with w kept; the map path hands an identity whose zeros are all +0 | `src/Source2.Compiler/Maps/NodeMeshEntries.cs:225`, `src/Source2.Compiler/Maps/NodeMeshEntries.cs:233` |
 | `180d4a120` | `Texcoords_AnyAbove16` | true when any of a two-float stream's components passes 16 in magnitude | `src/Source2.Compiler/Maps/NodeDraw.cs:48`, `src/Source2.Compiler/Maps/WrbMeshEntry.cs:76`, `src/Source2.Compiler/Maps/WrbMeshEntry.cs:80` |
 | `180dfadd0` | `InputSignature_Unserialize` | m_elems, then m_depth_elems at +0x18 |  |
+| `18126a260` | `V_powf_Gamma22` | V_powf(x, 2.2f) |  |
 | `18126a830` | `PackedAABB_Pack` | 10 bits an axis inside the bounds, min floored, max ceiled | `src/Source2.Compiler/Meshopt/MeshletBounds.cs:31` |
 | `1812b88e0` | `meshopt_buildTriangleAdjacency` |  | `src/Source2.Compiler/Meshopt/MeshoptOptimizers.cs:28` |
 | `1812b8c10` | `meshopt_optimizeVertexCacheTable` |  | `src/Source2.Compiler/Meshopt/MeshoptOptimizers.cs:6` |
@@ -1835,11 +1840,13 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1812e18e0` | `Material_LoadResourceData` | MaterialResourceData_t from the vmat_c DATA block; INSG through 1812e0fe0 |  |
 | `1812e1ce0` | `CMesh_DuplicateReversed` | double-sided draws: every triangle again with the winding reversed |  |
 | `1812e2a10` | `CMesh_RemoveStream` | drops one stream and its floats; later streams' offsets (+0x14) shift down by its count | `src/Source2.Compiler/Maps/WrbMeshEntry.cs:90` |
+| `1812e4040` | `CMesh_RelayoutStreams` | a mesh into a given stream table: stride max(offset + count), zeroed buffer, floats copied from the stream of the same index, count and name, else 0 (ledger 244) |  |
+| `1812e5580` | `CMesh_SetTint` | +0x14f UseTintColor = 1, +0x154 the tint (ledger 245) | `src/Source2.Compiler/Maps/WorldNodeModels.cs:244` |
 | `181363de0` | `InputLayout_MatchSignature` | walks the signature, maps each semantic through the posxyz table (183014ae0) to a stream name and index, takes the mesh field; skips ones already matched | `src/Source2.Compiler/Maps/WorldNodeModels.cs:119` |
 | `181364720` | `CMesh_BuildPackedInputLayout` | one field per mesh stream in mesh order (formats, normal 0x2a), then signature matching (181363de0): depth list, or main minus depth; unmatched fields dropped unless flags bit 2; offsets by format size |  |
 | `181365710` | `CMesh_BuildInputLayout` | thunk to 181364720 with the mesh's field list |  |
 | `181365a40` | `CMesh_CreatePackedVB` | vertex buffer written field by field through the packed input layout (181365ce0 per format) |  |
-| `181365ce0` | `CMesh_PackField` | one layout field of one vertex, a switch on the DXGI format | `src/Source2.Compiler/Maps/TangentFrame.cs:8`, `src/Source2.Compiler/Maps/WorldNodeModels.cs:475` |
+| `181365ce0` | `CMesh_PackField` | one layout field of one vertex, a switch on the DXGI format | `src/Source2.Compiler/Maps/TangentFrame.cs:8`, `src/Source2.Compiler/Maps/WorldNodeModels.cs:491` |
 | `181366d90` | `MeshSemantic_Lookup` | shader semantic or stream name in the table at 183014ae0 (0x20 rows: semantic, stream, stream index, shader index) | `src/Source2.Compiler/Maps/MaterialStreams.cs:10`, `src/Source2.Compiler/Maps/MaterialStreams.cs:23` |
 | `182067b00` | `CompressTangentFrame_SearchNormal` | third argument set: the octahedral normal by floor and search; shares the tangent part |  |
 | `182067e80` | `CompressTangentFrame` | octahedral normal 10+10 bits, tangent angle 11 bits, bitangent sign; precise path FUN_182067b00 | `src/Source2.Compiler/Lighting/Bake/SceneVertexLayout.cs:33`, `src/Source2.Compiler/Maps/TangentFrame.cs:9` |
@@ -2204,7 +2211,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1812d6c70` | `CMesh_Append` | streams matched by name; vertices appended, indices offset by the old vertex count | `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:47` |
 | `1812d9eb0` | `CMesh_BoundsRange` |  |  |
 | `1812ddd80` | `CMesh_CopyFrom` |  |  |
-| `1812de310` | `CMesh_SubsetByIndices` | the listed triangles, vertices renumbered by first use | `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:56`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:688` |
+| `1812de310` | `CMesh_SubsetByIndices` | the listed triangles, vertices renumbered by first use | `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:56`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:692` |
 | `1812dfd10` | `CMesh_Bounds` | min/max of the first 'position' stream of three floats, every vertex | `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:32` |
 
 ## resourcecompiler_20260923_geometry.dll, build agent

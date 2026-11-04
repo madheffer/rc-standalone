@@ -506,6 +506,13 @@ game can answer is raised with the user first, and runs with -insecure.
     (so a light probe, 2026-10-04), which is none of core's error.vmat,
     editor/error_indicator.vmat or models/dev/materialforerrormodel.vmat;
     ours gives it the empty attribute set.
+    MEASURED 2026-11-04 (CS2 closed, tools/re/capture_missingmaterial.py on cardtest -world -fshallow,
+    package restored cmp-ok): 1801d4dc0 (WRB_MeshEntryFlags' material load) returns, for
+    materials/doomtextures/teleport02.vmat, a handle (+8 the requested name) whose material is named
+    materials/error.vmat (string at +0x10); doom_npcs/imp_atlas.vmat resolves to it too. Only
+    core/pak01 has materials/error.vmat_c, so the fallback is core's error.vmat after all: the
+    earlier "not error.vmat" compared flags we computed. Next (CS2 open): error.vmat's attribute flags
+    and representative texture through the shader attribute probe against 0x160100000 / 256x256.
 43. **Prop aggregate grouping and order** (WRBNode_BuildPropAggregates,
     180272ce0, read): models in CDefStringLess order, one entry per prop
     and mesh, buckets by entry +0x20 (one agg_prop model per material),
@@ -6036,3 +6043,48 @@ reference was compiled on 2026-11-03 by the installed 1.41.9.5 resourcecompiler 
        Not CMesh_Concatenate (1812dd570 refuses differing sets), not InputLayout_MatchSignature
        (181363de0 adds a field only when the mesh has the stream), not 1813319d0 (one DmeMesh per
        CMesh). Ours writes two vertex buffers and a note. CS2_CLOSED_QUEUE A.12.
+244. **An aggregate's streams: the union and the zero-filled relayout** (2026-11-04, CS2 closed; Frida on a
+     standalone resourcecompiler, tools/re/capture_aggstreams.py on atixref -world -fshallow, package
+     restored cmp-ok; rc 0923 decompiles 180268e80, 1802619c0, 1812e4040). MEASURED where, READ how;
+     settles 243's open item (CS2_CLOSED_QUEUE A.12).
+     - MEASURED: inferno_fountain_01's CMesh leaves WRB_LoadPropMeshes with stride 18 and no
+       VertexPaintBlendParams and reaches WRB_MeshesToModelDoc, the same pointer, with stride 22 and
+       VertexPaintBlendParams all zero, after position, normal, tangent, texcoord, VertexPaintTintColor,
+       texcoord 1 (the chimney's order). So the fill is inside WRB_BuildAggregate.
+     - READ: WRB_BuildAggregate calls 1802619c0 on Step_SplittingMeshWith's (CMesh, ref) list before the
+       sorts. 1802619c0 builds the union of the list's streams, meshes in list order and each mesh's
+       streams in order, a stream new when no earlier one has its name (case-blind), index (+0x10),
+       float count (+0x18) and +0x1d; a new one is copied whole (name, semantic, index, count, +0x1c,
+       +0x1d, type +0x20). The union's offsets (+0x14) are then the running sum of the counts.
+     - Then per mesh: when some union stream has no stream equal in name and semantic (case-blind),
+       index, offset, count, +0x1c and +0x1d, 1812e4040 relays it out: stride = max(offset + count)
+       over the union, a zeroed buffer, each union stream's floats copied from the mesh's stream of the
+       same index, count and name (case-blind; the first such), else left 0; the stream table becomes
+       a copy of the union. A mesh already in the union's layout is untouched.
+244. **A prop aggregate's draw and fragment order** (2026-11-04; rc 0923 decompiles 180268e80 WRB_BuildAggregate,
+     180296ed0 / 180296c80 and their insertion pass 1802a0ff0, 180272ce0, 1801d30d0). READ, one input MEASURED.
+     - BuildPropAggregates loads each model with WRB_LoadPropMeshes at the group's lodlevel, -1 for every
+       aggregate candidate, so each CMesh's byte +0x58 is its embedded mesh's LOD mask (18174e370).
+     - WRB_BuildAggregate std::sorts the mesh list (180296ed0) and the run's 0x238 entries (180296c80) with one
+       comparator: +0x58 ascending, then vertex count (+0x18) descending, then memcmp of count x stride (+0x1c)
+       floats < 0. Each mesh is a draw in that order; the fragments follow the sorted entries. The CMesh copy
+       loop after the sorts clears +0x58 and +0x40.
+     - atixref -world: world nodes 283 -> 315; every agg_prop model is Valve's but the A.12 trim aggregate; both
+       metal_door_001 buckets equal Valve's second run (the known swap).
+     - MEASURED, open: n0.vwnod's fragment lists of 21 aggregates. Entries of one mesh, and of meshes whose
+       vertices are equal, tie in the comparator, so std::sort leaves them in an order set by its input: the
+       stable sort by (attribute bits, CMesh pointer) of CAggregateMeshList (180290090), which is heap order.
+       CS2_CLOSED_QUEUE A.11.
+245. **Draw tints and instanced objects' fades and origin** (2026-11-04; rc 0923 decompiles 1802ed7f0,
+     18126a260, 1812e5580, 18026c150, 18026e9c0, 18026ed20, 18023f6d0, 18025ece0, 181360310). READ.
+     - A world entry's tint (+0x28) is linear, byte x 0.003921569 (WRB_CollectMeshEntries).
+     - CMesh_SetTint (1812e5580) sets UseTintColor (+0x14f) and the tint (+0x154). GroupRenderObjects,
+       the vis merger and CompileInstanced call it with the entry's +0x28 when that is not (1, 1, 1, 1); the
+       overlay projector (181362050) with the overlay's tint.
+     - AddDrawDescriptors writes the draw's m_vTintColor as V_powf(c, 2.2) (18126a260) per component when
+       +0x14f is set. atixref's three cm00 objects with tintColor 221 now Valve's.
+     - CompileInstanced copies its group's first entry's +0xb0, +0xb4 and +0x80..+0x88 into the object's
+       +0x38, +0x3c and +0x68 (fades, lighting origin), as the vis merger does (ledger 59).
+     - An overlay entry's +0x80 is its descriptor's +0x64 (18025ece0 at 18025f3xx), FLT_MAX from
+       OverlayDesc::OverlayDesc (181360310); GetOverlayDescs does not set it.
+     n0.vwnod's scene objects now differ only in the blocklight shadow objects' light probe handshake.

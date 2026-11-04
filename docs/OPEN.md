@@ -20,21 +20,28 @@ none), which is what turns the flat meshes' -0 into +0. atixref at HammerMesh_Tr
 Open:
 - 1.c2 overlay tangents (about 30 small atixref models, packed NORMAL holds a default tangent).
 - 1.c3 95 agg_prop models' tangent angle (Valve's encoder NaN path vs ours, a last-bit source difference).
-- 1.c4 two agg_nomerge aggregates' later meshlets; 1.c5 the missing-material rule (cardtest teleport02).
-- 1.c6 prop aggregate draw order: **checked 11-04, not variance.** Two Valve `-world` compiles of atixref
-  (%TEMP%/fresh_compile/atixref_world_1104.vpk and atixref_world_run2.vpk) differ in 4 files only: world.vwrld_c's
-  stamp, n0.vwnod_c and the two metal_door_001 buckets swapping. So the other agg_prop models are deterministic
-  and ours differ in their draw order: in all 56 multi-draw scene objects of Valve's agg_prop models the draws
-  come in non-increasing vertex count (MEASURED). The code sorts by the mesh pointer (180290090); what makes the
-  pointers fall in that order is not read: CS2_CLOSED_QUEUE A.11. Not ported until then.
-- 1.c7 atixref `-world` ParityReport, 11-04 from the .vmap: 440 of 553 files (65.5% of bytes): lumps 11/11, index 3/3, entity
-  models 143/144, world nodes 283/395; the misses are the agg_prop draw order (1.c6), the tangent angle (1.c3) and
-  n0.vwnod. **The streams are ported** (ledger 243, 11-04): WRB_LoadPropMeshes names the colour stream by the
-  field's shader semantic or the material's attribute (the five foliage aggregates' "Color") and appends the extra
-  fields (inferno_plaster_facade_01_dirty's VertexPaintBlendParams from the chimney model's unnamed TEXCOORD4);
-  every agg_prop layout is Valve's but one. Open: inferno_concrete_trim_weathered_dirt_blend_01, whose fountain
-  draw lacks the stream the chimney draw has; Valve writes one vertex buffer with zeros for it, ours two (and a
-  note). Where Valve fills it is not read: CS2_CLOSED_QUEUE A.12.
+- 1.c4 two agg_nomerge aggregates' later meshlets; 1.c5 the missing-material rule (cardtest teleport02): **11-04 Frida: it loads as materials/error.vmat** (core's, the only one; GROUND_TRUTH 42), so its flags should follow from that material; ours gives the empty set.
+- 1.c6 prop aggregate draw order: **models closed 11-04** (ledger 244): WRB_BuildAggregate's sort (LOD mask,
+  vertex count descending, memcmp) ported; every agg_prop model is Valve's but the trim aggregate (1.c7), the
+  metal_door_001 buckets equal Valve's second run. Open: n0.vwnod's fragment order in 21 aggregates, which follows
+  the CMesh pointer order of the stable sort before (heap order): CS2_CLOSED_QUEUE A.11.
+- 1.c7 atixref `-world` ParityReport, 11-04 evening: **475 of 553 files (89.8% of bytes)**: lumps 11/11, index
+  3/3, entity models 143/144, world nodes 318/395. Ported this session: the prop meshes' streams (ledger 243), the
+  aggregate sort (244), draw tints and the instanced objects' fades and origin (245). ze_hold_em_p's `-world`
+  output is unchanged by all three but the .vwrld stamp. Left, by family:
+  - overlays (about 33 `mesh_overlay*` models): tangent frames only. Valve recomputes tangents
+    (CMesh_ComputeTangents, MikkTSpace on) on a mesh with no tangent stream after interpolating the target's
+    streams (181361000); ours differ in direction and sign, so an input to the generator differs. Not found yet.
+  - blocklight shadows (19 `cb_bl_mesh_blocklight*_shadow`): Valve has one or two draws and filtered streams, ours
+    more draws with unnamed fields; and their light probe handshake in n0.vwnod (Valve 0).
+  - per-object meshes (about 12 `cb_nomerge*`, `d_nomerge*`): Valve splits into more draws than ours.
+  - vism0 overlay objects (8): field order. CMesh_BuildPackedInputLayout keeps mesh stream order (read); the order
+    comes from the CMesh -> DmeMesh (1813319d0) -> CMesh (DmeMeshToCMesh 180d47b90) round trip, not ported;
+    WorldNodeModels' Rank is fitted.
+  - agg_nomerge / agg_merge (about 6): a few tangent frame bits, vertex counts off by one or two (1.c4).
+  - disco_wall_toggle_246: RERL order. Every Valve model with 2+ references lists them in ordinal path order
+    (17 of 17), ours in first use; the writer is not found yet (resourcesystem side).
+  - the trim aggregate's zero fill (A.12); n0.vwnod (A.11 and the blocklight handshakes).
 - 1.a1-1.a9 measured, not read: the SIMD transform and the renormalise before WRB_CollectMeshEntries, field and
   aggregate list order, AllowBackfaceCulling's parent set (materialsystem2 +0x60, written at 1800364c3).
 - 1.b refusals ZE maps can reach: foliage (NeedsLocalSpaceVertices), clutter, smart prop skips; detail grass
