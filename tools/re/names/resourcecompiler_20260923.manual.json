@@ -1906,7 +1906,7 @@
    "addr": "1801d30d0",
    "name": "WRB_LoadPropMeshes",
    "module": "s2c:geometry/world-nodes",
-   "note": "a model's draw calls as CMeshes of 18 floats a vertex (position, normal, tangent, texcoord, color, texcoord); vertices from the resource system's geometry info (vf 0xf0), unpacked there"
+   "note": "a model's draw calls as CMeshes of 18 floats a vertex (position, normal, tangent, texcoord, color, texcoord) plus the extra fields; vertices from the resource system's geometry info (vf 0xf0), unpacked there; the color stream renamed by the colour field's shader semantic or the material's attribute (1801d3050) when the material has a signature, extras named the same way, typed 0x22 (DXGI 0x2a/0x2b) or by component count (ledger 243)"
   },
   {
    "addr": "1812d7510",

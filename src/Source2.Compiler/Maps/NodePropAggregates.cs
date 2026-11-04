@@ -45,8 +45,9 @@ internal static class NodePropAggregates
     /// <summary>A draw: one prop mesh (model, draw call, material) built as an aggregate draw in model space.</summary>
     public sealed record Draw(string Model, int Call, string Material, NodeDraw.Result Geometry)
     {
-        /// <summary>Whether the prop mesh has a vertex colour (its stream is VertexPaintTintColor), and its material's attribute bits.</summary>
-        public bool Color { get; init; }
+        /// <summary>The prop mesh's floats a vertex and streams (<see cref="NodePropEntries.Load"/>), and its material's attribute bits.</summary>
+        public int Stride { get; init; } = NodePropEntries.Stride;
+        public IReadOnlyList<Physics.MeshWeld.Stream> Streams { get; init; } = NodePropEntries.Streams("color");
         public ulong Attributes { get; init; }
     }
 
@@ -116,7 +117,8 @@ internal static class NodePropAggregates
     }
 
     // A mesh: a model's draw call under its final material, unpacked in model space.
-    private sealed record Mesh(string Model, int Call, string Material, float[] Vertices, int[] Indices, bool Color, ulong Attributes, bool FloatTexcoords);
+    private sealed record Mesh(string Model, int Call, string Material, float[] Vertices, int Stride, IReadOnlyList<Physics.MeshWeld.Stream> Streams, int[] Indices,
+                               ulong Attributes, bool FloatTexcoords);
 
     /// <summary>
     /// The aggregates of a .vmap. <paramref name="attributes"/> answers a
@@ -172,7 +174,7 @@ internal static class NodePropAggregates
             {
                 var lo = new Vector3(float.MaxValue);
                 var hi = new Vector3(float.MinValue);
-                foreach (var c in Calls(model))
+                foreach (var c in Calls(model, content))
                     (lo, hi) = Place(p.Matrix, c.Lo, c.Hi, lo, hi);
                 return new StandaloneProp(modelName, p.Keys, p.Matrix, p.NodeId, p.Skin, (lo, hi));
             }
@@ -183,7 +185,7 @@ internal static class NodePropAggregates
                 var remap = NodePropEntries.MaterialGroup(model, skin);
                 var materialOverride = keys.Get<string>("materialoverride");
                 var record = NodePropEntries.RecordOf(keys);
-                var calls = Calls(model).ToList();
+                var calls = Calls(model, content).ToList();
                 var lods = calls.Select(c => c.Lod).Distinct().Count() > 1;
                 var propIndex = propCount++;
                 // The prop's centre: each loaded mesh's bounds placed by its matrix (Matrix3x4_TransformAABB), unioned.
@@ -206,7 +208,7 @@ internal static class NodePropAggregates
                     if (!meshIndex.TryGetValue(key, out var mi))
                     {
                         meshIndex[key] = mi = meshes.Count;
-                        meshes.Add(new Mesh(modelName, call, material, c.Vertices, c.Indices, c.Color, flags.Flags, c.FloatTexcoords));
+                        meshes.Add(new Mesh(modelName, call, material, c.Vertices, c.Stride, c.Streams, c.Indices, flags.Flags, c.FloatTexcoords));
                     }
                     entries.Add(new Entry(mi, material, matrix, header.Tint, header.ObjectFlags, flags.Flags, id, centre, c.Indices.Length,
                         propIndex, c.Lod, lods) { Switch = switchDistances, MaxScale = MaxScale(matrix), MeshBounds = Place(matrix, c.Lo, c.Hi, new Vector3(float.MaxValue), new Vector3(float.MinValue)) });
@@ -234,7 +236,12 @@ internal static class NodePropAggregates
                 var end = start;
                 while (end < sorted.Count && end - start < 0x7ffb && (sorted[end].Attributes & 0x6000000000) == bits)
                     end++;
-                result.Add(Build(bucket.Key, bits, sorted.GetRange(start, end - start), meshes));
+                var built = Build(bucket.Key, bits, sorted.GetRange(start, end - start), meshes);
+                // Valve packs such draws into one vertex buffer, the stream a draw lacks as zeros (atixref's
+                // inferno_fountain_01 beside inferno_roof_chimney_01_64x32a): where is not read.
+                if (built.Draws.Select(d => string.Join(",", d.Streams.Select(s => s.Name))).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1)
+                    notes?.Add($"prop aggregate {bucket.Key}: its draws' streams differ; Valve's zero fill for the missing ones is not read (CS2_CLOSED_QUEUE A.12)");
+                result.Add(built);
                 start = end;
             }
         }
@@ -342,7 +349,7 @@ internal static class NodePropAggregates
                 drawOf[e.Mesh] = d = draws.Count;
                 var cone = NodeDraw.ConeWeight((m.Attributes & 0x100000000) != 0);
                 draws.Add(new Draw(m.Model, m.Call, m.Material,
-                    NodeDraw.Build(m.Vertices, NodePropEntries.Stride, 0, m.Indices, NodePropEntries.Streams(m.Color), true, cone)) { Color = m.Color, Attributes = m.Attributes });
+                    NodeDraw.Build(m.Vertices, m.Stride, 0, m.Indices, m.Streams, true, cone)) { Stride = m.Stride, Streams = m.Streams, Attributes = m.Attributes });
             }
             var setup = -1;
             if (e.Lods && !setups.TryGetValue(e.Prop, out setup))
@@ -357,7 +364,7 @@ internal static class NodePropAggregates
         fragments = [.. fragments.Select((f, i) => (f, i)).OrderBy(x => x.f.Draw).ThenBy(x => x.i).Select(x => x.f)];
         // The run's texcoord precision (inlined 180258310, then 1802f6840).
         float Max(int slot) => draws.SelectMany(d => Enumerable.Range(0, d.Geometry.VertexCount).Select(v =>
-            MathF.Max(MathF.Abs(d.Geometry.Vertices[(v * NodePropEntries.Stride) + slot]), MathF.Abs(d.Geometry.Vertices[(v * NodePropEntries.Stride) + slot + 1])))).DefaultIfEmpty(0f).Max();
+            MathF.Max(MathF.Abs(d.Geometry.Vertices[(v * d.Stride) + slot]), MathF.Abs(d.Geometry.Vertices[(v * d.Stride) + slot + 1])))).DefaultIfEmpty(0f).Max();
         var flagged = NodeDraw.RunPrecise([.. run.Select(e => (meshes[e.Mesh].FloatTexcoords, 0f)), (false, Max(10)), (false, Max(16))]);
         string Format(int slot) => NodeDraw.TexcoordFormat(flagged, [Max(slot)]);
         return new Aggregate(material, bits, draws, fragments, [Format(10), Format(16)]) { LodSetups = lodSetups };
@@ -371,7 +378,8 @@ internal static class NodePropAggregates
     }
 
     // A model's draw calls, every LOD: material, unpacked vertices (model space) from the lowest referenced vertex, rebased indices, bounds, LOD mask.
-    private static IEnumerable<(string Material, float[] Vertices, int[] Indices, bool Color, Vector3 Lo, Vector3 Hi, int Lod, bool FloatTexcoords)> Calls(ValveResourceFormat.ResourceTypes.Model model)
+    private static IEnumerable<(string Material, float[] Vertices, int Stride, IReadOnlyList<Physics.MeshWeld.Stream> Streams, int[] Indices, Vector3 Lo, Vector3 Hi, int Lod, bool FloatTexcoords)> Calls(
+        ValveResourceFormat.ResourceTypes.Model model, GameContent content)
     {
         foreach (var (mesh, _, _, lod) in model.GetEmbeddedMeshesAndLoD())
         {
@@ -386,18 +394,20 @@ internal static class NodePropAggregates
                     var bas = call.GetInt32Property("m_nBaseVertex");
                     var lo = Enumerable.Range(start, count).Min(Index) + bas;
                     var vertexCount = Enumerable.Range(start, count).Max(Index) + bas - lo + 1;
-                    var (vertices, color) = NodePropEntries.Vertices(vb, lo, vertexCount);
+                    var own = call.GetStringProperty("m_material") ?? "";
+                    var loaded = NodePropEntries.Load(vb, lo, vertexCount, NodePropEntries.Attributes(own, content.Read));
+                    var (vertices, stride) = (loaded.Vertices, loaded.Stride);
                     var min = new Vector3(float.MaxValue);
                     var max = new Vector3(float.MinValue);
                     for (var v = 0; v < vertexCount; v++)
                     {
-                        var p = new Vector3(vertices[v * NodePropEntries.Stride], vertices[(v * NodePropEntries.Stride) + 1], vertices[(v * NodePropEntries.Stride) + 2]);
+                        var p = new Vector3(vertices[v * stride], vertices[(v * stride) + 1], vertices[(v * stride) + 2]);
                         min = Vector3.Min(min, p);
                         max = Vector3.Max(max, p);
                     }
                     // A float texcoord in the model is what WRB_LoadPropMeshes' geometry flag (+0x66) marks: kept float.
                     var floatTexcoords = vb.InputLayoutFields.Any(f => f.SemanticName == "TEXCOORD" && f.Format.ToString() == "R32G32_FLOAT");
-                    yield return (call.GetStringProperty("m_material") ?? "", vertices, [.. Enumerable.Range(start, count).Select(i => Index(i) + bas - lo)], color, min, max, (int)lod, floatTexcoords);
+                    yield return (own, vertices, stride, loaded.Streams, [.. Enumerable.Range(start, count).Select(i => Index(i) + bas - lo)], min, max, (int)lod, floatTexcoords);
                 }
         }
     }

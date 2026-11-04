@@ -399,7 +399,7 @@ public class PropAggregateOrderProbe(ITestOutputHelper output)
                         {
                             var lo = idx.Min();
                             var (verts, color) = NodePropEntries.Vertices(vb, lo, idx.Max() - lo + 1);
-                            var (wv, wi) = Physics.MeshWeld.Weld(verts, NodePropEntries.Stride, [.. idx.Select(i => i - lo)], NodePropEntries.Streams(color), 1e-7f, true);
+                            var (wv, wi) = Physics.MeshWeld.Weld(verts, NodePropEntries.Stride, [.. idx.Select(i => i - lo)], NodePropEntries.Streams(color ? "VertexPaintTintColor" : "color"), 1e-7f, true);
                             pos = [.. Enumerable.Range(0, wv.Length / NodePropEntries.Stride).Select(v => new Vector3(wv[v * NodePropEntries.Stride], wv[(v * NodePropEntries.Stride) + 1], wv[(v * NodePropEntries.Stride) + 2]))];
                             idx = wi;
                         }

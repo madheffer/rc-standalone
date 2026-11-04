@@ -94,13 +94,14 @@ internal static class WorldNodeModels
     {
         var draws = aggregate.Draws.Select(d =>
         {
-            var source = NodePropEntries.Streams(d.Color);
-            // PrepareForMerge's filter by the material's inputs, then the layout order.
+            var source = d.Streams;
+            // PrepareForMerge's filter by the material's inputs, then the layout order: the six
+            // standard streams, then WRB_LoadPropMeshes' extra ones in their order.
             var kept = MaterialStreams.Kept(source, MaterialStreams.Inputs(material(d.Material).Signature.Select(x => x.Semantic)), false).ToHashSet();
-            var order = new[] { 0, 3, 5, 1, 2, 4 }.Where(kept.Contains).Select(i => source[i]).ToList();
+            var order = new[] { 0, 3, 5, 1, 2, 4 }.Concat(Enumerable.Range(6, source.Count - 6)).Where(kept.Contains).Select(i => source[i]).ToList();
             var streams = order.Select(x => new WrbMeshEntry.Stream(x.Name, x.Name == "texcoord" && x.First == 16 ? 1 : 0, x.Count, 0, x.Type)).ToList();
             var offsets = order.Zip(streams).ToDictionary(z => $"{z.Second.Name}:{z.Second.Index}", z => z.First.First, StringComparer.OrdinalIgnoreCase);
-            return new DrawInput(d.Material, d.Geometry, NodePropEntries.Stride, streams,
+            return new DrawInput(d.Material, d.Geometry, d.Stride, streams,
                                  new WrbMeshEntry { Material = d.Material, Attributes = d.Attributes, Field28 = Vector4.One, Streams = streams }) { Offsets = offsets, RenormaliseFrame = true };
         }).ToList();
         uint Format(string f) => f switch { "R32G32_FLOAT" => R32G32Float, "R16G16_SNORM" => R16G16Snorm, _ => R16G16Float };

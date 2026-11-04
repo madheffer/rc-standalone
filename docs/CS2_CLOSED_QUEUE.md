@@ -3,7 +3,7 @@
 What waits for CS2 to be closed, in the order to take it. Everything else is done with CS2 open: decompiles,
 ports and offline tests ([HANDOFF.md](HANDOFF.md) "Rules"). Run heavy jobs through `tools/re/heavy.py`, delete any
 crash dumps the game or resourcecompiler leaves, and kill everything you started when done. Each item names the
-ledger or doc that is waiting for its result. Last updated 2026-11-04.
+ledger or doc that is waiting for its result. Last updated 2026-11-04 (A.12).
 
 Steam has to be closed too for anything run in cubehost (part B). Part A needs only CS2 closed; A.1's in-game
 step needs Steam open, since it launches the game.
@@ -93,6 +93,16 @@ heavy runs with the game open at below-normal priority):
    allocated (hook the CMesh constructor / the allocation that creates it: its caller and the size requested). The
    question is what puts the pointers in descending size: allocation order (which then needs porting) or a size
    class of the allocator.
+
+12. **An aggregate's missing stream as zeros** (OPEN 1.c7, ledger 243; queued 2026-11-04). atixref's
+   agg_prop_inferno_concrete_trim_weathered_dirt_blend_01_0 is one vertex buffer in Valve's output with
+   VertexPaintBlendParams = 0 for the inferno_fountain_01 draw, whose CMesh (WRB_LoadPropMeshes) has no such
+   stream. Ruled out statically: CMesh_Concatenate (1812dd570), InputLayout_MatchSignature (181363de0),
+   MapBuilder_CMeshToHalfEdge (1813319d0). Frida on a standalone resourcecompiler compiling atixref -world
+   -fshallow (package backed up and cmp-restored): log the stream lists (CMesh +0x8, count +0x20) of the two
+   CMeshes at WRB_MeshesToModelDoc (1801fee20) entry, then at DmeMeshToCMesh (180d47b90) exit and at
+   CMesh_BuildPackedInputLayout (181364720) entry for the same material; the first place the fountain mesh
+   has the stream names the function to read.
 
 ## B. CS2 and Steam closed (cubehost)
 

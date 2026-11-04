@@ -24,9 +24,11 @@ namespace Source2.Compiler.Maps;
 /// copy's (<see cref="MapInstances.Expand"/>).</item>
 /// <item>Vertices: the draw call's, from its lowest referenced vertex, as
 /// meshsystem unpacks them (<see cref="PackedNormals"/>), placed by
-/// <see cref="PropTransform"/>; the indices rebased. Streams: position,
-/// normal, tangent, texcoord, VertexPaintTintColor (COLOR0 / 255) or a
-/// zero color, the second texcoord (TEXCOORD1) or zero; the aggregate draws weld on it.</item>
+/// <see cref="PropTransform"/>; the indices rebased. Streams as
+/// WRB_LoadPropMeshes makes them (<see cref="Load"/>): position, normal,
+/// tangent, texcoord, the vertex colour (COLOR0 / 255, named by its
+/// semantic or the material's attribute) or a zero "color", the second
+/// texcoord (TEXCOORD1) or zero, then the extra fields; the aggregate draws weld on them.</item>
 /// </list>
 /// </summary>
 internal static class NodePropEntries
@@ -150,19 +152,20 @@ internal static class NodePropEntries
                     var lo = Enumerable.Range(start, count).Min(Index) + bas;
                     // The call's vertices: from its lowest referenced vertex to its highest.
                     var vertexCount = Enumerable.Range(start, count).Max(Index) + bas - lo + 1;
-                    var material = call.GetStringProperty("m_material") ?? "";
-                    material = remap.GetValueOrDefault(material, material);
+                    var own = call.GetStringProperty("m_material") ?? "";
+                    var material = remap.GetValueOrDefault(own, own);
                     var info = content.Material(material);
                     var flags = PropTransform.Place | PropTransform.Texcoords;
                     if (Path.GetFileNameWithoutExtension(info?.Shader ?? "").EqualsAscii("csgo_simple_liquid"))
                         flags = PropTransform.LocalSpace;
                     else if (Path.GetFileNameWithoutExtension(info?.Shader ?? "").EqualsAscii("csgo_foliage"))
                         notes?.Add($"prop {id}: csgo_foliage's NeedsLocalSpaceVertices combo rule is not ported");
-                    var (vertices, hasColor) = Vertices(vb, lo, vertexCount);
+                    var loaded = Load(vb, lo, vertexCount, Attributes(own, content.Read));
+                    var (vertices, stride) = (loaded.Vertices, loaded.Stride);
                     if (deform != null)
                         for (var v = 0; v < vertexCount; v++)
                         {
-                            var o = v * Stride;
+                            var o = v * stride;
                             var p = new Vector3(vertices[o], vertices[o + 1], vertices[o + 2]);
                             var n = deform.DeformNormal(p, new Vector3(vertices[o + 3], vertices[o + 4], vertices[o + 5]));
                             var t = deform.DeformTangent(p, new Vector3(vertices[o + 6], vertices[o + 7], vertices[o + 8]));
@@ -171,9 +174,9 @@ internal static class NodePropEntries
                             (vertices[o + 3], vertices[o + 4], vertices[o + 5]) = (n.X, n.Y, n.Z);
                             (vertices[o + 6], vertices[o + 7], vertices[o + 8]) = (t.X, t.Y, t.Z);
                         }
-                    PropTransform.Apply(vertices, Stride, 0, 3, 6, 10, 16, matrix, PropTransform.AxesOf(info?.Shader, info?.Params), flags);
+                    PropTransform.Apply(vertices, stride, 0, 3, 6, 10, 16, matrix, PropTransform.AxesOf(info?.Shader, info?.Params), flags);
                     var indices = Enumerable.Range(start, count).Select(i => Index(i) + bas - lo).ToArray();
-                    yield return new NodeMeshEntries.Entry(id, material, Stride, Streams(hasColor), vertices, indices) { Record = RecordOf(keys), Source = keys };
+                    yield return new NodeMeshEntries.Entry(id, material, stride, loaded.Streams, vertices, indices) { Record = RecordOf(keys), Source = keys };
                 }
         }
     }
@@ -211,11 +214,96 @@ internal static class NodePropEntries
 
     internal const int Stride = 18;
 
-    internal static IReadOnlyList<Physics.MeshWeld.Stream> Streams(bool color) =>
+    // WRB_LoadPropMeshes' six streams (the table at 183bb3dd0), the colour under the name the draw gives it.
+    internal static IReadOnlyList<Physics.MeshWeld.Stream> Streams(string color) =>
     [
         new("position", 0, 3, false, 0x2a), new("normal", 3, 3, false, 0x2a), new("tangent", 6, 4, false, 0x2b),
-        new("texcoord", 10, 2, false, 0x29), new(color ? "VertexPaintTintColor" : "color", 12, 4, false, 0x2b), new("texcoord", 16, 2, false, 0x29),
+        new("texcoord", 10, 2, false, 0x29), new(color, 12, 4, false, 0x2b), new("texcoord", 16, 2, false, 0x29),
     ];
+
+    /// <summary>One draw call's CMesh as WRB_LoadPropMeshes builds it: its vertices (<see cref="Stride"/> standard floats, then the extra fields), stride and streams.</summary>
+    internal sealed record PropMesh(float[] Vertices, int Stride, IReadOnlyList<Physics.MeshWeld.Stream> Streams, Lighting.MeshGeometry.Result Geometry);
+
+    /// <summary>
+    /// WRB_LoadPropMeshes (1801d30d0) for one draw call, from the lowest
+    /// referenced vertex: meshsystem's geometry (<see cref="Lighting.MeshGeometry"/>)
+    /// gives the 18 standard floats and the fields it leaves over.
+    /// <list type="bullet">
+    /// <item>The colour stream is named by the vertex colour field's shader
+    /// semantic, else by the material's vertex attribute of the field's
+    /// semantic and index (1801d3050, the INSG element's m_pSemantic), else it
+    /// stays "color" (the table's name, 1827860d8); with no colour field, or a
+    /// material with no signature, it is "color" (and zero without a field).</item>
+    /// <item>Each extra field is appended as a stream of its own, in field
+    /// order, named the same way (<see cref="Lighting.MeshGeometry.Classify"/>);
+    /// its type is 0x22 for a 32-bit integer format (DXGI 0x2a / 0x2b), else
+    /// 0x23, 0x29, 0x2a or 0x2b by its component count.</item>
+    /// </list>
+    /// <paramref name="attribute"/> answers the draw call's own material's
+    /// attribute (vf 0x98, before any skin or override).
+    /// </summary>
+    internal static PropMesh Load(VBIB.OnDiskBufferData vb, int lo, int count, Func<string, int, string?>? attribute)
+    {
+        var geometry = Lighting.MeshGeometry.Classify(vb, attribute);
+        var (standard, hasColor) = Vertices(vb, lo, count, geometry.Color);
+        var cf = geometry.Color;
+        // The rename needs the material's signature (its vf 0x98 non-null), shader semantic or not.
+        var color = !hasColor || attribute == null ? "color"
+            : !string.IsNullOrEmpty(cf.ShaderSemantic) ? cf.ShaderSemantic
+            : attribute(cf.SemanticName, cf.SemanticIndex) is { Length: > 0 } named ? named : "color";
+        var streams = new List<Physics.MeshWeld.Stream>(Streams(color));
+        var stride = Stride;
+        foreach (var e in geometry.Extras)
+        {
+            // A named extra is index 0; one whose name a stream already has (that stream's first is
+            // index 0) takes its place (1801d3862): not ported.
+            if (streams.Any(s => Tier0Strings.EqualsIgnoreCase(s.Name, e.Name)))
+                throw new NotSupportedException($"an extra vertex field {e.Name} that names one of the draw's streams (WRB_LoadPropMeshes reuses its slot) is not ported");
+            var format = (int)e.Field.Format;
+            var type = format is 0x2a or 0x2b ? 0x22 : e.Components switch { 1 => 0x23, 2 => 0x29, 3 => 0x2a, _ => 0x2b };
+            streams.Add(new Physics.MeshWeld.Stream(e.Name, stride, e.Components, false, type));
+            stride += e.Components;
+        }
+        var vertices = standard;
+        if (stride != Stride)
+        {
+            vertices = new float[count * stride];
+            for (var v = 0; v < count; v++)
+            {
+                Array.Copy(standard, v * Stride, vertices, v * stride, Stride);
+                var at = (v * stride) + Stride;
+                foreach (var e in geometry.Extras)
+                {
+                    Lighting.MeshGeometry.Unpack(vb, e.Field, lo + v, vertices.AsSpan(at, e.Components));
+                    at += e.Components;
+                }
+            }
+        }
+        return new PropMesh(vertices, stride, streams, geometry);
+    }
+
+    /// <summary>
+    /// A material's vertex attribute by semantic and index (1801d3050), from
+    /// its compiled input signature (vf 0x98); null when the material does not
+    /// load or has no signature.
+    /// </summary>
+    internal static Func<string, int, string?>? Attributes(string material, Func<string, byte[]?> read)
+    {
+        if (read(material + "_c") is not { } bytes)
+            return null;
+        IReadOnlyList<Source2ContainerAuthor.MaterialAuthoring.InputSignatureElement> signature;
+        try
+        {
+            signature = MaterialAuthor.ExtractInputSignature(bytes);
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
+        if (signature.Count == 0)
+            return null;
+        return (semantic, index) => signature.FirstOrDefault(e => e.D3DSemanticName.Equals(semantic, StringComparison.OrdinalIgnoreCase) && e.D3DSemanticIndex == index)?.Semantic;
+    }
 
     // WRB_LoadPropMeshes' 18 floats a vertex from meshsystem's geometry.
     internal static (float[] Vertices, bool Color) Vertices(VBIB.OnDiskBufferData vb, int lo, int count)

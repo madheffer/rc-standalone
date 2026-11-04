@@ -6014,3 +6014,25 @@ reference was compiled on 2026-11-03 by the installed 1.41.9.5 resourcecompiler 
      - point_nav_movable_mesh read (ref_ent by targetname, 180fc7220 mode 1 / 180fefbc0), refused: Valve
        found 0 entities for a ref_ent naming a visible func_brush on s2c_navmovable2 and 3, not explained.
      Refused: point_nav_movable_mesh, prop_deformable, instances / prefabs, ladders.
+243. **A prop draw's CMesh streams: the colour's name and the extra fields** (2026-11-04; rc 0923 decompiles
+     1801d30d0 WRB_LoadPropMeshes, 181363de0, 1812dd570, 1801fee20, 1813319d0; the stricmp operand at
+     1801d3627 is "color", 1827860d8). READ, one rule MEASURED and open.
+     - The six streams come from the table at 183bb3dd0 (position, normal, tangent, texcoord, color,
+       texcoord 1). When the draw has a vertex colour field (+0x60 < field count) and its own material
+       has a vertex input signature (vf 0x98), the first index-0 stream named "color" is renamed: the
+       field's shader semantic (+0x2c) when set, else the material's attribute of the field's semantic
+       and index (1801d3050, its name at +0x40); otherwise it stays "color".
+     - Each extra field (+0x40 list) is appended in field order: its shader semantic, else the
+       material's attribute of its semantic and index, both index 0, else its own semantic and index;
+       one whose name and index a stream has takes that stream's place (refused, not met). Its type is
+       0x22 for DXGI 0x2a / 0x2b, else 0x23 / 0x29 / 0x2a / 0x2b by component count.
+     - The fixed "VertexPaintTintColor when COLOR0 exists" rule it replaces was measured. atixref: the
+       five foliage aggregates (cypress_a, foliage_bark_pine_01, lily_flower, mall_trees_branches01,
+       urban_trees_branches03) keep their colour as "Color", and inferno_plaster_facade_01_dirty keeps
+       inferno_roof_chimney_01_64x32a's unnamed TEXCOORD4 as VertexPaintBlendParams (all 255): six
+       more node files exact (world nodes 277 -> 283 of 395).
+     - MEASURED, open: an aggregate whose draws' streams differ is one vertex buffer in Valve's output,
+       the stream a draw lacks as zeros (inferno_fountain_01 beside the chimney, 12,146 vertices of 0).
+       Not CMesh_Concatenate (1812dd570 refuses differing sets), not InputLayout_MatchSignature
+       (181363de0 adds a field only when the mesh has the stream), not 1813319d0 (one DmeMesh per
+       CMesh). Ours writes two vertex buffers and a note. CS2_CLOSED_QUEUE A.12.
