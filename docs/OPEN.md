@@ -53,11 +53,11 @@ inside instances; 4.b3 the .rte skip boxes shared with chunk 1; 4.a1 the output 
 Every pinned lump matches. Open: 5.a1 / 5.a2 two fitted prefab orders (light order, key flip); 5.a3 the
 instance copy key loop (CMapInstance_Collapse 181017820) not read; 5.a5 EntityLumpAuthor rules measured from
 output; 5.b1 / 5.b2 entity list layouts that refuse.
-5.b10 particle snapshots: **closed for CMapMesh 11-04** (ledger 241, Maps/ParticleSnapshots.cs,
-Compression/BlockCompress.cs): probe_classes' node_3.vsnap_c is Valve's byte for byte and the saved .vsnap's CRC
-equals Valve's RED2. Still open: CMapPath's snapshot (1810b5100, particleSnapshotSpacing), the world's and other
-node types; the third "color" stream (mesh +0x10de) not identified (refused); scaled nodes; snapshots inside
-instances / prefabs; whether an Only Entities build writes them; the DMX -> runtime mesh load order (measured).
+5.b10 particle snapshots: **closed 11-04** (ledger 241, Maps/ParticleSnapshots.cs, Compression/BlockCompress.cs):
+probe_classes' node_3 and s2c_snapprobe's five (two CMapPaths, a CMapCable, a closed box, a scaled box) are Valve's
+byte for byte; the world and an entity write none, as Valve's. Still open: the third mesh stream "color" (mesh
++0x10de) not identified (refused); snapshots inside instances / prefabs (refused); other node types (refused);
+whether an Only Entities build writes them; the DMX -> runtime mesh load order (measured, not read).
 
 ## 6. Own lighting
 

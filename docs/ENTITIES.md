@@ -16,9 +16,9 @@ settle that moves physics props is in [SETTLE.md](SETTLE.md).
 - **The comparison is strict:** types to the array element, KV3 flags, key
   and entity order, every connection field.
 - **Coverage:** all 354 classes Hammer offers are measured through the probe
-  map (every class bare and with every key set), and 352 are exact: the
-  two left (func_movelinear, info_particle_system) lack outputs outside the
-  lump (a movable nav mesh; a .vsnap from a path node: a mesh node's is exact, ledger 241).
+  map (every class bare and with every key set), and 353 are exact: the
+  one left (func_movelinear) lacks an output outside the lump (a movable nav
+  mesh). info_particle_system's .vsnap is exact from mesh, path and cable nodes (ledger 241).
   [COVERAGE.md](COVERAGE.md) has the list.
 - **The settle** runs in the lump build, and its output is exact, except
   where Valve's own output varies between compiles: a stack of props whose

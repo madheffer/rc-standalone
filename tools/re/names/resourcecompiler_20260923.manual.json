@@ -4807,6 +4807,42 @@
    "note": "CMapMesh vf 0x588: a particle per face corner, the open edge loops' corners (181395050) then every faced half-edge by handle, deduped; streams position 0xc, normal 0xd, color 0xb (mesh +0x10de, unidentified)"
   },
   {
+   "addr": "1810b5100",
+   "name": "CMapPath_FillParticleSnapshot",
+   "module": "s2c:entities/lump",
+   "note": "CMapPath / CMapCable vf 0x588: 180f7a100 first, then 1810b8270 at particleSnapshotSpacing (+0x185c); streams position 0xc, color 0xb, radius 3; radius written only for type class 4 (18237a0a0), never for generic_float"
+  },
+  {
+   "addr": "180f7a100",
+   "name": "CMapNode_ChildrenAnswer",
+   "module": "s2c:entities/lump",
+   "note": "true when a child's vf 0x130 is non-zero (a mesh's returns this, a path node's 0); the world's and CMapEntity's vf 0x588, which fills nothing"
+  },
+  {
+   "addr": "181112010",
+   "name": "CMapPathNode_LinearTint",
+   "module": "s2c:entities/lump",
+   "note": "vf 0x618 then 18126a5a0"
+  },
+  {
+   "addr": "18110f230",
+   "name": "CMapPathNode::vf195",
+   "module": "s2c:entities/lump",
+   "note": "color_tint through 180f31d40, default 0xffffffff"
+  },
+  {
+   "addr": "180f31d40",
+   "name": "CMapEntity_ColorKey",
+   "module": "s2c:entities/lump",
+   "note": "the key (V_stricmp_fast) parsed V_sscanf %d %d %d into low bytes, alpha 0xff; the default when absent"
+  },
+  {
+   "addr": "18126a5a0",
+   "name": "Color32_SrgbToLinear",
+   "module": "s2c:entities/lump",
+   "note": "byte * 0x3b808081, clamp [0, 1], x / 12.92 up to 0.04045 else V_powf((x + 0.055) / 1.055, 2.4)"
+  },
+  {
    "addr": "181394380",
    "name": "HalfEdge_FindOpenEdgeLoops",
    "module": "s2c:entities/lump",

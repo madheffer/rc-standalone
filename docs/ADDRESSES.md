@@ -772,7 +772,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `resourcecompiler_20260923.dll`, 56,313,496 bytes, PE time 2026-09-22 19:17 UTC
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
-- 1280 addresses
+- 1286 addresses
 
 ### s2c:baked/light-keys
 
@@ -1280,7 +1280,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18024ccd0` | `TemplatePass_Collect` | copies of the matching entities in template space | `src/Source2.Compiler/Maps/EntityLumpSet.cs:235`, `src/Source2.Compiler/Maps/TemplateTransform.cs:7` |
 | `18024d9c0` | `TemplatePass_BuildLumps` | a lump for every template entity | `src/Source2.Compiler/Maps/EntityLumpSet.cs:175` |
 | `18024e890` | `WRB_PushProbeRecord` | appends a 0x8c0-byte cubemap/probe record |  |
-| `1803401b0` | `CompileSnap` | DATA num_particles + attributes (181907da0 name -> id, 181908020 type, data_offset, data_size); skinning when skin0-3; 18033fe60 writes DATA binary_auto and SNAP via FastCompress | `src/Source2.Compiler/Containers/Source2ContainerAuthor.cs:71`, `src/Source2.Compiler/Maps/ParticleSnapshots.cs:15`, `src/Source2.Compiler/Maps/ParticleSnapshots.cs:270` |
+| `1803401b0` | `CompileSnap` | DATA num_particles + attributes (181907da0 name -> id, 181908020 type, data_offset, data_size); skinning when skin0-3; 18033fe60 writes DATA binary_auto and SNAP via FastCompress | `src/Source2.Compiler/Containers/Source2ContainerAuthor.cs:71`, `src/Source2.Compiler/Maps/ParticleSnapshots.cs:15`, `src/Source2.Compiler/Maps/ParticleSnapshots.cs:375` |
 | `1803670b0` | `EntityIOConnection_SchemaBind` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:419` |
 | `180cd7820` | `CDataModel_FirstReferrer` | vf 0x3b8 (handle): the element's inline referrer record (element +0x38; -1 means none), or a search of the undo table when the element is gone (ledger 46) |  |
 | `180cd99e0` | `CDataModel_NextReferrer` | vf 0x3c0 (record): record +8 |  |
@@ -1312,6 +1312,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180f24170` | `CMapGameDataNode::vf157` | fixup types by mask 0x830006, skipping '!*?@' and class names |  |
 | `180f2d290` | `DmElement_IsNameAttribute` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:841` |
 | `180f2e4d0` | `CMapGameDataNode_SetClass` | masks spawnflags | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:849` |
+| `180f31d40` | `CMapEntity_ColorKey` | the key (V_stricmp_fast) parsed V_sscanf %d %d %d into low bytes, alpha 0xff; the default when absent | `src/Source2.Compiler/Maps/ParticleSnapshots.cs:179` |
 | `180f34460` | `Fgd_HasSpawnflag` | case blind | `src/Source2.Compiler/Maps/FgdSchema.cs:165` |
 | `180f385c0` | `MapNode_SetKeyValue` | (node, key, string); from call sites |  |
 | `180f57ff0` | `MapWorld_CollectTerrainFeatures` | 180f86e70 for 'CMapTerrainFeature', mode 1 |  |
@@ -1321,7 +1322,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180f60af0` | `MapDoc_BakeTerrainFeatures` | each CMapTerrainFeature (180f57ff0) whose visibility state +0x370 is on and vf 0x850 says so is deleted; first step of each bake round |  |
 | `180f741a0` | `CMapNodeDataProvider::vf35` | legacy light description at identity; false for barn/rect/omni2 |  |
 | `180f75010` | `CMapNode::vf57` | reparent: off the old world's lists (180fcb650), onto the new parent (vf 0x1f8), then 180fc5010 under the new world | `src/Source2.Compiler/Maps/MapPrefabs.cs:68` |
-| `180f7aa30` | `CMapNode_SaveParticleSnapshot` | vf 0x588 fills a CParticleSnapshot; empty: warning, no file; else 181371f50 serializes it and SaveKV3 text generic saves the auxiliary snapshot_file (Maps/ParticleSnapshots.cs) | `src/Source2.Compiler/Maps/ParticleSnapshots.cs:14`, `src/Source2.Compiler/Maps/ParticleSnapshots.cs:44`, `src/Source2.Compiler/Maps/ParticleSnapshots.cs:228` |
+| `180f7a100` | `CMapNode_ChildrenAnswer` | true when a child's vf 0x130 is non-zero (a mesh's returns this, a path node's 0); the world's and CMapEntity's vf 0x588, which fills nothing | `src/Source2.Compiler/Maps/ParticleSnapshots.cs:27`, `src/Source2.Compiler/Maps/ParticleSnapshots.cs:31`, `src/Source2.Compiler/Maps/ParticleSnapshots.cs:75` |
+| `180f7aa30` | `CMapNode_SaveParticleSnapshot` | vf 0x588 fills a CParticleSnapshot; empty: warning, no file; else 181371f50 serializes it and SaveKV3 text generic saves the auxiliary snapshot_file (Maps/ParticleSnapshots.cs) | `src/Source2.Compiler/Maps/ParticleSnapshots.cs:14`, `src/Source2.Compiler/Maps/ParticleSnapshots.cs:337` |
 | `180f86a90` | `MapNode_Clone` | a copy of a node and its subtree (used for a target cloned by 181019590) | `src/Source2.Compiler/Maps/MapEntityList.cs:176`, `src/Source2.Compiler/Maps/MapInstances.cs:367` |
 | `180f86e70` | `MapNode_CollectByClass` | per child: sub-worlds skipped with flag 1; flag 4 skips a node (and its subtree) with 180f8ba70 >= 1 (an instance target); flag 0x10 vf 0x188, flag 0x20 the visibility state; mode 0 recurses before appending (children first), mode 1 after; flag 8 tests IsA (vf 0x770) else vf 0x3c0 | `src/Source2.Compiler/Maps/MapEntityList.cs:22`, `src/Source2.Compiler/Maps/MapEntityList.cs:71`, `src/Source2.Compiler/Maps/MapPrefabs.cs:65` |
 | `180f88920` | `MapNode_CollectReferrers` | the instances whose 'target' names the node (180f8ba70 kind 3 sizes the list); CMapInstance_Collapse deletes the target (180f63d00) when this finds exactly one | `src/Source2.Compiler/Maps/MapEntityList.cs:244` |
@@ -1343,7 +1345,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180fc5010` | `MapWorld_RegisterSubtree` | per node in preorder: OnNodeAdded, then vf 0x228 (the node joining the world), then its children | `src/Source2.Compiler/Maps/MapEntityList.cs:173` |
 | `180fc9490` | `CMapWorld_MapUsageType` | index of world +0x2bb8 in standard, background, skybox, minigame, sharedenvironment |  |
 | `180fefb60` | `EntityLump_FixupValue` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:382` |
-| `180ff0100` | `HalfEdge_Edges` | each edge once as its lower-handle half-edge, dense order | `src/Source2.Compiler/Maps/ParticleSnapshots.cs:170` |
+| `180ff0100` | `HalfEdge_Edges` | each edge once as its lower-handle half-edge, dense order | `src/Source2.Compiler/Maps/ParticleSnapshots.cs:279` |
 | `181004020` | `CMapEntity_ExportToLump` | keys in the table's own iteration order (180f30fd0 first, 180f33d10 next), then class_game_keys | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:210` |
 | `181013ec0` | `CMapInstance::vf268` | calls CMapInstance_Collapse |  |
 | `1810158a0` | `CMapInstance::vf69` | joining a world: the node's own vf69, then 181019590 with the target its element handle (+0x558) resolves to (ledger 180) | `src/Source2.Compiler/Maps/MapEntityList.cs:174` |
@@ -1353,8 +1355,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `181019590` | `CMapInstance_ResolveTarget` | a target in another world (not the instance's, not null, vf 0x888 false) with two or more referrers (180f8ba70 kind 0), or in another document, is cloned (180f86a90) into the instance's world (180f5f230) and the handle moved to the clone (181017400); with fewer it is moved into the instance's world (vf 0x1c8), its listed nodes joining right after the instance (s2c_aheadprobe: 0 and 1 other referrers); then SetTarget (ledgers 180, 183) | `src/Source2.Compiler/Maps/MapEntityList.cs:25`, `src/Source2.Compiler/Maps/MapEntityList.cs:55`, `src/Source2.Compiler/Maps/MapEntityList.cs:174` |
 | `1810197f0` | `CMapInstance_SetTarget` | +0x550 = the target; resets the old and new target's cached referrer counts (180f8f0d0) |  |
 | `181065c90` | `CMapNavLink_ExportToLump` | CMapEntity_ExportToLump, then width, locatoroffset and locatorangles ("%f %f %f"), nav_link_movement ("__ground__" for type 4), the reverse for types 0 and 4 | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:354` |
-| `181083850` | `CMapMesh_FillParticleSnapshot` | CMapMesh vf 0x588: a particle per face corner, the open edge loops' corners (181395050) then every faced half-edge by handle, deduped; streams position 0xc, normal 0xd, color 0xb (mesh +0x10de, unidentified) | `src/Source2.Compiler/Maps/ParticleSnapshots.cs:18`, `src/Source2.Compiler/Maps/ParticleSnapshots.cs:22`, `src/Source2.Compiler/Maps/ParticleSnapshots.cs:34` +3 |
+| `181083850` | `CMapMesh_FillParticleSnapshot` | CMapMesh vf 0x588: a particle per face corner, the open edge loops' corners (181395050) then every faced half-edge by handle, deduped; streams position 0xc, normal 0xd, color 0xb (mesh +0x10de, unidentified) | `src/Source2.Compiler/Maps/ParticleSnapshots.cs:20`, `src/Source2.Compiler/Maps/ParticleSnapshots.cs:29`, `src/Source2.Compiler/Maps/ParticleSnapshots.cs:50` +2 |
 | `181089940` | `CMapCable_RegisterProperties` | registers the embedded property binding (rendercolor as text) |  |
+| `1810b5100` | `CMapPath_FillParticleSnapshot` | CMapPath / CMapCable vf 0x588: 180f7a100 first, then 1810b8270 at particleSnapshotSpacing (+0x185c); streams position 0xc, color 0xb, radius 3; radius written only for type class 4 (18237a0a0), never for generic_float | `src/Source2.Compiler/Maps/ParticleSnapshots.cs:23`, `src/Source2.Compiler/Maps/ParticleSnapshots.cs:136`, `src/Source2.Compiler/Maps/ParticleSnapshots.cs:172` |
 | `1810b5480` | `CMapPath_ExportKeys` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:302`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:445` |
 | `1810b66e0` | `CMapPath_FirstNodeMoved` | vf274: when the node that changed is the path's first CMapPathNode child, the path's origin is set to it (CMapNode::vf17) and the path refreshed (vf 0x8b8) | `src/Source2.Compiler/Maps/MapEntities.cs:480` |
 | `1810b7ca0` | `CMapPath_IsLoop` | loops with more than one node | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:461`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:499`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:516` +7 |
@@ -1364,15 +1367,18 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1810ecf10` | `CVisibilityMgr::vf10` | init: 'nodes' at +0x498, 'hiddenFlags' at +0x4c0, +0x508 = 0 (its only writer) |  |
 | `1810eeba0` | `VisibilityMgr_NodeShown` | true unless mask & hiddenFlags[node] & ~+0x508 (VisibilityMgr_IsNodeVisible passes mask 0xb: flag 4 alone does not hide; ledger 181) | `src/Source2.Compiler/Maps/MapEntities.cs:299` |
 | `1810f2750` | `VisibilityMgr_StoredVisible` | the per-node visible byte of the document's set at +0x730 (true when absent) |  |
+| `18110f230` | `CMapPathNode::vf195` | color_tint through 180f31d40, default 0xffffffff | `src/Source2.Compiler/Maps/ParticleSnapshots.cs:179` |
 | `181110ba0` | `CMapPath_Tangents` | in and out tangents | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:552` |
 | `181111cc0` | `CMapPathNode_Scale` | radius and height scale, 1 and 1 unless the class | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:502`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:645` |
+| `181112010` | `CMapPathNode_LinearTint` | vf 0x618 then 18126a5a0 | `src/Source2.Compiler/Maps/ParticleSnapshots.cs:179` |
 | `18114cb20` | `CMapCable::vf217` | rendercolor = tint as '%i %i %i' |  |
+| `18126a5a0` | `Color32_SrgbToLinear` | byte * 0x3b808081, clamp [0, 1], x / 12.92 up to 0.04045 else V_powf((x + 0.055) / 1.055, 2.4) | `src/Source2.Compiler/Lighting/SceneLights.cs:15`, `src/Source2.Compiler/Lighting/SceneLights.cs:258`, `src/Source2.Compiler/Maps/ParticleSnapshots.cs:25` +2 |
 | `1812806d0` | `Path_ComputeTangents` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:608` |
-| `1812f5060` | `CParticleSnapshot_Serialize` | string_list when any, stream_data by 181322440 (num_values, streams) and 1813220e0 (name, type from 1830149f0, values) | `src/Source2.Compiler/Maps/ParticleSnapshots.cs:228` |
-| `18138be80` | `HalfEdge_IncomingOnFace` | around a vertex from its out half-edge: the twin on the face, else the twin's next | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:161`, `src/Source2.Compiler/Maps/ParticleSnapshots.cs:140`, `src/Source2.Compiler/Maps/ParticleSnapshots.cs:152` +1 |
-| `181394380` | `HalfEdge_FindOpenEdgeLoops` | over 180ff0100's edges: face-less sides with a faced twin; loops follow next from the first left (or the first back in the set after a step out), entries as the edge's lower handle, swap-remove | `src/Source2.Compiler/Maps/ParticleSnapshots.cs:170` |
-| `18139a960` | `HalfEdge_EdgeFace` | the edge's face, or its twin's when it has none | `src/Source2.Compiler/Maps/ParticleSnapshots.cs:135` |
-| `1813a2d80` | `PolygonMesh_EdgeSideOnFace` | the edge's half-edge on a face; 1813a3180 gives its (tail, head) | `src/Source2.Compiler/Maps/ParticleSnapshots.cs:137` |
+| `1812f5060` | `CParticleSnapshot_Serialize` | string_list when any, stream_data by 181322440 (num_values, streams) and 1813220e0 (name, type from 1830149f0, values) | `src/Source2.Compiler/Maps/ParticleSnapshots.cs:337` |
+| `18138be80` | `HalfEdge_IncomingOnFace` | around a vertex from its out half-edge: the twin on the face, else the twin's next | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:161`, `src/Source2.Compiler/Maps/ParticleSnapshots.cs:249`, `src/Source2.Compiler/Maps/ParticleSnapshots.cs:261` +1 |
+| `181394380` | `HalfEdge_FindOpenEdgeLoops` | over 180ff0100's edges: face-less sides with a faced twin; loops follow next from the first left (or the first back in the set after a step out), entries as the edge's lower handle, swap-remove | `src/Source2.Compiler/Maps/ParticleSnapshots.cs:279` |
+| `18139a960` | `HalfEdge_EdgeFace` | the edge's face, or its twin's when it has none | `src/Source2.Compiler/Maps/ParticleSnapshots.cs:244` |
+| `1813a2d80` | `PolygonMesh_EdgeSideOnFace` | the edge's half-edge on a face; 1813a3180 gives its (tail, head) | `src/Source2.Compiler/Maps/ParticleSnapshots.cs:246` |
 | `181c1e340` | `EntityKv_FixupResourceValue` | resource path fix-up run by EntityKv_SetResource |  |
 | `181c1ee80` | `EntityLump_FixupResource` | a resource reference as the lump writer fixes it | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:915`, `src/Source2.Compiler/Maps/ResourcePath.cs:4` |
 | `181eb82c0` | `Kv3_SetColor` | the KV3 colour setter | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:907` |
@@ -1626,7 +1632,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `181384e40` | `HalfEdge_FaceNormal` | NewellNormal over the face's loop from its first half-edge | `src/Source2.Compiler/Maps/SubdivisionBake.cs:329`, `src/Source2.Compiler/Maps/SubdivisionNormalGrid.cs:169`, `src/Source2.Compiler/Maps/NavGen/NavGenLadders.cs:88` |
 | `1813850e0` | `HalfEdge_CornerNormal` | normalised sum of the Newell face normals over the corner's smooth fan (turn: twin of next; fan between hard edges) | `src/Source2.Compiler/Maps/SubdivisionBake.cs:358`, `src/Source2.Compiler/Maps/SubdivisionNormalGrid.cs:131`, `src/Source2.Compiler/Maps/SubdivisionNormalGrid.cs:193` +1 |
 | `1813858d0` | `MeshTessellation_WeldExact` | equal positions bit for bit are one vertex, first met | `src/Source2.Compiler/Maps/MeshTessellation.cs:9`, `src/Source2.Compiler/Maps/MeshTessellation.cs:497` |
-| `18138be80` | `HalfEdge_Corner` | the half-edge of a face ending at a vertex | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:161`, `src/Source2.Compiler/Maps/ParticleSnapshots.cs:140`, `src/Source2.Compiler/Maps/ParticleSnapshots.cs:152` +1 |
+| `18138be80` | `HalfEdge_Corner` | the half-edge of a face ending at a vertex | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:161`, `src/Source2.Compiler/Maps/ParticleSnapshots.cs:249`, `src/Source2.Compiler/Maps/ParticleSnapshots.cs:261` +1 |
 | `18138e6e0` | `HalfEdge_Lib_18138e6e0` | called by the bake |  |
 | `18138f230` | `HalfEdge_EdgeInFace` | edge between two vertices in a face |  |
 | `18138f9f0` | `HalfEdge_FaceWith` | the face holding both vertices | `src/Source2.Compiler/Maps/SubdivisionBake.cs:508` |
@@ -2118,7 +2124,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180fb09f0` | `MapBuilderSettings_Read` | gameinfo ResourceCompiler/...; PhysicsBuilder/DefaultHammerMeshSimplification -> +0x9c8 (CS2: 0.0) |  |
 | `181003b60` | `CMapEntity::vf221` | copies the node's origin, angles and scales | `src/Source2.Compiler/Physics/WorldCollision.cs:795` |
 | `181083ae0` | `CMapMesh_PhysicsSimplificationError` | CMapMesh vf216: override (+0x3c18) ? error (+0x3c1c) squared : 0 if a material has attribute 0x184fc5, else the gameinfo default squared | `src/Source2.Compiler/Physics/WorldCollision.cs:913` |
-| `1810b8270` | `CMapPath_Samples` | IsLoop's controls through 1812802d0 (mode 0) and each sample's radius/height scale lerped over its node pair by i / span, a shared sample the later pair's | `src/Source2.Compiler/Physics/CableCollision.cs:15`, `src/Source2.Compiler/Physics/CableCollision.cs:295` |
+| `1810b8270` | `CMapPath_Samples` | IsLoop's controls through 1812802d0 (mode 0) and each sample's radius/height scale lerped over its node pair by i / span, a shared sample the later pair's | `src/Source2.Compiler/Maps/ParticleSnapshots.cs:24`, `src/Source2.Compiler/Maps/ParticleSnapshots.cs:136`, `src/Source2.Compiler/Physics/CableCollision.cs:15` +1 |
 | `1810b8ae0` | `Tube_Build` | profile cos/sin of a summed 6.2831855f / sides step, frames, a closed loop's last frame its first, rings (1810bbc40), two triangles a side (flipped order with flipFaces) | `src/Source2.Compiler/Physics/CableCollision.cs:18`, `src/Source2.Compiler/Physics/CableCollision.cs:115` |
 | `1810bb3f0` | `Bezier_Sample` | ((a t t t + b t t) + c t) + P0, t summed by 1 / (n - 1); derivatives when asked | `src/Source2.Compiler/Maps/PathDeformer.cs:419`, `src/Source2.Compiler/Physics/CableCollision.cs:231`, `src/Source2.Compiler/Physics/CableCollision.cs:280` |
 | `1810bbc40` | `Tube_Ring` | s = normalise(N x T); point j = ((sin s) r + (cos N) h) + centre for j in 0..sides (j % sides); normals, tangents, texcoords, tint | `src/Source2.Compiler/Physics/CableCollision.cs:17`, `src/Source2.Compiler/Physics/CableCollision.cs:404`, `src/Source2.Compiler/Physics/EntityPhysicsModels.cs:259` |
@@ -2127,7 +2133,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18114c1b0` | `CMapCable_BuilderExport` | vf200: export 0/2 the render tube (181151b30), 1 with collisionEnabled the collision tube (vf277); world space when param_3 is 0 (Matrix3x4_TransformPointXmm); DmeMesh (1810bcbc0) with CollisionType vf680 and the raw physicsSimplificationError; record +0x8c, +0x90 raw error, +0x6a; water_tube +0x81..+0x83; DMX serialised binary into +0x18 | `src/Source2.Compiler/Physics/WorldCollision.cs:602` |
 | `18114d850` | `CMapCable_CollisionTube` | vf277 (vtable 0x8a8): sides up to 8, 8 below 18, half below 32, 16 from there; radius * 1.025f; tube, then 181156860 when the error is above 0 (Physics/CableCollision.cs) | `src/Source2.Compiler/Physics/CableCollision.cs:7` |
 | `181151b30` | `CMapCable_RenderTube` | 1810b8270 with texture distances, scales * radius, tube 1810b8ae0 with the full side count; texcoords and caps (water_tube) beside it | `src/Source2.Compiler/Physics/CableCollision.cs:125`, `src/Source2.Compiler/Physics/EntityPhysicsModels.cs:244` |
-| `1812802d0` | `Spline_SampleBeziers` | each node pair a cubic Bezier (P1 = node + out, P2 = next + in); mode 0: max(4, ceilf(length / spacing)) samples, 2: max(2, V_roundf); pairs after the first drop their first sample; node starts out | `src/Source2.Compiler/Maps/PathDeformer.cs:418`, `src/Source2.Compiler/Physics/CableCollision.cs:13`, `src/Source2.Compiler/Physics/CableCollision.cs:189` |
+| `1812802d0` | `Spline_SampleBeziers` | each node pair a cubic Bezier (P1 = node + out, P2 = next + in); mode 0: max(4, ceilf(length / spacing)) samples, 2: max(2, V_roundf); pairs after the first drop their first sample; node starts out | `src/Source2.Compiler/Maps/ParticleSnapshots.cs:24`, `src/Source2.Compiler/Maps/PathDeformer.cs:418`, `src/Source2.Compiler/Physics/CableCollision.cs:13` +1 |
 | `1812820e0` | `Spline_Frames` | rotation minimising frames from +z (DAT_1827686c8): turn by V_acosd(dot) * 57.29577951308232 about prev x cur (skipped past 0.999), then squared up (N x T, T x b); last copies the one before | `src/Source2.Compiler/Maps/PathDeformer.cs:21`, `src/Source2.Compiler/Physics/CableCollision.cs:16`, `src/Source2.Compiler/Physics/CableCollision.cs:317` |
 | `18141b370` | `CModelDocPhysicsShapeList_Create` | +0xba flag 0, body order +0xbc 2 |  |
 | `1814f34e0` | `ModelDocNode_Transform` | Compose(node, parent inverse) | `src/Source2.Compiler/Physics/StaticPropHulls.cs:478` |

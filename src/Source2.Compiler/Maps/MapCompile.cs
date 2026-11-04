@@ -284,7 +284,7 @@ public static class MapCompile
                 entries[lump.Path] = lump.Bytes;
             // The particle snapshots the entities name (probe_classes' node_3). Whether an Only
             // Entities build writes them too is not measured, so only this step does.
-            foreach (var snapshot in ParticleSnapshots.Build(document, MapEntities.From(document), addon, map))
+            foreach (var snapshot in ParticleSnapshots.Build(document, MapEntities.From(document), schema, addon, map))
                 entries[snapshot.CompiledPath] = snapshot.Compiled;
             var models = entityModels =EntityPhysicsModels.Build(document, map, assets.Material, assets.CollisionProperty, schema, notes, assets.SmartProp, failedModels);
             foreach (var m in models)

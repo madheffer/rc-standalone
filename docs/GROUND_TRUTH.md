@@ -5986,6 +5986,13 @@ reference was compiled on 2026-11-03 by the installed 1.41.9.5 resourcecompiler 
        into 2048 slots). No RERL, resource version 0.
      - MEASURED: the DMX arrays as the runtime mesh's handles and dense order (the loader is not
        read; Valve's corner sweep is in index order on the specimen).
-     probe_classes' node_3.vsnap_c byte for byte (ParticleSnapshotTests). Refused: the world's,
-     CMapPath's and other nodes' snapshots, the unidentified "color" stream (mesh +0x10de), scaled
-     nodes, instances and prefabs; the Only Entities build writes none (not measured).
+     - Paths (CMapPath, CMapCable: 1810b5100, 1810b8270, 181112010, 18110f230, 180f31d40, 18126a5a0):
+       the samples of the cable sampler (1812802d0 mode 0, path space) at particleSnapshotSpacing;
+       color = the node pair's color_tint (V_sscanf "%d %d %d", white when absent) as linear float
+       (x * 1/255 clamped, x / 12.92 or V_powf((x + 0.055) / 1.055, 2.4)), lerped by place; radius
+       stays 0 (its write wants type class 4, generic_float is class 2 at 18237a0a0).
+     - The world and a CMapEntity fill nothing (180f7a100) and write no file; a mesh is in its own
+       space, the node's scales ignored.
+     probe_classes' node_3 and s2c_snapprobe's five snapshots byte for byte (ParticleSnapshotTests,
+     tools/coverage/snapshot_specimen.py). Refused: other node types, the unidentified mesh "color"
+     stream (mesh +0x10de), instances and prefabs; the Only Entities build writes none (not measured).
