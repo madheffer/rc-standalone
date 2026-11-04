@@ -231,7 +231,27 @@ the addon).
     Debug test build; time a Release build and Valve's own step before sizing it. Any change
     that could alter bytes waits for the user's OK (parity before speed).
 
-## Latest session (2026-11-04, CS2 and Steam closed: captures for ledgers 38 and 197, lighting checks)
+## Latest session (2026-11-04 afternoon, CS2 and Steam open: particle snapshots, movable nav meshes)
+
+All VAC-safe: decompiles (ReVa headless), our own builds and tests at below-normal priority, Valve's standalone
+resourcecompiler through compile_fresh.py --cs2-open.
+- Particle snapshots (.vsnap, ledger 241, 243ffcb / 2bc9d29): mesh, path and cable nodes byte for byte
+  (probe_classes node_3; s2c_snapprobe from tools/coverage/snapshot_specimen.py, Valve's compile in
+  %TEMP%/fresh_compile/s2c_snapprobe.vpk). tier0's CBlockCompress ported (Compression/BlockCompress.cs).
+  info_particle_system exact.
+- Movable nav meshes (ledger 242, 988f1d0 / 330d600): func_movelinear and func_mover (NavMovable): each
+  mover's own triangles through the stage list without IslandRemoval, polygons appended and tagged
+  MurmurHash2(id path, 0x3501a674). probe_classes, s2c_navmovable and s2c_navmovable4 .nav Valve's up to the
+  custom data (tools/coverage/movable_nav_specimen.py; references %TEMP%/fresh_compile/s2c_navmovable_run1.vpk,
+  s2c_navmovable4.vpk). point_nav_movable_mesh refused (Valve's ref_ent search found nothing on navmovable2/3).
+  All 354 entity classes are exact now.
+- atixref -world ParityReport from the .vmap: 434 of 553 files. Valve's two -world compiles differ in 4 files
+  only, so the agg_prop draw order is deterministic (OPEN 1.c6): draws in non-increasing vertex count, 56 of
+  56, sorted by mesh pointer in code; capture queued (CS2_CLOSED_QUEUE A.11). 217 of 264 aggregate models are
+  Valve's already.
+- Queued for CS2 closed: A.10 the missing-material fallback (1.c5), A.11 the aggregate mesh pointers.
+
+## Earlier session (2026-11-04, CS2 and Steam closed: captures for ledgers 38 and 197, lighting checks)
 
 - Ledger 38 closed (d2fe461): capture_subdivtangents.py showed the bake itself turns the flat meshes' -0 into +0;
   1813b82f0 writes lerp * weight + grid (1813c83f0's record). atixref: 103,887 of 103,887 corners.
