@@ -229,6 +229,9 @@ internal static class NodeMeshEntries
     /// </summary>
     internal static Vector3 Turn(float[] node, Vector3 d) => Normalise(Rotate(Identity, Rotate(node, d)));
 
+    /// <summary>180d46590 on its own with the identity: a direction as DmeMeshToCMesh copies it into a CMesh.</summary>
+    internal static Vector3 Copy(Vector3 d) => Normalise(Rotate(Identity, d));
+
     /// <summary>
     /// 180d46590's renormalisation: squares summed z, y, x; between 1e-17 and
     /// 1e17 each component times the reciprocal of the root; a zero length

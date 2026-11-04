@@ -2518,7 +2518,7 @@
    "addr": "180d46590",
    "name": "DmeMeshToCMesh_CopyAttribute",
    "module": "s2c:geometry/world-nodes",
-   "note": "one vertex attribute by type (+0x1c & 0x3f): float3 points through the matrix, directions turned by it and renormalised (zero length: +0s), float4 directions the same with w kept; the map path hands an identity whose zeros are all +0"
+   "note": "one vertex attribute by type (+0x1c & 0x3f): float3 points through the matrix, directions turned by it and renormalised (zero length: +0s), float4 directions the same with w kept; a float3 direction skips the renormalise when its CMesh stream byte +0x1c is set; a direction is a stream whose name has position (not the first), normal, bentnormal or tangent (not after speed/balance/wrinkle); the map path and the world node model compile hand an identity whose zeros are all +0 (ledgers 37, 251)"
   },
   {
    "addr": "1802f69f0",

@@ -15,7 +15,7 @@ A CMesh (capture_physshapes.py's reading): vertex floats +0, stream table +8 (0x
 index +0x10, first float +0x14, float count +0x18), vertex count +0x18, stride +0x1c, streams +0x20; the
 material name is a CBufferString at +0x60 (WRB_MeshesToModelDoc reads it there). For meshes whose material
 matches --match, each stream also says whether all its values are zero, and the layout hook sends a
-backtrace (installed RVAs). CS2 must be closed; the package is backed up and restored, cmp-checked.
+backtrace (installed RVAs); --dump tangent sends a matched mesh's whole tangent stream as hex (A.13). CS2 must be closed; the package is backed up and restored, cmp-checked.
 """
 import argparse
 import filecmp
@@ -38,6 +38,7 @@ LAYOUT_1103 = 0x1365ad0  # rva_map: "changed"; the 1103 function has 0923's prol
 AGENT = r"""
 'use strict';
 const MATCH = new RegExp(%(match)s, 'i');
+const DUMP = %(dump)s;
 let mod = null;
 function cstr(p) { try { return p.isNull() ? '' : p.readUtf8String(); } catch (e) { return '?'; } }
 function bufstr(p) {
@@ -64,6 +65,12 @@ function cmesh(p) {
         for (let c = 0; c < s.count; c++) if (v[k * stride + s.first + c] !== 0) { zero = false; break; }
       s.allZero = zero;
       s.v0 = Array.from(v.slice(s.first, s.first + s.count));
+      if (DUMP && s.name.toLowerCase().indexOf(DUMP) >= 0) {
+        const u = new Uint32Array(v.buffer), parts = [];
+        for (let k = 0; k < nv; k++)
+          for (let c = 0; c < s.count; c++) parts.push(u[k * stride + s.first + c].toString(16).padStart(8, '0'));
+        s.hex = parts.join('');
+      }
     }
     streams.push(s);
   }
@@ -144,6 +151,7 @@ def main():
     p.add_argument("addon")
     p.add_argument("map")
     p.add_argument("--match", default="concrete_trim_weathered_dirt_blend|fountain")
+    p.add_argument("--dump", default="", help="also send every value, as hex, of the matched meshes' streams whose name contains this")
     p.add_argument("--out")
     a = p.parse_args()
     if running("cs2.exe"):
@@ -154,7 +162,8 @@ def main():
         raise SystemExit("under 10 GB free on the game drive; not starting")
     rvas = {"modeldoc": installed("resourcecompiler", 0x1fee20), "dme": installed("resourcecompiler", 0xd47b90),
             "layout": LAYOUT_1103, "load": installed("resourcecompiler", 0x1d30d0),
-            "aggregate": installed("resourcecompiler", 0x268e80), "match": json.dumps(a.match)}
+            "aggregate": installed("resourcecompiler", 0x268e80), "match": json.dumps(a.match),
+            "dump": json.dumps(a.dump.lower())}
     out_path = a.out or os.path.join(os.environ.get("TEMP", "."), "aggstreams_capture", a.map + ".jsonl")
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     vpk = os.path.join(CS2, "game", "csgo_addons", a.addon, "maps", a.map + ".vpk")

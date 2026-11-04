@@ -25,15 +25,16 @@ Open:
   vertex count descending, memcmp) ported; every agg_prop model is Valve's but the trim aggregate (1.c7), the
   metal_door_001 buckets equal Valve's second run. Open: n0.vwnod's fragment order in 21 aggregates, which follows
   the CMesh pointer order of the stable sort before (heap order): CS2_CLOSED_QUEUE A.11.
-- 1.c7 atixref `-world` ParityReport, 11-04 night (second session): **521 of 553 files (95.24% of bytes)**, from 486.
+- 1.c7 atixref `-world` ParityReport, 11-05 (CS2 and Steam closed): **539 of 553 files (97.05% of bytes)**, from 521: the model compile's DmeMeshToCMesh copy renormalises every normal and tangent once more (ledger 251, A.13). Before that, 11-04 night: 521, from 486.
   Ported (ledgers 248-250): the model compiler's merge order (180344ae0), draws set by set, each mesh laid out with
   its own material, the RERL sorted by V_stricmp_fast (18016c0e0), NoCollapse for instanced meshes (one draw set
   each), the mesh compile's own tangents for a mesh without valid ones (CMesh_ComputeTangents with its vertex
   split), and draw sets matched before the texcoord compression. ze_hold_em_p's `-world` output is unchanged but
   the .vwrld stamp. Left, by family:
-  - tangent angles one step off at the basis axis (about 20 models: 11 mesh_overlay, blocklight6/7/11, both
-    cm00_lp245678520 objects, five agg_nomerge / agg_merge): 1 to 71 NORMAL words each, angle 1023 vs 1024 or 2047
-    vs 0 with equal normal bits, so a last-bit or zero-sign difference in a tangent input. CS2_CLOSED_QUEUE A.13.
+  - ~~tangent angles one step off at the basis axis~~ (closed 11-05, ledger 251: Valve renormalises every direction in
+    the model compile's DmeMeshToCMesh copy; the overlays, blocklights, cm00 objects and most aggregates now Valve's).
+    Left: agg_nomerge_inferno_plaster01yellow_brick02_blend_0 (vertex count differs; 67 tangents of another kind),
+    hr_concrete_wall_painted_001_1 and inferno_trim_wood01_painted_blend_02_0 (TangentFrameCaptureProbe lists them).
   - vism0 overlay objects (8): field order. Valve's mesh puts VertexGenericIntegerData right after position, the
     rest in mesh order, so the CMesh -> half-edge -> DmeMesh -> CMesh round trip reorders it. Read so far:
     CMeshToHalfEdge (1813319d0) classes each stream through the row table at 18243b690 (name and float count,

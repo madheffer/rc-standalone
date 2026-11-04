@@ -31,6 +31,13 @@ namespace Source2.Compiler.Maps;
 /// </summary>
 internal static class WorldNodeModels
 {
+    /// <summary>Exploration hook (TangentFrameCaptureProbe): each packed NORMAL word with the frame it came from.</summary>
+    internal static Action<Vector3, Vector4, uint>? ObserveTangentFrame;
+
+    /// <summary>The model and draw being packed, for <see cref="ObserveTangentFrame"/>.</summary>
+    [ThreadStatic]
+    internal static string? ObservedDraw;
+
     /// <summary>
     /// What a material tells the model: its vertex input signature (INSG
     /// <c>m_elems</c>) and the depth pass's (<c>m_depth_elems</c>). With depth
@@ -71,7 +78,11 @@ internal static class WorldNodeModels
     public static Built Build(string name, IReadOnlyList<WorldNodeCompile.Entry> meshes, bool aggregate, Func<string, MaterialFacts> material, bool mapMesh = true,
                               MaterialFacts? layout = null)
     {
-        var groups = aggregate ? FragmentOrder(meshes).Select(e => new List<WorldNodeCompile.Entry> { ModelTangents(e) }).ToList() : ByMaterial([.. meshes.Select(ModelTangents)]);
+        // A world node's meshes reach the model compile through WRB_MeshesToModelDoc's round trip (DmeCopy);
+        // a brush entity's do not: atixref's 144 entity models are Valve's without it, 15 of them differ with it.
+        WorldNodeCompile.Entry Copy(WorldNodeCompile.Entry e) => mapMesh ? DmeCopy(e) : e;
+        var groups = aggregate ? FragmentOrder(meshes).Select(e => new List<WorldNodeCompile.Entry> { ModelTangents(Copy(e)) }).ToList()
+                               : ByMaterial([.. meshes.Select(e => ModelTangents(Copy(e)))]);
         var draws = new List<DrawInput>();
         foreach (var g in groups)
         {
@@ -174,6 +185,8 @@ internal static class WorldNodeModels
             {
                 var g = d.Geometry;
                 var offsets = d.Offsets ?? StreamOffsets(d.Streams);
+                if (ObserveTangentFrame is not null)
+                    ObservedDraw = $"{name}|{d.Material}{(d.RenormaliseFrame ? "|renormalised" : "")}";
                 for (var b = 0; b < bufferCount; b++)
                     for (var v = 0; v < g.VertexCount; v++)
                         Pack(vbs[b].AsSpan((vertexBase + v) * strides[b], strides[b]), g.Vertices.AsSpan(v * d.Stride, d.Stride), offsets, slots.Where(l => l.Buffer == b), d.RenormaliseFrame);
@@ -302,6 +315,50 @@ internal static class WorldNodeModels
             return sa[..Math.Min(sa.Length, sb.Length)].SequenceCompareTo(sb[..Math.Min(sa.Length, sb.Length)]) < 0;
         });
         return [.. welded];
+    }
+
+    // The model compile's CMesh -> DmeMesh -> CMesh round trip: WRB_MeshesToModelDoc, then DmeMeshToCMeshes
+    // hands DmeMeshToCMesh (180d47b90, called at 180d478db) its matrix with scale 1. DmeMeshToCMesh flags a stream whose
+    // name contains (V_stristr, in this order) position, bentnormal or normal, else not speed, balance or
+    // wrinkle and contains tangentu, tangentv or tangent; 180d46590 copies a flagged stream that is not the
+    // position by Matrix3x4_Rotate, then a three-float one is renormalised unless its CMesh stream's byte
+    // +0x1c is set (0 on map meshes, WrbMeshEntry.Stream) and a four-float one always, w kept (ledger 251).
+    // atixref: the model compile's matrix is the identity (capture_aggstreams.py --dump tangent: our bits at
+    // WRB_MeshesToModelDoc, Valve's at DmeMeshToCMesh's exit; every zero +0 after it).
+    // The first position-named stream is the position (bVar53: its index is local_3a0) and takes the
+    // translate path; a later one is copied as a direction.
+    internal static bool DmeDirection(string name)
+    {
+        if (name.ContainsAscii("position") || name.ContainsAscii("bentnormal") || name.ContainsAscii("normal"))
+            return true;
+        if (name.ContainsAscii("speed") || name.ContainsAscii("balance") || name.ContainsAscii("wrinkle"))
+            return false;
+        return name.ContainsAscii("tangent");
+    }
+
+    private static WorldNodeCompile.Entry DmeCopy(WorldNodeCompile.Entry e)
+    {
+        var at = 0;
+        var position = false;
+        var directions = new List<int>();
+        foreach (var x in e.Facts.Streams)
+        {
+            var first = !position && x.Name.ContainsAscii("position");
+            position |= first;
+            if (!first && (x.Count == 3 || x.Count == 4) && DmeDirection(x.Name))
+                directions.Add(at);
+            at += x.Count;
+        }
+        if (directions.Count == 0)
+            return e;
+        var v = (float[])e.Vertices.Clone();
+        for (var b = 0; b + e.Stride <= v.Length; b += e.Stride)
+            foreach (var first in directions)
+            {
+                var d = NodeMeshEntries.Copy(new Vector3(v[b + first], v[b + first + 1], v[b + first + 2]));
+                (v[b + first], v[b + first + 1], v[b + first + 2]) = (d.X, d.Y, d.Z);
+            }
+        return e with { Vertices = v };
     }
 
     // The mesh compile's tangents (180344980 -> ModelCompile_WeldMesh 1803447d0, before the merge). A
@@ -636,7 +693,9 @@ internal static class WorldNodeModels
                         var tn = TJunctionFix.Normalise(new Vector3(t.X, t.Y, t.Z));
                         t = new Vector4(tn, t.W);
                     }
-                    BitConverter.TryWriteBytes(o, TangentFrame.Compress(n, t));
+                    var word = TangentFrame.Compress(n, t);
+                    ObserveTangentFrame?.Invoke(n, t, word);
+                    BitConverter.TryWriteBytes(o, word);
                     break;
                 case R32Uint:
                     BitConverter.TryWriteBytes(o, BitConverter.SingleToUInt32Bits(v[at]));

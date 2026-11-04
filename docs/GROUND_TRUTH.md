@@ -6160,3 +6160,29 @@ reference was compiled on 2026-11-03 by the installed 1.41.9.5 resourcecompiler 
      - atixref's agg_nomerge_hr_metal_grating_001_0 is one vertex buffer, as Valve's (521 of 553 files).
      - The model compile's tangent step (ledger 249) now runs on aggregate fragments too, after BuildAggregate's
        order; atixref's fragments all carry valid tangents, so no byte changes.
+251. **The model compile copies every direction once more** (2026-11-05, CS2 and Steam closed; Frida on rc 1103
+     compiling atixref -world -fshallow, rc 0923 decompiles 180d46590 and DmeMeshToCMesh 180d47b90). MEASURED + READ.
+     - tools/re/capture_tangentframe.py hooked CompressTangentFrame (182067e80) and kept every input whose angle lands
+       on an axis step (9,497 of 477,626 calls). Our TangentFrame.Compress gives Valve's word on all 9,497
+       (TangentFrameCaptureProbe), so the one-step angles of OPEN 1.c7 were input bits. In every differing frame
+       Valve's tangent is ours scaled by about 1 + 1.2e-7, and a -0 component of ours is +0 in Valve's.
+     - capture_aggstreams.py --dump tangent: a world node mesh's tangent stream still has our bits at
+       WRB_MeshesToModelDoc's entry and has Valve's at DmeMeshToCMesh's exit. That function is the model compile's
+       CMesh -> DmeMesh -> CMesh round trip, the same copy ledger 37 reads for BuildNode's input.
+     - Read: DmeMeshToCMesh flags each stream by name (V_stristr, in order): position, bentnormal or normal; else
+       none for speed, balance or wrinkle; else tangentu, tangentv or tangent. The flag goes to 180d46590 as its
+       transform argument, with "is the position" (the first position stream, local_3a0) beside it. A flagged
+       stream that is not the position is turned by Matrix3x4_Rotate. A float3 is then renormalised unless its CMesh
+       stream's byte +0x1c is set; a float4 always is, w kept. The renormalise sums z, y, x and multiplies by the
+       reciprocal of the root (NodeMeshEntries.Normalise). An exact 1 / len on our tangent gives Valve's bits
+       (checked on four frames by hand, then on the whole map).
+     - The world node model compile hands the identity (measured: only the renormalise's scale and the +0 zeros
+       differ). Brush entity models do not take this round trip: atixref's 144 are Valve's without it and 15 differ
+       with it.
+     - Ported as WorldNodeModels.DmeCopy (before ModelTangents, world node models only) and NodeMeshEntries.Copy.
+       atixref -world: 521 -> 539 of 553 files (97.05% of bytes); entity models 144/144, world nodes 381/395.
+       Fresh Valve -world references of 2026-11-05: ze_hold_em_p 45/45 files, probe01 and cardtest every world
+       node (their map root differs only because the run starts from the installed package, PARITY_BASE).
+     - Left on atixref: agg_nomerge_inferno_plaster01yellow_brick02_blend_0 (its vertex count differs, 67 frames
+       with another tangent, not this rule), hr_concrete_wall_painted_001_1, inferno_trim_wood01_painted_blend_02_0,
+       the vism0 overlay field order, metal_door_001's bucket swap (within Valve's variance) and n0.vwnod.
