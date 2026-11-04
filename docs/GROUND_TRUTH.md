@@ -6093,3 +6093,17 @@ reference was compiled on 2026-11-03 by the installed 1.41.9.5 resourcecompiler 
        aggregate is Valve's byte for byte, 476 of 553 files (world nodes 319 of 395, 91.34% of their bytes).
        Valve's list is in pointer-hash order (Step_SplittingMeshWith's map by CMesh pointer): a union that
        the order would change, or a mesh whose streams are out of the union's order, is a note.
+247. **Fields a material does not take leave the layout** (2026-11-04; rc 0923 decompiles 181364720,
+     181363de0, 1802f5680 and its caller 1802f69f0 at 1802f6b8d; the flags byte 18307e21e is 0 in .data and
+     nothing writes it). READ.
+     - ModelCompile_MeshInputLayouts passes that byte as CMesh_BuildPackedInputLayout's flags (| 8 for the depth
+       layout, | 0x10 for the remainder). With bit 2 clear, a field InputLayout_MatchSignature did not take is
+       removed (the walk from the last field down, 1813655xx), unless its second pass kept it: PerVertexLighting,
+       LightmapUV, PropWorldOrigin, curvature, bentnormal, blendindices, blendweight(s) found in the semantic
+       table. A material with no signature (param_7 null) skips both: every field stays, with no semantic
+       (atixref's milwall001, already exact).
+     - The fields keep the mesh's stream order: matched ones are written back at their mesh field's index
+       (1813656xx), so the signature does not reorder them.
+     - atixref -world: 10 of the 19 blocklight shadow models exact (world nodes 319 -> 329, 486 of 553 files);
+       the other 9 differ in draw order (their list's entry order, upstream of the per-cluster split
+       18026cfd0 / 181366f30, which keeps the gathered order) and 2 in a few tangent frame bits.

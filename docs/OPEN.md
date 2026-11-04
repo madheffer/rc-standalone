@@ -25,15 +25,15 @@ Open:
   vertex count descending, memcmp) ported; every agg_prop model is Valve's but the trim aggregate (1.c7), the
   metal_door_001 buckets equal Valve's second run. Open: n0.vwnod's fragment order in 21 aggregates, which follows
   the CMesh pointer order of the stable sort before (heap order): CS2_CLOSED_QUEUE A.11.
-- 1.c7 atixref `-world` ParityReport, 11-04 evening: **475 of 553 files (89.8% of bytes)**: lumps 11/11, index
-  3/3, entity models 143/144, world nodes 318/395. Ported this session: the prop meshes' streams (ledger 243), the
+- 1.c7 atixref `-world` ParityReport, 11-04 night: **486 of 553 files (92.7% of bytes)**: lumps 11/11, index
+  3/3, entity models 143/144, world nodes 329/395 (the trim aggregate by ledger 246, the dropped fields by 247). Ported this session: the prop meshes' streams (ledger 243), the
   aggregate sort (244), draw tints and the instanced objects' fades and origin (245). ze_hold_em_p's `-world`
   output is unchanged by all three but the .vwrld stamp. Left, by family:
   - overlays (about 33 `mesh_overlay*` models): tangent frames only. Valve recomputes tangents
     (CMesh_ComputeTangents, MikkTSpace on) on a mesh with no tangent stream after interpolating the target's
     streams (181361000); ours differ in direction and sign, so an input to the generator differs. Not found yet.
-  - blocklight shadows (19 `cb_bl_mesh_blocklight*_shadow`): Valve has one or two draws and filtered streams, ours
-    more draws with unnamed fields; and their light probe handshake in n0.vwnod (Valve 0).
+  - blocklight shadows (9 of 19 left, ledger 247): draw order (Valve's list order, often ours rotated right by
+    one) and 2 with a few tangent frame bits; and their light probe handshake in n0.vwnod (Valve 0).
   - per-object meshes (about 12 `cb_nomerge*`, `d_nomerge*`): Valve splits into more draws than ours.
   - vism0 overlay objects (8): field order. CMesh_BuildPackedInputLayout keeps mesh stream order (read); the order
     comes from the CMesh -> DmeMesh (1813319d0) -> CMesh (DmeMeshToCMesh 180d47b90) round trip, not ported;
