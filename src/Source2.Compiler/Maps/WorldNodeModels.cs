@@ -71,7 +71,7 @@ internal static class WorldNodeModels
     public static Built Build(string name, IReadOnlyList<WorldNodeCompile.Entry> meshes, bool aggregate, Func<string, MaterialFacts> material, bool mapMesh = true,
                               MaterialFacts? layout = null)
     {
-        var groups = aggregate ? FragmentOrder(meshes).Select(e => new List<WorldNodeCompile.Entry> { e }).ToList() : ByMaterial([.. meshes.Select(ModelTangents)]);
+        var groups = aggregate ? FragmentOrder(meshes).Select(e => new List<WorldNodeCompile.Entry> { ModelTangents(e) }).ToList() : ByMaterial([.. meshes.Select(ModelTangents)]);
         var draws = new List<DrawInput>();
         foreach (var g in groups)
         {
@@ -132,13 +132,23 @@ internal static class WorldNodeModels
             // A NoCollapse mesh (+0x14c) without PackToSharedVB (+0x14d) takes a set of its own in a
             // second list (1802f69f0's else branch, 1802fcd90): atixref's nomerge objects, one vertex
             // buffer per draw. That list's sets come first, the shared sets after (1802fcea0, 1802fde10).
+            // The sets match on the layouts before WRB_CompressTexcoordsToSnorm, which then runs once per
+            // set over all its meshes (1802f69f0: the match, then 1802f6840 per set): a draw whose texcoords
+            // fit [-1, 1] joins a set whose others do not, and the set keeps R16G16_FLOAT (atixref's
+            // agg_nomerge_hr_metal_grating_001_0, one buffer).
             var set = d.Facts.NoCollapse ? -1 : sets.FindIndex(x => !x.Draws[0].Facts.NoCollapse
-                && x.Slots.Select(l => (l.Field, l.Buffer)).SequenceEqual(slots.Select(l => (l.Field, l.Buffer))));
+                && Uncompressed(x.Slots).SequenceEqual(Uncompressed(slots)));
             if (set < 0)
                 sets.Add((slots, [d]));
             else
                 sets[set].Draws.Add(d);
         }
+        for (var k = 0; k < sets.Count; k++)
+            if (sets[k].Draws.Count > 1)
+            {
+                var facts = factsOf(sets[k].Draws[0]);
+                sets[k] = (Layout(sets[k].Draws, mapMesh ? facts : facts with { Depth = [] }, aggregate, mapMesh, texcoordFormat), sets[k].Draws);
+            }
         var vertexBuffers = new List<WorldNodeModel.VertexBuffer>();
         var indexBuffers = new List<WorldNodeModel.IndexBuffer>();
         var buffers = new List<(BlockType Type, byte[] Bytes)>();
@@ -549,6 +559,10 @@ internal static class WorldNodeModels
 
     // The shader semantic is kept in a 32-byte buffer.
     private static string Truncate(string s) => s.Length > 31 ? s[..31] : s;
+
+    // A layout as the set match sees it: an R16G16_SNORM texcoord is the R16G16_FLOAT it was compressed from.
+    private static IEnumerable<(WorldNodeModel.LayoutField, int)> Uncompressed(List<Slot> slots)
+        => slots.Select(l => (l.Field.Format == R16G16Snorm ? l.Field with { Format = R16G16Float } : l.Field, l.Buffer));
 
     private static uint TexcoordFormat(List<DrawInput> draws, WrbMeshEntry.Stream s, bool aggregate)
     {

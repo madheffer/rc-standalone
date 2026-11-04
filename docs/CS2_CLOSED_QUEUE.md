@@ -3,7 +3,7 @@
 What waits for CS2 to be closed, in the order to take it. Everything else is done with CS2 open: decompiles,
 ports and offline tests ([HANDOFF.md](HANDOFF.md) "Rules"). Run heavy jobs through `tools/re/heavy.py`, delete any
 crash dumps the game or resourcecompiler leaves, and kill everything you started when done. Each item names the
-ledger or doc that is waiting for its result. Last updated 2026-11-04 evening (A.10-A.12 done).
+ledger or doc that is waiting for its result. Last updated 2026-11-04 night (A.10-A.12 done, A.13 added).
 
 Steam has to be closed too for anything run in cubehost (part B). Part A needs only CS2 closed; A.1's in-game
 step needs Steam open, since it launches the game.
@@ -108,6 +108,16 @@ heavy runs with the game open at below-normal priority):
    CMeshes at WRB_MeshesToModelDoc (1801fee20) entry, then at DmeMeshToCMesh (180d47b90) exit and at
    CMesh_BuildPackedInputLayout (181364720) entry for the same material; the first place the fountain mesh
    has the stream names the function to read.
+
+13. **Tangent angles one step off at the axis** (OPEN 1.c7, ledger 249; queued 2026-11-04 night). About 20 atixref
+   world node models (11 mesh_overlay, blocklight6/7/11, the two cm00_lp245678520 objects, five agg_nomerge /
+   agg_merge aggregates) differ only in 1 to 71 packed NORMAL words, always the tangent angle 1023 vs Valve's 1024
+   or 2047 vs 0 with equal normal bits: a tangent along plus or minus the basis axis whose second dot product d2 is a tiny
+   negative in ours and not in Valve's (TangentFrame.Compress, 182067e80; an exact d1 = -1 already gives 1024).
+   Frida on a standalone resourcecompiler compiling atixref -world -fshallow (package backed up and cmp-restored):
+   log CompressTangentFrame's (182067e80) normal and tangent floats as hex for the overlay3, overlay6 and
+   blocklight7 models' draws, and for the overlays CMesh_ComputeTangents' (1812db920) output tangents; compare
+   with ours (WorldNodeModels.ModelTangents, MeshTangents.Corners) to find which input bit differs.
 
 ## B. CS2 and Steam closed (cubehost)
 

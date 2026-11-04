@@ -18,31 +18,31 @@ none), which is what turns the flat meshes' -0 into +0. atixref at HammerMesh_Tr
 103,887 corners (capture_subdivtangents.py on rc 1103, CS2 closed).
 
 Open:
-- 1.c2 overlay tangents (about 30 small atixref models, packed NORMAL holds a default tangent).
+- 1.c2 overlay tangents: the default tangent explained 11-04 (ledger 249: the material reads no tangent, the stream filter drops it, and the model compile recomputes it); 16 models now exact, the rest are 1.c7's one-step angles (CS2_CLOSED_QUEUE A.13).
 - 1.c3 95 agg_prop models' tangent angle (Valve's encoder NaN path vs ours, a last-bit source difference).
 - 1.c4 two agg_nomerge aggregates' later meshlets; 1.c5 the missing-material rule (cardtest teleport02): **11-04 Frida: it loads as materials/error.vmat** (core's, the only one; GROUND_TRUTH 42), so its flags should follow from that material; ours gives the empty set.
 - 1.c6 prop aggregate draw order: **models closed 11-04** (ledger 244): WRB_BuildAggregate's sort (LOD mask,
   vertex count descending, memcmp) ported; every agg_prop model is Valve's but the trim aggregate (1.c7), the
   metal_door_001 buckets equal Valve's second run. Open: n0.vwnod's fragment order in 21 aggregates, which follows
   the CMesh pointer order of the stable sort before (heap order): CS2_CLOSED_QUEUE A.11.
-- 1.c7 atixref `-world` ParityReport, 11-04 night: **486 of 553 files (92.7% of bytes)**: lumps 11/11, index
-  3/3, entity models 143/144, world nodes 329/395 (the trim aggregate by ledger 246, the dropped fields by 247). Ported this session: the prop meshes' streams (ledger 243), the
-  aggregate sort (244), draw tints and the instanced objects' fades and origin (245). ze_hold_em_p's `-world`
-  output is unchanged by all three but the .vwrld stamp. Left, by family:
-  - overlays (about 33 `mesh_overlay*` models): tangent frames only. Valve recomputes tangents
-    (CMesh_ComputeTangents, MikkTSpace on) on a mesh with no tangent stream after interpolating the target's
-    streams (181361000); ours differ in direction and sign, so an input to the generator differs. Not found yet.
-  - blocklight shadows (9 of 19 left, ledger 247): draw order (Valve's list order, often ours rotated right by
-    one) and 2 with a few tangent frame bits; and their light probe handshake in n0.vwnod (Valve 0).
-  - per-object meshes (about 12 `cb_nomerge*`, `d_nomerge*`): Valve splits into more draws than ours.
-  - vism0 overlay objects (8): field order. CMesh_BuildPackedInputLayout keeps mesh stream order (read); the order
-    comes from the CMesh -> DmeMesh (1813319d0) -> CMesh (DmeMeshToCMesh 180d47b90) round trip, not ported;
-    WorldNodeModels' Rank is fitted.
-  - agg_nomerge / agg_merge (about 6): a few tangent frame bits, vertex counts off by one or two (1.c4).
-  - disco_wall_toggle_246: RERL order. Every Valve model with 2+ references lists them in ordinal path order
-    (17 of 17), ours in first use; the writer is not found yet (resourcesystem side).
-  - n0.vwnod (A.11 and the blocklight handshakes). The trim aggregate's zero fill is ported (ledger 246, 11-04):
-    476 of 553 files, world nodes 319 of 395.
+- 1.c7 atixref `-world` ParityReport, 11-04 night (second session): **521 of 553 files (95.24% of bytes)**, from 486.
+  Ported (ledgers 248-250): the model compiler's merge order (180344ae0), draws set by set, each mesh laid out with
+  its own material, the RERL sorted by V_stricmp_fast (18016c0e0), NoCollapse for instanced meshes (one draw set
+  each), the mesh compile's own tangents for a mesh without valid ones (CMesh_ComputeTangents with its vertex
+  split), and draw sets matched before the texcoord compression. ze_hold_em_p's `-world` output is unchanged but
+  the .vwrld stamp. Left, by family:
+  - tangent angles one step off at the basis axis (about 20 models: 11 mesh_overlay, blocklight6/7/11, both
+    cm00_lp245678520 objects, five agg_nomerge / agg_merge): 1 to 71 NORMAL words each, angle 1023 vs 1024 or 2047
+    vs 0 with equal normal bits, so a last-bit or zero-sign difference in a tangent input. CS2_CLOSED_QUEUE A.13.
+  - vism0 overlay objects (8): field order. Valve's mesh puts VertexGenericIntegerData right after position, the
+    rest in mesh order, so the CMesh -> half-edge -> DmeMesh -> CMesh round trip reorders it. Read so far:
+    CMeshToHalfEdge (1813319d0) classes each stream through the row table at 18243b690 (name and float count,
+    then count-only rows, else "invalid"; each writer checks the row's type, +0x28, through 18243b8d0 and
+    branches on its byte +0x24) and hands it to eight typed writers (181323b30 .. 181327220); not read: what the
+    two branches write, and how the model compile turns the half-edge data back into the DmeMesh's stream order.
+    WorldNodeModels' Rank is still fitted.
+  - metal_door_001's two buckets: equal to Valve's second run (the known swap, within variance).
+  - n0.vwnod: the fragment order (A.11) and the blocklight shadow objects' light probe handshake (Valve 0).
 - 1.a1-1.a9 measured, not read: the SIMD transform and the renormalise before WRB_CollectMeshEntries, field and
   aggregate list order, AllowBackfaceCulling's parent set (materialsystem2 +0x60, written at 1800364c3).
 - 1.b refusals ZE maps can reach: foliage (NeedsLocalSpaceVertices), clutter, smart prop skips; detail grass

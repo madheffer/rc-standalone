@@ -6151,3 +6151,12 @@ reference was compiled on 2026-11-03 by the installed 1.41.9.5 resourcecompiler 
        tangent in Valve's NORMAL word, not 0x401 (the "default tangent" of ledger 60 and OPEN 1.c2): dev/black_simple
        in cb_nomerge26 and 16 mesh_overlay models now Valve's.
      - atixref -world: 498 -> 520 of 553 files (95.17% of bytes).
+250. **Draw sets match before the texcoord compression** (2026-11-04; rc 0923 decompile of 1802f69f0: the set match,
+     then 1802f6840 over each set at its lines after the grouping). READ.
+     - ModelCompile_BuildDrawSets matches a mesh to a set on its layouts as ModelCompile_MeshInputLayouts made them;
+       WRB_CompressTexcoordsToSnorm runs afterwards, once per set over all its meshes. So an unflagged texcoord is
+       R16G16_FLOAT for the match, and the set becomes R16G16_SNORM only when every mesh's values lie in [-1, 1].
+       Ours chose the format per draw first, so a draw that fit split off into a set of its own.
+     - atixref's agg_nomerge_hr_metal_grating_001_0 is one vertex buffer, as Valve's (521 of 553 files).
+     - The model compile's tangent step (ledger 249) now runs on aggregate fragments too, after BuildAggregate's
+       order; atixref's fragments all carry valid tangents, so no byte changes.
