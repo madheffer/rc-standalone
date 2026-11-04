@@ -220,17 +220,27 @@ internal static class NodePropAggregates
                 foreach (var p in props)
                     leftOver.Add((Standalone(p), Candidate(p.Keys) && all));
         }
-        // BuildAggregate's sort key of a mesh (the CMesh after PrepareForMerge and Step_SplittingMeshWith's weld at 0).
-        var sortKeys = new Dictionary<int, SortKey>();
-        SortKey SortKey(int mesh)
+        // The streams PrepareForMerge leaves a mesh; it passes over an entry with attribute bit 0 or 11 (& 0x801).
+        var keptStreams = new Dictionary<int, List<int>>();
+        List<int> Kept(int mesh)
         {
-            if (sortKeys.TryGetValue(mesh, out var key))
-                return key;
+            if (keptStreams.TryGetValue(mesh, out var kept))
+                return kept;
             var m = meshes[mesh];
-            var kept = Enumerable.Range(0, m.Streams.Count).ToList();
-            // PrepareForMerge passes over an entry with attribute bit 0 or 11 (& 0x801).
+            kept = Enumerable.Range(0, m.Streams.Count).ToList();
             if ((m.Attributes & 0x801) == 0 && NodePropEntries.Inputs(m.Material, content.Read) is { } inputs)
                 kept = MaterialStreams.Kept(m.Streams, inputs, false);
+            return keptStreams[mesh] = kept;
+        }
+        // BuildAggregate's sort key of a mesh (the CMesh after PrepareForMerge, Step_SplittingMeshWith's weld at 0
+        // and the stream union's relayout: <paramref name="pad"/> zero floats after each vertex).
+        var sortKeys = new Dictionary<(int, int), SortKey>();
+        SortKey SortKey(int mesh, int pad)
+        {
+            if (sortKeys.TryGetValue((mesh, pad), out var key))
+                return key;
+            var m = meshes[mesh];
+            var kept = Kept(mesh);
             var stride = kept.Sum(i => m.Streams[i].Count);
             var count = m.Vertices.Length / m.Stride;
             var v = new float[count * stride];
@@ -244,7 +254,11 @@ internal static class NodePropAggregates
                 at += m.Streams[i].Count;
             }
             var (welded, _) = Physics.MeshWeld.Weld(v, stride, m.Indices, streams, 0f, true);
-            return sortKeys[mesh] = new SortKey((byte)m.Lod, welded.Length / stride, System.Runtime.InteropServices.MemoryMarshal.AsBytes(welded.AsSpan()).ToArray());
+            var n = welded.Length / stride;
+            var padded = new float[n * (stride + pad)];
+            for (var k = 0; k < n; k++)
+                Array.Copy(welded, k * stride, padded, k * (stride + pad), stride);
+            return sortKeys[(mesh, pad)] = new SortKey((byte)m.Lod, n, System.Runtime.InteropServices.MemoryMarshal.AsBytes(padded.AsSpan()).ToArray());
         }
         var result = new List<Aggregate>();
         var aggregated = joined.Count > 0 && joined.Sum(e => e.Indices) > MinimumIndices;
@@ -262,11 +276,7 @@ internal static class NodePropAggregates
                 var end = start;
                 while (end < sorted.Count && end - start < 0x7ffb && (sorted[end].Attributes & 0x6000000000) == bits)
                     end++;
-                var built = Build(bucket.Key, bits, sorted.GetRange(start, end - start), meshes, SortKey);
-                // Valve packs such draws into one vertex buffer, the stream a draw lacks as zeros (atixref's
-                // inferno_fountain_01 beside inferno_roof_chimney_01_64x32a): where is not read.
-                if (built.Draws.Select(d => string.Join(",", d.Streams.Select(s => s.Name))).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1)
-                    notes?.Add($"prop aggregate {bucket.Key}: its draws' streams differ; Valve's zero fill for the missing ones is not read (CS2_CLOSED_QUEUE A.12)");
+                var built = Build(bucket.Key, bits, sorted.GetRange(start, end - start), meshes, SortKey, Kept, notes);
                 result.Add(built);
                 start = end;
             }
@@ -380,8 +390,60 @@ internal static class NodePropAggregates
         }
     }
 
-    private static Aggregate Build(string material, ulong bits, List<Entry> run, List<Mesh> meshes, Func<int, SortKey> sortKey)
+    // A kept stream's identity in the union: name (case-blind), index (its place among the mesh's streams of
+    // that name, WRB_LoadPropMeshes' +0x10) and float count. +0x1d is the run's (KeepTexcoordPrecision).
+    private readonly record struct StreamKey(string Name, int Index, int Count);
+
+    private static List<(StreamKey Key, Physics.MeshWeld.Stream Stream)> KeptKeys(Mesh m, List<int> kept)
+        => [.. kept.Select(i => (new StreamKey(m.Streams[i].Name.ToLowerInvariant(), m.Streams.Take(i).Count(s => Tier0Strings.EqualsIgnoreCase(s.Name, m.Streams[i].Name)),
+                                                m.Streams[i].Count), m.Streams[i]))];
+
+    /// <summary>
+    /// WRB_BuildAggregate's stream union (1802619c0, after Step_SplittingMeshWith, before the sorts;
+    /// ledger 246): over the run's meshes, each one's streams in order, a stream is new when no earlier one
+    /// has its name (case-blind), index and float count. Every mesh not already in that layout is relaid
+    /// out (1812e4040): the union's streams in order, each filled from the mesh's stream of the same name,
+    /// index and count, else zeros. Returns, per mesh, the union streams it lacks (appended as zeros).
+    /// Valve's mesh list is in pointer-hash order; ours is the run's: a union whose order depends on it,
+    /// or a mesh whose own streams are not in the union's order, is a note.
+    /// </summary>
+    private static Dictionary<int, List<Physics.MeshWeld.Stream>> StreamUnion(string material, int[] unique, List<Mesh> meshes, Func<int, List<int>> kept,
+                                                                              List<string>? notes)
     {
+        List<StreamKey> Union(IEnumerable<int> order)
+        {
+            var union = new List<StreamKey>();
+            foreach (var mesh in order)
+                foreach (var (key, _) in KeptKeys(meshes[mesh], kept(mesh)))
+                    if (!union.Contains(key))
+                        union.Add(key);
+            return union;
+        }
+        var forward = Union(unique);
+        var source = new Dictionary<StreamKey, Physics.MeshWeld.Stream>();
+        foreach (var mesh in unique)
+            foreach (var (key, stream) in KeptKeys(meshes[mesh], kept(mesh)))
+                source.TryAdd(key, stream);
+        if (!forward.SequenceEqual(Union(unique.Reverse())))
+            notes?.Add($"prop aggregate {material}: the stream union's order depends on Valve's pointer-hash mesh order");
+        var missing = new Dictionary<int, List<Physics.MeshWeld.Stream>>();
+        foreach (var mesh in unique)
+        {
+            var own = KeptKeys(meshes[mesh], kept(mesh)).Select(x => x.Key).ToList();
+            var lacks = forward.Where(k => !own.Contains(k)).ToList();
+            if (!own.Concat(lacks).SequenceEqual(forward))
+                notes?.Add($"prop aggregate {material}: {meshes[mesh].Model} draw {meshes[mesh].Call}'s streams are out of the union's order (not modelled)");
+            missing[mesh] = [.. lacks.Select(k => source[k])];
+        }
+        return missing;
+    }
+
+    private static Aggregate Build(string material, ulong bits, List<Entry> run, List<Mesh> meshes, Func<int, int, SortKey> sortKeyPadded, Func<int, List<int>> kept,
+                                   List<string>? notes)
+    {
+        var unique = run.Select(e => e.Mesh).Distinct().ToArray();
+        var missing = StreamUnion(material, unique, meshes, kept, notes);
+        SortKey sortKey(int mesh) => sortKeyPadded(mesh, missing[mesh].Sum(s => s.Count));
         var setups = new Dictionary<int, int>();
         var lodSetups = new List<LodSetup>();
         foreach (var e in run)
@@ -392,7 +454,6 @@ internal static class NodePropAggregates
             }
         // The meshes (std::sort, 180296ed0) and the entries (std::sort, 180296c80) by their CMesh: each
         // mesh one draw, its fragments in the entries' order.
-        var unique = run.Select(e => e.Mesh).Distinct().ToArray();
         MsvcSort.Sort(unique, (a, b) => sortKey(a).Before(sortKey(b)));
         var ordered = run.ToArray();
         MsvcSort.Sort(ordered, (a, b) => sortKey(a.Mesh).Before(sortKey(b.Mesh)));
@@ -403,8 +464,27 @@ internal static class NodePropAggregates
             var m = meshes[mesh];
             drawOf[mesh] = draws.Count;
             var cone = NodeDraw.ConeWeight((m.Attributes & 0x100000000) != 0);
+            var (vertices, stride, streams) = (m.Vertices, m.Stride, m.Streams);
+            if (missing[mesh].Count > 0)
+            {
+                // The union's relayout: the streams the mesh lacks after its own, as zeros.
+                var pad = missing[mesh].Sum(s => s.Count);
+                stride = m.Stride + pad;
+                var count = m.Vertices.Length / m.Stride;
+                vertices = new float[count * stride];
+                for (var k = 0; k < count; k++)
+                    Array.Copy(m.Vertices, k * m.Stride, vertices, k * stride, m.Stride);
+                var added = new List<Physics.MeshWeld.Stream>(m.Streams);
+                var at = m.Stride;
+                foreach (var s in missing[mesh])
+                {
+                    added.Add(s with { First = at });
+                    at += s.Count;
+                }
+                streams = added;
+            }
             draws.Add(new Draw(m.Model, m.Call, m.Material,
-                NodeDraw.Build(m.Vertices, m.Stride, 0, m.Indices, m.Streams, true, cone)) { Stride = m.Stride, Streams = m.Streams, Attributes = m.Attributes });
+                NodeDraw.Build(vertices, stride, 0, m.Indices, streams, true, cone)) { Stride = stride, Streams = streams, Attributes = m.Attributes });
         }
         var fragments = new List<Fragment>();
         foreach (var e in ordered)

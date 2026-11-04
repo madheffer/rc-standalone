@@ -41,7 +41,8 @@ Open:
   - agg_nomerge / agg_merge (about 6): a few tangent frame bits, vertex counts off by one or two (1.c4).
   - disco_wall_toggle_246: RERL order. Every Valve model with 2+ references lists them in ordinal path order
     (17 of 17), ours in first use; the writer is not found yet (resourcesystem side).
-  - the trim aggregate's zero fill (A.12); n0.vwnod (A.11 and the blocklight handshakes).
+  - n0.vwnod (A.11 and the blocklight handshakes). The trim aggregate's zero fill is ported (ledger 246, 11-04):
+    476 of 553 files, world nodes 319 of 395.
 - 1.a1-1.a9 measured, not read: the SIMD transform and the renormalise before WRB_CollectMeshEntries, field and
   aggregate list order, AllowBackfaceCulling's parent set (materialsystem2 +0x60, written at 1800364c3).
 - 1.b refusals ZE maps can reach: foliage (NeedsLocalSpaceVertices), clutter, smart prop skips; detail grass

@@ -2794,13 +2794,13 @@
    "addr": "1802619c0",
    "name": "WRB_AggregateStreamUnion",
    "module": "s2c:geometry/world-nodes",
-   "note": "the union of a (CMesh, ref) list's streams (name case-blind, index, count, +0x1d), first seen first, offsets summed; every mesh not in that layout relaid by 1812e4040 (ledger 244)"
+   "note": "the union of a (CMesh, ref) list's streams (name case-blind, index, count, +0x1d), first seen first, offsets summed; every mesh not in that layout relaid by 1812e4040 (ledger 246)"
   },
   {
    "addr": "1812e4040",
    "name": "CMesh_RelayoutStreams",
    "module": "s2c:geometry/world-nodes",
-   "note": "a mesh into a given stream table: stride max(offset + count), zeroed buffer, floats copied from the stream of the same index, count and name, else 0 (ledger 244)"
+   "note": "a mesh into a given stream table: stride max(offset + count), zeroed buffer, floats copied from the stream of the same index, count and name, else 0 (ledger 246)"
   },
   {
    "addr": "1801d4dc0",

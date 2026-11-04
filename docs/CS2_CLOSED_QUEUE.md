@@ -97,9 +97,9 @@ heavy runs with the game open at below-normal priority):
    question is what puts the pointers in descending size: allocation order (which then needs porting) or a size
    class of the allocator.
 
-12. ~~An aggregate's missing stream as zeros~~ (done 2026-11-04, ledger 244: tools/re/capture_aggstreams.py showed the
+12. ~~An aggregate's missing stream as zeros~~ (done 2026-11-04, ledger 246: tools/re/capture_aggstreams.py showed the
    same CMesh goes stride 18 -> 22 inside WRB_BuildAggregate; 1802619c0's stream union and 1812e4040's
-   zero-filled relayout read; port open, OPEN 1.c7). Was: (OPEN 1.c7, ledger 243; queued 2026-11-04). atixref's
+   zero-filled relayout read and ported, the trim aggregate exact). Was: (OPEN 1.c7, ledger 243; queued 2026-11-04). atixref's
    agg_prop_inferno_concrete_trim_weathered_dirt_blend_01_0 is one vertex buffer in Valve's output with
    VertexPaintBlendParams = 0 for the inferno_fountain_01 draw, whose CMesh (WRB_LoadPropMeshes) has no such
    stream. Ruled out statically: CMesh_Concatenate (1812dd570), InputLayout_MatchSignature (181363de0),
