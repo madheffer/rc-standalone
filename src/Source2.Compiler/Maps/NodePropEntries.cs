@@ -305,6 +305,21 @@ internal static class NodePropEntries
         return (semantic, index) => signature.FirstOrDefault(e => e.D3DSemanticName.Equals(semantic, StringComparison.OrdinalIgnoreCase) && e.D3DSemanticIndex == index)?.Semantic;
     }
 
+    /// <summary>The streams a material reads (<see cref="MaterialStreams.Inputs"/>), null when it does not load or has no signature.</summary>
+    internal static List<(string Name, int Index)>? Inputs(string material, Func<string, byte[]?> read)
+    {
+        if (read(material + "_c") is not { } bytes)
+            return null;
+        try
+        {
+            return MaterialStreams.Inputs(MaterialAuthor.ExtractInputSignature(bytes).Select(x => x.Semantic));
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
+    }
+
     // WRB_LoadPropMeshes' 18 floats a vertex from meshsystem's geometry.
     internal static (float[] Vertices, bool Color) Vertices(VBIB.OnDiskBufferData vb, int lo, int count)
         => Vertices(vb, lo, count, vb.InputLayoutFields.FirstOrDefault(f => f.SemanticName == "COLOR"));

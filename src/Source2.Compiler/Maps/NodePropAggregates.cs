@@ -118,7 +118,7 @@ internal static class NodePropAggregates
 
     // A mesh: a model's draw call under its final material, unpacked in model space.
     private sealed record Mesh(string Model, int Call, string Material, float[] Vertices, int Stride, IReadOnlyList<Physics.MeshWeld.Stream> Streams, int[] Indices,
-                               ulong Attributes, bool FloatTexcoords);
+                               ulong Attributes, bool FloatTexcoords, int Lod);
 
     /// <summary>
     /// The aggregates of a .vmap. <paramref name="attributes"/> answers a
@@ -208,7 +208,7 @@ internal static class NodePropAggregates
                     if (!meshIndex.TryGetValue(key, out var mi))
                     {
                         meshIndex[key] = mi = meshes.Count;
-                        meshes.Add(new Mesh(modelName, call, material, c.Vertices, c.Stride, c.Streams, c.Indices, flags.Flags, c.FloatTexcoords));
+                        meshes.Add(new Mesh(modelName, call, material, c.Vertices, c.Stride, c.Streams, c.Indices, flags.Flags, c.FloatTexcoords, c.Lod));
                     }
                     entries.Add(new Entry(mi, material, matrix, header.Tint, header.ObjectFlags, flags.Flags, id, centre, c.Indices.Length,
                         propIndex, c.Lod, lods) { Switch = switchDistances, MaxScale = MaxScale(matrix), MeshBounds = Place(matrix, c.Lo, c.Hi, new Vector3(float.MaxValue), new Vector3(float.MinValue)) });
@@ -219,6 +219,32 @@ internal static class NodePropAggregates
             if (standalone != null)
                 foreach (var p in props)
                     leftOver.Add((Standalone(p), Candidate(p.Keys) && all));
+        }
+        // BuildAggregate's sort key of a mesh (the CMesh after PrepareForMerge and Step_SplittingMeshWith's weld at 0).
+        var sortKeys = new Dictionary<int, SortKey>();
+        SortKey SortKey(int mesh)
+        {
+            if (sortKeys.TryGetValue(mesh, out var key))
+                return key;
+            var m = meshes[mesh];
+            var kept = Enumerable.Range(0, m.Streams.Count).ToList();
+            // PrepareForMerge passes over an entry with attribute bit 0 or 11 (& 0x801).
+            if ((m.Attributes & 0x801) == 0 && NodePropEntries.Inputs(m.Material, content.Read) is { } inputs)
+                kept = MaterialStreams.Kept(m.Streams, inputs, false);
+            var stride = kept.Sum(i => m.Streams[i].Count);
+            var count = m.Vertices.Length / m.Stride;
+            var v = new float[count * stride];
+            var streams = new List<Physics.MeshWeld.Stream>();
+            var at = 0;
+            foreach (var i in kept)
+            {
+                for (var k = 0; k < count; k++)
+                    Array.Copy(m.Vertices, (k * m.Stride) + m.Streams[i].First, v, (k * stride) + at, m.Streams[i].Count);
+                streams.Add(m.Streams[i] with { First = at });
+                at += m.Streams[i].Count;
+            }
+            var (welded, _) = Physics.MeshWeld.Weld(v, stride, m.Indices, streams, 0f, true);
+            return sortKeys[mesh] = new SortKey((byte)m.Lod, welded.Length / stride, System.Runtime.InteropServices.MemoryMarshal.AsBytes(welded.AsSpan()).ToArray());
         }
         var result = new List<Aggregate>();
         var aggregated = joined.Count > 0 && joined.Sum(e => e.Indices) > MinimumIndices;
@@ -236,7 +262,7 @@ internal static class NodePropAggregates
                 var end = start;
                 while (end < sorted.Count && end - start < 0x7ffb && (sorted[end].Attributes & 0x6000000000) == bits)
                     end++;
-                var built = Build(bucket.Key, bits, sorted.GetRange(start, end - start), meshes);
+                var built = Build(bucket.Key, bits, sorted.GetRange(start, end - start), meshes, SortKey);
                 // Valve packs such draws into one vertex buffer, the stream a draw lacks as zeros (atixref's
                 // inferno_fountain_01 beside inferno_roof_chimney_01_64x32a): where is not read.
                 if (built.Draws.Select(d => string.Join(",", d.Streams.Select(s => s.Name))).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1)
@@ -334,34 +360,57 @@ internal static class NodePropAggregates
         return [.. keyed.Select(k => entries[k.Index])];
     }
 
-    private static Aggregate Build(string material, ulong bits, List<Entry> run, List<Mesh> meshes)
+    /// <summary>
+    /// A mesh's place in WRB_BuildAggregate's sorts (180296ed0 on the meshes,
+    /// 180296c80 on the entries, comparator as 1802a0ff0): CMesh byte +0x58
+    /// ascending (the embedded mesh's LOD mask, 18174e370, which
+    /// WRB_LoadPropMeshes writes for BuildPropAggregates' LOD -1), then vertex
+    /// count descending, then memcmp of count x stride floats.
+    /// </summary>
+    private sealed record SortKey(byte Lod, int Count, byte[] Bytes)
     {
-        var draws = new List<Draw>();
-        var drawOf = new Dictionary<int, int>();
-        var fragments = new List<Fragment>();
+        public bool Before(SortKey b)
+        {
+            if (Lod != b.Lod)
+                return Lod < b.Lod;
+            if (Count != b.Count)
+                return b.Count <= Count;
+            var n = Math.Min(Bytes.Length, b.Bytes.Length);
+            return Bytes.AsSpan(0, n).SequenceCompareTo(b.Bytes.AsSpan(0, n)) < 0;
+        }
+    }
+
+    private static Aggregate Build(string material, ulong bits, List<Entry> run, List<Mesh> meshes, Func<int, SortKey> sortKey)
+    {
         var setups = new Dictionary<int, int>();
         var lodSetups = new List<LodSetup>();
         foreach (var e in run)
-        {
-            if (!drawOf.TryGetValue(e.Mesh, out var d))
+            if (e.Lods && !setups.ContainsKey(e.Prop))
             {
-                var m = meshes[e.Mesh];
-                drawOf[e.Mesh] = d = draws.Count;
-                var cone = NodeDraw.ConeWeight((m.Attributes & 0x100000000) != 0);
-                draws.Add(new Draw(m.Model, m.Call, m.Material,
-                    NodeDraw.Build(m.Vertices, m.Stride, 0, m.Indices, m.Streams, true, cone)) { Stride = m.Stride, Streams = m.Streams, Attributes = m.Attributes });
-            }
-            var setup = -1;
-            if (e.Lods && !setups.TryGetValue(e.Prop, out setup))
-            {
-                setups[e.Prop] = setup = setups.Count;
+                setups[e.Prop] = setups.Count;
                 lodSetups.Add(new LodSetup(e.Centre, e.MaxScale, e.Switch));
             }
-            // LodMask is the LOD group mask meshsystem gives the mesh.
-            fragments.Add(new Fragment(d, e.Matrix, e.Tint, e.ObjectFlags, e.Attributes, e.NodeId, e.Centre, e.Lods ? e.LodMask : 0, setup) { MeshBounds = e.MeshBounds });
+        // The meshes (std::sort, 180296ed0) and the entries (std::sort, 180296c80) by their CMesh: each
+        // mesh one draw, its fragments in the entries' order.
+        var unique = run.Select(e => e.Mesh).Distinct().ToArray();
+        MsvcSort.Sort(unique, (a, b) => sortKey(a).Before(sortKey(b)));
+        var ordered = run.ToArray();
+        MsvcSort.Sort(ordered, (a, b) => sortKey(a.Mesh).Before(sortKey(b.Mesh)));
+        var draws = new List<Draw>();
+        var drawOf = new Dictionary<int, int>();
+        foreach (var mesh in unique)
+        {
+            var m = meshes[mesh];
+            drawOf[mesh] = draws.Count;
+            var cone = NodeDraw.ConeWeight((m.Attributes & 0x100000000) != 0);
+            draws.Add(new Draw(m.Model, m.Call, m.Material,
+                NodeDraw.Build(m.Vertices, m.Stride, 0, m.Indices, m.Streams, true, cone)) { Stride = m.Stride, Streams = m.Streams, Attributes = m.Attributes });
         }
-        // The aggregate's meshes list each draw's fragments together, by draw.
-        fragments = [.. fragments.Select((f, i) => (f, i)).OrderBy(x => x.f.Draw).ThenBy(x => x.i).Select(x => x.f)];
+        var fragments = new List<Fragment>();
+        foreach (var e in ordered)
+            // LodMask is the LOD group mask meshsystem gives the mesh.
+            fragments.Add(new Fragment(drawOf[e.Mesh], e.Matrix, e.Tint, e.ObjectFlags, e.Attributes, e.NodeId, e.Centre, e.Lods ? e.LodMask : 0,
+                                       e.Lods ? setups[e.Prop] : -1) { MeshBounds = e.MeshBounds });
         // The run's texcoord precision (inlined 180258310, then 1802f6840).
         float Max(int slot) => draws.SelectMany(d => Enumerable.Range(0, d.Geometry.VertexCount).Select(v =>
             MathF.Max(MathF.Abs(d.Geometry.Vertices[(v * d.Stride) + slot]), MathF.Abs(d.Geometry.Vertices[(v * d.Stride) + slot + 1])))).DefaultIfEmpty(0f).Max();
