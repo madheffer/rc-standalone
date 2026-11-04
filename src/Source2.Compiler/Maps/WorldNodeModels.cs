@@ -386,6 +386,13 @@ internal static class WorldNodeModels
                 continue;
             var (stream, index) = Key(s);
             var input = signature.FirstOrDefault(x => MaterialStreams.Inputs([x.Semantic]) is [var m] && Io.Tier0Strings.EqualsIgnoreCase(m.Name, s.Name) && m.Index == s.Index);
+            // CMesh_BuildPackedInputLayout (181364720, flags 0 from ModelCompile_MeshInputLayouts' global
+            // 18307e21e): with a signature, a field none of its elements takes is dropped unless
+            // InputLayout_MatchSignature's second pass keeps it (181363de0: PerVertexLighting, LightmapUV,
+            // PropWorldOrigin, curvature, bentnormal, blendindices, blendweight(s)); with none (param_7
+            // null) every field stays, with no semantic (atixref's milwall001).
+            if (input == null && signature.Count > 0 && !KeptUnmatched.Contains(s.Name))
+                continue;
             uint format = s.Name.ToLowerInvariant() switch
             {
                 "position" => R32G32B32Float,
@@ -405,6 +412,9 @@ internal static class WorldNodeModels
         }
         return slots;
     }
+
+    private static readonly HashSet<string> KeptUnmatched = new(
+        ["PerVertexLighting", "LightmapUV", "PropWorldOrigin", "curvature", "bentnormal", "blendindices", "blendweights", "blendweight"], StringComparer.OrdinalIgnoreCase);
 
     // The shader semantic is kept in a 32-byte buffer.
     private static string Truncate(string s) => s.Length > 31 ? s[..31] : s;
