@@ -231,7 +231,25 @@ the addon).
     Debug test build; time a Release build and Valve's own step before sizing it. Any change
     that could alter bytes waits for the user's OK (parity before speed).
 
-## Latest session (2026-11-04 afternoon, CS2 and Steam open: particle snapshots, movable nav meshes)
+## Latest session (2026-11-04 evening and night, CS2 open: atixref -world world node models)
+
+All VAC-safe: ReVa headless decompiles, our builds and ParityReport through heavy.py --allow-cs2.
+- atixref `-world` ParityReport from the .vmap: **434 -> 521 of 553 files (95.24% of bytes)**, ledgers 243-250
+  (ac4615a .. d12c9e6). ze_hold_em_p's `-world` output is unchanged but the .vwrld stamp after every step.
+- 1.c7 paint stream: WRB_LoadPropMeshes' stream naming (field semantic, else the material attribute via
+  1801d3050, else "color", only with a signature; extras typed by DXGI format) in NodePropEntries.Load.
+- 1.c6 aggregate order: WRB_BuildAggregate's comparator 1802a0ff0 (LOD mask, vertex count descending, memcmp)
+  under MsvcSort; tints through CMesh_SetTint 1812e5580 (powf 2.2); CompileInstanced copies fade and lighting
+  origin; overlay origin FLT_MAX (181360310).
+- Layouts: CMesh_BuildPackedInputLayout 181364720 drops fields the material signature does not take, except the
+  KeptUnmatched list (ledger 247).
+- Model compile (ledgers 248-250): merge order 180344ae0, per-draw layouts, RERL sorted by V_stricmp_fast
+  18016c0e0, NoCollapse for instanced meshes, CMesh_ComputeTangents for meshes without valid tangents, draw sets
+  matched before the texcoord compression.
+- Left: OPEN 1.c7 (tangent angles one step off, CS2_CLOSED_QUEUE A.13; vism0 field order, reading in progress;
+  n0.vwnod fragment order, A.11).
+
+## Earlier session (2026-11-04 afternoon, CS2 and Steam open: particle snapshots, movable nav meshes)
 
 All VAC-safe: decompiles (ReVa headless), our own builds and tests at below-normal priority, Valve's standalone
 resourcecompiler through compile_fresh.py --cs2-open.
