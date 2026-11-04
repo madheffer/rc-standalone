@@ -220,7 +220,7 @@ exact 30, partial 2, unpinned 0, no sample 0
 | func_nav_markup | Solid | resourcecompiler | nav: markup volumes | lump ported; nav markups ported (the collector, NONAV in the extraction, 003 / 009, 019, WALKABLESEED in 029; ledger 142); inside instances or prefabs refused | exact |
 | func_physbox | Solid | resourcecompiler, physicsbuilder, vrad3 | upgrade of older vmaps only: spawnflags to gravity-grab keys | lump ported; vmap upgrader not ported | exact |
 | info_cull_triangles | Point | resourcecompiler | dropped from the lump; a record for render-mesh triangle culling | dropped as Valve does; culling not ported (render geometry) | exact |
-| info_particle_system | Point | resourcecompiler, physicsbuilder, vrad3 | snapshot_mesh naming a map node: snapshot_file set to maps/<map>/particle_snapshots/node_<id>.vsnap and the snapshot generated from the node; upgrade of older vmaps: snapshot_file gets .vsnap | snapshot_file key ported (not inside instances); .vsnap not generated; vmap upgrader not ported | partial (.vsnap not generated) |
+| info_particle_system | Point | resourcecompiler, physicsbuilder, vrad3 | snapshot_mesh naming a map node: snapshot_file set to maps/<map>/particle_snapshots/node_<id>.vsnap and the snapshot generated from the node; upgrade of older vmaps: snapshot_file gets .vsnap | snapshot_file key ported (not inside instances); .vsnap from a CMapMesh byte for byte (ledger 241); from a CMapPath or the world not ported; vmap upgrader not ported | partial (.vsnap from a path not ported) |
 | info_player_start | Point | resourcecompiler | Hammer's map check only | nothing to port for the compile | exact |
 | light_barn | Point | resourcecompiler, physicsbuilder, vrad3 | light description for precompute, bake and vis membership; precomputed* keys, directlight, lightcookie resource; upgrade of older vmaps only converts light_spot/omni/ortho | lump keys exact on every pinned map (precomputed shape keys, matrix angles, brightness units, baked shadow keys, vis membership); bake: the own lighting port (VRAD3.md) | exact |
 | light_environment | Point | resourcecompiler, physicsbuilder, vrad3 | legacy directional light for bake and shadows; lump through the light path; upgrade of older vmaps only | lump keys exact on every pinned map (precomputed shape keys, matrix angles, brightness units, baked shadow keys, vis membership); bake: the own lighting port (VRAD3.md) | exact |
@@ -699,10 +699,11 @@ read from resourcecompiler and ported:
 - A key spelled `name` never gets a default: every DMX element already has a
   name attribute, and the default fill finds it.
 - snapshot_mesh naming a map node sets snapshot_file to the particle snapshot
-  the compile generates from it. The key is ported. The .vsnap file itself is
-  not, and neither is a snapshot node inside an instance (the port refuses it).
+  the compile generates from it. The key is ported, and the .vsnap from a mesh
+  node (Maps/ParticleSnapshots.cs); a path node's and a snapshot node inside an
+  instance are not (the port refuses them).
 
 ### Next
 
 - The `compile-map` command, routing Hammer's switches to the parts above.
-- Particle snapshot files (.vsnap) from mesh nodes.
+- Particle snapshot files (.vsnap) from path nodes (CMapPath, 1810b5100).

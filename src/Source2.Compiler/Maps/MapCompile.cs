@@ -282,7 +282,11 @@ public static class MapCompile
                                     visClusterBoxes: visibility?.Flat);
             foreach (var lump in lumps)
                 entries[lump.Path] = lump.Bytes;
-            var models = entityModels = EntityPhysicsModels.Build(document, map, assets.Material, assets.CollisionProperty, schema, notes, assets.SmartProp, failedModels);
+            // The particle snapshots the entities name (probe_classes' node_3). Whether an Only
+            // Entities build writes them too is not measured, so only this step does.
+            foreach (var snapshot in ParticleSnapshots.Build(document, MapEntities.From(document), addon, map))
+                entries[snapshot.CompiledPath] = snapshot.Compiled;
+            var models = entityModels =EntityPhysicsModels.Build(document, map, assets.Material, assets.CollisionProperty, schema, notes, assets.SmartProp, failedModels);
             foreach (var m in models)
                 entries[m.Path + "_c"] = m.PhysicsOnly ? EntityPhysicsModels.Author(m, assets.SurfaceName) : EntityRenderModels.Author(m, assets);
             using var shaders = new ShaderLibrary(Path.Combine(game, "csgo", "shaders_pc_dir.vpk"), Path.Combine(game, "core", "shaders_pc_dir.vpk"));

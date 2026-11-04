@@ -24,8 +24,10 @@ public class ParityReport(ITestOutputHelper output)
             return "lightmaps";
         if (p.Contains("cubemap") || p.Contains("/envmaps/") || p.EndsWith(".vtex_c", StringComparison.Ordinal) && p.Contains("envmap"))
             return "cubemaps";
-        if (p.Contains("steamaudio") || p.EndsWith(".vsnap_c", StringComparison.Ordinal) || p.Contains("/sa_"))
+        if (p.Contains("steamaudio") || p.Contains("/sa_"))
             return "steam audio";
+        if (p.EndsWith(".vsnap_c", StringComparison.Ordinal))
+            return "particle snapshots";
         if (p.EndsWith(".nav", StringComparison.Ordinal))
             return "nav";
         if (p.EndsWith(".vvis_c", StringComparison.Ordinal))

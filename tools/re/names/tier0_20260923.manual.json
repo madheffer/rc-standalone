@@ -7,6 +7,18 @@
    "note": "binary blob (case 6): member over 32 bytes opens line break, #[ at column 1, rows of 32 upper-case pairs, depth + 1 tabs on every row but the first, close line break, depth tabs, ]"
   },
   {
+   "addr": "180050840",
+   "name": "CBlockCompress::FastCompress",
+   "module": "s2c:entities/lump",
+   "note": "export; LZSS: u32 size (bit 31 stored), u16 flags per 16 tokens, literal or u16 ((distance-1)<<4 | length-3), 3..18 bytes, 4096 back; 2048-slot hash of 3 bytes, last position wins; stored once the write reaches size-4 (Compression/BlockCompress.cs)"
+  },
+  {
+   "addr": "180050ae0",
+   "name": "CBlockCompress::FastDecompress",
+   "module": "s2c:entities/lump",
+   "note": "export; the decoder of 180050840"
+  },
+  {
    "addr": "1802bdd90",
    "name": "crt_exp2f",
    "module": "s2c:baked/bomb",

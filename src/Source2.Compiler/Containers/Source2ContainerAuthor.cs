@@ -68,6 +68,9 @@ public static partial class Source2ContainerAuthor
             // Not KV3: its DATA is a string table, so it is authored through
             // ResourceManifestAuthor rather than from a source document.
             [".vrman"] = new(1, [new("Manifest Compiler Version", "CompileResourceManifest", 2)], ChildResource: true),
+            // A map's particle snapshot (rc 1803401b0, CompileSnap): RED2, DATA and SNAP, resource
+            // version 0 (probe_classes' node_3.vsnap_c); authored by AuthorParticleSnapshot.
+            [".vsnap"] = new(0, [new("SNAP Compiler Version", "CompileSnap", 1)], ChildResource: true),
         };
 
     /// <summary>Build the RC-style relative source path recorded in RED2's input
@@ -216,6 +219,25 @@ public static partial class Source2ContainerAuthor
         // A map's child resources take the compiler's own layout (RERL's entry
         // array on an 8-byte boundary, blocks padded with zeros).
         return spec.ChildResource ? ValveLayout.Serialize(resource) : ResourceBuilder.Serialize(resource);
+    }
+
+    /// <summary>
+    /// A map's particle snapshot (.vsnap_c), as rc 18033fe60 writes it: RED2 naming the saved
+    /// .vsnap as its additional input, DATA the attribute table (SaveKV3 binary_auto, generic) and
+    /// SNAP the attribute data through <c>CBlockCompress::FastCompress</c>. No RERL.
+    /// </summary>
+    public static byte[] AuthorParticleSnapshot(KVObject dataRoot, byte[] snap, SavedSource saved)
+    {
+        ArgumentNullException.ThrowIfNull(dataRoot);
+        ArgumentNullException.ThrowIfNull(snap);
+        var spec = SpecByExtension[".vsnap"];
+        using var resource = new Resource();
+        ResourceVersionProp.SetValue(resource, spec.ResourceVersion);
+        var red2Doc = BuildRed2Document(spec, ".vsnap", sourceFileName: "", sourceTextBytes: [], userDoc: null, saved);
+        resource.Blocks.Add(AuthoredKv3.Block(NarrowIntegers(red2Doc), KV3IDLookup.Get("generic"), BlockType.RED2, resource));
+        resource.Blocks.Add(AuthoredKv3.Block(dataRoot, KV3IDLookup.Get("generic"), BlockType.DATA, resource));
+        resource.Blocks.Add(ResourceBuilder.RawBlock(BlockType.SNAP, snap, resource));
+        return ValveLayout.Serialize(resource);
     }
 
     /// <summary>

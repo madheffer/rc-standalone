@@ -16,7 +16,7 @@ PINNED = ["probe_classes", "cardtest", "probe01", "ze_hold_em_p", "atixref", "ze
 # Every pinned map's lumps match Valve's with no allowed difference (2026-10-22; light shape and baked keys
 # included). What stays partial is output outside the lump.
 GAPS = {"func_movelinear": "movable nav mesh not started",
-        "info_particle_system": ".vsnap not generated"}
+        "info_particle_system": ".vsnap from a path node not ported"}
 
 def gap(name):
     return GAPS.get(name)

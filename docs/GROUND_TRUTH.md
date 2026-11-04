@@ -5970,3 +5970,22 @@ reference was compiled on 2026-11-03 by the installed 1.41.9.5 resourcecompiler 
      "Found DXT5 texture with solid 255 alpha!"). READ. Plane 3 of every mip the texture keeps must
      be exactly 1; a 7x5 block texture keeps one level, so the odd-side filter's 1.5 alpha below it
      does not count (dxt5_7x5). The rule now covers a material's DXT5 children too.
+241. **Particle snapshots (.vsnap) from a CMapMesh** (2026-11-04; rc 0923 decompiles 180f7aa30,
+     181083850, 181394380, 180ff0100, 18139a960, 1813a2d80, 1813a3180, 18138be80, 1812f5060,
+     181322440, 1813220e0, 1803401b0, 18033fe60, 181907da0, 181908020; tier0 0923 180050840 /
+     180050ae0, the same in 1103). READ, one part MEASURED.
+     - Particles are face corners (half-edges with a face): first each open edge loop's entries
+       (181394380 over 180ff0100's lower-handle edges), each giving the corner on the edge's face
+       that ends at the edge's tail there; then every faced half-edge by handle; each once.
+       Position = its vertex's, normal = the corner's face-vertex normal.
+     - The saved .vsnap is SaveKV3 text generic of { stream_data = { num_values, streams = [ { name,
+       type (position_3d / normal_3d from 1830149f0), values = [ [x, y, z], ... ] } ] } }; its CRC32
+       is the RED2 additional input (2605952937 on probe_classes node 3, ours equal).
+     - CompileSnap: DATA (binary_auto) num_particles + attributes {name, type float3, data_offset,
+       data_size}, SNAP = CBlockCompress::FastCompress of the attribute buffer (LZSS, 3-byte hash
+       into 2048 slots). No RERL, resource version 0.
+     - MEASURED: the DMX arrays as the runtime mesh's handles and dense order (the loader is not
+       read; Valve's corner sweep is in index order on the specimen).
+     probe_classes' node_3.vsnap_c byte for byte (ParticleSnapshotTests). Refused: the world's,
+     CMapPath's and other nodes' snapshots, the unidentified "color" stream (mesh +0x10de), scaled
+     nodes, instances and prefabs; the Only Entities build writes none (not measured).

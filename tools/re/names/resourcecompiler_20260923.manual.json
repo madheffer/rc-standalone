@@ -4796,9 +4796,57 @@
   },
   {
    "addr": "180f7aa30",
-   "name": "CMapNode::vf205",
+   "name": "CMapNode_SaveParticleSnapshot",
    "module": "s2c:entities/lump",
-   "note": "snapshot path generator"
+   "note": "vf 0x588 fills a CParticleSnapshot; empty: warning, no file; else 181371f50 serializes it and SaveKV3 text generic saves the auxiliary snapshot_file (Maps/ParticleSnapshots.cs)"
+  },
+  {
+   "addr": "181083850",
+   "name": "CMapMesh_FillParticleSnapshot",
+   "module": "s2c:entities/lump",
+   "note": "CMapMesh vf 0x588: a particle per face corner, the open edge loops' corners (181395050) then every faced half-edge by handle, deduped; streams position 0xc, normal 0xd, color 0xb (mesh +0x10de, unidentified)"
+  },
+  {
+   "addr": "181394380",
+   "name": "HalfEdge_FindOpenEdgeLoops",
+   "module": "s2c:entities/lump",
+   "note": "over 180ff0100's edges: face-less sides with a faced twin; loops follow next from the first left (or the first back in the set after a step out), entries as the edge's lower handle, swap-remove"
+  },
+  {
+   "addr": "180ff0100",
+   "name": "HalfEdge_Edges",
+   "module": "s2c:entities/lump",
+   "note": "each edge once as its lower-handle half-edge, dense order"
+  },
+  {
+   "addr": "18138be80",
+   "name": "HalfEdge_IncomingOnFace",
+   "module": "s2c:entities/lump",
+   "note": "around a vertex from its out half-edge: the twin on the face, else the twin's next"
+  },
+  {
+   "addr": "1813a2d80",
+   "name": "PolygonMesh_EdgeSideOnFace",
+   "module": "s2c:entities/lump",
+   "note": "the edge's half-edge on a face; 1813a3180 gives its (tail, head)"
+  },
+  {
+   "addr": "18139a960",
+   "name": "HalfEdge_EdgeFace",
+   "module": "s2c:entities/lump",
+   "note": "the edge's face, or its twin's when it has none"
+  },
+  {
+   "addr": "1812f5060",
+   "name": "CParticleSnapshot_Serialize",
+   "module": "s2c:entities/lump",
+   "note": "string_list when any, stream_data by 181322440 (num_values, streams) and 1813220e0 (name, type from 1830149f0, values)"
+  },
+  {
+   "addr": "1803401b0",
+   "name": "CompileSnap",
+   "module": "s2c:entities/lump",
+   "note": "DATA num_particles + attributes (181907da0 name -> id, 181908020 type, data_offset, data_size); skinning when skin0-3; 18033fe60 writes DATA binary_auto and SNAP via FastCompress"
   },
   {
    "addr": "180f8ee20",

@@ -53,13 +53,11 @@ inside instances; 4.b3 the .rte skip boxes shared with chunk 1; 4.a1 the output 
 Every pinned lump matches. Open: 5.a1 / 5.a2 two fitted prefab orders (light order, key flip); 5.a3 the
 instance copy key loop (CMapInstance_Collapse 181017820) not read; 5.a5 EntityLumpAuthor rules measured from
 output; 5.b1 / 5.b2 entity list layouts that refuse.
-5.b10 particle snapshots: info_particle_system's snapshot_mesh gets its snapshot_file path (EntityLumpSet), but the
-.vsnap is not generated, so probe_classes misses maps/probe_classes/particle_snapshots/node_3.vsnap_c (deterministic:
-two Valve compiles two weeks apart are equal). Read 11-04 (rc 0923): 180f7aa30 asks the node's vtable +0x588 for a
-CParticleSnapshot, saves it as KV3 and the .vsnap compiler (180340f40 -> 1803401b0, CompileSnap) writes DATA
-(num_particles, position / normal float3 attributes) and a compressed SNAP block; CMapMesh's +0x588 is 181083850
-(a face and corner walk into an ordered map: 181395050, 18139a850, 1813a2d80, 18138fa30), CMapPath's 1810b5100
-(particleSnapshotSpacing). Not ported.
+5.b10 particle snapshots: **closed for CMapMesh 11-04** (ledger 241, Maps/ParticleSnapshots.cs,
+Compression/BlockCompress.cs): probe_classes' node_3.vsnap_c is Valve's byte for byte and the saved .vsnap's CRC
+equals Valve's RED2. Still open: CMapPath's snapshot (1810b5100, particleSnapshotSpacing), the world's and other
+node types; the third "color" stream (mesh +0x10de) not identified (refused); scaled nodes; snapshots inside
+instances / prefabs; whether an Only Entities build writes them; the DMX -> runtime mesh load order (measured).
 
 ## 6. Own lighting
 

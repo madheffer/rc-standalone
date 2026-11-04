@@ -852,7 +852,15 @@ RESOURCECOMPILER = [
     ("1800de990", "ReturnFalse", LUMP, "CMapInstance vf 0x868 and vf 0x870"),
     ("18234a700", "CMapPrefab::vftable", LUMP, "vf 0x860 CMapPrefab_Collapse (180f96d40), vf 0x868 1800de990 (false): a prefab whose collapse makes no group is deleted (ledger 183)"),
     ("181018a30", "CMapPrefab_LoadedWorld", LUMP, "the prefab's map world (+0x550); with 1 and none loaded, looks the handle +0x558 up; CMapPrefab_Collapse returns nothing without it (ledger 183)"),
-    ("180f7aa30", "CMapNode::vf205", LUMP, "snapshot path generator"),
+    ("180f7aa30", "CMapNode_SaveParticleSnapshot", LUMP, "vf 0x588 fills a CParticleSnapshot; empty: warning, no file; else 181371f50 serializes it and SaveKV3 text generic saves the auxiliary snapshot_file (Maps/ParticleSnapshots.cs)"),
+    ("181083850", "CMapMesh_FillParticleSnapshot", LUMP, "CMapMesh vf 0x588: a particle per face corner, the open edge loops' corners (181395050) then every faced half-edge by handle, deduped; streams position 0xc, normal 0xd, color 0xb (mesh +0x10de, unidentified)"),
+    ("181394380", "HalfEdge_FindOpenEdgeLoops", LUMP, "over 180ff0100's edges: face-less sides with a faced twin; loops follow next from the first left (or the first back in the set after a step out), entries as the edge's lower handle, swap-remove"),
+    ("180ff0100", "HalfEdge_Edges", LUMP, "each edge once as its lower-handle half-edge, dense order"),
+    ("18138be80", "HalfEdge_IncomingOnFace", LUMP, "around a vertex from its out half-edge: the twin on the face, else the twin's next"),
+    ("1813a2d80", "PolygonMesh_EdgeSideOnFace", LUMP, "the edge's half-edge on a face; 1813a3180 gives its (tail, head)"),
+    ("18139a960", "HalfEdge_EdgeFace", LUMP, "the edge's face, or its twin's when it has none"),
+    ("1812f5060", "CParticleSnapshot_Serialize", LUMP, "string_list when any, stream_data by 181322440 (num_values, streams) and 1813220e0 (name, type from 1830149f0, values)"),
+    ("1803401b0", "CompileSnap", LUMP, "DATA num_particles + attributes (181907da0 name -> id, 181908020 type, data_offset, data_size); skinning when skin0-3; 18033fe60 writes DATA binary_auto and SNAP via FastCompress"),
     ("180f8ee20", "CMapEntity_SnapshotFile", LUMP, "snapshot_file from snapshot_mesh"),
     ("180fa84e0", "EntityKey_TypeValue", LUMP, ""),
     ("180fc1560", "CMapWorld_ExportToLump", LUMP, ""),
@@ -2607,6 +2615,8 @@ SMARTPROPS = [
 
 TIER0 = [
     ("1800d7940", "KV3Text_WriteValue", "s2c:containers", "binary blob (case 6): member over 32 bytes opens line break, #[ at column 1, rows of 32 upper-case pairs, depth + 1 tabs on every row but the first, close line break, depth tabs, ]"),
+    ("180050840", "CBlockCompress::FastCompress", "s2c:entities/lump", "export; LZSS: u32 size (bit 31 stored), u16 flags per 16 tokens, literal or u16 ((distance-1)<<4 | length-3), 3..18 bytes, 4096 back; 2048-slot hash of 3 bytes, last position wins; stored once the write reaches size-4 (Compression/BlockCompress.cs)"),
+    ("180050ae0", "CBlockCompress::FastDecompress", "s2c:entities/lump", "export; the decoder of 180050840"),
     ("1802bdd90", "crt_exp2f", "s2c:baked/bomb", "x split to n + f in [-0.5, 0.5], Cody-Waite expf of f ln2 (1802bdb54) scaled by 2^n"),
     ("1802df0a4", "crt_acosf", "s2c:baked/bomb", "AMD libm float acosf; V_acosf (180007e80) clamps to [-1, 1] first"),
     # Containers: resource names, KV3, RED2, manifests.
