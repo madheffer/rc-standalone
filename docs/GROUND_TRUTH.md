@@ -6107,3 +6107,26 @@ reference was compiled on 2026-11-03 by the installed 1.41.9.5 resourcecompiler 
      - atixref -world: 10 of the 19 blocklight shadow models exact (world nodes 319 -> 329, 486 of 553 files);
        the other 9 differ in draw order (their list's entry order, upstream of the per-cluster split
        18026cfd0 / 181366f30, which keeps the gathered order) and 2 in a few tangent frame bits.
+248. **A render object's draw order, its draws' own layouts, and the RERL order** (2026-11-04; rc 0923 decompiles
+     180344ae0, its caller 18033f200, 1801fee20, 180d49d20, 1802f69f0, 18016c0e0, 18017a5a0, 18017be30). READ, one
+     order MEASURED.
+     - WRB_MeshesToModelDoc (1801fee20) makes one ModelDoc mesh per CMesh, so a render object's draws come from the
+       model compiler's merge, not from the node: ModelCompile_WeldMeshes loads the meshes back in DAG order
+       (180d49d20) and calls 180344ae0. For each mesh i not yet taken (i below the last), it gathers the later
+       untaken meshes with its material (V_stricmp_fast), +0x184, tint (+0x14f both clear, or both set with equal
+       +0x154) and stream layout (name and +8 case-blind, +0x10, +0x14, +0x18, +0x1c, +0x1d). A group of two or more
+       is CMesh_Concatenate'd in order into a new mesh appended to the list, and its members leave the list; a mesh
+       no group took keeps its place. The draws are the unmerged meshes in order, then the merged groups in
+       first-use order. Our "groups in first-use order" was fitted. atixref: the lone toolsblocklight or
+       VertexPaintTintColor mesh of seven blocklight shadow objects now leads, as Valve's.
+     - ModelCompile_BuildDrawSets appends each mesh to the first 400-byte set whose layouts match and keeps its
+       meshes at +0x178/+0x180. MEASURED: the draws come out set by set (blocklight8 and 10 end with their second
+       vertex buffer's draw); the walk that emits them is not followed past 1802fb130.
+     - ModelCompile_MeshInputLayouts (1802f5680) lays out each mesh with its own material's signature and depth
+       list. Ours used the first draw's material for every draw, so a second material without a depth list was
+       split anyway (atixref's italy_windows_glass_01a beside italy_windowkit_wood_01; five cb_nomerge /
+       d_nomerge models).
+     - The RERL writer 18016c0e0 (the only one, called from 180171830) std::sorts the references by
+       V_stricmp_fast of the name before writing them, so every RERL is in case-blind path order (the 17 of 17
+       measured). Ported in ValveLayout's RERL. atixref's disco_wall_toggle_246 and blocklight10 now Valve's.
+     - atixref -world: 486 -> 498 of 553 files.

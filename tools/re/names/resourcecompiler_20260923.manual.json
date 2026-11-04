@@ -2521,6 +2521,24 @@
    "note": "draw-set groups (400 bytes: four layouts, then the meshes) from the mesh list (+0x14c instanced, +0x14d), each through 1802f6840"
   },
   {
+   "addr": "18016c0e0",
+   "name": "Resource_WriteRERL",
+   "module": "s2c:infra",
+   "note": "the RERL block: entries std::sorted (18017a5a0) by V_stricmp_fast of the name, then ids and names written; the only caller is 180171830"
+  },
+  {
+   "addr": "18017a5a0",
+   "name": "std_sort_ResourceRefs",
+   "module": "s2c:infra",
+   "note": "MSVC introsort of the 0xe0-byte reference entries by V_stricmp_fast of the name"
+  },
+  {
+   "addr": "18017be30",
+   "name": "std_insertion_sort_ResourceRefs",
+   "module": "s2c:infra",
+   "note": "insertion pass of 18017a5a0 (V_stricmp_fast of the name)"
+  },
+  {
    "addr": "1802fc990",
    "name": "CMesh_StreamWithinUnitRange",
    "module": "s2c:geometry/world-nodes",
@@ -2698,7 +2716,13 @@
    "addr": "18033f200",
    "name": "ModelCompile_WeldMeshes",
    "module": "s2c:geometry/world-nodes",
-   "note": "CMesh_Weld at 1e-7 over the model's meshes (via 1803447d0)"
+   "note": "CMesh_Weld at 1e-7 over the model's meshes (via 1803447d0), then the merge 180344ae0"
+  },
+  {
+   "addr": "180344ae0",
+   "name": "ModelCompile_MergeMeshes",
+   "module": "s2c:geometry/world-nodes",
+   "note": "groups untaken later meshes by material (V_stricmp), +0x184, tint and stream layout; a group of 2+ is CMesh_Concatenate'd and appended, its members removed, so unmerged meshes keep their order before the merged groups"
   },
   {
    "addr": "1803447d0",

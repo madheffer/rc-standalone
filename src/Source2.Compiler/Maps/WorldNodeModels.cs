@@ -45,6 +45,8 @@ internal static class WorldNodeModels
     {
         /// <summary>The vertex buffers before encoding, for comparison.</summary>
         public IReadOnlyList<byte[]> RawVertexBuffers { get; init; } = [];
+        /// <summary>Each draw's index in the draws handed to Assemble, in the model's draw order.</summary>
+        public IReadOnlyList<int> Order { get; init; } = [];
     }
 
     // DXGI formats the node models use.
@@ -81,7 +83,8 @@ internal static class WorldNodeModels
                                     first.Stride, first.Facts.Streams, first.Facts));
         }
 
-        return Assemble(name, draws, aggregate, layout ?? material(draws[0].Material), mapMesh, null, Warnings(draws, material)) with { DrawSources = [.. groups.Select(g => g[0])] };
+        var built = Assemble(name, draws, aggregate, d => layout ?? material(d.Material), mapMesh, null, Warnings(draws, material));
+        return built with { DrawSources = [.. built.Order.Select(i => groups[i][0])] };
     }
 
     /// <summary>
@@ -105,14 +108,16 @@ internal static class WorldNodeModels
                                  new WrbMeshEntry { Material = d.Material, Attributes = d.Attributes, Field28 = Vector4.One, Streams = streams }) { Offsets = offsets, RenormaliseFrame = true };
         }).ToList();
         uint Format(string f) => f switch { "R32G32_FLOAT" => R32G32Float, "R16G16_SNORM" => R16G16Snorm, _ => R16G16Float };
-        return Assemble(name, draws, true, material(draws[0].Material), true, index => Format(aggregate.TexcoordFormats[index]), Warnings(draws, material));
+        return Assemble(name, draws, true, d => material(d.Material), true, index => Format(aggregate.TexcoordFormats[index]), Warnings(draws, material));
     }
 
     // A draw whose material the game lacks is a compile warning (cardtest's teleport02 models: 1).
     private static int Warnings(List<DrawInput> draws, Func<string, MaterialFacts> material)
         => draws.Select(d => d.Material).Distinct(StringComparer.OrdinalIgnoreCase).Count(m => material(m).Signature.Count == 0);
 
-    private static Built Assemble(string name, List<DrawInput> draws, bool aggregate, MaterialFacts facts, bool mapMesh, Func<int, uint>? texcoordFormat,
+    // factsOf: each draw's own material (ModelCompile_MeshInputLayouts 1802f5680 lays out every mesh
+    // with its material's signature and depth list: atixref's glass beside window wood keeps one buffer).
+    private static Built Assemble(string name, List<DrawInput> draws, bool aggregate, Func<DrawInput, MaterialFacts> factsOf, bool mapMesh, Func<int, uint>? texcoordFormat,
                                   int warnings = 0)
     {
         // Draw sets: draws whose input layout matches share vertex buffers and an
@@ -121,6 +126,7 @@ internal static class WorldNodeModels
         var sets = new List<(List<Slot> Slots, List<DrawInput> Draws)>();
         foreach (var d in draws)
         {
+            var facts = factsOf(d);
             var slots = Layout([d], mapMesh ? facts : facts with { Depth = [] }, aggregate, mapMesh, texcoordFormat);
             var set = sets.FindIndex(x => x.Slots.Select(l => (l.Field, l.Buffer)).SequenceEqual(slots.Select(l => (l.Field, l.Buffer))));
             if (set < 0)
@@ -198,7 +204,7 @@ internal static class WorldNodeModels
                 // the mesh's tint rides on its fragment in the .vwnod.
                 var tint = aggregate ? Vector4.One : DrawTint(d.Facts);
                 described[d] = new WorldNodeModel.Draw(d.Material, new Vector3(tint.X, tint.Y, tint.Z), density, firstMeshlet, meshlets.Count - firstMeshlet,
-                    vertexBase, bufferCount > 1 || (mapMesh && facts.Depth.Count > 0) ? 0 : 255, vertexBase + g.VertexCount, startIndex, g.Indices.Length, indexBuffers.Count, handles,
+                    vertexBase, bufferCount > 1 || (mapMesh && factsOf(d).Depth.Count > 0) ? 0 : 255, vertexBase + g.VertexCount, startIndex, g.Indices.Length, indexBuffers.Count, handles,
                     d.Streams.Any(s => s.Name.Equals("PerVertexLighting", StringComparison.OrdinalIgnoreCase)),
                     // A field the material has no input for (atixref's milwall001 object keeps
                     // VertexPaintTintColor and VertexPaintBlendParams) marks the draw unmatched;
@@ -232,10 +238,17 @@ internal static class WorldNodeModels
             indexBuffers.Add(new WorldNodeModel.IndexBuffer(ib.Count, elementSize, ibMeshopt, aggregate));
             buffers.Add((BlockType.MIDX, ibBytes));
         }
+        // The draws set by set (ModelCompile_BuildDrawSets 1802f69f0 appends each mesh to the first
+        // 400-byte set whose layouts match, and the sets' meshes are compiled set by set): atixref's
+        // blocklight8 and 10 shadow objects end with their second vertex buffer's draw.
+        var ordered = sets.SelectMany(s => s.Draws).ToList();
         var model = new WorldNodeModel(name, vertexBuffers, indexBuffers,
-            [new WorldNodeModel.SceneObject(min, max, [.. draws.Select(d => described[d])], aggregate ? [.. draws.Select(d => drawBounds[d])] : [], meshlets)],
+            [new WorldNodeModel.SceneObject(min, max, [.. ordered.Select(d => described[d])], aggregate ? [.. ordered.Select(d => drawBounds[d])] : [], meshlets)],
             aggregate, warnings);
-        return new Built(model, buffers, [.. draws.Select(d => d.Material).Distinct(StringComparer.OrdinalIgnoreCase)], []) { RawVertexBuffers = [.. raw] };
+        return new Built(model, buffers, [.. draws.Select(d => d.Material).Distinct(StringComparer.OrdinalIgnoreCase)], [])
+        {
+            RawVertexBuffers = [.. raw], Order = [.. ordered.Select(d => draws.IndexOf(d))],
+        };
     }
 
     /// <summary>
@@ -275,24 +288,54 @@ internal static class WorldNodeModels
         return [.. welded];
     }
 
+    // The model compiler's mesh merge (180344ae0, from ModelCompile_WeldMeshes 18033f200): each mesh i
+    // not yet taken (i up to the next to last) gathers the later untaken meshes j with its material
+    // (V_stricmp), +0x184, tint (both unset, or both set and equal) and stream layout (name, semantic,
+    // index, offset, count, +0x1c, +0x1d). A group of two or more is CMesh_Concatenate'd in that order
+    // into a new mesh appended to the list, and its members leave it; a mesh no group took keeps its
+    // place. So the draws are the unmerged meshes in order, then the merged groups in first-use order
+    // (atixref's blocklight shadow objects: a lone toolsblocklight or VertexPaintTintColor mesh first).
     private static List<List<WorldNodeCompile.Entry>> ByMaterial(IReadOnlyList<WorldNodeCompile.Entry> meshes)
     {
-        var groups = new List<List<WorldNodeCompile.Entry>>();
-        foreach (var e in meshes)
+        var taken = new bool[meshes.Count];
+        var merged = new List<List<WorldNodeCompile.Entry>>();
+        for (var i = 0; i < meshes.Count - 1; i++)
         {
-            // One draw per material and vertex layout: entries with and without a stream
-            // (PerVertexLighting) are separate draws (probe01's no-vis cb_mesh).
-            var g = groups.FirstOrDefault(x => string.Equals(x[0].Material, e.Material, StringComparison.OrdinalIgnoreCase)
-                                               && x[0].Stride == e.Stride && SameLayout(x[0].Facts.Streams, e.Facts.Streams));
-            if (g == null)
-                groups.Add(g = []);
-            g.Add(e);
+            if (taken[i])
+                continue;
+            var group = new List<WorldNodeCompile.Entry> { meshes[i] };
+            for (var j = i + 1; j < meshes.Count; j++)
+            {
+                if (taken[j] || !Merges(meshes[i], meshes[j]))
+                    continue;
+                group.Add(meshes[j]);
+                taken[i] = taken[j] = true;
+            }
+            if (group.Count > 1)
+                merged.Add(group);
         }
-        return groups;
+        return [.. Enumerable.Range(0, meshes.Count).Where(i => !taken[i]).Select(i => new List<WorldNodeCompile.Entry> { meshes[i] }), .. merged];
     }
 
+    private static bool Merges(WorldNodeCompile.Entry a, WorldNodeCompile.Entry b)
+    {
+        if (Io.Tier0Strings.IgnoreCase.Compare(a.Material, b.Material) != 0 || a.Facts.Mesh184 != b.Facts.Mesh184)
+            return false;
+        var (ta, tb) = (MeshTint(a.Facts), MeshTint(b.Facts));
+        if (ta.Set != tb.Set || (ta.Set && ta.Value != tb.Value))
+            return false;
+        return SameLayout(a.Facts.Streams, b.Facts.Streams);
+    }
+
+    // CMesh +0x14f and +0x154 as the model compile sees them (CMesh_SetTint, see DrawTint).
+    private static (bool Set, Vector4 Value) MeshTint(WrbMeshEntry e)
+        => e.DebugColor ? (true, e.DebugColorValue) : e.Field28 != Vector4.One ? (true, e.Field28) : (false, default);
+
+    // The stream compare of 180344ae0: name (case-blind), index, count and +0x1d per stream in order
+    // (the offsets follow from the counts; +8 and +0x1c are empty for map meshes, the type is not compared).
     private static bool SameLayout(IReadOnlyList<WrbMeshEntry.Stream> a, IReadOnlyList<WrbMeshEntry.Stream> b)
-        => a.Count == b.Count && a.Zip(b).All(p => p.First == p.Second);
+        => a.Count == b.Count && a.Zip(b).All(p => Io.Tier0Strings.IgnoreCase.Compare(p.First.Name, p.Second.Name) == 0
+                                                   && p.First.Index == p.Second.Index && p.First.Count == p.Second.Count && p.First.Precise == p.Second.Precise);
 
     private static (float[] Vertices, int[] Indices) Append(List<WorldNodeCompile.Entry> group)
     {

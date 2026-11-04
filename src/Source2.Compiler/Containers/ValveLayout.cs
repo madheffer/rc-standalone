@@ -60,10 +60,14 @@ public static class ValveLayout
     /// RERL at file offset <paramref name="start"/>: i32 offset to the entries
     /// and i32 count, the entries (u64 id, i32 offset to the name, u32 zero)
     /// from the next 8-byte boundary, then the names, each NUL terminated.
+    /// The writer (rc 18016c0e0, the one RERL writer, called from 180171830)
+    /// std::sorts the entries first (18017a5a0, insertion pass 18017be30) by
+    /// V_stricmp_fast of the name, so the list is in case-blind path order
+    /// whatever order the references were added in.
     /// </summary>
     private static byte[] Rerl(ResourceExtRefList rerl, long start)
     {
-        var refs = rerl.ResourceRefInfoList;
+        var refs = rerl.ResourceRefInfoList.OrderBy(r => r.Name, Io.Tier0Strings.IgnoreCase).ToList();
         var entries = 8;
         while ((start + entries) % 8 != 0)
             entries++;
