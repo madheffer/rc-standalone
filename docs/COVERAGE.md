@@ -216,7 +216,7 @@ exact 30, partial 2, unpinned 0, no sample 0
 | env_cubemap_box | Point | resourcecompiler, physicsbuilder, vrad3 | as env_cubemap with box bounds; upgrade of older vmaps only renames boxproject_* keys | lump keys exact on every pinned map, baked keys included (cubemaptexture, handshake); vmap upgrader not ported | exact |
 | env_light_probe_volume | Point | resourcecompiler | probe record for the bake; lightprobetexture* keys added; kept | lump keys exact on every pinned map, baked keys included (atlas textures, handshake, size) | exact |
 | env_sky | Point | resourcecompiler, physicsbuilder, vrad3 | upgrade of older vmaps only: skyname gets .vmat | lump pass-through ported; vmap upgrader not ported | exact |
-| func_movelinear | Solid | resourcecompiler | nav: movable nav mesh when CreateMovableNavMesh is set | lump ported; nav not started | partial (movable nav mesh not started) |
+| func_movelinear | Solid | resourcecompiler | nav: movable nav mesh when CreateMovableNavMesh is set | lump ported; the movable nav mesh (NavMovable, ledger 242: probe_classes and s2c_navmovable .nav Valve's up to the custom data) | exact |
 | func_nav_markup | Solid | resourcecompiler | nav: markup volumes | lump ported; nav markups ported (the collector, NONAV in the extraction, 003 / 009, 019, WALKABLESEED in 029; ledger 142); inside instances or prefabs refused | exact |
 | func_physbox | Solid | resourcecompiler, physicsbuilder, vrad3 | upgrade of older vmaps only: spawnflags to gravity-grab keys | lump ported; vmap upgrader not ported | exact |
 | info_cull_triangles | Point | resourcecompiler | dropped from the lump; a record for render-mesh triangle culling | dropped as Valve does; culling not ported (render geometry) | exact |

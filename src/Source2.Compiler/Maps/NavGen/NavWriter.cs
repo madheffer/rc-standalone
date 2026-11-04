@@ -47,6 +47,9 @@ public static class NavWriter
     {
         public List<(float X, float Y, float Z)> Corners = [];
         public List<int[]> Polygons = [];
+
+        /// <summary>Each polygon's movable mesh tag (<see cref="NavMovable.Tag"/>), 0xFFFFFFFF for the static mesh's.</summary>
+        public List<uint> PolygonTags = [];
         public List<Area> Areas = [];
 
         /// <summary>The movable meshes (navsystem's list of 0x70-byte entries): none of their polygons are ported.</summary>
@@ -95,33 +98,47 @@ public static class NavWriter
     /// attributes 0x8000 for flag 8, 0x20000 for flag 0x10, 0x10000 for kind 1, 0x40000 for kind 2;
     /// +0x58 from the polygon's +0x62.
     /// </summary>
-    public static Mesh Build(NavGenPolys g)
+    public static Mesh Build(NavGenPolys g, IReadOnlyList<(NavMovable Mesh, NavGenPolys? Polys)>? movable = null)
     {
+        // The movable meshes' polygons come after the static ones (1800250e0 appends each with 18006bee0,
+        // which only offsets the corner indices and the connections' polygons), each tagged; the
+        // compaction then runs over all of them.
+        var parts = new List<(NavGenPolys Polys, uint Tag)> { (g, 0xFFFFFFFF) };
+        foreach (var (m, polys) in movable ?? [])
+            if (polys is not null)
+                parts.Add((polys, m.Tag));
         // JoinNonZup only acts on polygons with flag 8 (the oriented-mesh path).
-        if (g.Polys.Any(p => (p.Flags & 8) != 0))
+        if (parts.Any(part => part.Polys.Polys.Any(p => (p.Flags & 8) != 0)))
             throw new NotSupportedException("nav polygons with flag 8 (JoinNonZup, 180072b50) are not ported");
         var mesh = new Mesh();
-        var remap = new int[g.Pool.Count];
-        Array.Fill(remap, -1);
-        foreach (var p in g.Polys)
+        foreach (var (m, _) in movable ?? [])
+            mesh.Movable.Add(new MovableMesh(m.Name, m.Matrix, m.GravityFollowsRotation));
+        foreach (var (part, tag) in parts)
         {
-            var poly = new int[p.Indices.Count];
-            for (var k = 0; k < poly.Length; k++)
+            var remap = new int[part.Pool.Count];
+            Array.Fill(remap, -1);
+            foreach (var p in part.Polys)
             {
-                var v = p.Indices[k];
-                if (remap[v] == -1)
+                var poly = new int[p.Indices.Count];
+                for (var k = 0; k < poly.Length; k++)
                 {
-                    remap[v] = mesh.Corners.Count;
-                    var (x, y, z) = g.Pool[v];
-                    mesh.Corners.Add(((float)x, (float)y, (float)z));
+                    var v = p.Indices[k];
+                    if (remap[v] == -1)
+                    {
+                        remap[v] = mesh.Corners.Count;
+                        var (x, y, z) = part.Pool[v];
+                        mesh.Corners.Add(((float)x, (float)y, (float)z));
+                    }
+                    poly[k] = remap[v];
                 }
-                poly[k] = remap[v];
+                mesh.Polygons.Add(poly);
+                mesh.PolygonTags.Add(tag);
             }
-            mesh.Polygons.Add(poly);
         }
-        for (var i = 0; i < g.Polys.Count; i++)
+        var all = parts.SelectMany(part => part.Polys.Polys.Select((p, i) => (Poly: p, Base: parts.TakeWhile(x => x.Polys != part.Polys).Sum(x => x.Polys.Polys.Count)))).ToList();
+        for (var i = 0; i < all.Count; i++)
         {
-            var p = g.Polys[i];
+            var (p, polyBase) = all[i];
             var area = new Area { Id = (uint)i + 1, Polygon = i, Byte58 = p.Field62, Connections = new List<(uint, int)>[p.Indices.Count] };
             for (var e = 0; e < area.Connections.Length; e++)
             {
@@ -131,7 +148,7 @@ public static class NavWriter
                 foreach (var c in links.PerEdge[e])
                 {
                     var link = links.Connections[c];
-                    var target = (uint)link.PolyB + 1;
+                    var target = (uint)(link.PolyB + polyBase) + 1;
                     if (link.Kind == 0 && target != area.Id)
                         area.Connections[e].Add((target, (sbyte)(byte)link.EdgeB));
                 }
@@ -186,12 +203,14 @@ public static class NavWriter
             w.F32(z);
         }
         w.U32((uint)mesh.Polygons.Count);
-        foreach (var poly in mesh.Polygons)
+        for (var i = 0; i < mesh.Polygons.Count; i++)
         {
+            var poly = mesh.Polygons[i];
             w.U8((byte)poly.Length);
             foreach (var k in poly)
                 w.U32((uint)k);
-            w.U32(0xFFFFFFFF);
+            // 1818e9510: the area's movable mesh (1818ed5a0), 0xFFFFFFFF for the static mesh.
+            w.U32(i < mesh.PolygonTags.Count ? mesh.PolygonTags[i] : 0xFFFFFFFF);
         }
         w.U32(0);
         w.U32((uint)mesh.Movable.Count);

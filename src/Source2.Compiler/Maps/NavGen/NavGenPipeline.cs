@@ -24,7 +24,11 @@ public static class NavGenPipeline
     /// each ladder's seven polygons from LadderConnect as IslandRemoval leaves them (the mesh build's records).
     /// </summary>
     public sealed record Result(NavGenPolys Polys, NavGenSettings Settings, List<Vector3> Verts, List<int> Indices, List<NavLadder> Ladders,
-                                List<int[]> LadderAreas);
+                                List<int[]> LadderAreas)
+    {
+        /// <summary>The movable meshes in collection order, each with its polygons (null when it made none).</summary>
+        public List<(NavMovable Mesh, NavGenPolys? Polys)> Movable { get; init; } = [];
+    }
 
     /// <summary>gameinfo.gi's NavSystem block as key/value pairs (null when absent).</summary>
     public static Dictionary<string, string>? NavSystemBlock(string gameinfo)
@@ -102,8 +106,44 @@ public static class NavGenPipeline
         var inNavWorld = NavGenInput.NavWorldFilter(document, schema);
         var markups = NavMarkupInput.Collect(document, schema);
         var radius = settings.Hulls[0].Radius;
-        var (verts, indices) = NavGenInput.Extract(bodies, rules, inNavWorld: inNavWorld, noNav: markups.NoNav(),
-                                                   noNavPad: NavGenInputMarkups.NoNavPad(settings.Hulls.Select(h => h.Radius)));
+        var noNavPad = NavGenInputMarkups.NoNavPad(settings.Hulls.Select(h => h.Radius));
+        var (verts, indices) = NavGenInput.Extract(bodies, rules, inNavWorld: inNavWorld, noNav: markups.NoNav(), noNavPad: noNavPad);
+        var oriented = document.Elements.Any(e => e.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname") == "info_nav_oriented_mesh");
+        var world = new NavBoxWorld(bodies, inNavWorld);
+        var jumps = new NavJumpSweepWorld(bodies, inNavWorld);
+        var (recast, connectivity) = RunStages(verts, indices, settings, markups, ladders, world, jumps, oriented, stage);
+        // 029 IslandRemoval: the second stage list, which a movable mesh does not run (1800250e0).
+        NavGenStages.IslandStage(recast, new NavIslandInput(NavGenMapInput.Seeds(document), links, connectivity) { Markups = markups }, settings);
+        stage?.Invoke("029", recast);
+
+        // Each movable mesh (rc 180fb5ce0): its bodies' triangles through the same input builder
+        // (180048b20) and the first stage list without IslandRemoval (1800250e0: count - 1, no second
+        // list); one with no polygons is skipped. The static world's casts are shared.
+        var movable = new List<(NavMovable Mesh, NavGenPolys? Polys)>();
+        foreach (var mover in NavMovable.Collect(document, schema))
+        {
+            var (mv, mi) = NavGenInput.Extract(bodies, rules, inNavWorld: b => mover.Owns(b), noNav: markups.NoNav(), noNavPad: noNavPad);
+            NavGenPolys? polys = null;
+            if (mi.Count > 0)
+            {
+                if (ladders.Count > 0)
+                    throw new NotSupportedException("a movable nav mesh on a map with ladders is not ported");
+                polys = RunStages(mv, mi, settings, markups, ladders, world, jumps, oriented, null).Polys;
+            }
+            // "Skipping movable mesh... no polys present": listed, but no polygons appended.
+            movable.Add((mover, polys is { Polys.Count: > 0 } ? polys : null));
+        }
+        return new Result(recast, settings, verts, indices, ladders, connectivity) { Movable = movable };
+    }
+
+    /// <summary>
+    /// The first stage list (1800260e0's first FUN_180020820) from the input triangles through 028
+    /// LadderConnect: the polygons and LadderConnect's connectivity.
+    /// </summary>
+    private static (NavGenPolys Polys, List<int[]> Connectivity) RunStages(List<Vector3> verts, List<int> indices, NavGenSettings settings,
+        NavMarkupInput markups, List<NavLadder> ladders, NavBoxWorld world, NavJumpSweepWorld jumps, bool oriented, Action<string, NavGenPolys>? stage)
+    {
+        var radius = settings.Hulls[0].Radius;
         var g = NavGenPolys.FromTriangles(verts, indices);
         if (!NavGenStages.BeforeRecast(g, markups, radius))
             throw new InvalidOperationException("nav generation: ValidateVertices failed");
@@ -112,7 +152,6 @@ public static class NavGenPipeline
         var (polys, pool) = tiles.Run();
         var recast = NavGenPolys.FromRecast(polys, pool);
         stage?.Invoke("005", recast);
-        var oriented = document.Elements.Any(e => e.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname") == "info_nav_oriented_mesh");
         NavGenStages.AfterRecast(recast, oriented, markups, radius);
         stage?.Invoke("018", recast);
         // 019 SplitPolysByMarkup, 020 WeldVertices, 021 RemoveDegens, 022 ClipPolysToHullClearance.
@@ -122,15 +161,12 @@ public static class NavGenPipeline
         recast.Weld(tol, tol);
         recast.RemoveDegens(tol);
         stage?.Invoke("021", recast);
-        var world = new NavBoxWorld(bodies, inNavWorld);
         recast.ClipPolysToHullClearance(settings.Hulls[0], world, oriented);
         stage?.Invoke("022", recast);
-        NavGenStages.ConnectStages(recast, settings, new NavJumpSweepWorld(bodies, inNavWorld));
+        NavGenStages.ConnectStages(recast, settings, jumps);
         stage?.Invoke("027", recast);
-        // 028 LadderConnect (its convar is on only with ladders), 029 IslandRemoval.
+        // 028 LadderConnect (its convar is on only with ladders).
         var connectivity = ladders.Count == 0 ? [] : recast.LadderConnect(ladders, world);
-        NavGenStages.IslandStage(recast, new NavIslandInput(NavGenMapInput.Seeds(document), links, connectivity) { Markups = markups }, settings);
-        stage?.Invoke("029", recast);
-        return new Result(recast, settings, verts, indices, ladders, connectivity);
+        return (recast, connectivity);
     }
 }

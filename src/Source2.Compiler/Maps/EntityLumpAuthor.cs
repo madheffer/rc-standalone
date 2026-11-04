@@ -532,6 +532,9 @@ public static partial class EntityLumpAuthor
 
     // FUN_1810b7ca0's mode 0: the path's vtable 0xa8, the inverse (18125aba0)
     // of its node matrix (FUN_181255fb0).
+    /// <summary>A node's world-to-local matrix (CMapNode vf 0xa8, 180fdee80: 18125aba0 of vf 0xa0's world matrix).</summary>
+    internal static float[] WorldToLocal(MapEntities.Entity node) => PathToLocal(node);
+
     private static float[] PathToLocal(MapEntities.Entity path)
     {
         var frame = Maps.MapMeshes.AngleMatrix(path.Angles);

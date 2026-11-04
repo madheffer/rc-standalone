@@ -397,6 +397,12 @@
    "note": "the world and each NAV_GEN_PROJ / movable mesh through the stages (1800260e0, 180026740), appended (18006bee0), JoinNonZup (180072b50, convar 180134a98 nav_gen_join_nonzup, on), compaction (180073ef0)"
   },
   {
+   "addr": "180020cc0",
+   "name": "NavGen_MovableTag",
+   "module": "s2c:baked/navgen",
+   "note": "MurmurHash2 of a movable entry's id path (entry +0x30), seed 0x3501a674; each of its polygons' +4 (1800250e0 movable loop: 1800260e0 with the stage count - 1 and no second list)"
+  },
+  {
    "addr": "18006bee0",
    "name": "NavGen_AppendPolys",
    "module": "s2c:baked/navgen",

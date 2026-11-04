@@ -86,7 +86,7 @@ public sealed class NavGenPipelineTests(ITestOutputHelper output)
                 if (NavGenConnectionTests.Compare(g.Polys[i].Links, blocks[i]) is { } d)
                     diff = $"polygon {i}: {d}";
             output.WriteLine($"{map}: {g.Polys.Count} polygons, {g.Polys.Sum(p => p.Links?.Count ?? 0)} connections, {diff ?? "Valve's"}");
-            if (diff is null && !NavWriterTests.Movable(dir).Any())
+            if (diff is null)
             {
                 // On through the mesh build and the save: every byte before the CS custom data.
                 var ours = NavWriter.Write(NavCompile.Mesh(document, schema, bodies, result), result.Settings, ValveKeyValue.KVObject.Null());

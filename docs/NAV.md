@@ -65,9 +65,19 @@ Movable meshes (6) are marked while the settle world is built (180fb5ce0, called
 - point_nav_movable_mesh: `ref_ent` (exactly one), `navgen_on_ref_ent`, `GravityFollowsRotation`;
   the reference entity's children, prop_deformable excluded.
 - prop_deformable with `enable_map_generated_navmesh`.
-State: not ported (NavCompile refuses a nav with movable meshes; NavWriter refuses an id path past
-five ids). Several local maps carry `CreateMovableNavMesh` keys (Mako, ze_doom_p2, c2m2,
-cs_script_demo); which have it set is not checked yet.
+State: func_movelinear ported 2026-11-04 (NavMovable, ledger 242). Each collected mover is an entry:
+its id path, its world-to-local matrix (vf 0xa8, 180fdee80: 18125aba0 of the world matrix), the gravity
+bit, and its nodes, whose bodies go to it (180fb6cf0). navsystem's 1800250e0 runs each through the input
+builder (180048b20) and the stage runner 1800260e0 with the first list one stage short (count - 1: no
+IslandRemoval) and no second list; a mover with no polygons is skipped ("no polys present") but still
+listed. Its polygons are appended after the static ones and NAV_GEN_PROJ's, after JoinNonZup
+(18006bee0: indices and connection polygons offset, nothing welded), each polygon's +4 the tag 180020cc0
+(MurmurHash2 of the id path's ints, seed 0x3501a674, rc 180105f50), which the .nav writes per polygon
+(1818e9510 through 1818ed5a0 / 1818f58c0, 0xFFFFFFFF for static). probe_classes (a mover with no
+polygons) and s2c_navmovable (tools/coverage/movable_nav_specimen.py: a level platform, a yawed one, a
+control) are Valve's .nav up to the custom data. Of the local maps only probe_classes sets the key.
+Refused: func_mover, point_nav_movable_mesh, prop_deformable's enable_map_generated_navmesh, a mover in
+an instance or prefab, a movable mesh on a map with ladders.
 
 ### Which bodies the nav world takes
 

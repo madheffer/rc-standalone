@@ -82,8 +82,10 @@ material block layout is measured; 6.a3 half rounding in lightmap_image_save; 6.
 
 ## 7. Baked outputs (nav, bomb damage, cubemaps, Steam Audio)
 
-To be finished after the above (user, 11-03). Open: 7.b9 non-aggregate scene objects in cubemaps; 7.b1 / 7.b2
-movable nav meshes and unported collectors; 7.a1 / 7.a2 measured cube engine rules; 7.c1 the .nav pointer
+To be finished after the above (user, 11-03). **7.b1 movable nav meshes from func_movelinear done 11-04** (ledger 242,
+NavMovable; probe_classes and s2c_navmovable .nav Valve's up to the custom data); still refused: func_mover,
+point_nav_movable_mesh, prop_deformable's, a mover in an instance / prefab or on a map with ladders. Open: 7.b9
+non-aggregate scene objects in cubemaps; 7.b2 unported collectors; 7.a1 / 7.a2 measured cube engine rules; 7.c1 the .nav pointer
 fields need a pass rule; 7.c3-7.c5 cube build state; 7.b11 Steam Audio instances and entity models; 7.c8
 Embree's BVH tie order; lightmap L16 and the ameliorate repack iterations.
 

@@ -5996,3 +5996,16 @@ reference was compiled on 2026-11-03 by the installed 1.41.9.5 resourcecompiler 
      probe_classes' node_3 and s2c_snapprobe's five snapshots byte for byte (ParticleSnapshotTests,
      tools/coverage/snapshot_specimen.py). Refused: other node types, the unidentified mesh "color"
      stream (mesh +0x10de), instances and prefabs; the Only Entities build writes none (not measured).
+242. **Movable nav meshes from func_movelinear** (2026-11-04; rc 0923 decompiles 180fb5ce0, 180fb6cf0,
+     180fdee80, 1818ef5e0, 180105f50, 1818e9510, 1818d1320, 1818ed5a0, 1818f58c0; navsystem 1015
+     1800250e0, 1800260e0, 18006bee0). READ.
+     - 180fb5ce0: func_movelinear entities (180fc6f40, flags 3) with CreateMovableNavMesh whose first
+       child is a mesh, each an entry: id path, vf 0xa8 (the inverse world matrix), its nodes.
+     - navsystem runs each mover through the stage runner with the first list one stage short (no
+       IslandRemoval) and no second list, skips one with no polygons ("no polys present"), and
+       appends the rest after the static polygons (indices and connections offset only), tagged
+       with MurmurHash2(id path ints, seed 0x3501a674).
+     - The .nav lists every mover (name "%d" per id, the 12 floats) and writes each polygon's tag.
+     probe_classes and s2c_navmovable (tools/coverage/movable_nav_specimen.py, Valve's compile with
+     CS2 open) .nav byte for byte up to the custom data (NavMovableTests, NavGenPipelineTests).
+     Refused: func_mover, point_nav_movable_mesh, prop_deformable, instances / prefabs, ladders.

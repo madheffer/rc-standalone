@@ -261,8 +261,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `18003ad70` | `CMapCompileModifierCS2BombDamage::Run` | bombsites, build, distances, then the .vdata (cs2_baked_bomb_damage_data, /baked_bomb_damage.vdata) saved as a child; grid 10, 32 | `src/Source2.Compiler/Maps/BombDamage.cs:7`, `src/Source2.Compiler/Maps/MapCompile.cs:407`, `src/Source2.Compiler/Maps/NavCompile.cs:138` |
-| `18003b5d0` | `CCS2BombDamageBaker::GatherBombsites` | func_bomb_target entities with bomb_damage_power above 0 | `src/Source2.Compiler/Maps/NavCompile.cs:88` |
+| `18003ad70` | `CMapCompileModifierCS2BombDamage::Run` | bombsites, build, distances, then the .vdata (cs2_baked_bomb_damage_data, /baked_bomb_damage.vdata) saved as a child; grid 10, 32 | `src/Source2.Compiler/Maps/BombDamage.cs:7`, `src/Source2.Compiler/Maps/MapCompile.cs:407`, `src/Source2.Compiler/Maps/NavCompile.cs:136` |
+| `18003b5d0` | `CCS2BombDamageBaker::GatherBombsites` | func_bomb_target entities with bomb_damage_power above 0 | `src/Source2.Compiler/Maps/NavCompile.cs:86` |
 | `18003b750` | `CCS2BombDamageBaker::BuildGrid` | top seed cells lifted 30 into the node table (+0x11 written out), site membership by the trigger overlapping the cell box (vtable +0xd0); rounds of zero-length box casts (vphysics2 +0x558) growing 5 diagonal-down steps within the bounds +-30, at most 64 | `src/Source2.Compiler/Maps/BombDamage.cs:15`, `src/Source2.Compiler/Maps/BombDamage.cs:210`, `src/Source2.Compiler/Maps/BombDamage.cs:248` |
 | `18003d030` | `CCS2BombDamageBaker::SampleNavAreas` | per area, per fan triangle (v0, v[n-1], v[n-2]) down: cells of the area bounds snapped through fmod, y x z from the top, box half 10 against the triangle (1803f2400); bounds of every hit | `src/Source2.Compiler/Maps/BombDamage.cs:142`, `src/Source2.Compiler/Maps/BombDamage.cs:157` |
 | `18003db50` | `CCS2BombDamageBaker::LineBlocked` | a ray each way (vphysics2 +0x4f8); FLT_MAX ends blocked, equal ends clear | `src/Source2.Compiler/Maps/BombDamage.cs:416` |
@@ -299,7 +299,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `navsystem_20261015.dll`, 1,314,968 bytes, PE time 2026-10-14 18:39 UTC
 - SHA-256 `919803ec647ac53c95524a6be8193fb19fddede2936ed05a8b8cda984f33098e`
 - installed: a different build
-- 250 addresses
+- 251 addresses
 
 ### s2c:baked/navgen
 
@@ -311,13 +311,14 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18001f7c0` | `Vector_NormalizeInPlace` | float, (y² + z²) + x², scaled when 1e-17 <= len <= 1e17 | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:967` |
 | `1800207c0` | `CNavGenPolyProcessorStage1::Run` | in place on *(ctx + 0x30); returns false |  |
 | `1800207f0` | `CNavGenPolyProcessorStage2::Run` | out *(ctx + 0x38), in *(ctx + 0x30); returns true |  |
-| `180020820` | `NavGen_RunStages` | the stage list in order; a Stage2 swaps the in/out polygon lists (ctx + 0x30 / + 0x38) after it runs |  |
+| `180020820` | `NavGen_RunStages` | the stage list in order; a Stage2 swaps the in/out polygon lists (ctx + 0x30 / + 0x38) after it runs | `src/Source2.Compiler/Maps/NavGen/NavGenPipeline.cs:140` |
+| `180020cc0` | `NavGen_MovableTag` | MurmurHash2 of a movable entry's id path (entry +0x30), seed 0x3501a674; each of its polygons' +4 (1800250e0 movable loop: 1800260e0 with the stage count - 1 and no second list) | `src/Source2.Compiler/Maps/NavGen/NavMovable.cs:10`, `src/Source2.Compiler/Maps/NavGen/NavMovable.cs:28` |
 | `1800217b0` | `NavGen_Generate` | per world: the stage input (180048b20), the stage list (180022b60), the mesh build (180022200); '>>NAVGEN: Skipped... no walkable seeds present' with no seeds | `src/Source2.Compiler/Maps/NavGen/NavGenMarkups.cs:45`, `src/Source2.Compiler/Maps/NavGen/NavGenMarkups.cs:522` |
 | `1800217b0` | `NavGen_Generate` | entry from RC's nav step: seed check, then the passes | `src/Source2.Compiler/Maps/NavGen/NavGenMarkups.cs:45`, `src/Source2.Compiler/Maps/NavGen/NavGenMarkups.cs:522` |
-| `180022200` | `NavGen_BuildMesh` | the mesh's vfn 0x98 with the processor's pool (+0x18) and polygons (+0x48), then the debug stages | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:10`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:67` |
+| `180022200` | `NavGen_BuildMesh` | the mesh's vfn 0x98 with the processor's pool (+0x18) and polygons (+0x48), then the debug stages | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:10`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:70` |
 | `180022b60` | `NavGen_BuildStageList` | CNavGenPolyProcessor stages: vtable, +8 enabled, +9 drawable, +0x10 CUtlString name, +0x50 std::function | `src/Source2.Compiler/Maps/NavGen/NavGenMarkups.cs:155`, `src/Source2.Compiler/Maps/NavGen/NavGenPipeline.cs:11`, `src/Source2.Compiler/Maps/NavGen/NavGenStages.cs:4` |
-| `1800250e0` | `NavGen_RunStages` | the world and each NAV_GEN_PROJ / movable mesh through the stages (1800260e0, 180026740), appended (18006bee0), JoinNonZup (180072b50, convar 180134a98 nav_gen_join_nonzup, on), compaction (180073ef0) | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:8` |
-| `1800260e0` | `NavGen_RunPass` | 'pass %d/%d: orig tris': one generation pass over the input polygons |  |
+| `1800250e0` | `NavGen_RunStages` | the world and each NAV_GEN_PROJ / movable mesh through the stages (1800260e0, 180026740), appended (18006bee0), JoinNonZup (180072b50, convar 180134a98 nav_gen_join_nonzup, on), compaction (180073ef0) | `src/Source2.Compiler/Maps/NavGen/NavGenPipeline.cs:115`, `src/Source2.Compiler/Maps/NavGen/NavGenPipeline.cs:120`, `src/Source2.Compiler/Maps/NavGen/NavMovable.cs:9` +2 |
+| `1800260e0` | `NavGen_RunPass` | 'pass %d/%d: orig tris': one generation pass over the input polygons | `src/Source2.Compiler/Maps/NavGen/NavGenPipeline.cs:140` |
 | `180027d90` | `NavGen_TwoFloatInvoker` | std::function call: (double)+0x14, (double)+0x10 (weld, edge length) | `src/Source2.Compiler/Maps/NavGen/NavGenStages.cs:27` |
 | `180027dc0` | `NavGen_MergePolysInvoker` | closure: +0x28 angle, +0x24 deviation, +0x20/+0x1c merge tol start/end, +0x18/+0x14 weld start/end (as doubles), +0x10 rounds | `src/Source2.Compiler/Maps/NavGen/NavGenStages.cs:18` |
 | `180027ea0` | `NavGen_ConnectionsInvoker` | dist_a, dist_b, z_mult, angle, ignore_z, overlap, allow_multiple | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:132` |
@@ -330,7 +331,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1800475e0` | `NavGrid2D_Query` | iterator: rows, columns, cell entries, each once (180046870 init, 180046a40 get, 180046a80 next, 180048960 done) | `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:225` |
 | `180047aa0` | `NavBvh_LeafKeys` | per 16 items (index, Morton key of the box centre: (min + max) >> 1, + 0x7fff, >> 6) via 180044fb0 | `src/Source2.Compiler/Maps/NavGen/NavGenMarkups.cs:370`, `src/Source2.Compiler/Maps/NavGen/NavGenMarkups.cs:392` |
 | `180048980` | `NavBvh_BuildTree` | leaf keys, sort, reorder (18004aff0), three-level tree of 16-wide nodes (180047fb0) |  |
-| `180048b20` | `NavGen_ExtractTriangles` | bodies of type < 2 in world order (vfn 0x1c0/0x1c8), bounds and NONAV skips, shapes passing world vfn 0x4b0 with the 180028ae0 query, triangles via vphysics2's source (1800a32b0, vfn 0x18), then the body transform from vfn 0x1b0 | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:9`, `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:135`, `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:285` +1 |
+| `180048b20` | `NavGen_ExtractTriangles` | bodies of type < 2 in world order (vfn 0x1c0/0x1c8), bounds and NONAV skips, shapes passing world vfn 0x4b0 with the 180028ae0 query, triangles via vphysics2's source (1800a32b0, vfn 0x18), then the body transform from vfn 0x1b0 | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:9`, `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:135`, `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:285` +2 |
 | `180049210` | `NavGen_ApplyNoNavMarkups` | after extraction: triangles whose corners all lie in a NONAV box shrunk by the pad (local frame (d.y r1 + d.x r0) + d.z r2) dropped; a triangle BVH narrows the candidates | `src/Source2.Compiler/Maps/NavGen/NavGenMarkups.cs:551` |
 | `18004a070` | `NavBvh_SetBounds` | min - 1, max + 1; scale 65535 / (max - min); origin (max - min) 0.5000076 + min | `src/Source2.Compiler/Maps/NavGen/NavGenMarkups.cs:389`, `src/Source2.Compiler/Maps/NavGen/NavGenMarkups.cs:427` |
 | `18004b370` | `NavGen_HullBoxCast` | box (-r/sqrt2, -r/sqrt2, climb)..(r/sqrt2, r/sqrt2, height) through world vfn 0x558, lifted by 18004b580 | `src/Source2.Compiler/Maps/NavGen/NavGenClip.cs:7`, `src/Source2.Compiler/Maps/NavGen/NavGenClip.cs:265`, `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:40` |
@@ -414,7 +415,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18006a6c0` | `NavGen_PairEdges` | edge pair overlaps, best and second | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:405` |
 | `18006aec0` | `NavGen_RecordPair` | shorter edge's polygon first | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:407`, `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:489` |
 | `18006b160` | `NavGen_AddJumps` | stage 026 (ledger 98): capsules per kind (physics vfn 0x1e8: (0,0,climb)-(0,0,h/2+climb), radius), 32-unit grid, candidate edges, pairs, MSVC sort by squared midpoint distance, adds and marks | `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:25` |
-| `18006bee0` | `NavGen_AppendPolys` | polygons and pool appended; the polygons' corners offset by the old pool size, their connections' +0 and +8 by the old polygon count | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:9` |
+| `18006bee0` | `NavGen_AppendPolys` | polygons and pool appended; the polygons' corners offset by the old pool size, their connections' +0 and +8 by the old polygon count | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:9`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:103` |
 | `18006bfc0` | `NavGen_JumpPairs` | edge pairs (180053170, overlap radius * nav_gen_jump_connection_min_overlap_ratio) dropping more than climb + 4 and at most MaxJumpDownDist, kind rule, XY within MaxJumpHorizDistBase, clear, not covered (+0x61 sticky per target polygon) | `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:30`, `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:155` |
 | `18006c6b0` | `NavGen_ClipPolysToHullClearance` | skipped for an oriented mesh or a crawling hull; short height when enabled; NavGenClip.cs, exact (ledger 101) | `src/Source2.Compiler/Maps/NavGen/NavGenClip.cs:29` |
 | `18006cb10` | `NavGen_CompactRemoved` | remap, connections to dropped polygons removed | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:613`, `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:39`, `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:417` +1 |
@@ -430,14 +431,14 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18006f350` | `NavGen_FindOverlaps` | pairs i < j; break when j's key - 2 > i's +0x18 | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:137` |
 | `18006fcf0` | `NavGen_JumpEdges` | edges of polygons with a block whose connections leave the overlap sum <= 0 or at least 2 radius open (edge length 18004e9e0) | `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:26`, `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:96` |
 | `180070780` | `NavGen_IslandRemoval` | all removed, flooded back from links, WALKABLESEED markups, seeds (+-40), ladders; all-hulls: listed polygons pull in removed ones within 4 (ledger 96) | `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:32` |
-| `180072b50` | `NavGen_JoinNonZup` | acts only on polygons with flag 8 (the oriented-mesh path) | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:9`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:102` |
+| `180072b50` | `NavGen_JoinNonZup` | acts only on polygons with flag 8 (the oriented-mesh path) | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:9`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:112` |
 | `180072ef0` | `NavGen_JumpClear` | the path (18004d540, 180077e40): a mid, above b mid at a height, b mid; each leg swept both ways through world vfn 0x580 (type 4: the kind cylinder hull, overlap byte 0), blocked when the fraction is below 1 | `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:10`, `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:34`, `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:199` +1 |
 | `1800732d0` | `NavGen_LadderConnect` | stage 028 (ledger 107): 32-unit grid, per ladder (18001b740) four top probes and three bottom ones (18006e170) into ctx+0x90 (0x1c bytes); a top equal to its bottom is -1, a bottom more than 71 below the ladder is -1 | `src/Source2.Compiler/Maps/NavGen/NavGenLadders.cs:135` |
 | `180073a20` | `NavGen_JumpLess` | squared midpoint distance (y, x, z) less-than | `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:35` |
 | `180073a90` | `NavGen_LimitMaxPolyEdgeLen` | 180057b90 with nav_gen_max_edge_len, ..._split_tol | `src/Source2.Compiler/Maps/NavGen/NavGenStages.cs:27` |
 | `180073ab0` | `NavGen_LimitMaxPolyEdges` | 180059240 at 4; passes through with an oriented mesh |  |
 | `180073ba0` | `NavGen_MergePolys` | nav_gen_opt_to_quads: six rounds of weld/degens/edge merge/weld/degens/vertex merge, then the 4-corner fan split; passes through with an oriented mesh | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:4`, `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:853`, `src/Source2.Compiler/Maps/NavGen/NavGenStages.cs:18` |
-| `180073ef0` | `NavGen_CompactVertices` | the pool renumbered in first-use order over the polygons (map filled with -1), unused vertices dropped; attributes kept only when some are set (ledger 97) | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:10`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:91` |
+| `180073ef0` | `NavGen_CompactVertices` | the pool renumbered in first-use order over the polygons (map filled with -1), unused vertices dropped; attributes kept only when some are set (ledger 97) | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:10`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:94` |
 | `180074330` | `NavGen_Recast` | Recast stage: oriented path 1800873b0 when the bounds are unset and the stage block's +0x128 is set, else the tiled path 180084da0; arg 3 the generation settings (+0x48 hull table, 0x48 an entry) | `src/Source2.Compiler/Maps/NavGen/RecastConfig.cs:16` |
 | `180074570` | `NavGen_RemoveDegens` | stage -> 18005b5f0 / 18005b290 |  |
 | `180074590` | `NavGen_RemovePolysMarkedNoNav` | stages 003 (shrink) and 009: per NONAV / NONAVNONSOLID markup, the box grown (pad + hull radius; NONAVNONSOLID 1 in z) or shrunk, z translation less 1; candidates from the two polygon BVHs (180060a60, 1800610c0), six planes through 18006a000, listed polygons inside all planes removed | `src/Source2.Compiler/Maps/NavGen/NavGenMarkups.cs:171`, `src/Source2.Compiler/Maps/NavGen/NavGenMarkups.cs:238`, `src/Source2.Compiler/Maps/NavGen/NavGenMarkups.cs:310` |
@@ -772,7 +773,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `resourcecompiler_20260923.dll`, 56,313,496 bytes, PE time 2026-09-22 19:17 UTC
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
-- 1286 addresses
+- 1291 addresses
 
 ### s2c:baked/light-keys
 
@@ -780,7 +781,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 |---|---|---|---|
 | `1800fd550` | `ResourceCompilerMap_CompileMap` | sets ctx +0x605/+0x606 (bake now / baked lighting available): with gameinfo DefaultMapBuilders/bakedlighting, world off or entities only reads the lightmaps there, else bake = (not partial (+0x607) or bakelighting) and not nobakedlighting | `src/Source2.Compiler/Maps/MapCompile.cs:510`, `src/Source2.Compiler/Maps/MapCompileArgs.cs:153`, `src/Source2.Compiler/Maps/MapRootFile.cs:109` +1 |
 | `1800fe7b0` | `CResourceCompilerMap_AssignBakedShadowIndices` | directlight 2 for unshadowed stationary; shadow slots | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:60`, `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:213`, `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:284` |
-| `180105f50` | `NodeIdPath_Hash` | MurmurHash2 of heap ids then inline ids, seed 0x3501a674; light_path_uniqueid | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:722` |
+| `180105f50` | `NodeIdPath_Hash` | MurmurHash2 of heap ids then inline ids, seed 0x3501a674; light_path_uniqueid | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:722`, `src/Source2.Compiler/Maps/NavGen/NavMovable.cs:28` |
 | `180107cb0` | `AssignBakedShadowIndices_PerLight` | light_path_uniqueid, light_map_uniqueid, bakedshadowindex |  |
 | `1801f5a40` | `LightProbe_AtlasCompare` | qsort key: size z, then y, then x, all descending |  |
 | `1801f5a80` | `LightProbe_PackAtlas` | CUtl3DAllocator pack; writes light_probe_atlas_x/Y/Z; the atlas size out (+0x1e0) is the allocator dims of the last fit (1801f5fce), each rounded up to 4, 0 -> 4 (1801f6080) | `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:130`, `src/Source2.Compiler/Maps/ProbeAtlas.cs:5`, `src/Source2.Compiler/Maps/ProbeAtlas.cs:32` |
@@ -816,7 +817,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180f1d100` | `MapDoc_PreprocessLights` | Preprocessing Lights: brightness units, lightcookie, precompute keys |  |
 | `180f1def0` | `LightPrecompute_WriteKeys` | precomputed* key writer: one box per face | `src/Source2.Compiler/Maps/LightPrecompute.cs:12` |
 | `180f1e0e0` | `LightPrecompute_WriteBoxes` |  | `src/Source2.Compiler/Maps/LightPrecompute.cs:12` |
-| `180f32050` | `V_atofloat32` | key reader | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:648`, `src/Source2.Compiler/Maps/LightPrecompute.cs:19`, `src/Source2.Compiler/Maps/LightPrecompute.cs:213` |
+| `180f32050` | `V_atofloat32` | key reader | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:651`, `src/Source2.Compiler/Maps/LightPrecompute.cs:19`, `src/Source2.Compiler/Maps/LightPrecompute.cs:213` |
 | `180f32130` | `V_atoi` | key reader | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:736`, `src/Source2.Compiler/Maps/LightPrecompute.cs:213` |
 | `180f32390` | `KeyReader_Vector` | key reader | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:750`, `src/Source2.Compiler/Maps/LightPrecompute.cs:213` |
 | `180f38940` | `MapNode_SetKeyFloat` | %g then MapNode_SetKeyValue |  |
@@ -842,7 +843,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180f67300` | `MapDoc_ContentRelativePath` | doc +0x6a0 through the filesystem with CONTENT, forward slashes |  |
 | `180f7b6a0` | `CMapNode_RaytraceFlags` | 0x20 when node +0x278 is 0; 0x1000000, 0x2000000, 0x4000000 by parent and +0x2d0 |  |
 | `180f88460` | `MapNode_InstancePaths` | every instance path that places the node | `src/Source2.Compiler/Maps/NavGen/NavGenLadders.cs:31`, `src/Source2.Compiler/Maps/NavGen/NavGenMarkups.cs:78`, `src/Source2.Compiler/SteamAudio/AcousticScene.cs:59` |
-| `180fc6f40` | `MapWorld_FindEntitiesByClass` | thunk: match mode 2, the caller's flags (3: visible nodes, sub-worlds) | `src/Source2.Compiler/Maps/NavGen/NavGenMapInput.cs:13`, `src/Source2.Compiler/Maps/NavGen/NavGenMapInput.cs:63` |
+| `180fc6f40` | `MapWorld_FindEntitiesByClass` | thunk: match mode 2, the caller's flags (3: visible nodes, sub-worlds) | `src/Source2.Compiler/Maps/NavGen/NavGenMapInput.cs:13`, `src/Source2.Compiler/Maps/NavGen/NavGenMapInput.cs:63`, `src/Source2.Compiler/Maps/NavGen/NavMovable.cs:13` |
 | `180fc7220` | `MapWorld_FindEntitiesByClassImpl` | the world's entity list in order, then each referenced world | `src/Source2.Compiler/Lighting/SceneLights.cs:260`, `src/Source2.Compiler/Maps/MapEntityList.cs:7`, `src/Source2.Compiler/Maps/NavGen/NavGenMapInput.cs:63` |
 | `180fc9590` | `MapWorld_RayTraceSceneAt` | world +0x2bd0 |  |
 | `180fcad70` | `MapWorld_RegisterRaytraceOwner` | owner -> job at +0x2da0, then the job's update |  |
@@ -1065,10 +1066,11 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1800fb1c0` | `CNavGenInput_Construct` | bounds FLT_MAX/-FLT_MAX, +0x120 15.0; +0x128 left to 180f20e40 |  |
 | `1800fc370` | `MapCompile_BuildNav` | the nav step: settings from the map's CMapNavData (180fafae0) or 'Nav settings not found, using default settings.', the seed and markup collectors (180f21760 first), navsystem's generation ('>>NAVGEN: Skipped... no walkable seeds present' with no seeds), then maps/<map>.nav, .navdbg, .navspace and .navflowmap. No seeds and no settings give the fixed 834-byte nav (Maps/NavFile.cs) | `src/Source2.Compiler/Maps/MapCompile.cs:362`, `src/Source2.Compiler/Maps/NavCompile.cs:21`, `src/Source2.Compiler/Maps/NavFile.cs:7` +3 |
 | `1800fd2b0` | `MapCompile_CreateNavMesh` | the custom nav factory (1800fbe80: gameinfo CustomNavBuild ModuleName / Interface; CS2 server.dll customnavsystem001) vfn 0x58, else a CNavMesh (0x428 bytes, 1818d4720) |  |
+| `180105f50` | `NodeIdPath_Hash` | MurmurHash2 of the id path's ints, seed 0x3501a674 (an out-of-line tail first); a movable mesh's polygon tag | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:722`, `src/Source2.Compiler/Maps/NavGen/NavMovable.cs:28` |
 | `180dd2210` | `EntityClass_HasStaticMesh` | the FGD class's metadata (+0xc0) bool has_static_mesh (hash 0x2755870d, default 0): prop_static and cable_static | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:88` |
 | `180f1ef70` | `NavGen_FindNavMarkups` | func_nav_markup entities in the map, then each sub-world's (flag 4 keeps the list) | `src/Source2.Compiler/Maps/NavGen/NavGenMarkups.cs:53` |
 | `180f1f830` | `NavGen_CollectNoNavBlocks` | 'prop_deformable', 'block_base_nav_mesh', 'NavGen' 'NONAV' |  |
-| `180f203b0` | `NavGen_CollectLinkAreas` | CNavGenInput +0xc0 (ledgers 175, 177): 180fc6f40 for 'ai_nav_link_area' (mode 2 classname, flags 3 visible nodes and sub-worlds), IsA CMapNavLink; per instance path (one, the identity, after the bake) start = (step matrix x node) translation, end = start + locatoroffset (+0x185c) | `src/Source2.Compiler/Maps/NavGen/NavGenMapInput.cs:38`, `src/Source2.Compiler/Maps/NavGen/NavGenPipeline.cs:97` |
+| `180f203b0` | `NavGen_CollectLinkAreas` | CNavGenInput +0xc0 (ledgers 175, 177): 180fc6f40 for 'ai_nav_link_area' (mode 2 classname, flags 3 visible nodes and sub-worlds), IsA CMapNavLink; per instance path (one, the identity, after the bake) start = (step matrix x node) translation, end = start + locatoroffset (+0x185c) | `src/Source2.Compiler/Maps/NavGen/NavGenMapInput.cs:38`, `src/Source2.Compiler/Maps/NavGen/NavGenPipeline.cs:101` |
 | `180f20720` | `NavGen_AddMarkup` | the entity's geometry bounds and matrix per instance path (180f88460), a 0x50-byte markup | `src/Source2.Compiler/Maps/NavGen/NavGenMarkups.cs:6`, `src/Source2.Compiler/Maps/NavGen/NavGenMarkups.cs:59`, `src/Source2.Compiler/Maps/NavGen/NavGenMarkups.cs:116` |
 | `180f209f0` | `NavGen_CollectMarkupVolumes` | func_nav_markup (180f1ef70): each navProperty_<tag> string key registers (tag, value) (1818c7010) and adds a markup (180f20720); else a navProperty_NavAttributes array (180f22330) adds one with index -1; CNavGenInput +0x90 | `src/Source2.Compiler/Maps/NavGen/NavGenMarkups.cs:14`, `src/Source2.Compiler/Maps/NavGen/NavGenMarkups.cs:52` |
 | `180f20c70` | `NavGen_CollectOrientedMeshClips` | debug gen/render clips |  |
@@ -1095,14 +1097,16 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180fb21f0` | `NavGen_LadderFromMesh` | per instance path (180f88460): the path's step matrix times the node's (vfn 0xa0); among faces of the first ladder material the one with the largest \|top - bottom\| x width (180fb1c10), first wins ties | `src/Source2.Compiler/Maps/NavGen/NavGenLadders.cs:23`, `src/Source2.Compiler/Maps/NavGen/NavGenLadders.cs:27` |
 | `180fb2830` | `NavGen_LadderWalk` | skips func_ladder entities; a mesh (vfn 0x138) with a ladder material goes to 180fb21f0, any other node recurses into its children | `src/Source2.Compiler/Maps/NavGen/NavGenLadders.cs:22` |
 | `180fb5440` | `NavGen_CollectAvoidMarkups` | 'NavGen' 'AVOID': each 0x48-byte record copied whole into a 0x50 markup, then the AVOID tag and a cleared flag byte |  |
-| `180fb5ce0` | `NavGen_CollectMovableMeshes` | func_movelinear / func_mover CreateMovableNavMesh, point_nav_movable_mesh ref_ent / navgen_on_ref_ent / GravityFollowsRotation, prop_deformable enable_map_generated_navmesh; called from 180fb5020 |  |
+| `180fb5ce0` | `NavGen_CollectMovableMeshes` | func_movelinear / func_mover CreateMovableNavMesh, point_nav_movable_mesh ref_ent / navgen_on_ref_ent / GravityFollowsRotation, prop_deformable enable_map_generated_navmesh; called from 180fb5020 | `src/Source2.Compiler/Maps/NavGen/NavGenPipeline.cs:119`, `src/Source2.Compiler/Maps/NavGen/NavMovable.cs:6`, `src/Source2.Compiler/Maps/NavGen/NavMovable.cs:55` |
 | `180fb6b80` | `NavGen_CollectAvoidModels_Thunk` | rcx = [rcx + 8]; non-null jumps to 180f4aed0 with the AVOID list in rdx |  |
 | `180fb6cf0` | `MapCompile_NavBodyEntry` | 0x78-byte entries from the 0x90 stride list at ctx + 0x18 |  |
+| `180fb6cf0` | `NavGen_MovableEntry` | a movable entry (0x90 at ctx +0x18) out: the id path, the 3x4 matrix at +0x38, the gravity byte +0x88 |  |
 | `180fb6de0` | `MapCompile_NavPhysicsWorld` | *(*(ctx + 0x18) + 8) + 8: the settle world handed to navsystem | `src/Source2.Compiler/SteamAudio/ProbeFilters.cs:31` |
 | `180fc8c80` | `MapWorld_SubMaps` | a map's sub-maps (flag 3 / 7), as the func_ladder collector recurses into them | `src/Source2.Compiler/Maps/NavGen/NavGenLadders.cs:30`, `src/Source2.Compiler/Maps/NavGen/NavGenLadders.cs:60` |
 | `180fca010` | `CMapWorld_OnNodeAdded` | a CMapEntityIONode not yet listed: AddToTail on +0x1828 (index on the node, 180fefb50) and its targetname into the 200 name buckets (+0x1840) | `src/Source2.Compiler/Maps/MapEntityList.cs:12` |
 | `180fca3d0` | `CMapWorld_PostLoad` | the world itself into its entity list (+0x1828), then every node of the tree (180fc4e40) | `src/Source2.Compiler/Maps/MapEntityList.cs:12` |
 | `180fcb150` | `CMapWorld_OnNodeRemoved` | FastRemove from +0x1828 when the node is at its stored slot: the last entry moves into the slot; a node found elsewhere is not removed, only its slot cleared (-1); then out of the name buckets (ledger 179) | `src/Source2.Compiler/Maps/MapEntityList.cs:21` |
+| `180fdee80` | `CMapEntity::vf21_WorldToLocal` | vf 0xa0's world matrix through 18125aba0 (the inverse) | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:535`, `src/Source2.Compiler/Maps/NavGen/NavMovable.cs:7` |
 | `180fef240` | `CMapEntityIONode_ListSlot` | the node's slot in its world's entity list (set by 180fefb50); OnNodeAdded lists only a node whose slot is negative (ledger 179) |  |
 | `180fefbc0` | `MapEntity_TargetNameMatches` | vfn 0x7e0 targetname (the name 180fca010 hashes into the world 200 name buckets), V_CompareNameWithWildcards(pattern, name, 0) (search mode 1) |  |
 | `181063b90` | `CMapNavLink_Create` | 0x18b0 bytes: width +0x1858 128, locatoroffset +0x185c (128, 0, 0), locatorangles +0x1868 (0, 180, 0), type +0x1888 0 | `src/Source2.Compiler/Maps/MapEntities.cs:119` |
@@ -1135,16 +1139,16 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1818c8c60` | `NavSettings_ReadProjectDefaults` | gameinfo NavSystem keys into 1830237b0; deprecated NavAgentNumHulls (1818c84f0); NavHullsPreset ('default') |  |
 | `1818ca150` | `NavSettings_SetHulls` | override vdata (1818c8840), preset, or project / map hulls |  |
 | `1818ca350` | `NavHull_FromVData` | 0x48-byte entry from CNavHullVData; erosion +0x30 -> +8 |  |
-| `1818cfe80` | `CNavArea::Save` | id, attributes & 0x7f002 (u64), +0x58, polygon index, 0.0f, per edge count + (id, (int)(char) edge), byte 0, u32 0, ladders up / down | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:18`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:161` |
-| `1818d0690` | `CNavGenParams::Save` | 13, the block's +0 (as u32), +4 .. +0x2c, the two strings, hull count, per hull +0, +4, +0xc, +0x10, +0x14, +0x18, +0x1c, +0x20, +0x24, +0x28, +0x2c, +0x30, +8; then +0x59 as a byte | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:161`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:271` |
-| `1818d1320` | `CNavMesh::SaveNavMeshToBuffer` | 0xfeedface, 36, vfn 0x70, +0x101, place names (1818ee8d0), KV3 vfn 0xd8, polygon pool (1818e9510), vfn 0x88, KV3 vfn 0xe8, areas (vfn 0x40), ladders (1818e71b0), transformed bounds (0x48 of each 0x50), generation parameters (1818d0690), KV3 vfn 0xf8, vfn 0x78; each KV3 8-aligned, binary_auto | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:13`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:158` |
-| `1818d18f0` | `CNavMesh::SaveGenParamsKV3` | NavGenParams { HullParams [ { Name, FlowMap_Enabled, FlowMap_NodeMaxRadius } ] } | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:162`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:309` |
-| `1818d1a70` | `CNavMesh::SaveMovableMeshKV3` | movable_mesh_gravity_follows_rotation (one bool per movable mesh); nothing without movable meshes (a null KV3) | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:61`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:258` |
+| `1818cfe80` | `CNavArea::Save` | id, attributes & 0x7f002 (u64), +0x58, polygon index, 0.0f, per edge count + (id, (int)(char) edge), byte 0, u32 0, ladders up / down | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:18`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:178` |
+| `1818d0690` | `CNavGenParams::Save` | 13, the block's +0 (as u32), +4 .. +0x2c, the two strings, hull count, per hull +0, +4, +0xc, +0x10, +0x14, +0x18, +0x1c, +0x20, +0x24, +0x28, +0x2c, +0x30, +8; then +0x59 as a byte | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:178`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:290` |
+| `1818d1320` | `CNavMesh::SaveNavMeshToBuffer` | 0xfeedface, 36, vfn 0x70, +0x101, place names (1818ee8d0), KV3 vfn 0xd8, polygon pool (1818e9510), vfn 0x88, KV3 vfn 0xe8, areas (vfn 0x40), ladders (1818e71b0), transformed bounds (0x48 of each 0x50), generation parameters (1818d0690), KV3 vfn 0xf8, vfn 0x78; each KV3 8-aligned, binary_auto | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:13`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:175` |
+| `1818d18f0` | `CNavMesh::SaveGenParamsKV3` | NavGenParams { HullParams [ { Name, FlowMap_Enabled, FlowMap_NodeMaxRadius } ] } | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:179`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:328` |
+| `1818d1a70` | `CNavMesh::SaveMovableMeshKV3` | movable_mesh_gravity_follows_rotation (one bool per movable mesh); nothing without movable meshes (a null KV3) | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:64`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:277` |
 | `1818d1fa0` | `CNavToolsPhysicsInterface_CastShape` | world vfn 0x560 into up to 128 hits of 0x48 bytes, the least fraction (+0x34) kept | `src/Source2.Compiler/Maps/NavGen/NavMeshLadders.cs:10` |
 | `1818d2b40` | `CNavToolsPhysicsInterface_TraceLine` | vfn 0x10 (vtable 182771930): the shape {0, 0, 0, 0.1} with byte 1 at +0x28, then vfn 0x20 | `src/Source2.Compiler/Maps/NavGen/NavMeshLadders.cs:10` |
-| `1818d2c10` | `CNavToolsPhysicsInterface_TraceShape` | query: interacts with the mask, +0x2f / +0x30 from the caller, flags 0x49; result fraction +0xac, normal +0x90, start-solid +0xbb, the hit attributes at +0x50 and their first qword \| 1 at +0x28 | `src/Source2.Compiler/Maps/NavCompile.cs:61`, `src/Source2.Compiler/Maps/NavGen/NavMeshLadders.cs:10`, `src/Source2.Compiler/Maps/NavGen/NavMeshLadders.cs:115` +1 |
+| `1818d2c10` | `CNavToolsPhysicsInterface_TraceShape` | query: interacts with the mask, +0x2f / +0x30 from the caller, flags 0x49; result fraction +0xac, normal +0x90, start-solid +0xbb, the hit attributes at +0x50 and their first qword \| 1 at +0x28 | `src/Source2.Compiler/Maps/NavCompile.cs:59`, `src/Source2.Compiler/Maps/NavGen/NavMeshLadders.cs:10`, `src/Source2.Compiler/Maps/NavGen/NavMeshLadders.cs:115` +1 |
 | `1818d4720` | `CNavMesh_Construct` | sets the ladder id counter to 1 | `src/Source2.Compiler/Maps/NavGen/NavMeshLadders.cs:8` |
-| `1818d63c0` | `CNavMesh::BuildFromNavGenPolys` | vfn 0x98: generation parameters from the input, the pool (1818e7e50), area i from polygon i (vfn 0x18, 1818ea6f0), the grid, vfn 0x108, vfn 0x60 (CS: the analysis), ladders, transformed bounds (1818d69c0) | `src/Source2.Compiler/Maps/NavCompile.cs:60`, `src/Source2.Compiler/Maps/NavGen/NavMeshLadders.cs:6`, `src/Source2.Compiler/Maps/NavGen/NavMeshLadders.cs:20` +1 |
+| `1818d63c0` | `CNavMesh::BuildFromNavGenPolys` | vfn 0x98: generation parameters from the input, the pool (1818e7e50), area i from polygon i (vfn 0x18, 1818ea6f0), the grid, vfn 0x108, vfn 0x60 (CS: the analysis), ladders, transformed bounds (1818d69c0) | `src/Source2.Compiler/Maps/NavCompile.cs:58`, `src/Source2.Compiler/Maps/NavGen/NavMeshLadders.cs:6`, `src/Source2.Compiler/Maps/NavGen/NavMeshLadders.cs:20` +1 |
 | `1818d77e0` | `CNavMesh::CreateArea` |  |  |
 | `1818dace0` | `CNavArea_Corners` | the area's polygon corners from the geometry manager, 4 for an area with no polygon | `src/Source2.Compiler/Maps/NavGen/NavMeshLadders.cs:193` |
 | `1818dc3b0` | `CNavMesh_Reset` | sets the ladder id counter to 1 | `src/Source2.Compiler/Maps/NavGen/NavMeshLadders.cs:8` |
@@ -1155,16 +1159,18 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1818e6970` | `CNavLadder_Construct` | mesh +0x70, the seven area slots cleared, id +0x68 from the counter 183023cb0 | `src/Source2.Compiler/Maps/NavGen/NavMeshLadders.cs:7`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:33` |
 | `1818e69b0` | `CNavLadder_ConnectAreas` | record 4..6 bottom areas (list 0), 0..3 top areas (list 1); top z raised to the top areas closest point above bottom z + 5 | `src/Source2.Compiler/Maps/NavGen/NavMeshLadders.cs:41`, `src/Source2.Compiler/Maps/NavGen/NavMeshLadders.cs:149` |
 | `1818e6d80` | `CNavLadder_ReportUnconnected` | 'ERROR: Unconnected ladder #%d top / bottom' |  |
-| `1818e71b0` | `CNavLadder_Save` | id, width, top, bottom, length, direction, the seven area ids | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:33`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:233` |
+| `1818e71b0` | `CNavLadder_Save` | id, width, top, bottom, length, direction, the seven area ids | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:33`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:252` |
 | `1818e7300` | `CNavLadder_SetDirection` | normal from the direction (0 -y, 1 +x, 2 +y, 3 -x); a trace from the centre +5 n to -32 n takes the hit normal when InteractsAs bit 8 | `src/Source2.Compiler/Maps/NavGen/NavMeshLadders.cs:38`, `src/Source2.Compiler/Maps/NavGen/NavMeshLadders.cs:40`, `src/Source2.Compiler/Maps/NavGen/NavMeshLadders.cs:120` |
 | `1818e7e50` | `CNavGeometryManager::Build` | pool doubles to floats in order (1818e7c60), polygons in order (1818e7af0), per-vertex use counts |  |
-| `1818e9510` | `CNavGeometryManager::Save` | corner count + float3, polygon count + (byte n, n u32, the area's movable mesh u32), the attribute flags word (bit 0: count + float4), movable mesh count + (name, 12 floats) | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:60`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:160`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:179` |
+| `1818e9510` | `CNavGeometryManager::Save` | corner count + float3, polygon count + (byte n, n u32, the area's movable mesh u32), the attribute flags word (bit 0: count + float4), movable mesh count + (name, 12 floats) | `src/Source2.Compiler/Maps/NavGen/NavMovable.cs:10`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:63`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:177` +2 |
 | `1818ea300` | `CNavArea_AddLadder` | removes the ladder from both lists (1818eb970), ensures the lists (1818ea400, flag 0x100 at +0x48), appends to the list | `src/Source2.Compiler/Maps/NavGen/NavMeshLadders.cs:150`, `src/Source2.Compiler/Maps/NavGen/NavMeshLadders.cs:184` |
 | `1818ea400` | `CNavArea_EnsureLadderLists` | a 0x10-byte slot in a global vector, keyed by the area id (+0x60) in a hash map |  |
-| `1818ea6f0` | `CNavArea::InitFromNavGenPoly` | per edge the block's +0x390/+0x398 list: connections of kind (+0x60) 0 to another area as (that area's id, +0xc); attributes flag 8 -> 0x8000, 0x10 -> 0x20000, kind 1 -> 0x10000, kind 2 -> 0x40000; +0x58 = the polygon's +0x62 | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:18`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:93` |
+| `1818ea6f0` | `CNavArea::InitFromNavGenPoly` | per edge the block's +0x390/+0x398 list: connections of kind (+0x60) 0 to another area as (that area's id, +0xc); attributes flag 8 -> 0x8000, 0x10 -> 0x20000, kind 1 -> 0x10000, kind 2 -> 0x40000; +0x58 = the polygon's +0x62 | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:18`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:96` |
 | `1818eb970` | `CNavArea_RemoveLadder` | from list 0 and list 1; +0x68 counts the change | `src/Source2.Compiler/Maps/NavGen/NavMeshLadders.cs:184` |
 | `1818ed310` | `CNavArea_LadderList` | the area's ladder list 0 or 1 through the hash map, null without flag 0x100 | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:29` |
-| `1818ee8d0` | `CNavPlaceNames::Save` | u16 count, (u16 length + 1, bytes, 0) each, then a byte: whether any area uses name 0 | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:159`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:174` |
+| `1818ed5a0` | `CNavArea_MovableTag` | 1818f58c0 over the mesh's +0x2d0 map, keyed by the area's +0x60; -1 for a static area | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:212` |
+| `1818ee8d0` | `CNavPlaceNames::Save` | u16 count, (u16 length + 1, bytes, 0) each, then a byte: whether any area uses name 0 | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:176`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:191` |
+| `1818ef5e0` | `CNavMesh_SetMovableMeshes` | per navsystem entry: 180105f50 of the id path as the key, the entry copied | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:70` |
 | `1818f8200` | `CNavHullVData_Construct` | static default hull, flow map off, radius 400 (1818f9e80 in 1015) |  |
 | `182053aa0` | `CDmeNavData_FromRuntimeSettings` |  |  |
 | `182053dc0` | `CDmeNavData_ToRuntimeSettings` | settings* attributes and settingsAgent* arrays; +0x58 = 0 |  |
@@ -1256,7 +1262,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180f88460` | `MapNode_WorldTransforms` | mode 1/2: up the parents (vf 0x600) while vf 0x400; a node referenced through 'target' collects its referrers (g_pDataModel vf 0x3b8 / 0x3c0 on 1800d3270's handle), recurses into each in that order, then composes its own transform (vf 0x110, 180ffd750); no kind-0 reference starts from its own (180f82b60). Ledger 46 | `src/Source2.Compiler/Maps/NavGen/NavGenLadders.cs:31`, `src/Source2.Compiler/Maps/NavGen/NavGenMarkups.cs:78`, `src/Source2.Compiler/SteamAudio/AcousticScene.cs:59` |
 | `180f8e990` | `CMapNode_GetEditorOnly` | vfn 0x440, else byte +0x365 |  |
 | `180f94820` | `CMapNode_SetEditorOnly` | +0x365 |  |
-| `180fc6f40` | `MapNode_FindByClassWildcard` | (node, out, pattern, flags): MapWorld_GatherLights' 'light_*' search | `src/Source2.Compiler/Maps/NavGen/NavGenMapInput.cs:13`, `src/Source2.Compiler/Maps/NavGen/NavGenMapInput.cs:63` |
+| `180fc6f40` | `MapNode_FindByClassWildcard` | (node, out, pattern, flags): MapWorld_GatherLights' 'light_*' search | `src/Source2.Compiler/Maps/NavGen/NavGenMapInput.cs:13`, `src/Source2.Compiler/Maps/NavGen/NavGenMapInput.cs:63`, `src/Source2.Compiler/Maps/NavGen/NavMovable.cs:13` |
 
 ### s2c:entities/lump
 
@@ -1264,7 +1270,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 |---|---|---|---|
 | `18009fe10` | `Fgd_TypeAliases` | the aliases and extension each type stands for | `src/Source2.Compiler/Maps/FgdSchema.cs:807` |
 | `1800de990` | `ReturnFalse` | CMapInstance vf 0x868 and vf 0x870 | `src/Source2.Compiler/Maps/MapInstances.cs:368` |
-| `180106ee0` | `NodeIdPath_Format` | node +0x310 ids: 6 inline then heap, %d joined by a separator | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:60` |
+| `180106ee0` | `NodeIdPath_Format` | node +0x310 ids: 6 inline then heap, %d joined by a separator | `src/Source2.Compiler/Maps/NavGen/NavMovable.cs:21`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:63` |
 | `1801df980` | `CBufferString_SetFormat` | clears, then AppendFormatV |  |
 | `1801f7960` | `CMapBuilderContext_Ctor` | +0x10c = content-relative map path, no extension |  |
 | `1801f8c80` | `CMapBuilderContext::vf11` | map usage type of the world (0 standard .. 4 sharedenvironment) |  |
@@ -1310,8 +1316,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180ef61e0` | `BakeResource_IdPathString` | vf 0x508 id path joined by a separator |  |
 | `180f1d770` | `CMapParticle_Snapshot` | the snapshot the compile generates for a node | `src/Source2.Compiler/Maps/EntityLumpSet.cs:46` |
 | `180f24170` | `CMapGameDataNode::vf157` | fixup types by mask 0x830006, skipping '!*?@' and class names |  |
-| `180f2d290` | `DmElement_IsNameAttribute` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:841` |
-| `180f2e4d0` | `CMapGameDataNode_SetClass` | masks spawnflags | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:849` |
+| `180f2d290` | `DmElement_IsNameAttribute` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:844` |
+| `180f2e4d0` | `CMapGameDataNode_SetClass` | masks spawnflags | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:852` |
 | `180f31d40` | `CMapEntity_ColorKey` | the key (V_stricmp_fast) parsed V_sscanf %d %d %d into low bytes, alpha 0xff; the default when absent | `src/Source2.Compiler/Maps/ParticleSnapshots.cs:179` |
 | `180f34460` | `Fgd_HasSpawnflag` | case blind | `src/Source2.Compiler/Maps/FgdSchema.cs:165` |
 | `180f385c0` | `MapNode_SetKeyValue` | (node, key, string); from call sites |  |
@@ -1337,7 +1343,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180fa8220` | `EntityKv_GetVector` | (kv, out, key, default); from call sites |  |
 | `180fa8260` | `EntityKv_GetString` | (kv, key, default); from call sites |  |
 | `180fa8380` | `EntityKv_SetInt` | type 3, subtype 0x14 |  |
-| `180fa84e0` | `EntityKey_TypeValue` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:870`, `src/Source2.Compiler/Maps/FgdSchema.cs:23`, `src/Source2.Compiler/Maps/FgdSchema.cs:781` |
+| `180fa84e0` | `EntityKey_TypeValue` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:873`, `src/Source2.Compiler/Maps/FgdSchema.cs:23`, `src/Source2.Compiler/Maps/FgdSchema.cs:781` |
 | `180fa8b30` | `EntityKv_SetResource` | resource-name value after the path fix-up |  |
 | `180fa8bf0` | `EntityKv_SetString` | skips an empty value; keeps the key's existing string flag | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:357` |
 | `180fa8cc0` | `EntityKv_SetVector3` | subtype 0x1d |  |
@@ -1361,27 +1367,27 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1810b5480` | `CMapPath_ExportKeys` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:302`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:445` |
 | `1810b66e0` | `CMapPath_FirstNodeMoved` | vf274: when the node that changed is the path's first CMapPathNode child, the path's origin is set to it (CMapNode::vf17) and the path refreshed (vf 0x8b8) | `src/Source2.Compiler/Maps/MapEntities.cs:480` |
 | `1810b7ca0` | `CMapPath_IsLoop` | loops with more than one node | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:461`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:499`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:516` +7 |
-| `1810be2f0` | `CMapPath_NextNode` | the node after; the last node's is the first on a supports_loop closed loop of 2+ nodes | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:545` |
-| `1810be5b0` | `CMapPath_PreviousNode` | the node before; the first node's is the last on a supports_loop closed loop of 2+ nodes | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:545` |
-| `1810bfd50` | `CMapPath_Value` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:662` |
+| `1810be2f0` | `CMapPath_NextNode` | the node after; the last node's is the first on a supports_loop closed loop of 2+ nodes | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:548` |
+| `1810be5b0` | `CMapPath_PreviousNode` | the node before; the first node's is the last on a supports_loop closed loop of 2+ nodes | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:548` |
+| `1810bfd50` | `CMapPath_Value` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:665` |
 | `1810ecf10` | `CVisibilityMgr::vf10` | init: 'nodes' at +0x498, 'hiddenFlags' at +0x4c0, +0x508 = 0 (its only writer) |  |
 | `1810eeba0` | `VisibilityMgr_NodeShown` | true unless mask & hiddenFlags[node] & ~+0x508 (VisibilityMgr_IsNodeVisible passes mask 0xb: flag 4 alone does not hide; ledger 181) | `src/Source2.Compiler/Maps/MapEntities.cs:299` |
 | `1810f2750` | `VisibilityMgr_StoredVisible` | the per-node visible byte of the document's set at +0x730 (true when absent) |  |
 | `18110f230` | `CMapPathNode::vf195` | color_tint through 180f31d40, default 0xffffffff | `src/Source2.Compiler/Maps/ParticleSnapshots.cs:179` |
-| `181110ba0` | `CMapPath_Tangents` | in and out tangents | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:552` |
-| `181111cc0` | `CMapPathNode_Scale` | radius and height scale, 1 and 1 unless the class | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:502`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:645` |
+| `181110ba0` | `CMapPath_Tangents` | in and out tangents | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:555` |
+| `181111cc0` | `CMapPathNode_Scale` | radius and height scale, 1 and 1 unless the class | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:502`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:648` |
 | `181112010` | `CMapPathNode_LinearTint` | vf 0x618 then 18126a5a0 | `src/Source2.Compiler/Maps/ParticleSnapshots.cs:179` |
 | `18114cb20` | `CMapCable::vf217` | rendercolor = tint as '%i %i %i' |  |
 | `18126a5a0` | `Color32_SrgbToLinear` | byte * 0x3b808081, clamp [0, 1], x / 12.92 up to 0.04045 else V_powf((x + 0.055) / 1.055, 2.4) | `src/Source2.Compiler/Lighting/SceneLights.cs:15`, `src/Source2.Compiler/Lighting/SceneLights.cs:258`, `src/Source2.Compiler/Maps/ParticleSnapshots.cs:25` +2 |
-| `1812806d0` | `Path_ComputeTangents` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:608` |
+| `1812806d0` | `Path_ComputeTangents` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:611` |
 | `1812f5060` | `CParticleSnapshot_Serialize` | string_list when any, stream_data by 181322440 (num_values, streams) and 1813220e0 (name, type from 1830149f0, values) | `src/Source2.Compiler/Maps/ParticleSnapshots.cs:337` |
 | `18138be80` | `HalfEdge_IncomingOnFace` | around a vertex from its out half-edge: the twin on the face, else the twin's next | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:161`, `src/Source2.Compiler/Maps/ParticleSnapshots.cs:249`, `src/Source2.Compiler/Maps/ParticleSnapshots.cs:261` +1 |
 | `181394380` | `HalfEdge_FindOpenEdgeLoops` | over 180ff0100's edges: face-less sides with a faced twin; loops follow next from the first left (or the first back in the set after a step out), entries as the edge's lower handle, swap-remove | `src/Source2.Compiler/Maps/ParticleSnapshots.cs:279` |
 | `18139a960` | `HalfEdge_EdgeFace` | the edge's face, or its twin's when it has none | `src/Source2.Compiler/Maps/ParticleSnapshots.cs:244` |
 | `1813a2d80` | `PolygonMesh_EdgeSideOnFace` | the edge's half-edge on a face; 1813a3180 gives its (tail, head) | `src/Source2.Compiler/Maps/ParticleSnapshots.cs:246` |
 | `181c1e340` | `EntityKv_FixupResourceValue` | resource path fix-up run by EntityKv_SetResource |  |
-| `181c1ee80` | `EntityLump_FixupResource` | a resource reference as the lump writer fixes it | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:915`, `src/Source2.Compiler/Maps/ResourcePath.cs:4` |
-| `181eb82c0` | `Kv3_SetColor` | the KV3 colour setter | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:907` |
+| `181c1ee80` | `EntityLump_FixupResource` | a resource reference as the lump writer fixes it | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:918`, `src/Source2.Compiler/Maps/ResourcePath.cs:4` |
+| `181eb82c0` | `Kv3_SetColor` | the KV3 colour setter | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:910` |
 | `181eb8970` | `KV3_SetMemberInt` | find or append member, type 3 with the given subtype | `src/Source2.Compiler/Lighting/PathTraceScene.cs:182` |
 | `1822ae350` | `CDataModel::vftable` | data: the datamodel linked into resourcecompiler (VDataModelVersion001, QueryInterface 180cda040 at slot 2); vf 0x3b8 180cd7820, vf 0x3c0 180cd99e0 (ledger 46) |  |
 | `182349b48` | `CMapInstance_Vtable` | data: vtable; slot 0x860 (vf268) calls the collapse |  |
@@ -1910,7 +1916,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1812586a0` | `Matrix3x4_ColumnLengths` | sqrt((c0 c0 + c1 c1) + c2 c2) per column | `src/Source2.Compiler/Maps/PropTransform.cs:59` |
 | `181258890` | `ConcatTransforms` | SIMD 3x4 product, row sums ((a2 B2 + a1 B1) + a0 B0) | `src/Source2.Compiler/Maps/LatticeDeformer.cs:159`, `src/Source2.Compiler/Maps/LightMath.cs:90`, `src/Source2.Compiler/Maps/MapMeshes.cs:352` |
 | `18125a6c0` | `Vector_Basis` | Frisvad's basis with the sign of z | `src/Source2.Compiler/Maps/LightSampler.cs:261`, `src/Source2.Compiler/Maps/TangentFrame.cs:90` |
-| `18125aba0` | `MatrixInvert` | transpose; translation rotated back | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:533`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:573`, `src/Source2.Compiler/Maps/LatticeDeformer.cs:329` +1 |
+| `18125aba0` | `MatrixInvert` | transpose; translation rotated back | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:533`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:535`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:576` +2 |
 | `18125ade0` | `MatrixInvertGeneral` | 3x4 inverse by the adjugate; identity below 1.17549435e-35; translation (x + y) + z per row in one SIMD pass | `src/Source2.Compiler/Maps/EditorTraceScene.cs:27`, `src/Source2.Compiler/Maps/EditorTraceScene.cs:336`, `src/Source2.Compiler/Maps/LatticeDeformer.cs:160` |
 | `18125b130` | `MatrixInvertRigid` | rotation transposed, translation turned back | `src/Source2.Compiler/Maps/LightMath.cs:100` |
 | `18125b270` | `Matrix3x4_Unscale` | each column divided by its length | `src/Source2.Compiler/Maps/SettleWorld.Aggregate.cs:215`, `src/Source2.Compiler/Maps/SettleWorld.cs:763`, `src/Source2.Compiler/Maps/SettleWorld.cs:932` +3 |
@@ -1924,8 +1930,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18125cd10` | `Matrix3x4_TransformAABB` | centre and extents | `src/Source2.Compiler/Maps/EditorTraceScene.cs:60`, `src/Source2.Compiler/Maps/EditorTraceScene.cs:520`, `src/Source2.Compiler/Maps/NodeOverlays.cs:200` |
 | `18125d000` | `VectorNormalize_Slow` | out-of-range lengths (under 1e-17, over 1e17), normalised in double; ported in VisibilityMeshMerger.TriBoxOverlap | `src/Source2.Compiler/Maps/SubdivisionTangents.cs:111`, `src/Source2.Compiler/Maps/VectorNormalizeSlow.cs:6`, `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:547` +4 |
 | `18125d0d0` | `VectorPerpendicular` | ((1 - z)(y y - 0) + z, 0, -x) normalised, orthogonalised, normalised | `src/Source2.Compiler/Maps/SettleWorld.Deformed.cs:151`, `src/Source2.Compiler/Maps/SettleWorld.Deformed.cs:205`, `src/Source2.Compiler/Physics/CableCollision.cs:422` +2 |
-| `18125d1b0` | `Matrix3x4_Rotate` | (x r0 + y r1) + z r2 | `src/Source2.Compiler/Lighting/PackingAssembly.cs:14`, `src/Source2.Compiler/Lighting/PackingAssembly.cs:112`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:565` +5 |
-| `18125d1f0` | `Matrix3x4_TransformPoint` | (t + y r1) + (x r0 + z r2) | `src/Source2.Compiler/Lighting/PackingAssembly.cs:13`, `src/Source2.Compiler/Lighting/PackingAssembly.cs:106`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:564` +4 |
+| `18125d1b0` | `Matrix3x4_Rotate` | (x r0 + y r1) + z r2 | `src/Source2.Compiler/Lighting/PackingAssembly.cs:14`, `src/Source2.Compiler/Lighting/PackingAssembly.cs:112`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:568` +5 |
+| `18125d1f0` | `Matrix3x4_TransformPoint` | (t + y r1) + (x r0 + z r2) | `src/Source2.Compiler/Lighting/PackingAssembly.cs:13`, `src/Source2.Compiler/Lighting/PackingAssembly.cs:106`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:567` +4 |
 | `18125d940` | `AngleQuaternion` | half angles times 0.00872664619 | `src/Source2.Compiler/Maps/CTransform.cs:22` |
 | `18125dcc0` | `Quaternion_Forward` | x axis | `src/Source2.Compiler/Maps/LightMath.cs:206`, `src/Source2.Compiler/Maps/LightMath.cs:225` |
 | `18125dd50` | `Quaternion_Left` | y axis | `src/Source2.Compiler/Maps/LightMath.cs:228` |
@@ -2573,10 +2579,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1814c2ee0` | `Polygon_ClosestPoint` | fan triangles (v0, v[i], v[i-1]) from the last, 1814762f0 | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.cs:376` |
 | `1814c43b0` | `CNavArea::GetZ` | fan triangle (previous, nearest 1814c1ff0, next corner); the one two corners on when the first is degenerate or the point lies outside | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Hiding.cs:25` |
 | `1814c5a00` | `CNavArea::ContainsXY` | bounds and each edge's outward half-plane grown by the tolerance | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Hiding.cs:74` |
-| `1814c67b0` | `CNavArea::AddIncomingConnection` | the +0x90 list of the edge, unless the area is on it | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:152` |
+| `1814c67b0` | `CNavArea::AddIncomingConnection` | the +0x90 list of the edge, unless the area is on it | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:169` |
 | `1814c76a0` | `CNavArea::ComputePortalOverlap` | edge 7 as 0, the other's 7 as 2; 2D (1814eabb0) or oriented (1814eada0) for attribute 0x8000; +0x18 the 2D length | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.cs:526`, `src/Source2.Compiler/Maps/NavGen/NavMeshOverlaps.cs:88`, `src/Source2.Compiler/Maps/NavGen/NavMeshOverlaps.cs:201` |
 | `1814cf8d0` | `CNavArea::PostLoad` | vfn 0x50: connection ids to areas (1814b27c0), a -1 edge becomes (k + 2) & 3 |  |
-| `1814cfaa0` | `CNavMesh::AnalyzeConnections` | area vfn 0x50 each, one-way connections onto the target's incoming lists (V_qsort, 1814cb4f0: target address / 0x4e8, then edge; 1814ac8c0), 1814be420, +0x100 = 1, 1814b86f0 | `src/Source2.Compiler/Maps/NavGen/NavMeshOverlaps.cs:5`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:151` |
+| `1814cfaa0` | `CNavMesh::AnalyzeConnections` | area vfn 0x50 each, one-way connections onto the target's incoming lists (V_qsort, 1814cb4f0: target address / 0x4e8, then edge; 1814ac8c0), 1814be420, +0x100 = 1, 1814b86f0 | `src/Source2.Compiler/Maps/NavGen/NavMeshOverlaps.cs:5`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:168` |
 | `1814d4260` | `NavPathCost_Step` | vfn 0x68 (1814d4980) with no target: the crossing toward the area's own position | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Hiding.cs:167` |
 | `1814d7200` | `NavArea_SearchRecord` | 0x30 bytes by area +0x64: position, open index +0xc, parent handle +0x10, how +0x28, edge back +0x2c | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.cs:681` |
 | `1814d9810` | `CNavMesh_AStar` | records 1814d7200 shared by every search; push writes position / parent / edge (1814d3930 / 1814d3940); heap 180397ef0 / 18039a3c0 | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.cs:734`, `src/Source2.Compiler/Maps/NavGen/NavAnalysis.cs:794` |

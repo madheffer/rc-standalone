@@ -421,6 +421,36 @@
    "note": "debug gen/render clips"
   },
   {
+   "addr": "180fb6cf0",
+   "name": "NavGen_MovableEntry",
+   "module": "s2c:baked/nav",
+   "note": "a movable entry (0x90 at ctx +0x18) out: the id path, the 3x4 matrix at +0x38, the gravity byte +0x88"
+  },
+  {
+   "addr": "180fdee80",
+   "name": "CMapEntity::vf21_WorldToLocal",
+   "module": "s2c:baked/nav",
+   "note": "vf 0xa0's world matrix through 18125aba0 (the inverse)"
+  },
+  {
+   "addr": "180105f50",
+   "name": "NodeIdPath_Hash",
+   "module": "s2c:baked/nav",
+   "note": "MurmurHash2 of the id path's ints, seed 0x3501a674 (an out-of-line tail first); a movable mesh's polygon tag"
+  },
+  {
+   "addr": "1818ef5e0",
+   "name": "CNavMesh_SetMovableMeshes",
+   "module": "s2c:baked/nav",
+   "note": "per navsystem entry: 180105f50 of the id path as the key, the entry copied"
+  },
+  {
+   "addr": "1818ed5a0",
+   "name": "CNavArea_MovableTag",
+   "module": "s2c:baked/nav",
+   "note": "1818f58c0 over the mesh's +0x2d0 map, keyed by the area's +0x60; -1 for a static area"
+  },
+  {
    "addr": "180fb5ce0",
    "name": "NavGen_CollectMovableMeshes",
    "module": "s2c:baked/nav",

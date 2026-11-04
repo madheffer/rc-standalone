@@ -23,7 +23,7 @@ public static class NavCompile
     /// info_player_terrorist and info_player_counterterrorist origins in entity order, hiding,
     /// encounter and approach data, sphere traces on the same world) and the save. The custom
     /// data's from / to / order ids are heap pointers in Valve's file; ours are the area and spot
-    /// ids. Movable meshes and the survival play area are refused. With <paramref name="analyze"/>
+    /// ids. Movable meshes are func_movelinear's (NavMovable); the survival play area is refused. With <paramref name="analyze"/>
     /// false the analysis is skipped and the custom data is the unanalysed mesh's (a mesh-only check).
     /// </summary>
     public static Nav Generate(DmxBinary.Document document, FgdSchema schema, GameContent assets, string gameinfo,
@@ -39,8 +39,6 @@ public static class NavCompile
         var settings = NavGenPipeline.Settings(document, vdata, NavGenPipeline.NavSystemBlock(gameinfo));
         var result = NavGenPipeline.Generate(document, bodies, rules, settings, schema, assets.Material);
         var mesh = Mesh(document, schema, bodies, result);
-        if (mesh.Movable.Count > 0)
-            throw new NotSupportedException("a nav with movable meshes is not ported");
         if (!analyze)
             return new Nav(NavWriter.Write(mesh, result.Settings, new NavAnalysis(mesh).CustomData()), mesh);
         // The analysis traces the nav PhysDoc's world, the bodies navsystem's filter keeps (cardtest: all
@@ -63,7 +61,7 @@ public static class NavCompile
     public static NavWriter.Mesh Mesh(DmxBinary.Document document, FgdSchema schema, IReadOnlyList<SettleWorld.BodyBuild> bodies,
                                       NavGenPipeline.Result result)
     {
-        var mesh = NavWriter.Build(result.Polys);
+        var mesh = NavWriter.Build(result.Polys, result.Movable);
         if (result.Ladders.Count > 0)
         {
             var ladderWorld = new NavSphereWorld(bodies, NavGenInput.NavWorldFilter(document, schema), queryGroup: 4, staticOnly: true);

@@ -66,7 +66,7 @@ public static partial class NavGenMapInput
     /// (tools/re/tier0_wildcard_oracle.py), and whose visibility state (+0x370, flag 1) is on. Refused until measured:
     /// a hidden node inside an instance or prefab, and a node under a group that moves.
     /// </summary>
-    private static IEnumerable<(MapEntityList.Item Item, MapEntities.Entity Entity, bool Copied)> Found(DmxBinary.Document document, string className)
+    internal static IEnumerable<(MapEntityList.Item Item, MapEntities.Entity Entity, bool Copied)> Found(DmxBinary.Document document, string className)
     {
         if (document.OfType("CMapWorld").FirstOrDefault() is not { } world)
             yield break;
