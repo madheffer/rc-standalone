@@ -52,8 +52,9 @@ internal static class WorldNodeCompile
 
         /// <summary>
         /// +0x38, +0x3c and +0x68: the fades and lighting origin. The vis merger's
-        /// object (18026e9c0) copies its entry's +0xb0, +0xb4 and +0x80 (the node's
-        /// fades and origin); the cluster compile leaves 0, 0 and FLT_MAX.
+        /// object (18026e9c0) and CompileInstanced's (18026ed20) copy their (first)
+        /// entry's +0xb0, +0xb4 and +0x80 (the node's fades and origin); the cluster
+        /// compile leaves 0, 0 and FLT_MAX.
         /// </summary>
         public float FadeStart { get; init; }
         public float FadeEnd { get; init; }
@@ -485,8 +486,11 @@ internal static class WorldNodeCompile
                 continue;
             }
             var f = g[0].Facts;
+            // 18026ed20 copies the group's first entry's +0xb0, +0xb4 and +0x80 (fades, origin) into the
+            // object's +0x38, +0x3c and +0x68, as the vis merger's object does.
             objects.Add(CreateRenderObject(settings.NodePrefix, $"{prefix}{counters.Instanced++}_{FileBase(g[0].Material, 0x18)}", layer, 0,
-                                           f.ObjectFlags, f.Attributes, f.Field1a6 != 0, g));
+                                           f.ObjectFlags, f.Attributes, f.Field1a6 != 0, g)
+                        with { FadeStart = f.Field_b0, FadeEnd = f.FadeMax, LightingOrigin = f.Origin });
         }
     }
 

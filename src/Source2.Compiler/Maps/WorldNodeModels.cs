@@ -196,7 +196,7 @@ internal static class WorldNodeModels
                     }
                 // An aggregate's draws are white (all 311 of atixref's list aggregate draws);
                 // the mesh's tint rides on its fragment in the .vwnod.
-                var tint = aggregate ? Vector4.One : d.Facts.Field28;
+                var tint = aggregate ? Vector4.One : DrawTint(d.Facts);
                 described[d] = new WorldNodeModel.Draw(d.Material, new Vector3(tint.X, tint.Y, tint.Z), density, firstMeshlet, meshlets.Count - firstMeshlet,
                     vertexBase, bufferCount > 1 || (mapMesh && facts.Depth.Count > 0) ? 0 : 255, vertexBase + g.VertexCount, startIndex, g.Indices.Length, indexBuffers.Count, handles,
                     d.Streams.Any(s => s.Name.Equals("PerVertexLighting", StringComparison.OrdinalIgnoreCase)),
@@ -236,6 +236,22 @@ internal static class WorldNodeModels
             [new WorldNodeModel.SceneObject(min, max, [.. draws.Select(d => described[d])], aggregate ? [.. draws.Select(d => drawBounds[d])] : [], meshlets)],
             aggregate, warnings);
         return new Built(model, buffers, [.. draws.Select(d => d.Material).Distinct(StringComparer.OrdinalIgnoreCase)], []) { RawVertexBuffers = [.. raw] };
+    }
+
+    /// <summary>
+    /// A render object draw's m_vTintColor: AddDrawDescriptors (1802ed7f0) writes
+    /// V_powf(c, 2.2) of each of the CMesh's tint (+0x154) when its UseTintColor
+    /// (+0x14f) is set, else white. CMesh_SetTint (1812e5580) sets both: the
+    /// overlay projector (181362050) with the overlay's tint, and GroupRenderObjects
+    /// (18026c150), the vis merger (18026e9c0) and CompileInstanced (18026ed20)
+    /// with the entry's +0x28 when it is not (1, 1, 1, 1).
+    /// </summary>
+    private static Vector4 DrawTint(WrbMeshEntry e)
+    {
+        static Vector4 Pow(Vector4 c) => new(MathF.Pow(c.X, 2.2f), MathF.Pow(c.Y, 2.2f), MathF.Pow(c.Z, 2.2f), c.W);
+        if (e.DebugColor)
+            return Pow(e.DebugColorValue);
+        return e.Field28 != Vector4.One ? Pow(e.Field28) : Vector4.One;
     }
 
     // Step_SplittingMeshWith (180260710) welds each fragment's CMesh (CMesh_Weld with 0), then

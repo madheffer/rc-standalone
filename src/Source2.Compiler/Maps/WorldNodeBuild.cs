@@ -243,7 +243,8 @@ internal static class WorldNodeBuild
                 // parking stripes, 194 153 31, give Valve's draw tint bit for bit).
                 Field28 = new Vector4(Gamma(d.TintColor[0]), Gamma(d.TintColor[1]), Gamma(d.TintColor[2]), d.TintColor[3] / 255f),
                 Stride = stride, Streams = streams, Field1a3 = 1, Field_b8 = 1f, Field1a8 = 1f, Mesh184 = 1f, Field9c = 1f,
-                Field1a1 = 1, Field_b0 = -1f, Matrix = identity,
+                // +0x80 is the descriptor's +0x64, FLT_MAX from OverlayDesc's constructor (181360310).
+                Field1a1 = 1, Field_b0 = -1f, Matrix = identity, Origin = new Vector3(float.MaxValue),
                 MeshStreams = Describe(mesh.Streams, Enumerable.Range(0, mesh.Streams.Count), built[projection.Target].Source.Entry.PreciseTexcoords),
                 TexcoordsPast16 = WrbMeshEntry.TexcoordsPastSixteen(wv, mesh.Stride, mesh.Streams),
             }));
