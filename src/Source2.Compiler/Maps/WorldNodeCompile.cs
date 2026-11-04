@@ -485,6 +485,9 @@ internal static class WorldNodeCompile
                 list.Stash.AddRange(g);
                 continue;
             }
+            // The instanced list's OnAdd (180272c80) marked each mesh NoCollapse (CMesh +0x14c).
+            if (list.Kind == MeshLists.Kind.Instanced)
+                g = [.. g.Select(e => e with { Facts = e.Facts with { NoCollapse = true } })];
             var f = g[0].Facts;
             // 18026ed20 copies the group's first entry's +0xb0, +0xb4 and +0x80 (fades, origin) into the
             // object's +0x38, +0x3c and +0x68, as the vis merger's object does.

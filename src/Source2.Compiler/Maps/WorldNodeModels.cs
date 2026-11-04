@@ -1,4 +1,5 @@
 using System.Numerics;
+using Source2.Compiler.Io;
 using Source2.Compiler.Meshopt;
 using ValveResourceFormat;
 
@@ -70,7 +71,7 @@ internal static class WorldNodeModels
     public static Built Build(string name, IReadOnlyList<WorldNodeCompile.Entry> meshes, bool aggregate, Func<string, MaterialFacts> material, bool mapMesh = true,
                               MaterialFacts? layout = null)
     {
-        var groups = aggregate ? FragmentOrder(meshes).Select(e => new List<WorldNodeCompile.Entry> { e }).ToList() : ByMaterial(meshes);
+        var groups = aggregate ? FragmentOrder(meshes).Select(e => new List<WorldNodeCompile.Entry> { e }).ToList() : ByMaterial([.. meshes.Select(ModelTangents)]);
         var draws = new List<DrawInput>();
         foreach (var g in groups)
         {
@@ -128,7 +129,11 @@ internal static class WorldNodeModels
         {
             var facts = factsOf(d);
             var slots = Layout([d], mapMesh ? facts : facts with { Depth = [] }, aggregate, mapMesh, texcoordFormat);
-            var set = sets.FindIndex(x => x.Slots.Select(l => (l.Field, l.Buffer)).SequenceEqual(slots.Select(l => (l.Field, l.Buffer))));
+            // A NoCollapse mesh (+0x14c) without PackToSharedVB (+0x14d) takes a set of its own in a
+            // second list (1802f69f0's else branch, 1802fcd90): atixref's nomerge objects, one vertex
+            // buffer per draw. That list's sets come first, the shared sets after (1802fcea0, 1802fde10).
+            var set = d.Facts.NoCollapse ? -1 : sets.FindIndex(x => !x.Draws[0].Facts.NoCollapse
+                && x.Slots.Select(l => (l.Field, l.Buffer)).SequenceEqual(slots.Select(l => (l.Field, l.Buffer))));
             if (set < 0)
                 sets.Add((slots, [d]));
             else
@@ -142,6 +147,7 @@ internal static class WorldNodeModels
         var drawBounds = new Dictionary<DrawInput, (Vector3, Vector3)>(ReferenceEqualityComparer.Instance);
         var meshlets = new List<WorldNodeModel.Meshlet>();
         var (min, max) = (new Vector3(float.MaxValue), new Vector3(float.MinValue));
+        sets = [.. sets.Where(x => x.Draws[0].Facts.NoCollapse), .. sets.Where(x => !x.Draws[0].Facts.NoCollapse)];
         foreach (var (slots, setDraws) in sets)
         {
             // The depth pass reads buffer 0 whenever the material has a depth list, split
@@ -288,6 +294,88 @@ internal static class WorldNodeModels
         return [.. welded];
     }
 
+    // The mesh compile's tangents (180344980 -> ModelCompile_WeldMesh 1803447d0, before the merge). A
+    // world node model compiles with preserve_tangents 1 (WRB_CompileNodeModel's argument block, written
+    // by 18020be10), so a mesh keeps its tangents when 1812e1450 accepts them: its first "tangent" stream
+    // of four floats has w = +-1 and |t|^2 within 0.001 of 1, or 0, at every vertex. Otherwise
+    // CMesh_ComputeTangents (1812db920, UseMikkTSpace on): a missing tangent stream is appended after the
+    // others (type 0x2b), each corner gets the generator's tangent (MeshTangents), a vertex takes its first
+    // corner's, and a later corner whose tangent differs (|dx|, |dy| or |dz| >= 1e-4, or w) gets a copy of
+    // the vertex appended to the mesh. The 1e-7 weld that follows is NodeDraw's. atixref: a material that
+    // reads no tangent loses the stream to PrepareForMerge's filter, so Valve recomputes it here.
+    private static WorldNodeCompile.Entry ModelTangents(WorldNodeCompile.Entry e)
+    {
+        var streams = e.Facts.Streams;
+        int Offset(Func<WrbMeshEntry.Stream, bool> match)
+        {
+            var at = 0;
+            foreach (var x in streams)
+            {
+                if (match(x))
+                    return at;
+                at += x.Count;
+            }
+            return -1;
+        }
+        var stride = e.Stride;
+        var count = e.Vertices.Length / stride;
+        var tangentAt = Offset(x => x.Name.ContainsAscii("tangent") && x.Count == 4);
+        if (tangentAt >= 0 && Enumerable.Range(0, count).All(v =>
+            {
+                var at = (v * stride) + tangentAt;
+                var w = e.Vertices[at + 3];
+                var len = (e.Vertices[at] * e.Vertices[at]) + (e.Vertices[at + 1] * e.Vertices[at + 1]) + (e.Vertices[at + 2] * e.Vertices[at + 2]);
+                return (w == 1f || w == -1f) && (MathF.Abs(len - 1f) < 0.001f || len == 0f);
+            }))
+            return e;
+        var position = Offset(x => x.Name.ContainsAscii("position") && x.Count == 3);
+        var normal = Offset(x => x.Name.ContainsAscii("norm") && x.Count == 3);
+        var tex = Offset(x => x.Name.ContainsAscii("tex") && x.Count == 2);
+        if (tex < 0)
+            tex = Offset(x => x.Name.ContainsAscii("tex") && x.Count == 3);
+        if (position < 0 || tex < 0 || normal < 0)
+            return e;
+        var vertices = new List<float>();
+        if (tangentAt < 0)
+        {
+            tangentAt = stride;
+            for (var v = 0; v < count; v++)
+            {
+                vertices.AddRange(e.Vertices.AsSpan(v * stride, stride));
+                vertices.AddRange([0f, 0f, 0f, 0f]);
+            }
+            stride += 4;
+            streams = [.. streams, new WrbMeshEntry.Stream("tangent", 0, 4, 0, 0x2b)];
+        }
+        else
+            vertices.AddRange(e.Vertices);
+        Vector3 V3(int v, int at) => new(vertices[(v * stride) + at], vertices[(v * stride) + at + 1], vertices[(v * stride) + at + 2]);
+        var corners = MeshTangents.Corners([.. Enumerable.Range(0, count).Select(v => V3(v, position))], [.. Enumerable.Range(0, count).Select(v => V3(v, normal))],
+                                           [.. Enumerable.Range(0, count).Select(v => new Vector2(vertices[(v * stride) + tex], vertices[(v * stride) + tex + 1]))], e.Indices);
+        var indices = (int[])e.Indices.Clone();
+        var seen = new List<bool>(new bool[count]);
+        void Set(int v, Vector4 t) => (vertices[(v * stride) + tangentAt], vertices[(v * stride) + tangentAt + 1], vertices[(v * stride) + tangentAt + 2], vertices[(v * stride) + tangentAt + 3]) = (t.X, t.Y, t.Z, t.W);
+        for (var c = 0; c < indices.Length; c++)
+        {
+            var (v, t) = (indices[c], corners[c]);
+            if (!seen[v])
+            {
+                seen[v] = true;
+                Set(v, t);
+                continue;
+            }
+            var at = (v * stride) + tangentAt;
+            if (MathF.Abs(vertices[at] - t.X) < 0.0001f && MathF.Abs(vertices[at + 1] - t.Y) < 0.0001f && MathF.Abs(vertices[at + 2] - t.Z) < 0.0001f && vertices[at + 3] == t.W)
+                continue;
+            var copy = vertices.Count / stride;
+            vertices.AddRange(vertices.GetRange(v * stride, stride));
+            seen.Add(true);
+            Set(copy, t);
+            indices[c] = copy;
+        }
+        return e with { Stride = stride, Vertices = [.. vertices], Indices = indices, Facts = e.Facts with { Streams = streams, Stride = stride } };
+    }
+
     // The model compiler's mesh merge (180344ae0, from ModelCompile_WeldMeshes 18033f200): each mesh i
     // not yet taken (i up to the next to last) gathers the later untaken meshes j with its material
     // (V_stricmp), +0x184, tint (both unset, or both set and equal) and stream layout (name, semantic,
@@ -301,12 +389,12 @@ internal static class WorldNodeModels
         var merged = new List<List<WorldNodeCompile.Entry>>();
         for (var i = 0; i < meshes.Count - 1; i++)
         {
-            if (taken[i])
+            if (taken[i] || meshes[i].Facts.NoCollapse)
                 continue;
             var group = new List<WorldNodeCompile.Entry> { meshes[i] };
             for (var j = i + 1; j < meshes.Count; j++)
             {
-                if (taken[j] || !Merges(meshes[i], meshes[j]))
+                if (taken[j] || meshes[j].Facts.NoCollapse || !Merges(meshes[i], meshes[j]))
                     continue;
                 group.Add(meshes[j]);
                 taken[i] = taken[j] = true;

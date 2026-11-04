@@ -6130,3 +6130,24 @@ reference was compiled on 2026-11-03 by the installed 1.41.9.5 resourcecompiler 
        V_stricmp_fast of the name before writing them, so every RERL is in case-blind path order (the 17 of 17
        measured). Ported in ValveLayout's RERL. atixref's disco_wall_toggle_246 and blocklight10 now Valve's.
      - atixref -world: 486 -> 498 of 553 files.
+249. **Instanced meshes stay apart; the model compile's own tangents** (2026-11-04; rc 0923 decompiles 180272c80,
+     1813319d0, 180d47b90, 1802f69f0 and its disassembly at 1802f6cc0, 180344980, 1803447d0, 1812e1450, 1812db920,
+     18020be10, 18025fab0). READ.
+     - CInstancedMeshList::OnAdd sets CMesh +0x14c on every entry of the instanced list. CMeshToHalfEdge writes it
+       as the DmeMesh's NoCollapse and DmeMeshToCMesh reads it back (+0x14d PackToSharedVB, +0x14f UseTintColor
+       likewise). The merge (180344ae0) skips a NoCollapse mesh; ModelCompile_BuildDrawSets gives one without
+       PackToSharedVB a set of its own in a second list (1802fcd90), and that list's sets come before the shared
+       ones (1802fcea0, 1802fde10). The set match itself compares the four layouts' fields by D3D semantic name,
+       +0x20, +0x24, +0x28, +0x2a and +0x2b (1802f6cc0..1802f6d36). atixref's nomerge objects: one vertex buffer
+       per draw, as Valve's.
+     - WRB_CompileNodeModel's argument block has preserve_tangents 1 (18020be10 writes it). The mesh compile
+       (180344980) runs ModelCompile_WeldMesh before the merge: a mesh whose tangents 1812e1450 accepts (its first
+       four-float stream named *tangent*, w = +-1 and |t|^2 within 0.001 of 1 or 0 at every vertex) is only
+       welded at 1e-7; any other gets CMesh_ComputeTangents (MikkTSpace on): a missing tangent stream is appended
+       after the others, each corner gets the generator's tangent, a vertex keeps its first corner's, and a later
+       corner differing by 1e-4 in x, y or z, or in w, gets a copy of the vertex appended. Ported as
+       WorldNodeModels.ModelTangents with MeshTangents.Corners.
+     - So a draw whose material reads no tangent, which PrepareForMerge's filter strips, packs a recomputed
+       tangent in Valve's NORMAL word, not 0x401 (the "default tangent" of ledger 60 and OPEN 1.c2): dev/black_simple
+       in cb_nomerge26 and 16 mesh_overlay models now Valve's.
+     - atixref -world: 498 -> 520 of 553 files (95.17% of bytes).

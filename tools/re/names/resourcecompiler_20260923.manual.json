@@ -742,7 +742,7 @@
    "addr": "1813319d0",
    "name": "MapBuilder_CMeshToHalfEdge",
    "module": "s2c:mapbuilder",
-   "note": "one vertex per CMesh vertex; triangles repeating an index skipped; streams then bone weights"
+   "note": "one vertex per CMesh vertex; triangles repeating an index skipped; streams then bone weights; MeshID, NoCollapse (+0x14c), PackToSharedVB (+0x14d), UseBaseVertex, UseTintColor, TintColor as DmeMesh attributes"
   },
   {
    "addr": "18131e190",
@@ -1318,7 +1318,7 @@
    "addr": "180d47b90",
    "name": "DmeMeshToCMesh",
    "module": "s2c:geometry/mesh-export",
-   "note": "stream layout from the DMX; CMesh +0x184 = V_powf(2, the face set's lightmapScaleBias)"
+   "note": "stream layout from the DMX; CMesh +0x184 = V_powf(2, the face set's lightmapScaleBias); +0x14c NoCollapse, +0x14d PackToSharedVB, +0x14e UseBaseVertex, +0x148 MeshID, +0x14f UseTintColor from the DmeMesh"
   },
   {
    "addr": "180d5c570",
@@ -1678,7 +1678,13 @@
    "addr": "1812db920",
    "name": "CMesh_ComputeTangents",
    "module": "s2c:geometry/mesh-export",
-   "note": "MikkTSpace-style (182080a60) when UseMikkTSpace; corners whose tangents differ by 1e-4 or in w split their vertex"
+   "note": "MikkTSpace-style (182080a60) when UseMikkTSpace; a missing tangent stream appended (type 0x2b); a vertex takes its first corner's tangent, a later corner differing by 1e-4 or in w gets an appended copy"
+  },
+  {
+   "addr": "1812e1450",
+   "name": "CMesh_HasValidTangents",
+   "module": "s2c:geometry/mesh-export",
+   "note": "the first 4-float stream named *tangent*: w = +-1 and |t|^2 within 0.001 of 1 (or 0) at every vertex"
   },
   {
    "addr": "182080a60",
@@ -2717,6 +2723,18 @@
    "name": "ModelCompile_WeldMeshes",
    "module": "s2c:geometry/world-nodes",
    "note": "CMesh_Weld at 1e-7 over the model's meshes (via 1803447d0), then the merge 180344ae0"
+  },
+  {
+   "addr": "180344980",
+   "name": "ModelCompile_LoadAndMergeMeshes",
+   "module": "s2c:geometry/world-nodes",
+   "note": "the mesh compile's meshes from the DmeModel (180d49a80), WeldMesh with preserve_tangents, then the merge 180344ae0"
+  },
+  {
+   "addr": "18020be10",
+   "name": "WRB_SetNodeModelArgs",
+   "module": "s2c:geometry/world-nodes",
+   "note": "the node model's compile arguments from WRB_CompileNodeModel's block: preserve_tangents (byte 0, 1), generate_draw_bounds, embedded_map_mesh (1), embedded_aggregate_mesh, keep_vertices, create_pooled_vb, generate_meshlets"
   },
   {
    "addr": "180344ae0",

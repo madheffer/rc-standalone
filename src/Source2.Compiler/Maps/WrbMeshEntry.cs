@@ -58,6 +58,13 @@ public sealed record WrbMeshEntry
     public float[] Matrix { get; init; } = new float[12];
     /// <summary>CMesh +0x152: set, the entry merges with nothing.</summary>
     public bool Mesh152 { get; init; }
+    /// <summary>
+    /// CMesh +0x14c (NoCollapse): CInstancedMeshList::OnAdd (180272c80) sets it on every entry
+    /// of the instanced list. It rides the ModelDoc round trip as the DmeMesh's "NoCollapse"
+    /// (1813319d0 writes it, DmeMeshToCMesh 180d47b90 reads it back), so the model compiler
+    /// neither merges the mesh (180344ae0) nor shares its draw set (1802f69f0).
+    /// </summary>
+    public bool NoCollapse { get; init; }
     /// <summary>+0x40: the source node id.</summary>
     public int NodeId { get; init; }
     /// <summary>+0xa8: -1 for a map mesh or overlay, 0 for a prop entry (atixref's 1,018 at BuildNode's end).</summary>
