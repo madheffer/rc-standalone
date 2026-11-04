@@ -67,6 +67,13 @@ public static partial class NavGenMapInput
     /// a hidden node inside an instance or prefab, and a node under a group that moves.
     /// </summary>
     internal static IEnumerable<(MapEntityList.Item Item, MapEntities.Entity Entity, bool Copied)> Found(DmxBinary.Document document, string className)
+        => Found(document, e => Tier0Strings.EqualsIgnoreCase(e.ClassName, className), className);
+
+    /// <summary>The same search by targetname (mode 1, 180fefbc0): V_CompareNameWithWildcards(<paramref name="name"/>, the targetname, 0).</summary>
+    internal static IEnumerable<(MapEntityList.Item Item, MapEntities.Entity Entity, bool Copied)> FoundByName(DmxBinary.Document document, string name)
+        => Found(document, e => e.Keys.FirstOrDefault(k => k.Key.EqualsAscii("targetname")).Value is { Length: > 0 } t && Wildcard.Matches(name, t), name);
+
+    internal static IEnumerable<(MapEntityList.Item Item, MapEntities.Entity Entity, bool Copied)> Found(DmxBinary.Document document, Func<MapEntities.Entity, bool> match, string className)
     {
         if (document.OfType("CMapWorld").FirstOrDefault() is not { } world)
             yield break;
@@ -74,7 +81,7 @@ public static partial class NavGenMapInput
         var hidden = MapEntities.HiddenNodes(document);
         foreach (var item in MapEntityList.Baked(document))
         {
-            if (MapEntities.ReadNode(item.Node) is not { } entity || !Tier0Strings.EqualsIgnoreCase(entity.ClassName, className))
+            if (MapEntities.ReadNode(item.Node) is not { } entity || !match(entity))
                 continue;
             var copied = item.Through.Count > 0 || item.Prefabs.Count > 0;
             // A prefab map's node ids are its own document's: its visibility manager hides them.

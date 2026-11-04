@@ -27,6 +27,8 @@ public class NavMovableTests(ITestOutputHelper output)
 
     [Theory]
     [InlineData("s2c_navmovable", "s2c_navmovable_run1.vpk")]
+    // The three func_movelinear and a func_mover with a func_brush parented to it (--clear-parents --no-point).
+    [InlineData("s2c_navmovable4", "s2c_navmovable4.vpk")]
     public void Nav_IsValvesUpToTheCustomData(string map, string reference)
     {
         var vmap = Path.Combine(Content, map + ".vmap");

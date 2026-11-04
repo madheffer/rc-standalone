@@ -76,8 +76,13 @@ listed. Its polygons are appended after the static ones and NAV_GEN_PROJ's, afte
 (1818e9510 through 1818ed5a0 / 1818f58c0, 0xFFFFFFFF for static). probe_classes (a mover with no
 polygons) and s2c_navmovable (tools/coverage/movable_nav_specimen.py: a level platform, a yawed one, a
 control) are Valve's .nav up to the custom data. Of the local maps only probe_classes sets the key.
-Refused: func_mover, point_nav_movable_mesh, prop_deformable's enable_map_generated_navmesh, a mover in
-an instance or prefab, a movable mesh on a map with ladders.
+func_mover too (s2c_navmovable4: its platform and a func_brush parented to it, 180fb6e00's parentname chain,
+case-sensitive, prop_deformable left out; Valve's .nav up to the custom data). point_nav_movable_mesh is
+read (ref_ent through the targetname search, navgen_on_ref_ent, the reference's matrix, the point's id path
+and GravityFollowsRotation) but refused: on s2c_navmovable2 and 3 Valve's search finds no entity for a
+ref_ent naming a visible func_brush ("0 reference entities found"), which the code read does not explain.
+Refused also: prop_deformable's enable_map_generated_navmesh, a mover in an instance or prefab, a movable
+mesh on a map with ladders.
 
 ### Which bodies the nav world takes
 

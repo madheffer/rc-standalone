@@ -21,8 +21,15 @@ Open:
 - 1.c2 overlay tangents (about 30 small atixref models, packed NORMAL holds a default tangent).
 - 1.c3 95 agg_prop models' tangent angle (Valve's encoder NaN path vs ours, a last-bit source difference).
 - 1.c4 two agg_nomerge aggregates' later meshlets; 1.c5 the missing-material rule (cardtest teleport02).
-- 1.c6 prop aggregate draw order variance claim, not yet checked against two Valve runs.
-- 1.c7 atixref whole `-world` package needs a fresh ParityReport (last count 344 of 553, 10-08).
+- 1.c6 prop aggregate draw order: **checked 11-04, not variance.** Two Valve `-world` compiles of atixref
+  (%TEMP%/fresh_compile/atixref_world_1104.vpk and atixref_world_run2.vpk) differ in 4 files only: world.vwrld_c's
+  stamp, n0.vwnod_c and the two metal_door_001 buckets swapping. So the other agg_prop models are deterministic
+  and ours differ in their draw order: in all 56 multi-draw scene objects of Valve's agg_prop models the draws
+  come in non-increasing vertex count (MEASURED). The code sorts by the mesh pointer (180290090); what makes the
+  pointers fall in that order is not read: CS2_CLOSED_QUEUE A.11. Not ported until then.
+- 1.c7 atixref `-world` ParityReport, 11-04 from the .vmap: 434 of 553 files (63.6% of bytes): lumps 11/11,
+  index 3/3, entity models 143/144, world nodes 277/395; the misses are the agg_prop draw order (1.c6), the
+  tangent angle (1.c3) and n0.vwnod.
 - 1.a1-1.a9 measured, not read: the SIMD transform and the renormalise before WRB_CollectMeshEntries, field and
   aggregate list order, AllowBackfaceCulling's parent set (materialsystem2 +0x60, written at 1800364c3).
 - 1.b refusals ZE maps can reach: foliage (NeedsLocalSpaceVertices), clutter, smart prop skips; detail grass
@@ -83,8 +90,9 @@ material block layout is measured; 6.a3 half rounding in lightmap_image_save; 6.
 ## 7. Baked outputs (nav, bomb damage, cubemaps, Steam Audio)
 
 To be finished after the above (user, 11-03). **7.b1 movable nav meshes from func_movelinear done 11-04** (ledger 242,
-NavMovable; probe_classes and s2c_navmovable .nav Valve's up to the custom data); still refused: func_mover,
-point_nav_movable_mesh, prop_deformable's, a mover in an instance / prefab or on a map with ladders. Open: 7.b9
+NavMovable; probe_classes, s2c_navmovable and s2c_navmovable4 (func_mover with a parented func_brush) .nav Valve's
+up to the custom data); still refused: point_nav_movable_mesh (Valve's ref_ent search found nothing on
+s2c_navmovable2/3, not understood), prop_deformable's, a mover in an instance / prefab or on a map with ladders. Open: 7.b9
 non-aggregate scene objects in cubemaps; 7.b2 unported collectors; 7.a1 / 7.a2 measured cube engine rules; 7.c1 the .nav pointer
 fields need a pass rule; 7.c3-7.c5 cube build state; 7.b11 Steam Audio instances and entity models; 7.c8
 Embree's BVH tie order; lightmap L16 and the ameliorate repack iterations.

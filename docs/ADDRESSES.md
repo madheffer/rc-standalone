@@ -312,7 +312,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1800207c0` | `CNavGenPolyProcessorStage1::Run` | in place on *(ctx + 0x30); returns false |  |
 | `1800207f0` | `CNavGenPolyProcessorStage2::Run` | out *(ctx + 0x38), in *(ctx + 0x30); returns true |  |
 | `180020820` | `NavGen_RunStages` | the stage list in order; a Stage2 swaps the in/out polygon lists (ctx + 0x30 / + 0x38) after it runs | `src/Source2.Compiler/Maps/NavGen/NavGenPipeline.cs:140` |
-| `180020cc0` | `NavGen_MovableTag` | MurmurHash2 of a movable entry's id path (entry +0x30), seed 0x3501a674; each of its polygons' +4 (1800250e0 movable loop: 1800260e0 with the stage count - 1 and no second list) | `src/Source2.Compiler/Maps/NavGen/NavMovable.cs:10`, `src/Source2.Compiler/Maps/NavGen/NavMovable.cs:28` |
+| `180020cc0` | `NavGen_MovableTag` | MurmurHash2 of a movable entry's id path (entry +0x30), seed 0x3501a674; each of its polygons' +4 (1800250e0 movable loop: 1800260e0 with the stage count - 1 and no second list) | `src/Source2.Compiler/Maps/NavGen/NavMovable.cs:10`, `src/Source2.Compiler/Maps/NavGen/NavMovable.cs:30` |
 | `1800217b0` | `NavGen_Generate` | per world: the stage input (180048b20), the stage list (180022b60), the mesh build (180022200); '>>NAVGEN: Skipped... no walkable seeds present' with no seeds | `src/Source2.Compiler/Maps/NavGen/NavGenMarkups.cs:45`, `src/Source2.Compiler/Maps/NavGen/NavGenMarkups.cs:522` |
 | `1800217b0` | `NavGen_Generate` | entry from RC's nav step: seed check, then the passes | `src/Source2.Compiler/Maps/NavGen/NavGenMarkups.cs:45`, `src/Source2.Compiler/Maps/NavGen/NavGenMarkups.cs:522` |
 | `180022200` | `NavGen_BuildMesh` | the mesh's vfn 0x98 with the processor's pool (+0x18) and polygons (+0x48), then the debug stages | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:10`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:70` |
@@ -781,7 +781,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 |---|---|---|---|
 | `1800fd550` | `ResourceCompilerMap_CompileMap` | sets ctx +0x605/+0x606 (bake now / baked lighting available): with gameinfo DefaultMapBuilders/bakedlighting, world off or entities only reads the lightmaps there, else bake = (not partial (+0x607) or bakelighting) and not nobakedlighting | `src/Source2.Compiler/Maps/MapCompile.cs:510`, `src/Source2.Compiler/Maps/MapCompileArgs.cs:153`, `src/Source2.Compiler/Maps/MapRootFile.cs:109` +1 |
 | `1800fe7b0` | `CResourceCompilerMap_AssignBakedShadowIndices` | directlight 2 for unshadowed stationary; shadow slots | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:60`, `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:213`, `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:284` |
-| `180105f50` | `NodeIdPath_Hash` | MurmurHash2 of heap ids then inline ids, seed 0x3501a674; light_path_uniqueid | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:722`, `src/Source2.Compiler/Maps/NavGen/NavMovable.cs:28` |
+| `180105f50` | `NodeIdPath_Hash` | MurmurHash2 of heap ids then inline ids, seed 0x3501a674; light_path_uniqueid | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:722`, `src/Source2.Compiler/Maps/NavGen/NavMovable.cs:30` |
 | `180107cb0` | `AssignBakedShadowIndices_PerLight` | light_path_uniqueid, light_map_uniqueid, bakedshadowindex |  |
 | `1801f5a40` | `LightProbe_AtlasCompare` | qsort key: size z, then y, then x, all descending |  |
 | `1801f5a80` | `LightProbe_PackAtlas` | CUtl3DAllocator pack; writes light_probe_atlas_x/Y/Z; the atlas size out (+0x1e0) is the allocator dims of the last fit (1801f5fce), each rounded up to 4, 0 -> 4 (1801f6080) | `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:130`, `src/Source2.Compiler/Maps/ProbeAtlas.cs:5`, `src/Source2.Compiler/Maps/ProbeAtlas.cs:32` |
@@ -1066,7 +1066,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1800fb1c0` | `CNavGenInput_Construct` | bounds FLT_MAX/-FLT_MAX, +0x120 15.0; +0x128 left to 180f20e40 |  |
 | `1800fc370` | `MapCompile_BuildNav` | the nav step: settings from the map's CMapNavData (180fafae0) or 'Nav settings not found, using default settings.', the seed and markup collectors (180f21760 first), navsystem's generation ('>>NAVGEN: Skipped... no walkable seeds present' with no seeds), then maps/<map>.nav, .navdbg, .navspace and .navflowmap. No seeds and no settings give the fixed 834-byte nav (Maps/NavFile.cs) | `src/Source2.Compiler/Maps/MapCompile.cs:362`, `src/Source2.Compiler/Maps/NavCompile.cs:21`, `src/Source2.Compiler/Maps/NavFile.cs:7` +3 |
 | `1800fd2b0` | `MapCompile_CreateNavMesh` | the custom nav factory (1800fbe80: gameinfo CustomNavBuild ModuleName / Interface; CS2 server.dll customnavsystem001) vfn 0x58, else a CNavMesh (0x428 bytes, 1818d4720) |  |
-| `180105f50` | `NodeIdPath_Hash` | MurmurHash2 of the id path's ints, seed 0x3501a674 (an out-of-line tail first); a movable mesh's polygon tag | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:722`, `src/Source2.Compiler/Maps/NavGen/NavMovable.cs:28` |
+| `180105f50` | `NodeIdPath_Hash` | MurmurHash2 of the id path's ints, seed 0x3501a674 (an out-of-line tail first); a movable mesh's polygon tag | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:722`, `src/Source2.Compiler/Maps/NavGen/NavMovable.cs:30` |
 | `180dd2210` | `EntityClass_HasStaticMesh` | the FGD class's metadata (+0xc0) bool has_static_mesh (hash 0x2755870d, default 0): prop_static and cable_static | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:88` |
 | `180f1ef70` | `NavGen_FindNavMarkups` | func_nav_markup entities in the map, then each sub-world's (flag 4 keeps the list) | `src/Source2.Compiler/Maps/NavGen/NavGenMarkups.cs:53` |
 | `180f1f830` | `NavGen_CollectNoNavBlocks` | 'prop_deformable', 'block_base_nav_mesh', 'NavGen' 'NONAV' |  |
@@ -1097,7 +1097,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180fb21f0` | `NavGen_LadderFromMesh` | per instance path (180f88460): the path's step matrix times the node's (vfn 0xa0); among faces of the first ladder material the one with the largest \|top - bottom\| x width (180fb1c10), first wins ties | `src/Source2.Compiler/Maps/NavGen/NavGenLadders.cs:23`, `src/Source2.Compiler/Maps/NavGen/NavGenLadders.cs:27` |
 | `180fb2830` | `NavGen_LadderWalk` | skips func_ladder entities; a mesh (vfn 0x138) with a ladder material goes to 180fb21f0, any other node recurses into its children | `src/Source2.Compiler/Maps/NavGen/NavGenLadders.cs:22` |
 | `180fb5440` | `NavGen_CollectAvoidMarkups` | 'NavGen' 'AVOID': each 0x48-byte record copied whole into a 0x50 markup, then the AVOID tag and a cleared flag byte |  |
-| `180fb5ce0` | `NavGen_CollectMovableMeshes` | func_movelinear / func_mover CreateMovableNavMesh, point_nav_movable_mesh ref_ent / navgen_on_ref_ent / GravityFollowsRotation, prop_deformable enable_map_generated_navmesh; called from 180fb5020 | `src/Source2.Compiler/Maps/NavGen/NavGenPipeline.cs:119`, `src/Source2.Compiler/Maps/NavGen/NavMovable.cs:6`, `src/Source2.Compiler/Maps/NavGen/NavMovable.cs:55` |
+| `180fb5ce0` | `NavGen_CollectMovableMeshes` | func_movelinear / func_mover CreateMovableNavMesh, point_nav_movable_mesh ref_ent / navgen_on_ref_ent / GravityFollowsRotation, prop_deformable enable_map_generated_navmesh; called from 180fb5020 | `src/Source2.Compiler/Maps/NavGen/NavGenPipeline.cs:119`, `src/Source2.Compiler/Maps/NavGen/NavMovable.cs:6`, `src/Source2.Compiler/Maps/NavGen/NavMovable.cs:57` |
 | `180fb6b80` | `NavGen_CollectAvoidModels_Thunk` | rcx = [rcx + 8]; non-null jumps to 180f4aed0 with the AVOID list in rdx |  |
 | `180fb6cf0` | `MapCompile_NavBodyEntry` | 0x78-byte entries from the 0x90 stride list at ctx + 0x18 |  |
 | `180fb6cf0` | `NavGen_MovableEntry` | a movable entry (0x90 at ctx +0x18) out: the id path, the 3x4 matrix at +0x38, the gravity byte +0x88 |  |
@@ -1108,7 +1108,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180fcb150` | `CMapWorld_OnNodeRemoved` | FastRemove from +0x1828 when the node is at its stored slot: the last entry moves into the slot; a node found elsewhere is not removed, only its slot cleared (-1); then out of the name buckets (ledger 179) | `src/Source2.Compiler/Maps/MapEntityList.cs:21` |
 | `180fdee80` | `CMapEntity::vf21_WorldToLocal` | vf 0xa0's world matrix through 18125aba0 (the inverse) | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:535`, `src/Source2.Compiler/Maps/NavGen/NavMovable.cs:7` |
 | `180fef240` | `CMapEntityIONode_ListSlot` | the node's slot in its world's entity list (set by 180fefb50); OnNodeAdded lists only a node whose slot is negative (ledger 179) |  |
-| `180fefbc0` | `MapEntity_TargetNameMatches` | vfn 0x7e0 targetname (the name 180fca010 hashes into the world 200 name buckets), V_CompareNameWithWildcards(pattern, name, 0) (search mode 1) |  |
+| `180fefbc0` | `MapEntity_TargetNameMatches` | vfn 0x7e0 targetname (the name 180fca010 hashes into the world 200 name buckets), V_CompareNameWithWildcards(pattern, name, 0) (search mode 1) | `src/Source2.Compiler/Maps/NavGen/NavGenMapInput.cs:72` |
 | `181063b90` | `CMapNavLink_Create` | 0x18b0 bytes: width +0x1858 128, locatoroffset +0x185c (128, 0, 0), locatorangles +0x1868 (0, 180, 0), type +0x1888 0 | `src/Source2.Compiler/Maps/MapEntities.cs:119` |
 | `181064300` | `CMapNavLinkLocator_IsA` | CMapNavLinkLocator, CMapProceduralLocator, CMapLocator, CMapTransform (vtable 182362db0, vf 0xc8 181076410) |  |
 | `181064a10` | `CMapNavLink_IsA` | CMapNavLink, CMapEntity, CMapGameDataNode, CMapEntityIONode | `src/Source2.Compiler/Maps/MapEntities.cs:331` |
@@ -1270,7 +1270,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 |---|---|---|---|
 | `18009fe10` | `Fgd_TypeAliases` | the aliases and extension each type stands for | `src/Source2.Compiler/Maps/FgdSchema.cs:807` |
 | `1800de990` | `ReturnFalse` | CMapInstance vf 0x868 and vf 0x870 | `src/Source2.Compiler/Maps/MapInstances.cs:368` |
-| `180106ee0` | `NodeIdPath_Format` | node +0x310 ids: 6 inline then heap, %d joined by a separator | `src/Source2.Compiler/Maps/NavGen/NavMovable.cs:21`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:63` |
+| `180106ee0` | `NodeIdPath_Format` | node +0x310 ids: 6 inline then heap, %d joined by a separator | `src/Source2.Compiler/Maps/NavGen/NavMovable.cs:23`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:63` |
 | `1801df980` | `CBufferString_SetFormat` | clears, then AppendFormatV |  |
 | `1801f7960` | `CMapBuilderContext_Ctor` | +0x10c = content-relative map path, no extension |  |
 | `1801f8c80` | `CMapBuilderContext::vf11` | map usage type of the world (0 standard .. 4 sharedenvironment) |  |

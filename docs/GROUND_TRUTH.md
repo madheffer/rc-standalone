@@ -6008,4 +6008,9 @@ reference was compiled on 2026-11-03 by the installed 1.41.9.5 resourcecompiler 
      - The .nav lists every mover (name "%d" per id, the 12 floats) and writes each polygon's tag.
      probe_classes and s2c_navmovable (tools/coverage/movable_nav_specimen.py, Valve's compile with
      CS2 open) .nav byte for byte up to the custom data (NavMovableTests, NavGenPipelineTests).
-     Refused: func_mover, point_nav_movable_mesh, prop_deformable, instances / prefabs, ladders.
+     - func_mover: itself and the visible entities parented to it (180fb6e00: parentname compared
+       case-sensitively against the targetname, 180fb77a0's tree, sub-maps searched too), prop_deformable
+       left out; s2c_navmovable4 exact.
+     - point_nav_movable_mesh read (ref_ent by targetname, 180fc7220 mode 1 / 180fefbc0), refused: Valve
+       found 0 entities for a ref_ent naming a visible func_brush on s2c_navmovable2 and 3, not explained.
+     Refused: point_nav_movable_mesh, prop_deformable, instances / prefabs, ladders.
