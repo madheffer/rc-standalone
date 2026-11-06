@@ -1,0 +1,8 @@
+Creating render device for graphics adapter 0 'NVIDIA GeForce RTX 4070' [VendorId 0x10DE / DeviceId 0x2786]: 32.0.16.1088
+- csgo_addons\vpkstuff_rc_probe\surfaceproperties\s2ckv3\s2c_kv3_surf3.vsurf
+resourcecompiler: Surface Property "default" is a duplicate of "default".  Cannot compile!
+                                                                      [FAIL]
+
+-----------------------------------------------------------------
+ ERROR: 0 compiled, 1 failed, 0 skipped, 0m:00s
+-----------------------------------------------------------------

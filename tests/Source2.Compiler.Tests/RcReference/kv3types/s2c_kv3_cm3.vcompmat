@@ -1,0 +1,43 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:generic:version{7412167c-06e9-4698-aff2-e63eb59037e7} -->
+{
+	_class = "CCompositeMaterialEditorDoc"
+	m_nVersion = 1
+	m_KVthumbnail = { a = 1 }
+	m_Points =
+	[
+		{
+			m_ModelName = resource_name:"models/dev/error.vmdl"
+			m_nSequenceIndex = 3
+			m_flCycle = 0.5
+			m_nMeshGroupMask = 18446744073709551615
+			m_bEnableChildModel = true
+			m_ChildModelName = resource_name:""
+			m_KVModelStateChoices = null
+			m_s2cKeep = "kept"
+			m_vecCompositeMaterialAssemblyProcedures =
+			[
+				{
+					m_vecMatchFilters = [ { m_nCompositeMaterialMatchFilterType = "MATCH_FILTER_MATERIAL_ATTRIBUTE_EXISTS" m_strMatchFilter = "composite_inputs" } ]
+					m_vecCompositeInputContainers =
+					[
+						{ m_nCompositeMaterialInputContainerSourceType = "CONTAINER_SOURCE_TYPE_TARGET_MATERIAL" m_strAlias = "target" },
+						{ m_bEnabled = false m_strAlias = "off" m_vecLooseVariables = [ { m_strName = "x" m_strTextureContentAssetPath = "materials/never.tga" } ] },
+						{
+							m_bEnabled = true
+							m_nCompositeMaterialInputContainerSourceType = "CONTAINER_SOURCE_TYPE_SPECIFIC_MATERIAL"
+							m_strSpecificContainerMaterial = resource_name:"Materials\Dev\CompositeMaterials_Prewarm\composite_generic_prewarm.vmat"
+							m_strAlias = "spec"
+							m_vecLooseVariables = [ { m_strName = "g_flX" m_nVariableType = "LOOSE_VARIABLE_TYPE_FLOAT1" m_flValue = 0.25 } ]
+						},
+					]
+					m_vecPropertyMutators =
+					[
+						{ m_nMutatorCommandType = "COMPMATPROPMUTATOR_INIT" m_strInitWith_Container = "target" },
+						{ m_bEnabled = false m_nMutatorCommandType = "COMPMATPROPMUTATOR_SET_VALUE" },
+						{ m_bEnabled = 1 m_nMutatorCommandType = "COMPMATPROPMUTATOR_COPY_MATCHING_KEYS" },
+					]
+				},
+			]
+		},
+	]
+}

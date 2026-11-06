@@ -134,12 +134,12 @@ internal static class EditInfo
     /// <paramref name="searchable"/>, and the subasset lists (null when not given).
     /// </summary>
     public static void AddTail(KVObject root, KVObject searchable, KVObject? children = null,
-        KVObject? subassetReferences = null, KVObject? subassetDefinitions = null)
+        KVObject? subassetReferences = null, KVObject? subassetDefinitions = null, IReadOnlyList<string>? weakReferences = null)
     {
         root.Add("m_SpecialInputDependencies", KVObject.Array());
         root.Add("m_AdditionalRelatedFiles", KVObject.Array());
         root.Add("m_ChildResourceList", children ?? KVObject.Array());
-        root.Add("m_WeakReferenceList", KVObject.Array());
+        root.Add("m_WeakReferenceList", KVObject.Array((weakReferences ?? []).Select(w => new KVObject(w) { Flag = KVFlag.ResourceName })));
         root.Add("m_SearchableUserData", searchable);
         root.Add("m_SubassetReferences", subassetReferences ?? KVObject.Null());
         root.Add("m_SubassetDefinitions", subassetDefinitions ?? KVObject.Null());

@@ -63,6 +63,13 @@ public static partial class Source2ContainerAuthor
                              LineColumnInfo: true),
             [".vpcf"] = new(1, [new("KV3 Compiler Version", "CompileParticle", 2),
                                     new("Particle Compiler Version", "CompileParticle", 2)]),
+            // RC 20261103 (11-06 probes, RcReference/kv3types): assettypes_common.txt names
+            // CompileSurfaceProperties and CompileVCompMat for these; resource versions and RED2
+            // rows as RC wrote them.
+            [".vsurf"] = new(1, [new("KV3 Compiler Version", "CompileSurfaceProperties", 2),
+                                    new("Surface Properties Compiler Version", "CompileSurfaceProperties", 2)]),
+            [".vcompmat"] = new(0, [new("Composite Materials Compiler Version", "CompileVCompMat", 1),
+                                       new("KV3 Compiler Version", "CompileVCompMat", 2)]),
             // .vagrp is extinct in CS2 content (0 in pak01 + every base pack,
             // 2026-07-20 audit) so there is no RC ground truth to mirror; it
             // keeps the sound-event identity the legacy donor skeleton gave it.
@@ -129,8 +136,28 @@ public static partial class Source2ContainerAuthor
 
         sourceFileName ??= "vpkeditor/compiled" + sourceExtension.ToLowerInvariant();
 
-        return Assemble(userDoc.Root, userDoc.Header.Format, spec, sourceExtension,
-                        sourceFileName, sourceTextBytes, userDoc, narrowIntegers: true, searchPath: searchPath);
+        // A type whose compiler rewrites the tree (rather than storing the text's) hands back
+        // its DATA and the subassets it registered with the compile context.
+        var dataRoot = userDoc.Root;
+        (KVObject, KVObject)? subassets = null;
+        if (sourceExtension.Equals(".vsurf", StringComparison.OrdinalIgnoreCase))
+        {
+            var surf = Compiling.SurfacePropertiesCompile.Compile(userDoc.Root);
+            dataRoot = surf.Data;
+            subassets = (surf.SubassetReferences, surf.SubassetDefinitions);
+        }
+        else if (sourceExtension.Equals(".vcompmat", StringComparison.OrdinalIgnoreCase))
+            dataRoot = Compiling.CompositeMaterialCompile.Compile(userDoc.Root);
+
+        // Then what the shared KV3 compile does with every type's tree (Kv3References).
+        var shared = Kv3References.Apply(dataRoot);
+        dataRoot = shared.Data;
+        var (subRefs, subDefs) = subassets ?? BuildSubassets(sourceExtension, userDoc);
+        subassets = (Kv3References.AddSoundEvents(subRefs, shared.SoundEvents), subDefs);
+
+        return Assemble(dataRoot, userDoc.Header.Format, spec, sourceExtension,
+                        sourceFileName, sourceTextBytes, userDoc, narrowIntegers: true, searchPath: searchPath, subassets: subassets,
+                        weakReferences: shared.Weak);
     }
 
     /// <summary>
@@ -167,7 +194,7 @@ public static partial class Source2ContainerAuthor
     private static byte[] Assemble(
         KVObject dataRoot, KV3ID format, ContainerSpec spec, string sourceExtension,
         string sourceFileName, byte[] sourceTextBytes, KVDocument? userDoc, bool narrowIntegers, Func<KVObject, KVObject>? editRed2 = null,
-        string searchPath = "csgo")
+        string searchPath = "csgo", (KVObject, KVObject)? subassets = null, IReadOnlyList<string>? weakReferences = null)
     {
         var file = new ResourceFile { Version = spec.ResourceVersion };
 
@@ -178,17 +205,17 @@ public static partial class Source2ContainerAuthor
         // own path-hash id (MurmurHash64B - reproduces stock RERL ids exactly).
         var refs = new List<string>();
         CollectResourceRefs(dataRoot, new HashSet<string>(StringComparer.OrdinalIgnoreCase), refs);
-        // A map's child resource lists them by path (probe01's n0.vwnod: the
-        // aggregate models before the cluster model).
-        if (spec.ChildResource)
-            refs = [.. refs.OrderBy(r => r, StringComparer.Ordinal)];
+        // RERL's one writer (rc 18016c0e0) sorts by V_stricmp_fast of the name, whatever order the
+        // references were added in (probe01's n0.vwnod: the aggregate models before the cluster
+        // model; a KV3 source's references, Kv3References).
+        refs = EditInfo.Red2Sorted(refs, r => r);
         if (refs.Count > 0)
             file.Blocks.Add(new ResourceBlock("RERL", ResourceRefs.Write([.. refs.Select(r => (Source2ResourceId.ForPath(r), r))], 0)));
 
         // RED2 - authored for THIS compile (real source name + CRC, correct
         // compiler identity, real subasset data), as binary KV3 v5 under the
         // "generic" format GUID, as resourcecompiler writes it.
-        var red2Doc = BuildRed2Document(spec, sourceExtension, sourceFileName, sourceTextBytes, userDoc, searchPath: searchPath);
+        var red2Doc = BuildRed2Document(spec, sourceExtension, sourceFileName, sourceTextBytes, userDoc, searchPath: searchPath, subassets: subassets, weakReferences: weakReferences);
         if (editRed2 != null)
             red2Doc = editRed2(red2Doc);
         file.Blocks.Add(new ResourceBlock("RED2", Kv3Binary.Write(NarrowIntegers(red2Doc), Kv3Formats.Get("generic"))));
@@ -252,7 +279,8 @@ public static partial class Source2ContainerAuthor
     /// have written for this compile (field set + shapes verified per type).</summary>
     private static KVObject BuildRed2Document(
         ContainerSpec spec, string sourceExtension, string sourceFileName, byte[] sourceTextBytes, KVDocument? userDoc,
-        SavedSource? savedSource = null, uint overrideFingerprint = 0, string searchPath = "csgo")
+        SavedSource? savedSource = null, uint overrideFingerprint = 0, string searchPath = "csgo", (KVObject, KVObject)? subassets = null,
+        IReadOnlyList<string>? weakReferences = null)
     {
         var root = KVObject.Collection();
 
@@ -312,8 +340,9 @@ public static partial class Source2ContainerAuthor
         }
 
         ArgumentNullException.ThrowIfNull(userDoc);
-        var (subRefs, subDefs) = BuildSubassets(sourceExtension, userDoc);
-        EditInfo.AddTail(root, BuildSearchableUserData(sourceExtension, userDoc), subassetReferences: subRefs, subassetDefinitions: subDefs);
+        var (subRefs, subDefs) = subassets ?? BuildSubassets(sourceExtension, userDoc);
+        EditInfo.AddTail(root, BuildSearchableUserData(sourceExtension, userDoc), subassetReferences: subRefs, subassetDefinitions: subDefs,
+            weakReferences: weakReferences);
         return root;
     }
 

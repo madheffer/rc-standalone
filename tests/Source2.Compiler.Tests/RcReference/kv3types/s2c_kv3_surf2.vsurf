@@ -1,0 +1,45 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:generic:version{7412167c-06e9-4698-aff2-e63eb59037e7} -->
+{
+	s2c_note = "probe: base chains, hidden, case, inherited sounds"
+	SurfacePropertiesList =
+	[
+		{
+			surfacePropertyName = "default"
+			hidden = true
+			physics = { density = 2000.0 elasticity = 0.25 friction = 0.8 hidden = 1 }
+			audiosounds = { impactSoft = "Default.ImpactSoft" impactHard = "Default.ImpactHard" bulletImpact = "" }
+			audioparams = { audioreflectivity = 0.66 occlusionFactor = 1 }
+			legacy = [ 1, 2, 3 ]
+		},
+		{
+			surfacePropertyName = "s2c_child"
+			base = "s2c_later"
+			Physics = { Density = 7 }
+			audiosounds = { impactSoft = "S2C.Child.Soft" }
+			extra = 3000000000
+		},
+		{
+			surfacePropertyName = "S2C_Mid"
+			base = "default"
+			hidden = false
+			audioparams = { audioreflectivity = 0 }
+			legacy = [ 4 ]
+			gamematerial = "X"
+		},
+		{
+			surfacePropertyName = "s2c_leaf"
+			base = "s2c_mid"
+			audiosounds = { impactHard = "default.impacthard" scrape = "S2C.Scrape" }
+		},
+		{
+			surfacePropertyName = "s2c_later"
+			base = "S2C_Mid"
+			physics = { friction = 0.1 }
+		},
+		{
+			surfacePropertyName = "s2c_nobase"
+			physics = { density = -5 }
+		},
+	]
+	s2c_tail = 1
+}

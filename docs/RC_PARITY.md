@@ -28,6 +28,8 @@ not a shrug, it is a measurement.
 | `.vtex` | **authored (C4)** | **authored (C4)** | n/a | n/a (binary) | yes |
 | `.vsnd` | **authored (C6)** | **authored (C5)** | dropped (correct) | n/a (binary) | yes |
 | `.vsvg` | **authored (C6)** | **authored (C5)** | n/a | n/a (binary) | yes |
+| `.vsurf` | matches (C10) | matches | n/a | **identical** | yes |
+| `.vcompmat` | matches (C10) | matches | n/a | **identical**; texture inputs refused | yes |
 
 **No donor of any kind is required.** Every compiled type describes its own
 compile AND authors its own container frame. A template is still accepted for the
@@ -70,6 +72,30 @@ vsndevts_c vdata_c vsnd_c vpost_c --write`: 46,265 of 46,265 blocks identical in
 uncompressed section and every header field, and every block the writer produces decodes
 back to the original in both our reader and VRF's. `Kv3TreeTests` pins it on the
 RcReference outputs, a hand-built tree with every array kind, and a stock sample.
+
+### C10 — surface properties, composite material kits, and the shared KV3 passes (2026-11-06)
+
+resourcecompiler takes each type's compiler from `game/bin/assettypes_common.txt` (`m_CompilerIdentifier`).
+Of the KV3 types listed there, `.vsurf` (CompileSurfaceProperties) and `.vcompmat` (CompileVCompMat) were
+missing. `.vsmart` is listed without a compiler, and `.vpulse`, `.vmix`, `.vdsp`, `.vrr` and the animation graph types are
+not listed at all: they are in `assettypes_internal.txt`, which Valve does not ship, so the installed RC refuses them
+("Resource type compiler identifier not found", "Failed to find compiler for file").
+`.vpost` (CompilePostProcessing bakes a colour correction volume, 134 KB from a 2 KB source), `.vsndstck`,
+`.vrmap`, `econitem` and Panorama's `.vcss` / `.vxml` / `.vpdi` remain.
+
+- `.vsurf` (ledger 260 on the map branch): every entry is rebuilt with its base chain merged in, `hidden` not
+  inherited, `m_nameHash` / `m_baseNameHash` added as uint32 string tokens, a `surface_prop` subasset definition per
+  name and a `soundevent` reference per audiosounds value. `SurfacePropertiesCompile`.
+- `.vcompmat` (ledger 261): the root's thumbnail, each point's seven preview members and every disabled input container
+  and property mutator are removed. A texture input (a child texture compile from the kit's vtex template) is
+  refused. `CompositeMaterialCompile`.
+- Every KV3 text type (ledger 262): RC's shared compile fixes up `resource:` and `resource_name:` strings, lists
+  `resource_name:` strings as RED2 weak references, counts `soundevent:` strings as subasset references, and sorts both
+  reference lists by `V_stricmp_fast`. We wrote no weak references, counted nothing and kept RERL in first-seen order;
+  no earlier fixture showed it. `Kv3References`.
+
+Pinned by `ResourceCompilerTests.Kv3TypeSource_CompilesToResourceCompilersBytes` on RC 20261103's compiles of
+`RcReference/kv3types` (two stock compiles decompiled to text, two hand-written probes), plus a refusal each.
 
 ### C9 — today's resourcecompiler: uint32 0 and 1 as types 26 / 27, VData identity v2 (2026-11-03)
 

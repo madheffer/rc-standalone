@@ -36,6 +36,52 @@ public class ResourceCompilerTests
         Assert.True(self.Exists);
     }
 
+    // RcReference/kv3types: compiled by RC 20261103 on 11-06 in vpkstuff_rc_probe (tools/re/texture/rc_probe.py).
+    [Theory]
+    // Stock compiles decompiled to text (surfaceproperties.vsurf_c, engrave_trophy.vcompmat_c): the hashes recomputed
+    // in place, the base members' order, two resource_name weak references sorted.
+    [InlineData("kv3types/s2c_kv3_surf1.vsurf", "surfaceproperties/s2ckv3/s2c_kv3_surf1.vsurf")]
+    [InlineData("kv3types/s2c_kv3_cm1.vcompmat", "compmatdata/s2ckv3/s2c_kv3_cm1.vcompmat")]
+    // Hand-written: base chains, a base later in the list, hidden at both depths, keys in other case,
+    // inherited audiosounds, a uint above int32, extra root keys.
+    [InlineData("kv3types/s2c_kv3_surf2.vsurf", "surfaceproperties/s2ckv3/s2c_kv3_surf2.vsurf")]
+    // Hand-written: thumbnail and point preview members removed, disabled containers (one with a texture input)
+    // and mutators removed, a backslashed mixed-case resource_name fixed up.
+    [InlineData("kv3types/s2c_kv3_cm3.vcompmat", "compmatdata/s2ckv3/s2c_kv3_cm3.vcompmat")]
+    public void Kv3TypeSource_CompilesToResourceCompilersBytes(string file, string contentPath)
+    {
+        var source = File.ReadAllBytes(RcReference(file));
+        var result = ResourceCompiler.CreateDefault().Compile(new CompileRequest(contentPath, source) { SearchPath = ProbeSearchPath });
+
+        Assert.True(result.Succeeded, string.Join("\n", result.Diagnostics));
+        Assert.Equal(contentPath + "_c", result.OutputPath);
+        Assert.Equal(File.ReadAllBytes(RcReference(file + "_c")), result.Output);
+    }
+
+    // A nameless entry takes its base's name, so RC refuses it as a duplicate (kv3types/s2c_kv3_surf3.vsurf.rc.log).
+    [Fact]
+    public void SurfaceProperties_NamelessEntryInheritsItsBasesName()
+    {
+        var result = ResourceCompiler.CreateDefault().Compile(new CompileRequest("surfaceproperties/s2ckv3/s2c_kv3_surf3.vsurf",
+            File.ReadAllBytes(RcReference("kv3types/s2c_kv3_surf3.vsurf"))) { SearchPath = ProbeSearchPath });
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Diagnostics, d => d.Message.Contains("Surface Property \"default\" is a duplicate of \"default\""));
+    }
+
+    // An enabled container's texture input needs the child texture compile (18015a270), which is not ported.
+    [Fact]
+    public void CompositeMaterial_TextureInputIsRefusedByName()
+    {
+        var kit = """
+            <!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:generic:version{7412167c-06e9-4698-aff2-e63eb59037e7} -->
+            { m_Points = [ { m_vecCompositeMaterialAssemblyProcedures = [ { m_vecCompositeInputContainers = [
+                { m_vecLooseVariables = [ { m_strName = "t" m_strTextureContentAssetPath = "materials/x.tga" } ] } ] } ] } ] }
+            """u8.ToArray();
+        var result = ResourceCompiler.CreateDefault().Compile(new CompileRequest("compmatdata/x.vcompmat", kit));
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Diagnostics, d => d.Message.Contains("materials/x.tga") && d.Message.Contains("not ported"));
+    }
+
     [Fact]
     public void UnknownExtension_IsAnErrorNotAnException()
     {
